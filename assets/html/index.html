@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adminpanel Chatbot für Umschüler</title>
+    <link rel="stylesheet" href="assets/css/admin.css">
+    <script src="assets/js/post_request.js" defer></script>
+    <script src="assets/js/peer_connect.js" defer></script>
+</head>
+<body>
+    <script>
+        function del(in_url) {
+            if (window.confirm("Wollen Sie den Datensatz wirklich löschen?")) {
+                window.location.href = in_url;
+            } else {
+                alert("Löschen abgebrochen");
+            }
+        }
+    </script>
+
+    <div id="admin-panel">
+        <nav>
+            <h3>Adminpanel</h3>
+            <div class="nav-links">
+                ###REGISTER### ###USER### | ###LOGOUT###
+            </div>
+           
+        </nav>
+            ###CONTENT###
+    </div>
+    <div>
+        <h2>Video-Chat</h2>
+        <video id="local-video" autoplay muted></video>
+        <video id="remote-video" autoplay></video>
+    </div>
+    
+</body>
+</html>
+
+  

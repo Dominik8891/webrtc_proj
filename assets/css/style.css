@@ -1,0 +1,339 @@
+/* assets/css/style.css */
+body {
+    background-color: #f0f4f8; /* Leichter Grau-Blau-Ton */
+    font-family: 'Roboto', sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    position: relative;
+}
+
+h2 {
+    color: #333;
+    text-align: center;
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 30px;
+}
+
+/* Container-Styling */
+.container {
+    width: 60%;
+    max-width: 700px;
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 15px;
+    padding: 25px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column; /* Elemente im Container übereinander platzieren */   
+    gap: 20px; /* Abstand zwischen Chat-History und Chat-Formular */
+}
+
+.container:hover {
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+}
+
+/* Chat-History Styling */
+#chat-history {
+    height: 400px; /* Höhe für den Chat-Verlauf */
+    overflow-y: auto;
+    border: 1px solid #dcdcdc;
+    border-radius: 10px;
+    padding: 20px;
+    background-color: #f9f9f9;
+    font-size: 15px;
+    line-height: 1.6;
+    flex-grow: 1; /* Chat-History soll so viel Platz wie möglich einnehmen */
+}
+
+/* Chat-Formular Styling */
+#chat-form {
+    display: flex;
+    flex-direction: column; /* Eingabefeld und Button übereinander */
+    gap: 15px;
+}
+
+/* Eingabefeld Styling */
+#chat-form textarea {
+    width: 100%;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    resize: none;
+    font-size: 15px;
+    font-family: 'Roboto', sans-serif;
+    box-sizing: border-box;
+}
+
+/* Button-Wrapper für Rechtsbündigkeit */
+.button-wrapper {
+    display: flex;
+    justify-content: flex-end; /* Rechtsbündig */
+}
+
+#chat-form div.button-wrapper button[type="submit"] {
+    background-color: #007bff !important;
+    color: #fff !important;
+    padding: 12px 25px !important;
+    border: none !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    font-weight: bold !important;
+    transition: background-color 0.3s ease !important;
+}
+
+/* Senden-Button Hover-Effekt */
+#chat-form div.button-wrapper button[type="submit"]:hover {
+    background-color: #0056b3 !important;
+}
+
+
+.logout {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logout .username {
+    color: #666;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.logout a {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #003366; /* Dunkelblau */
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+
+.logout a:hover {
+    background-color: #002244; /* Dunkleres Blau beim Hover */
+}
+
+.home a {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #007bff; /* Blau wie der Senden-Button */
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+    margin-right: 10px; /* Abstand zwischen den Links */
+    transition: background-color 0.3s ease;
+}
+
+.home a:hover {
+    background-color: #0056b3; /* Dunkleres Blau beim Hover */
+}
+
+.home {
+    display: flex;
+    justify-content: center;
+    gap: 15px; /* Abstand zwischen den Links */
+}
+
+
+/* Stil für die Formular-Labels */
+.login-form label {
+    display: block;
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: #333;
+    font-weight: 600;
+}
+
+/* Stil für die Eingabefelder */
+.login-form input[type="text"],
+.login-form input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+    font-family: 'Roboto', sans-serif;
+    box-sizing: border-box;
+}
+
+/* Stil für den Login-Button */
+#login-button {
+    background-color: #007bff;
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    width: 100%; /* Button soll die volle Breite einnehmen */
+    transition: background-color 0.3s ease;
+}
+
+/* Hover-Effekt für den Login-Button */
+#login-button:hover {
+    background-color: #0056b3;
+}
+
+/* Optional: zentrierter Button und Formular */
+.login-form {
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Stil für die Formular-Labels */
+.signup-form label {
+    display: block;
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: #333;
+    font-weight: 600;
+}
+
+/* Stil für die Eingabefelder (Text, E-Mail und Passwort) */
+.signup-form input[type="text"],
+.signup-form input[type="email"],
+.signup-form input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+    font-family: 'Roboto', sans-serif;
+    box-sizing: border-box;
+}
+
+/* Stil für den Sign-Up-Button */
+#signup-button {
+    background-color: #28a745; /* Grün für Sign-Up */
+    color: white;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    width: 100%; /* Button soll die volle Breite einnehmen */
+    transition: background-color 0.3s ease;
+}
+
+/* Hover-Effekt für den Sign-Up-Button */
+#signup-button:hover {
+    background-color: #218838;
+}
+
+/* Optional: zentrierter Button und Formular */
+.signup-form {
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* Chat */
+#chat-history {
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 20px;
+    height: 500px;
+    overflow-y: auto;
+    background-color: #f9f9f9;
+    border-radius: 5px;
+}
+
+.message {
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    max-width: 75%;
+    position: relative;
+}
+
+.message.user {
+    background-color: #e1f5fe;
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.message.user .header {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.message.user .header strong {
+    margin-right: 10px;
+}
+
+.message.user .content {
+    display: inline-block;
+    text-align: right;
+}
+
+.message.user .time {
+    text-align: right;
+    font-size: 0.8em;
+    color: #555;
+    margin-top: 5px;
+}
+
+.message.bot {
+    background-color: #dcedc8;
+    text-align: left;
+    margin-right: auto;
+}
+
+.message.bot .content {
+    display: inline-block;
+    text-align: left;
+}
+
+.message.bot .time {
+    font-size: 0.8em;
+    color: #555;
+    margin-top: 5px;
+}
+
+
+
+
+
+@media (max-width: 768px) {
+    .container {
+        width: 80%;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        width: 95%;
+    }
+
+    .logout {
+        flex-direction: column;
+        top: 10px;
+        right: 10px;
+    }
+
+    #chat-history {
+        height: 250px;
+    }
+}
