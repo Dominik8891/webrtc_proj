@@ -16,11 +16,10 @@ function handleSignalingData(data) {
     if (data.type === 'offer') {
         handleOffer(data);
     } else if (data.type === 'answer') {
-        // Richtig:
-        localPeerConnection.setRemoteDescription(new RTCSessionDescription({
-            type: data.type,
-            sdp: data.sdp
-        }));
+    localPeerConnection.setRemoteDescription(new RTCSessionDescription({
+        type: data.type,
+        sdp: data.sdp
+    })).catch(console.error);
     } else if (data.type === 'iceCandidate') {
         let candidateObj = data.candidate;
         if (typeof candidateObj === "string") {
@@ -28,10 +27,12 @@ function handleSignalingData(data) {
                 candidateObj = JSON.parse(candidateObj);
             } catch(e) {
                 console.warn("Konnte ICE candidate nicht parsen:", candidateObj);
+                candidateObj = null;
             }
         }
         if (candidateObj && localPeerConnection) {
-            localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
+            console.log("Füge ICE-Kandidat hinzu:", candidateObj);
+            localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj)).catch(console.error);
         }
     } else if (data.type === 'hangup') {
         endCall();

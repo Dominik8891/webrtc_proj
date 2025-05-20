@@ -1,31 +1,4 @@
-/*function handleOffer(data) {
-    console.log("handleOffer aufgerufen mit:", data);
-    ensurePeerConnection();
-    console.log("handleOffer data:", data);
 
-    if (!localPeerConnection) {
-        alert("PeerConnection nicht vorhanden!");
-        return;
-    }
-
-    if (!data.type || !data.sdp) {
-        alert("Type oder SDP fehlt!");
-        return;
-    }
-
-    localPeerConnection.setRemoteDescription(new RTCSessionDescription({
-        type: data.type,
-        sdp: data.sdp
-    }))
-    .then(() => localPeerConnection.createAnswer())
-    .then(answer => localPeerConnection.setLocalDescription(answer))
-    .then(() => sendSignalMessage({
-        type: 'answer',
-        sdp: localPeerConnection.localDescription.sdp,
-        target: data.target
-    }))
-    .catch(console.error);
-}*/
 function handleOffer(data) {
     window.activeTargetUserId = data.sender_id;
     console.log('handleOffer aufgerufen mit:', data);
