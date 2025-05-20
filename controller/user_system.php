@@ -176,8 +176,9 @@ function generate_user_rows($in_user, $in_user_ids)
 function create_call_btn($btn_id)
 {
     return '
-    <button onclick="sendPostRequest(' . $btn_id . ')">Call</button>';
+    <button class="start-call-btn" id="start-call-btn-' . $btn_id . '">Call</button>';
 }
+
 
 
 /**

@@ -13,6 +13,8 @@ include 'controller/webrtc_system.php';
 
 // Erstellen einer Instanz der PDO-Verbindung zur Datenbank
 $pdo_instance = new PdoConnect();
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
 // Start der PHP-Session für Benutzerdaten
 session_start();
