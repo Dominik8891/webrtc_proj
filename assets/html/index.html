@@ -40,9 +40,16 @@
         <h2>Video-Chat</h2>
         <video id="local-video" autoplay muted playsinline></video>
         <video id="remote-video" autoplay playsinline></video>
+        <button id="accept-call-btn" style="display:none;">Anruf annehmen</button>
+        <button id="end-call-btn" style="display:none;">Call beenden</button>
     </div>
-    <button id="accept-call-btn" style="display:none;">Anruf annehmen</button>
-    <button id="end-call-btn" style="display:none;">Call beenden</button>
+    <div id="chat-area" style="display:none;">
+        <div id="chat-log" style="height:120px;overflow:auto;border:1px solid #ccc"></div>
+        <input id="chat-input" placeholder="Nachricht..." autocomplete="off" />
+        <button id="chat-send-btn">Senden</button>
+        <input type="file" id="file-input">
+    </div>
+
 
 
 

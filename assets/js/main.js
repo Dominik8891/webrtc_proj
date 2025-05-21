@@ -12,21 +12,6 @@ window.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-/*window.addEventListener('DOMContentLoaded', function() {
-    // Button-Event-Handler etc. einrichten ...
-    // Jetzt das Polling starten:
-    pollSignaling();
-});*/
-
-/*window.addEventListener('DOMContentLoaded', function() {
-    var endBtn = document.getElementById('end-call-btn');
-    if (endBtn) {
-        endBtn.addEventListener('click', function() {
-            endCall(true); // Beim Klick wird hangup gesendet
-        });
-    }
-});*/
-
 window.addEventListener('DOMContentLoaded', function() {
     setEndCallButtonVisible(false);
     pollSignaling();
@@ -40,7 +25,7 @@ window.addEventListener('DOMContentLoaded', function() {
             document.getElementById('accept-call-btn').style.display = "none"; // Button ausblenden
 
             // KEIN getUserMedia, wenn du nichts senden willst!
-            createPeerConnection();
+            window.createPeerConnection(false);
             window.localStream = null;
 
             window.localPeerConnection.setRemoteDescription(new RTCSessionDescription({
@@ -75,7 +60,77 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+window.addEventListener('DOMContentLoaded', function() {
+    const chatBtn = document.getElementById('chat-send-btn');
+    const chatInput = document.getElementById('chat-input');
+    if (chatBtn && chatInput) {
+        chatBtn.addEventListener('click', function() {
+            if (window.dataChannel && window.dataChannel.readyState === "open") {
+                window.dataChannel.send(chatInput.value);
+                appendChatMsg("me", chatInput.value);
+                chatInput.value = "";
+            }
+        });
+    }
+});
+
 function setEndCallButtonVisible(visible) {
     var btn = document.getElementById('end-call-btn');
     if (btn) btn.style.display = visible ? '' : 'none';
 }
+
+window.appendChatMsg = function(who, msg) {
+    const log = document.getElementById("chat-log");
+    const div = document.createElement("div");
+    div.textContent = (who === "remote" ? "Partner: " : "Du: ") + msg;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+};
+
+window.sendChatMsg = function(msg) {
+    if (window.dataChannel && window.dataChannel.readyState === "open") {
+        window.dataChannel.send(msg);
+        window.appendChatMsg("self", msg);
+    }
+};
+
+window.sendFile = function(file) {
+    if (window.dataChannel && window.dataChannel.readyState === "open") {
+        // Dateien klein halten, sonst muss in Blöcke gesplittet werden!
+        file.arrayBuffer().then(buffer => {
+            window.dataChannel.send(buffer);
+            window.appendChatMsg("self", "Datei gesendet: " + file.name);
+        });
+    }
+};
+
+window.addEventListener('DOMContentLoaded', function() {
+    // Chat-Nachricht senden
+    var sendBtn = document.getElementById("chat-send-btn");
+    var chatInput = document.getElementById("chat-input");
+    if (sendBtn && chatInput) {
+        sendBtn.addEventListener('click', function() {
+            const msg = chatInput.value;
+            if (msg) {
+                window.sendChatMsg(msg);
+                chatInput.value = "";
+            }
+        });
+        // Enter-Taste für Senden
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === "Enter") {
+                sendBtn.click();
+            }
+        });
+    }
+
+    // Datei senden
+    var fileInput = document.getElementById("file-input");
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length) window.sendFile(e.target.files[0]);
+        });
+    }
+});
+
+

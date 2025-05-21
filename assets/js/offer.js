@@ -5,7 +5,7 @@ window.startCall = function(targetUserId) {
         .then(stream => {
             window.localStream = stream;
             document.getElementById('local-video').srcObject = stream;
-            window.createPeerConnection();
+            window.createPeerConnection(true);
             window.addLocalTracks();
             return window.localPeerConnection.createOffer();
         })
