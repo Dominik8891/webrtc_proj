@@ -51,6 +51,9 @@ function handleSignalingData(data) {
         }
     } else if (data.type === 'hangup') {
         endCall(false);
+        var acceptBtn = document.getElementById('accept-call-btn');
+        if (acceptBtn) acceptBtn.style.display = "none";
+        setEndCallButtonVisible(false); // <- falls aktiv!
         alert("Der andere Teilnehmer hat das Gespräch beendet.");
     }
 }
