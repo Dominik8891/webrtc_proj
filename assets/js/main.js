@@ -1,4 +1,13 @@
 window.activeTargetUserId = null;
+window.hangupReceived = false; // Verhindert doppelte Hangup-Meldung
+
+window.handleHangupSource = function(source) {
+    if (window.hangupReceived) return; // Meldung nur einmal anzeigen
+    window.hangupReceived = true;
+    alert("Der andere Teilnehmer hat das Gespräch beendet." + (source ? " (" + source + ")" : ""));
+    endCall(false); // Beende lokal, aber kein neues Signal senden
+};
+
 
 window.addEventListener('DOMContentLoaded', function() {
     

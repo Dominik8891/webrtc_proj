@@ -23,7 +23,7 @@ function output($in_content)
 	$text = "<a href='index.php?act=login_page'>Login</a>";
 
 	// Wenn der Benutzer angemeldet ist und eine Rolle größer als 2 hat (z.B. Admin oder Moderator)
-	if (isset($_SESSION['user_id']) )
+	if (isset($_SESSION['user_id']) && is_numeric($_SESSION['user_id']))
 	{	
 		// Benutzerinformationen aus der Datenbank laden
 		$user = new User($_SESSION['user_id']);
@@ -120,7 +120,7 @@ function output_fe($in_content)
 	$out = $in_content;
 
 	// Wenn der Benutzer eingeloggt ist
-	if (isset($_SESSION['user_id']))
+	if (isset($_SESSION['user_id']) && is_numeric($_SESSION['user_id']))
 	{
 		// Lädt das Logout-Template und ersetzt den Platzhalter mit dem Benutzernamen
 		$logout = file_get_contents("assets/html/frontend/logout.html");

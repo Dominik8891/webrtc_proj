@@ -49,12 +49,12 @@ function handleSignalingData(data) {
         } else {
             window.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
         }
-    } else if (data.type === 'hangup') {
-        endCall(false);
+    }else if (data.type === 'hangup') {
+        window.handleHangupSource("Server");
         var acceptBtn = document.getElementById('accept-call-btn');
         if (acceptBtn) acceptBtn.style.display = "none";
-        setEndCallButtonVisible(false); // <- falls aktiv!
-        alert("Der andere Teilnehmer hat das Gespräch beendet.");
+        setEndCallButtonVisible(false); // falls aktiv!
+        // Kein zusätzliches alert() mehr!
     }
 }
 

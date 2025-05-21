@@ -1,7 +1,7 @@
 window.isCallActive = false;
 
 function endCall(sendSignal = true) {
-    // Beispiel für PeerConnection und Video-Cleanup (anpassen!)
+    // PeerConnection und Video-Cleanup
     if (window.localPeerConnection) {
         window.localPeerConnection.close();
         window.localPeerConnection = null;
@@ -17,14 +17,23 @@ function endCall(sendSignal = true) {
     if (localVideo) localVideo.srcObject = null;
     if (remoteVideo) remoteVideo.srcObject = null;
 
-    // End-Call-Button ausblenden
     setEndCallButtonVisible(false);
 
-    // Nur Signal senden, wenn User wirklich den Call beendet!
-    if (sendSignal && window.activeTargetUserId) {
-        sendSignalMessage({ type: 'hangup', target: window.activeTargetUserId });
+    // Nur eine Hangup-Benachrichtigung senden
+    if (!window.hangupReceived) {
+        window.hangupReceived = true; // Direkt setzen, damit keine Dopplungen mehr möglich sind
+
+        // Nur Signal senden, wenn User selbst beendet und Server verfügbar ist
+        if (sendSignal && window.activeTargetUserId) {
+            sendSignalMessage({ type: 'hangup', target: window.activeTargetUserId });
+        }
+
+        // Fallback: DataChannel nur verwenden, wenn sendSignalMessage fehlschlägt
+        // Oder, falls du DataChannel immer noch willst:
+        // if (window.dataChannel && window.dataChannel.readyState === "open") {
+        //     window.dataChannel.send("__hangup__");
+        // }
     }
-    // Call-Status zurücksetzen (optional)
+
     window.isCallActive = false;
 }
-

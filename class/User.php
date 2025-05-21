@@ -42,13 +42,9 @@ class User
                 $this->pwd      = $result[0]['pwd'];
                 $this->deleted  = $result[0]['deleted'];
             }
-            elseif(count($stmt->fetchAll()) >= 2)
-            {
-                die("Fehler: Mehr als einen Datensatz gefunden!");
-            }
             else
             {
-                die("Fehler: Keinen Datensatz trotz ID gefunden!");
+                throw new Exception("Benutzer mit ID {$in_id} nicht gefunden.");
             }
         }
         else
@@ -91,13 +87,6 @@ class User
     $stmt->execute();
 
     $result = $stmt->fetchAll();
-
-    if (count($result) > 0) {
-        // Benutzer erfolgreich gefunden, erstelle Benutzeraktivität
-        $this->createUserActivity($result[0]['id']);
-    } else {
-        echo "Fehler: Benutzer konnte nicht gefunden werden.";
-    }
 }
 
 
@@ -117,7 +106,7 @@ class User
                             email       = :email,
                             pwd         = :pwd,
                             deleted     = :deleted
-                      WHERE user_id     = :user_id;";
+                      WHERE id          = :user_id;";
 
         $stmt = PdoConnect::$connection->prepare($query);
         $stmt ->bindParam(":user_id"  , $this->id);
@@ -127,7 +116,6 @@ class User
         $stmt ->bindParam(":deleted"  , $this->deleted);
 
         $stmt ->execute();
-        $this->updateUserActivity();
     }
 
     /**
@@ -202,7 +190,6 @@ class User
         
             $this->id       = $result[0]['id'];
             $this->setUserStatus('online');
-            $this->updateUserActivity();
             return $this->id;
         }
         else
@@ -213,7 +200,7 @@ class User
         
     }
 
-    public function createUserActivity($in_id)
+    /*ublic function createUserActivity($in_id)
     {
         $query = "INSERT INTO user_activity (user_id, created_at) VALUES (:id, CURRENT_TIMESTAMP);";
         $stmt  = PdoConnect::$connection->prepare($query);
@@ -239,7 +226,7 @@ class User
     $stmt->execute();
     $result = fetchAll();
     return $result[0]['last_activity'];
-    }
+    }*/
 
 
     public function setUserStatus($status)
@@ -309,7 +296,7 @@ class User
     {
         $query = "SELECT * FROM user WHERE email = :email";
         $stmt  = PdoConnect::$connection->prepare($query);
-        $stmt  ->bindParam(":email", $$in_email);
+        $stmt  ->bindParam(":email", $in_email);
 
         $stmt->execute();
         $result = $stmt->fetch();

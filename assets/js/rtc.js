@@ -88,8 +88,16 @@ window.setupDataChannel = function(dc) {
     dc.onclose = () => {
         document.getElementById('chat-area').style.display = "none";
         console.log("DataChannel geschlossen!");
+        if (window.isCallActive) {
+            alert("Der andere Teilnehmer hat die Verbindung beendet.");
+            endCall(false); // Kein neues Signal senden, einfach lokal beenden
+        }
     };
     dc.onmessage = (e) => {
+        if (e.data === "__hangup__") {
+            window.handleHangupSource("Peer");
+            return;
+        }
         if (typeof e.data === "string") {
             window.appendChatMsg("remote", e.data);
         } else {
