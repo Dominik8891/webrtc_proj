@@ -50,7 +50,7 @@ function handleSignalingData(data) {
             window.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
         }
     } else if (data.type === 'hangup') {
-        endCall();
+        endCall(false);
         alert("Der andere Teilnehmer hat das Gespräch beendet.");
     }
 }

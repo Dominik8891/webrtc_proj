@@ -29,8 +29,12 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 window.addEventListener('DOMContentLoaded', function() {
-    // ... dein anderer Code ...
-    document.getElementById('end-call-btn').addEventListener('click', endCall);
+    var endBtn = document.getElementById('end-call-btn');
+    if (endBtn) {
+        endBtn.addEventListener('click', function() {
+            endCall(true); // Beim Klick wird hangup gesendet
+        });
+    }
 });
 
 /*window.addEventListener('DOMContentLoaded', function() {
