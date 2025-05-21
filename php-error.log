@@ -11724,3 +11724,51 @@ Stack trace:
 [20-May-2025 16:35:28 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
 [20-May-2025 16:35:35 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
 [20-May-2025 16:35:36 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:38:55 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:38:57 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:38:58 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:39:00 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:39:02 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:39:03 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:39:05 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:40:28 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:40:35 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:40:38 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 08:40:40 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:09:33 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:09:35 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:09:36 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:09:38 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:09:44 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:09:49 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:09:51 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:09:52 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:35:22 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:35:24 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\login_system.php on line 66
+[21-May-2025 09:35:24 Europe/Berlin] PHP Fatal error:  Uncaught TypeError: User::__construct(): Argument #1 ($in_id) must be of type string|int, null given, called in C:\xampp\htdocs\rtcProjekt\controller\login_system.php on line 66 and defined in C:\xampp\htdocs\rtcProjekt\class\User.php:22
+Stack trace:
+#0 C:\xampp\htdocs\rtcProjekt\controller\login_system.php(66): User->__construct(NULL)
+#1 C:\xampp\htdocs\rtcProjekt\index.php(35): act_logout()
+#2 {main}
+  thrown in C:\xampp\htdocs\rtcProjekt\class\User.php on line 22
+[21-May-2025 09:35:28 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\login_system.php on line 66
+[21-May-2025 09:35:28 Europe/Berlin] PHP Fatal error:  Uncaught TypeError: User::__construct(): Argument #1 ($in_id) must be of type string|int, null given, called in C:\xampp\htdocs\rtcProjekt\controller\login_system.php on line 66 and defined in C:\xampp\htdocs\rtcProjekt\class\User.php:22
+Stack trace:
+#0 C:\xampp\htdocs\rtcProjekt\controller\login_system.php(66): User->__construct(NULL)
+#1 C:\xampp\htdocs\rtcProjekt\index.php(35): act_logout()
+#2 {main}
+  thrown in C:\xampp\htdocs\rtcProjekt\class\User.php on line 22
+[21-May-2025 09:35:35 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:35:36 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:35:38 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:35:40 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:51:26 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:51:28 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:51:35 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:51:36 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 09:51:38 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 10:05:15 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 10:05:22 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 10:05:24 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 10:05:25 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79
+[21-May-2025 10:05:27 Europe/Berlin] PHP Warning:  Undefined array key "user_id" in C:\xampp\htdocs\rtcProjekt\controller\webrtc_system.php on line 79

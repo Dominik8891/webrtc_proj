@@ -10,16 +10,26 @@ function sendSignalMessage(msg) {
     .then(console.log)
     .catch(console.error);
 }
+window.pendingCandidates = window.pendingCandidates || [];
 
 function handleSignalingData(data) {
     console.log("Empfangene Nachricht:", data);
     if (data.type === 'offer') {
         handleOffer(data);
     } else if (data.type === 'answer') {
-    localPeerConnection.setRemoteDescription(new RTCSessionDescription({
-        type: data.type,
-        sdp: data.sdp
-    })).catch(console.error);
+        localPeerConnection.setRemoteDescription(new RTCSessionDescription({
+            type: data.type,
+            sdp: data.sdp
+        }))
+        .then(() => {
+            // Nach dem Setzen der RemoteDescription alle zwischengespeicherten ICE-Kandidaten hinzufügen
+            if (window.pendingCandidates && window.pendingCandidates.length) {
+                window.pendingCandidates.forEach(candidate =>
+                    window.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+                );
+                window.pendingCandidates = [];
+            }
+        });
     } else if (data.type === 'iceCandidate') {
         let candidateObj = data.candidate;
         if (typeof candidateObj === "string") {
@@ -27,18 +37,24 @@ function handleSignalingData(data) {
                 candidateObj = JSON.parse(candidateObj);
             } catch(e) {
                 console.warn("Konnte ICE candidate nicht parsen:", candidateObj);
-                candidateObj = null;
             }
         }
-        if (candidateObj && localPeerConnection) {
-            console.log("Füge ICE-Kandidat hinzu:", candidateObj);
-            localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj)).catch(console.error);
+        // NEU: Candidate speichern, wenn PeerConnection oder remoteDescription noch fehlt!
+        if (
+            !window.localPeerConnection ||
+            !window.localPeerConnection.remoteDescription ||
+            !window.localPeerConnection.remoteDescription.type
+        ) {
+            window.pendingCandidates.push(candidateObj);
+        } else {
+            window.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
         }
     } else if (data.type === 'hangup') {
         endCall();
         alert("Der andere Teilnehmer hat das Gespräch beendet.");
     }
 }
+
 
 
 function pollSignaling() {
