@@ -24,43 +24,79 @@ window.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('DOMContentLoaded', function() {
     setEndCallButtonVisible(false);
     pollSignaling();
+
+    // 1. Anruf-Annehmen-Button zeigt nur noch Dialog an
     var acceptBtn = document.getElementById('accept-call-btn');
     if (acceptBtn) {
         acceptBtn.addEventListener('click', function() {
-            setEndCallButtonVisible(true);
-            window.isCallActive = true;
-            // Hole das Angebot aus window.pendingOffer
-            const data = window.pendingOffer;
-            document.getElementById('accept-call-btn').style.display = "none"; // Button ausblenden
+            document.getElementById('media-select-dialog').style.display = '';
+        });
+    }
 
-            // KEIN getUserMedia, wenn du nichts senden willst!
-            window.createPeerConnection(false);
+    // 2. Medien-Dialog: Annehmen
+    document.getElementById('media-accept-btn').addEventListener('click', function() {
+        document.getElementById('media-select-dialog').style.display = 'none';
+        setEndCallButtonVisible(true);
+        window.isCallActive = true;
+        const data = window.pendingOffer;
+        document.getElementById('accept-call-btn').style.display = "none"; // Button ausblenden
+
+        // Auswahl auswerten
+        const useVideo = document.getElementById('media-video-checkbox').checked;
+        const useAudio = document.getElementById('media-audio-checkbox').checked;
+        const constraints = {};
+        if (useVideo) constraints.video = true;
+        if (useAudio) constraints.audio = true;
+
+        let promise;
+        if (constraints.video || constraints.audio) {
+            promise = navigator.mediaDevices.getUserMedia(constraints)
+                .then(stream => {
+                    window.localStream = stream;
+                    document.getElementById('local-video').srcObject = stream;
+                    window.createPeerConnection(false);
+                    window.addLocalTracks();
+                });
+        } else {
             window.localStream = null;
+            window.createPeerConnection(false);
+            promise = Promise.resolve();
+        }
 
-            window.localPeerConnection.setRemoteDescription(new RTCSessionDescription({
+        promise.then(() => {
+            return window.localPeerConnection.setRemoteDescription(new RTCSessionDescription({
                 type: data.type,
                 sdp: data.sdp
-            }))
-            .then(() => {
-                // KEIN addLocalTracks(), wenn kein Stream!
-                return window.localPeerConnection.createAnswer();
-            })
-            .then(answer => {
-                return window.localPeerConnection.setLocalDescription(answer).then(() => answer);
-            })
-            .then(answer => {
-                sendSignalMessage({
-                    type: 'answer',
-                    sdp: answer.sdp,
-                    target: data.sender_id
-                });
-            })
-            .catch(e => {
-                alert("Fehler beim Verarbeiten des Angebots: " + e.message);
+            }));
+        })
+        .then(() => {
+            return window.localPeerConnection.createAnswer();
+        })
+        .then(answer => {
+            return window.localPeerConnection.setLocalDescription(answer).then(() => answer);
+        })
+        .then(answer => {
+            sendSignalMessage({
+                type: 'answer',
+                sdp: answer.sdp,
+                target: data.sender_id
             });
+        })
+        .catch(e => {
+            alert("Fehler beim Verarbeiten des Angebots: " + e.message);
         });
-        
-    }
+    });
+
+    // 3. Medien-Dialog: Ablehnen
+    document.getElementById('media-decline-btn').addEventListener('click', function() {
+        document.getElementById('media-select-dialog').style.display = 'none';
+        document.getElementById('accept-call-btn').style.display = "none";
+        setEndCallButtonVisible(false);
+        // Optional: Sende ein Hangup-Signal, wenn du den Call auch beim Anrufer abbrechen willst:
+        // sendSignalMessage({ type: "hangup", target: window.pendingOffer.sender_id });
+    });
+
+    // Dein bestehender End-Call-Button bleibt wie gehabt
     var endBtn = document.getElementById('end-call-btn');
     if (endBtn) {
         endBtn.addEventListener('click', function() {
@@ -68,6 +104,7 @@ window.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
 
 window.addEventListener('DOMContentLoaded', function() {
     const chatBtn = document.getElementById('chat-send-btn');
@@ -141,5 +178,7 @@ window.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+
 
 
