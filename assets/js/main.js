@@ -92,8 +92,6 @@ window.addEventListener('DOMContentLoaded', function() {
         document.getElementById('media-select-dialog').style.display = 'none';
         document.getElementById('accept-call-btn').style.display = "none";
         setEndCallButtonVisible(false);
-        // Optional: Sende ein Hangup-Signal, wenn du den Call auch beim Anrufer abbrechen willst:
-        // sendSignalMessage({ type: "hangup", target: window.pendingOffer.sender_id });
     });
 
     // Dein bestehender End-Call-Button bleibt wie gehabt
@@ -179,6 +177,10 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden && typeof endCall === 'function') {
+        endCall(false);
+    }
+});
 
 

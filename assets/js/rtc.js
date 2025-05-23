@@ -4,75 +4,34 @@ window.localStream = null;
 window.tracksAdded = false;
 window.dataChannel = null;
 
-/*window.createPeerConnection = function() {
-    if (window.localPeerConnection) return; // Schon initialisiert
-    const config = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
-      ]
-    };
-    window.localPeerConnection = new RTCPeerConnection(config);
+window.iceServersLoaded = false;
+window.meteredIceServers = null;
 
-    window.dataChannel = window.localPeerConnection.createDataChannel("chat");
-    setuptDataChannel(window.dataChannel);
+// Async-Laden der Metered.live ICE-Server
+window.loadIceServers = async function() {
+    const response = await fetch("index.php?act=get_turn_credentials");
+    const iceServers = await response.json();
+    window.meteredIceServers = Array.isArray(iceServers) ? iceServers : iceServers.iceServers;
+    window.iceServersLoaded = true;
 
-    window.localPeerConnection.onicecandidate = event => {
-        if (event.candidate && window.activeTargetUserId) {
-            window.sendSignalMessage({ type: 'iceCandidate', candidate: event.candidate, target: window.activeTargetUserId });
-        }
-    };
+}
 
-    window.localPeerConnection.ontrack = event => {
-        const remoteVideo = document.getElementById('remote-video');
-        if (remoteVideo) remoteVideo.srcObject = event.streams[0];
-    };
 
-    console.log('Peer-Verbindung erstellt');
-    window.tracksAdded = false;
-};*/
-
-/*window.createPeerConnection = function(isInitiator = false) {
-    if (window.localPeerConnection) return; // Schon initialisiert
-    const config = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
-      ]
-    };
-    window.localPeerConnection = new RTCPeerConnection(config);
-
-    // Nur als Anrufer DataChannel erzeugen
-    if (isInitiator) {
-        window.dataChannel = window.localPeerConnection.createDataChannel("chat");
-        window.setupDataChannel(window.dataChannel);
-    }
-
-    window.localPeerConnection.ondatachannel = (event) => {
-        window.dataChannel = event.channel;
-        window.setupDataChannel(window.dataChannel);
-    };
-
-    window.localPeerConnection.onicecandidate = event => {
-        if (event.candidate && window.activeTargetUserId) {
-            window.sendSignalMessage({ type: 'iceCandidate', candidate: event.candidate, target: window.activeTargetUserId });
-        }
-    };
-
-    window.localPeerConnection.ontrack = event => {
-        const remoteVideo = document.getElementById('remote-video');
-        if (remoteVideo) remoteVideo.srcObject = event.streams[0];
-    };
-
-    console.log('Peer-Verbindung erstellt');
-    window.tracksAdded = false;
-};*/
+window.loadIceServers();
 
 window.createPeerConnection = function(isInitiator = false) {
     if (window.localPeerConnection) return; // Schon initialisiert
+
+    if (!window.iceServersLoaded) {
+        console.log("ICE-Server werden noch geladen, PeerConnection verzögert!");
+        setTimeout(() => window.createPeerConnection(isInitiator), 200);
+        return;
+    }
+
     const config = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
-      ]
+      iceServers: window.meteredIceServers
+        //{ urls: 'stun:stun.l.google.com:19302' },
+        //{ urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
     };
     window.localPeerConnection = new RTCPeerConnection(config);
 
@@ -89,12 +48,14 @@ window.createPeerConnection = function(isInitiator = false) {
 
     // HIER die Korrektur:
     window.localPeerConnection.onicecandidate = event => {
+        console.log("Sende ICE-Kandidat:", event.candidate);
         if (event.candidate && window.activeTargetUserId) {
             window.sendSignalMessage({ type: 'iceCandidate', candidate: event.candidate, target: window.activeTargetUserId });
         }
     };
 
     window.localPeerConnection.ontrack = event => {
+        console.log("ontrack-Event! Streams:", event.streams);
         const remoteVideo = document.getElementById('remote-video');
         if (remoteVideo) remoteVideo.srcObject = event.streams[0];
     };

@@ -3,9 +3,14 @@ window.startCall = function(targetUserId) {
     window.activeTargetUserId = targetUserId;
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then(stream => {
-            window.localStream = stream;
-            document.getElementById('local-video').srcObject = stream;
-            window.createPeerConnection(true);
+        window.localStream = stream;
+        document.getElementById('local-video').srcObject = stream;
+        window.createPeerConnection(true);
+
+        // 100ms Delay bevor Tracks hinzugefügt werden:
+        return new Promise(resolve => setTimeout(resolve, 100));
+        })
+        .then(() => {
             window.addLocalTracks();
             return window.localPeerConnection.createOffer();
         })

@@ -12,52 +12,6 @@ function sendSignalMessage(msg) {
 }
 window.pendingCandidates = window.pendingCandidates || [];
 
-/*function handleSignalingData(data) {
-    console.log("Empfangene Nachricht:", data);
-    if (data.type === 'offer') {
-        handleOffer(data);
-    } else if (data.type === 'answer') {
-        localPeerConnection.setRemoteDescription(new RTCSessionDescription({
-            type: data.type,
-            sdp: data.sdp
-        }))
-        .then(() => {
-            // Nach dem Setzen der RemoteDescription alle zwischengespeicherten ICE-Kandidaten hinzufügen
-            if (window.pendingCandidates && window.pendingCandidates.length) {
-                window.pendingCandidates.forEach(candidate =>
-                    window.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-                );
-                window.pendingCandidates = [];
-            }
-        });
-    } else if (data.type === 'iceCandidate') {
-        let candidateObj = data.candidate;
-        if (typeof candidateObj === "string") {
-            try {
-                candidateObj = JSON.parse(candidateObj);
-            } catch(e) {
-                console.warn("Konnte ICE candidate nicht parsen:", candidateObj);
-            }
-        }
-        // NEU: Candidate speichern, wenn PeerConnection oder remoteDescription noch fehlt!
-        if (
-            !window.localPeerConnection ||
-            !window.localPeerConnection.remoteDescription ||
-            !window.localPeerConnection.remoteDescription.type
-        ) {
-            window.pendingCandidates.push(candidateObj);
-        } else {
-            window.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
-        }
-    }else if (data.type === 'hangup') {
-        window.handleHangupSource("Server");
-        var acceptBtn = document.getElementById('accept-call-btn');
-        if (acceptBtn) acceptBtn.style.display = "none";
-        setEndCallButtonVisible(false); // falls aktiv!
-        // Kein zusätzliches alert() mehr!
-    }
-}*/
-
 function handleSignalingData(data) {
     console.log("Empfangene Nachricht:", data);
     if (data.type === 'offer') {
@@ -77,6 +31,8 @@ function handleSignalingData(data) {
             }
         });
     } else if (data.type === 'iceCandidate') {
+        console.log("Empfange ICE-Kandidat:", data.candidate);
+
         let candidateObj = data.candidate;
 
         // IGNORIERE leere/null Kandidaten!
@@ -127,5 +83,5 @@ function pollSignaling() {
         })
     .catch(err => console.error("Polling-Fehler:", err));
 
-    }, 1500);
+    }, 500);
 }

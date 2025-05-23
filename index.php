@@ -10,6 +10,7 @@ include 'controller/signup_system.php'; // Verbindet das Anmelde-/Registrierungs
 include 'controller/user_system.php';   // Verbindet das Benutzersystem
 include 'controller/message_system.php'; // Verbindet das Nachrichtensystem
 include 'controller/webrtc_system.php';
+include 'controller/api_system.php';
 
 // Erstellen einer Instanz der PDO-Verbindung zur Datenbank
 $pdo_instance = new PdoConnect();
