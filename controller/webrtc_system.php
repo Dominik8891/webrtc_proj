@@ -42,36 +42,40 @@ function act_getSignal() {
             }
         }
 
-        // Jetzt der Abruf für den Empfänger:
-        $receiver = $_SESSION['user_id'];
-        $query = "SELECT * FROM rtc_signal WHERE receiver_id = :receiver ORDER BY created_at ASC";
-        $stmt = PdoConnect::$connection->prepare($query);
-        $stmt->bindParam(':receiver', $receiver);
-        $stmt->execute();
-        $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        file_put_contents('debug.txt', "User ID###\n", FILE_APPEND);
-        file_put_contents('debug.txt', $_SESSION['user_id'] . "\n", FILE_APPEND);
-        file_put_contents('debug.txt', "Decodierte Message:###\n", FILE_APPEND);
-        file_put_contents('debug.txt', "DECODED: " . print_r($messages, true) . "\n", FILE_APPEND);
-        // NEU: Leere ICE-Kandidaten rausfiltern und nur gültige zurückgeben!
-        $filteredMessages = [];
-        foreach ($messages as $msg) {
-            if ($msg['type'] === 'iceCandidate') {
-                if (empty($msg['candidate'])) continue; // Leere rausfiltern
-                $msg['candidate'] = json_decode($msg['candidate'], true);
-                if (empty($msg['candidate']) || empty($msg['candidate']['candidate'])) continue; // Nochmals auf leeres Objekt/candidate prüfen!
+        if(isset($_SESSION['user_id']))
+        {
+            // Jetzt der Abruf für den Empfänger:
+            $receiver = $_SESSION['user_id'];
+            $query = "SELECT * FROM rtc_signal WHERE receiver_id = :receiver ORDER BY created_at ASC";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':receiver', $receiver);
+            $stmt->execute();
+            $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            file_put_contents('debug.txt', "User ID###\n", FILE_APPEND);
+            file_put_contents('debug.txt', $_SESSION['user_id'] . "\n", FILE_APPEND);
+            file_put_contents('debug.txt', "Decodierte Message:###\n", FILE_APPEND);
+            file_put_contents('debug.txt', "DECODED: " . print_r($messages, true) . "\n", FILE_APPEND);
+            // NEU: Leere ICE-Kandidaten rausfiltern und nur gültige zurückgeben!
+            $filteredMessages = [];
+            foreach ($messages as $msg) {
+                if ($msg['type'] === 'iceCandidate') {
+                    if (empty($msg['candidate'])) continue; // Leere rausfiltern
+                    $msg['candidate'] = json_decode($msg['candidate'], true);
+                    if (empty($msg['candidate']) || empty($msg['candidate']['candidate'])) continue; // Nochmals auf leeres Objekt/candidate prüfen!
+                }
+                $filteredMessages[] = $msg;
             }
-            $filteredMessages[] = $msg;
-        }
 
-        // Optional: Nach dem Senden die Nachrichten löschen:
-        $queryDel = "DELETE FROM rtc_signal WHERE receiver_id = :receiver";
-        //$queryDel = "DELETE FROM rtc_signal;";
-        $stmtDel = PdoConnect::$connection->prepare($queryDel);
-        $stmtDel->bindParam(':receiver', $receiver);
-        $stmtDel->execute();
-        echo json_encode($filteredMessages);
-        exit;
+            // Optional: Nach dem Senden die Nachrichten löschen:
+            $queryDel = "DELETE FROM rtc_signal WHERE receiver_id = :receiver";
+            //$queryDel = "DELETE FROM rtc_signal;";
+            $stmtDel = PdoConnect::$connection->prepare($queryDel);
+            $stmtDel->bindParam(':receiver', $receiver);
+            $stmtDel->execute();
+            echo json_encode($filteredMessages);
+            exit;
+        }
+        
     }
      catch (Exception $e) {
         file_put_contents('debug.txt', "Fehler: " . $e->getMessage() . "\n", FILE_APPEND);
