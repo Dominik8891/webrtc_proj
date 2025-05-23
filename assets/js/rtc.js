@@ -110,4 +110,57 @@ window.setupDataChannel = function(dc) {
     };
 };
 
+window.initFakeSelfCall = async function() {
+    try {
+        if (!window.localPeerConnection) {
+            console.log("[FakeSelfCall] Starte Initialisierung...");
+            window.createPeerConnection(true);
+
+            // Warte einen Tick, damit die PeerConnection angelegt ist
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Media holen (Dummy-Stream)
+            const stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+            window.localStream = stream;
+            window.addLocalTracks();
+
+            // Offer erzeugen (NICHT senden!)
+            const offer = await window.localPeerConnection.createOffer();
+            await window.localPeerConnection.setLocalDescription(offer);
+
+            console.log("[FakeSelfCall] PeerConnection-Init abgeschlossen:", window.localPeerConnection);
+        }
+    } catch(e) {
+        console.error("[FakeSelfCall] Fehler bei PeerConnection-Init:", e);
+    }
+};
+
+window.dumpWebRTCState = function(context = "") {
+    console.log("-----[ WebRTC STATE: " + context + " ]-----");
+    console.log("localPeerConnection:", window.localPeerConnection);
+    if (window.localPeerConnection) {
+        console.log("  - connectionState:", window.localPeerConnection.connectionState);
+        console.log("  - signalingState:", window.localPeerConnection.signalingState);
+        console.log("  - iceConnectionState:", window.localPeerConnection.iceConnectionState);
+        console.log("  - localDescription:", window.localPeerConnection.localDescription);
+        console.log("  - remoteDescription:", window.localPeerConnection.remoteDescription);
+        console.log("  - senders:", window.localPeerConnection.getSenders());
+        console.log("  - receivers:", window.localPeerConnection.getReceivers());
+    }
+    console.log("localStream:", window.localStream);
+    if (window.localStream) {
+        console.log("  - tracks:", window.localStream.getTracks());
+    }
+    console.log("dataChannel:", window.dataChannel);
+    if (window.dataChannel) {
+        console.log("  - readyState:", window.dataChannel.readyState);
+        console.log("  - label:", window.dataChannel.label);
+    }
+    console.log("tracksAdded:", window.tracksAdded);
+    console.log("pendingCandidates:", window.pendingCandidates);
+    console.log("isCallActive:", window.isCallActive);
+    console.log("activeTargetUserId:", window.activeTargetUserId);
+    console.log("pendingOffer:", window.pendingOffer);
+    console.log("--------------------------------------");
+}
 

@@ -1,5 +1,6 @@
 
-window.startCall = function(targetUserId) {
+window.startCall = async function(targetUserId) {
+    await window.initFakeSelfCall();
     window.activeTargetUserId = targetUserId;
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then(stream => {
@@ -27,6 +28,7 @@ window.startCall = function(targetUserId) {
         .catch(console.error);
     setEndCallButtonVisible(true); // Zeige Button
     window.isCallActive = true; // Setze Call-Status global
+    window.dumpWebRTCState("Nach Self-Call oder Outgoing Call");
 };
 
 

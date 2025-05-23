@@ -16,12 +16,14 @@ window.addEventListener('DOMContentLoaded', function() {
         button.addEventListener("click", function() {
             console.log("Anruf mit User-ID:", btn_id);
             // Ziel-User ggf. speichern, wenn für die Signalisierung nötig
+            window.dumpWebRTCState("Vor neuem Call");
             startCall(btn_id);
         });
     });
 });
 
 window.addEventListener('DOMContentLoaded', function() {
+    window.dumpWebRTCState("App Start");
     setEndCallButtonVisible(false);
     pollSignaling();
 
@@ -92,6 +94,8 @@ window.addEventListener('DOMContentLoaded', function() {
         document.getElementById('media-select-dialog').style.display = 'none';
         document.getElementById('accept-call-btn').style.display = "none";
         setEndCallButtonVisible(false);
+        endCall(true); // Beim Klick wird hangup gesendet
+        window.dumpWebRTCState("Nach ablehnen des Selfcalls aber ohne endcall funktion");
     });
 
     // Dein bestehender End-Call-Button bleibt wie gehabt
@@ -181,6 +185,10 @@ document.addEventListener('visibilitychange', function() {
     if (document.hidden && typeof endCall === 'function') {
         endCall(false);
     }
+});
+
+window.addEventListener('DOMContentLoaded', function() {
+    window.initFakeSelfCall();
 });
 
 
