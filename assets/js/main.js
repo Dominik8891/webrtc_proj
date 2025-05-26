@@ -34,19 +34,26 @@ window.addEventListener('DOMContentLoaded', function() {
     var acceptBtn = document.getElementById('accept-call-btn');
     if (acceptBtn) {
         acceptBtn.addEventListener('click', function() {
-            document.getElementById('media-select-dialog').style.display = '';
+            var dialog = document.getElementById('media-select-dialog');
+            if (dialog) {
+                dialog.style.display = '';
+            }
         });
     }
 
     // 2. Medien-Dialog: Annehmen
     document.getElementById('media-accept-btn').addEventListener('click', function() {
         window.stopSound(ringtone);
-        document.getElementById('media-select-dialog').style.display = 'none';
+        var dialog = document.getElementById('media-select-dialog');
+        if (dialog) {
+            dialog.style.display = 'none';
+        }
         setEndCallButtonVisible(true);
         window.isCallActive = true;
         const data = window.pendingOffer;
-        document.getElementById('accept-call-btn').style.display = "none"; // Button ausblenden
+        //document.getElementById('accept-call-btn').style.display = "none"; // Button ausblenden
         document.body.classList.add('call-active');
+        document.getElementById('call-view').style.display = '';
         // Auswahl auswerten
         const useVideo = document.getElementById('media-video-checkbox').checked;
         const useAudio = document.getElementById('media-audio-checkbox').checked;
@@ -102,8 +109,12 @@ window.addEventListener('DOMContentLoaded', function() {
 
     // 3. Medien-Dialog: Ablehnen
     document.getElementById('media-decline-btn').addEventListener('click', function() {
-        document.getElementById('media-select-dialog').style.display = 'none';
-        document.getElementById('accept-call-btn').style.display = "none";
+        var dialog = document.getElementById('media-select-dialog');
+        if (dialog) {
+            dialog.style.display = 'none';
+        }
+        var btn = document.getElementById('accept-call-btn');
+        if (btn) btn.style.display = "none";
         setEndCallButtonVisible(false);
         endCall(true); // Beim Klick wird hangup gesendet
         window.dumpWebRTCState("Nach ablehnen des Selfcalls aber ohne endcall funktion");

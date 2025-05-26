@@ -2,6 +2,9 @@ window.isCallActive = false;
 
  window.endCall = function(sendSignal = true) {
     document.body.classList.remove('call-active');
+    document.getElementById('call-view').style.display = 'none';
+    //document.getElementById('admin-panel').style.display = '';
+
     // PeerConnection beenden
     if (window.localPeerConnection) {
         window.localPeerConnection.close();

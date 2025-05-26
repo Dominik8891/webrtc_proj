@@ -31,6 +31,9 @@ window.startCall = async function(targetUserId) {
     window.isCallActive = true; // Setze Call-Status global
     window.dumpWebRTCState("Nach Self-Call oder Outgoing Call");
     document.body.classList.add('call-active');
+    document.getElementById('call-view').style.display = '';
+    //document.getElementById('admin-panel').style.display = 'none'; // Adminpanel ausblenden
+
 };
 
 

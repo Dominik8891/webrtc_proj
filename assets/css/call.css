@@ -1,0 +1,292 @@
+#call-view {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    z-index: 9999;
+    top: 0;
+    left: 0;
+    background: #f0f2f5;
+    overflow: hidden;
+}
+
+.call-grid {
+    display: grid;
+    width: 100vw;
+    height: 100vh;
+    grid-template-columns: 2fr 6fr 2fr;
+    grid-template-rows: min-content minmax(320px, 60vh) 1fr;
+    gap: 8px;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+}
+
+/* Kopfzeile */
+.user-info {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+    background: #f5f7fa;
+    border: 1.5px solid #007BFF;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.03em;
+    color: #007BFF;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+}
+.call-controls {
+    grid-column: 3 / 4;
+    grid-row: 1 / 2;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding-right: 8px;
+}
+#end-call-btn {
+    min-width: 115px;
+    min-height: 36px;
+    font-size: 1em;
+    border: 1.5px solid #007BFF;
+    border-radius: 6px;
+    background: #ff6666;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 1px 6px #ff666622;
+    transition: background 0.2s;
+}
+#end-call-btn:hover {
+    background: #d9534f;
+}
+
+/* Video-Bereich */
+.remote-video-box {
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f0f4fa;
+    border: 2px solid #007BFF;
+    border-radius: 10px;
+    min-height: 320px;
+    max-height: 60vh;
+    height: 100%;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.06);
+    position: relative;
+}
+.remote-video-box video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 10px;
+    background: #000;
+    box-shadow: 0 2px 10px #007bff14;
+}
+.remote-video-label {
+    position: absolute;
+    left: 12px;
+    bottom: 8px;
+    font-size: 14px;
+    color: #fff;
+    background: #007BFFCC;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-weight: 600;
+}
+.local-video-box {
+    grid-column: 3 / 4;
+    grid-row: 2 / 3;
+    background: #eaf2fd;
+    border: 1.5px solid #007BFF;
+    border-radius: 9px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px #007bff16;
+}
+.local-video-box video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+    background: #222;
+}
+.local-video-label {
+    font-size: 13px;
+    color: #007BFF;
+    background: #fff;
+    border-radius: 4px;
+    margin-top: 2px;
+    padding: 1px 8px;
+    font-weight: 600;
+    box-shadow: 0 1px 4px #007bff10;
+}
+
+/* Chatbereich + Sidebar */
+.chat-row {
+    grid-column: 1 / 4;
+    grid-row: 3 / 4;
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    padding: 0 1vw;
+    gap: 0;
+}
+.chat-box {
+    flex: 2 1 0;
+    display: flex;
+    flex-direction: column;
+    background: #f8f9fc;
+    border: 1.5px solid #007BFF;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-right: 8px;
+    height: 100%;
+    min-width: 0;
+    box-shadow: 0 2px 10px #007bff12;
+}
+#chat-area {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 5px;
+    padding: 6px 8px;
+    font-size: 15px;
+    margin-bottom: 5px;
+    min-height: 40px;
+}
+#chat-log {
+    min-height: 38px;
+    font-size: 1em;
+    color: #333;
+    word-break: break-word;
+}
+.chat-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+}
+#chat-input {
+    flex: 1 1 0;
+    padding: 9px 12px;
+    border: 1px solid #007BFF;
+    border-radius: 6px;
+    font-size: 1em;
+    background: #fff;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    transition: border 0.2s;
+}
+#chat-input:focus {
+    border: 1.5px solid #007BFF;
+    outline: none;
+}
+
+/* Sidebar für Buttons, Datei, Senden */
+.sidebar-controls {
+    flex: 0 0 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 22px;
+    justify-content: flex-start;
+    margin-left: 0;
+    margin-top: 0;
+}
+.arrow-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.arrow-controls .row {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin: 4px 0;
+}
+.arrow-controls button {
+    width: 72px;
+    height: 56px;
+    font-size: 2em;
+    border-radius: 8px;
+    border: 2px solid #007BFF;
+    background: #f5f5f5;
+    color: #007BFF;
+    transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+    cursor: pointer;
+    font-weight: bold;
+}
+.arrow-controls button:hover {
+    background: #e0eaff;
+    color: #0056b3;
+    box-shadow: 0 2px 8px #007bff22;
+}
+/* Datei auswählen Button ausblenden */
+#file-input {
+    display: none !important;
+}
+#chat-send-btn {
+    background: #007BFF;
+    color: #fff;
+    border-radius: 5px;
+    font-weight: bold;
+    font-size: 1em;
+    padding: 16px 0;
+    border: 1.5px solid #007BFF;
+    cursor: pointer;
+    box-shadow: 0 1px 5px #007bff10;
+    margin-top: 5px;
+    transition: background 0.2s;
+}
+#chat-send-btn:hover {
+    background: #0056b3;
+}
+
+@media (max-width: 900px) {
+    .call-grid {
+        grid-template-columns: 1fr 2fr 1fr;
+        grid-template-rows: min-content minmax(220px, 40vh) 1fr;
+    }
+    .chat-row { padding: 0; }
+    .arrow-controls button {
+        width: 60px;
+        height: 42px;
+        font-size: 1.3em;
+    }
+    #chat-send-btn {
+        padding: 12px 0;
+    }
+}
+@media (max-width: 650px) {
+    .call-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: min-content minmax(120px, 36vh) 1fr;
+        gap: 6px;
+    }
+    .chat-row {
+        flex-direction: column;
+        padding: 0 2vw;
+    }
+    .sidebar-controls {
+        flex-direction: row;
+        gap: 8px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 8px;
+    }
+    .arrow-controls button {
+        width: 48px;
+        height: 36px;
+        font-size: 1.1em;
+    }
+    #chat-send-btn {
+        padding: 8px 0;
+    }
+}

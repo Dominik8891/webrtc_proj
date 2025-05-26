@@ -13,9 +13,14 @@ function handleOffer(data) {
     window.pendingOffer = data; // Merke dir das Angebot global
 
     // SOFORT den Medien-Dialog anzeigen:
-    document.getElementById('media-select-dialog').style.display = '';
+    var dialog = document.getElementById('media-select-dialog');
+    if (dialog) {
+        dialog.style.display = '';
+    }
     // Verstecke den alten Annehmen-Button (falls sichtbar)
-    document.getElementById('accept-call-btn').style.display = "none";
+    var btn = document.getElementById('accept-call-btn');
+    if (btn) btn.style.display = "none";
+
     window.playSound('incomming_call_ringtone'); 
 }
 
