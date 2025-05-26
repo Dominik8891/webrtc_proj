@@ -7,6 +7,7 @@ window.startCall = async function(targetUserId) {
         window.localStream = stream;
         document.getElementById('local-video').srcObject = stream;
         window.createPeerConnection(true);
+        window.playSound('call_ringtone');
 
         // 100ms Delay bevor Tracks hinzugefügt werden:
         return new Promise(resolve => setTimeout(resolve, 100));

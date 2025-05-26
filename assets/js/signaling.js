@@ -1,3 +1,4 @@
+window.pollingIntervalId = null;
 
 
 function sendSignalMessage(msg) {
@@ -61,6 +62,8 @@ function handleSignalingData(data) {
         var acceptBtn = document.getElementById('accept-call-btn');
         if (acceptBtn) acceptBtn.style.display = "none";
         setEndCallButtonVisible(false); // falls aktiv!
+        window.endCall(true);
+        window.stopSound('call_ringtone');
         // Kein zusätzliches alert() mehr!
     }
 }
@@ -69,19 +72,30 @@ function handleSignalingData(data) {
 
 
 function pollSignaling() {
-    console.log("Starte Polling!");
-    setInterval(() => {
-        fetch('index.php?act=getSignal')
-        .then(r => r.json())
-        .then(msgArr => {
-            console.log("Nachrichten vom Server:", msgArr);
-            if (Array.isArray(msgArr)) {
-                msgArr.forEach(msg => handleSignalingData(msg));
-            } else {
-                console.error("Server hat kein Array zurückgegeben!", msgArr);
-            }
-        })
-    .catch(err => console.error("Polling-Fehler:", err));
+    if (window.pollingIntervalId !== null) return; // Schon aktiv
 
+    console.log("Starte Polling!");
+    window.pollingIntervalId = setInterval(() => {
+        fetch('index.php?act=getSignal')
+            .then(r => r.json())
+            .then(msgArr => {
+                console.log("Nachrichten vom Server:", msgArr);
+                if (Array.isArray(msgArr)) {
+                    msgArr.forEach(msg => handleSignalingData(msg));
+                } else {
+                    console.error("Server hat kein Array zurückgegeben!", msgArr);
+                }
+            })
+            .catch(err => console.error("Polling-Fehler:", err));
     }, 500);
 }
+
+
+function stopPolling() {
+    if (window.pollingIntervalId !== null) {
+        clearInterval(window.pollingIntervalId);
+        window.pollingIntervalId = null;
+        console.log("Polling gestoppt!");
+    }
+}
+

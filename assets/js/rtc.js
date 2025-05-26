@@ -77,23 +77,51 @@ window.addLocalTracks = function() {
     window.tracksAdded = true;
 };
 
+
+
 window.setupDataChannel = function(dc) {
     dc.onopen = () => {
+        window.stopSound('call_ringtone');
         document.getElementById('chat-area').style.display = "";
+        document.getElementById('arrow-control').style.display = "";
         console.log("DataChannel offen!");
+        stopPolling();
     };
     dc.onclose = () => {
+        window.stopSound('call_ringtone');
         document.getElementById('chat-area').style.display = "none";
+        document.getElementById('arrow-control').style.display = "none";
         console.log("DataChannel geschlossen!");
-        if (window.isCallActive) {
+        if (window.hangupReceived) {
             alert("Der andere Teilnehmer hat die Verbindung beendet.");
             endCall(false); // Kein neues Signal senden, einfach lokal beenden
         }
+        pollSignaling();
     };
     dc.onmessage = (e) => {
         if (e.data === "__hangup__") {
             window.handleHangupSource("Peer");
             return;
+        }
+        // ARROW CONTROL: Sounds abspielen
+        if (e.data === "__arrow_forward__") {
+            window.playSound("move_forward_sound", false);
+            return;
+        }
+        if (e.data === "__arrow_backward__") {
+            window.playSound("move_back_sound", false);
+            return;
+        }
+        if (e.data === "__arrow_left__") {
+            window.playSound("turn_left_sound", false);
+            return;
+        }
+        if (e.data === "__arrow_right__") {
+            window.playSound("turn_right_sound", false);
+            return;
+        }
+        if (typeof e.data === "string") {
+            window.appendChatMsg("remote", e.data);
         }
         if (typeof e.data === "string") {
             window.appendChatMsg("remote", e.data);

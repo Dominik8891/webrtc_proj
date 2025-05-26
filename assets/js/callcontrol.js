@@ -25,6 +25,14 @@ function endCall(sendSignal = true) {
     if (localVideo) localVideo.srcObject = null;
     if (remoteVideo) remoteVideo.srcObject = null;
 
+    // Nur eine Hangup-Benachrichtigung senden
+    if (!window.hangupReceived) {
+        window.hangupReceived = true;
+        if (sendSignal && window.activeTargetUserId) {
+            sendSignalMessage({ type: 'hangup', target: window.activeTargetUserId });
+        }
+    }
+    
     // State-Flags zurücksetzen
     window.tracksAdded = false;
     window.activeTargetUserId = null;
@@ -33,18 +41,14 @@ function endCall(sendSignal = true) {
 
     setEndCallButtonVisible(false);
 
-    // Nur eine Hangup-Benachrichtigung senden
-    if (!window.hangupReceived) {
-        window.hangupReceived = true;
-        if (sendSignal && window.activeTargetUserId) {
-            sendSignalMessage({ type: 'hangup', target: window.activeTargetUserId });
-        }
-    }
+    
 
     window.isCallActive = false;
 
     // UI zurücksetzen (z. B. Chat ausblenden)
     const chatArea = document.getElementById('chat-area');
     if (chatArea) chatArea.style.display = 'none';
+    const arrowControl = document.getElementById('arrow-control');
+    if (arrowControl) arrowControl.style.display = 'none';
 }
 

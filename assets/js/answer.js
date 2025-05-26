@@ -16,6 +16,7 @@ function handleOffer(data) {
     document.getElementById('media-select-dialog').style.display = '';
     // Verstecke den alten Annehmen-Button (falls sichtbar)
     document.getElementById('accept-call-btn').style.display = "none";
+    window.playSound('incomming_call_ringtone'); 
 }
 
 

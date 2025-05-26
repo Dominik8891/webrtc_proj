@@ -12,6 +12,7 @@
     <script src="assets/js/signaling.js"></script>
     <script src="assets/js/main.js"></script>
     <script src="assets/js/callcontrol.js"></script>
+    <script src="assets/js/sound.js"></script>
 
 </head>
 <body>
@@ -38,16 +39,29 @@
     <div>
         <h2>Video-Chat</h2>
         <video id="local-video" autoplay muted playsinline></video>
-        <video id="remote-video" autoplay muted playsinline></video>
+        <video id="remote-video" autoplay playsinline></video>
         <button id="accept-call-btn" style="display:none;">Anruf annehmen</button>
         <button id="end-call-btn" style="display:none;">Call beenden</button>
     </div>
-    <div id="chat-area" style="display:none;">
+    <div>
+        <div id="chat-area" style="display:none;">
         <div id="chat-log" style="height:120px;overflow:auto;border:1px solid #ccc"></div>
         <input id="chat-input" placeholder="Nachricht..." autocomplete="off" />
         <button id="chat-send-btn">Senden</button>
         <input type="file" id="file-input">
+        </div>
+        <div id='arrow-control' class="arrow-controls" style="display:none;">
+            <div class="row">
+                <button id="btn-forward">Forward</button>
+            </div>
+            <div class="row">
+                <button id="btn-left">Left</button>
+                <button id="btn-backward">Backward</button>
+                <button id="btn-right">Right</button>
+            </div>
+        </div>
     </div>
+    
     <div id="media-select-dialog" style="display:none; position:fixed; top:30%; left:50%; transform:translate(-50%, -30%); background:#fff; padding:2em; border-radius:12px; box-shadow:0 2px 20px #0002; z-index:1000;">
     <h3>Mit welchen Medien teilnehmen?</h3>
     <label><input type="checkbox" id="media-video-checkbox" checked> Video senden</label><br>
@@ -60,7 +74,15 @@
 
 
 
-    
+    <audio id="call_ringtone"           src="assets/audio/call_ringtone.mp3"            preload="auto"></audio>
+    <audio id="incomming_call_ringtone" src="assets/audio/incomming_call_ringtone.mp3"  preload="auto"></audio>
+    <audio id="look_down_sound"         src="assets/audio/look_down.mp3"                preload="auto"></audio>
+    <audio id="look_up_sound"           src="assets/audio/look_up.mp3"                  preload="auto"></audio>
+    <audio id="move_back_sound"         src="assets/audio/move_back.mp3"                preload="auto"></audio>
+    <audio id="move_forward_sound"      src="assets/audio/move_forward.mp3"             preload="auto"></audio>
+    <audio id="turn_left_sound"         src="assets/audio/turn_left.mp3"                preload="auto"></audio>
+    <audio id="turn_right_sound"        src="assets/audio/turn_right.mp3"               preload="auto"></audio>
+
 </body>
 </html>
 

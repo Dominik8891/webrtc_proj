@@ -1,6 +1,7 @@
 window.activeTargetUserId = null;
 window.hangupReceived = false; // Verhindert doppelte Hangup-Meldung
 
+
 window.handleHangupSource = function(source) {
     if (window.hangupReceived) return; // Meldung nur einmal anzeigen
     window.hangupReceived = true;
@@ -26,6 +27,8 @@ window.addEventListener('DOMContentLoaded', function() {
     window.dumpWebRTCState("App Start");
     setEndCallButtonVisible(false);
     pollSignaling();
+    ringtone = 'incomming_call_ringtone';
+    
 
     // 1. Anruf-Annehmen-Button zeigt nur noch Dialog an
     var acceptBtn = document.getElementById('accept-call-btn');
@@ -37,6 +40,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
     // 2. Medien-Dialog: Annehmen
     document.getElementById('media-accept-btn').addEventListener('click', function() {
+        window.stopSound(ringtone);
         document.getElementById('media-select-dialog').style.display = 'none';
         setEndCallButtonVisible(true);
         window.isCallActive = true;
@@ -96,6 +100,7 @@ window.addEventListener('DOMContentLoaded', function() {
         setEndCallButtonVisible(false);
         endCall(true); // Beim Klick wird hangup gesendet
         window.dumpWebRTCState("Nach ablehnen des Selfcalls aber ohne endcall funktion");
+        window.stopSound(ringtone);
     });
 
     // Dein bestehender End-Call-Button bleibt wie gehabt
@@ -105,6 +110,7 @@ window.addEventListener('DOMContentLoaded', function() {
             endCall(true); // Beim Klick wird hangup gesendet
         });
     }
+    
 });
 
 
@@ -187,8 +193,26 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-window.addEventListener('DOMContentLoaded', function() {
+/*window.addEventListener('DOMContentLoaded', function() {
     window.initFakeSelfCall();
-});
+});*/
 
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('btn-forward').addEventListener('click', function() {
+        console.log("Button: Forward");
+        window.sendChatMsg("__arrow_forward__");
+    });
+    document.getElementById('btn-backward').addEventListener('click', function() {
+        console.log("Button: Backward");
+        window.sendChatMsg("__arrow_backward__");
+    });
+    document.getElementById('btn-left').addEventListener('click', function() {
+        console.log("Button: Left");
+        window.sendChatMsg("__arrow_left__");
+    });
+    document.getElementById('btn-right').addEventListener('click', function() {
+        console.log("Button: Right");
+        window.sendChatMsg("__arrow_right__");
+    });
+});
 
