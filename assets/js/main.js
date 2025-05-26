@@ -51,8 +51,15 @@ window.addEventListener('DOMContentLoaded', function() {
         const useVideo = document.getElementById('media-video-checkbox').checked;
         const useAudio = document.getElementById('media-audio-checkbox').checked;
         const constraints = {};
-        if (useVideo) constraints.video = true;
-        if (useAudio) constraints.audio = true;
+        const videoDeviceId = document.getElementById('camera-select').value;
+        const audioDeviceId = document.getElementById('mic-select').value;
+
+        if (useVideo) {
+            constraints.video = videoDeviceId ? { deviceId: { exact: videoDeviceId } } : true;
+        }
+        if (useAudio) {
+            constraints.audio = audioDeviceId ? { deviceId: { exact: audioDeviceId } } : true;
+        }
 
         let promise;
         if (constraints.video || constraints.audio) {
@@ -187,15 +194,11 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-document.addEventListener('visibilitychange', function() {
-    if (document.hidden && typeof endCall === 'function') {
-        endCall(false);
+window.addEventListener('beforeunload', function() {
+    if (typeof endCall === 'function') {
+        window.endCall(false);
     }
 });
-
-/*window.addEventListener('DOMContentLoaded', function() {
-    window.initFakeSelfCall();
-});*/
 
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('btn-forward').addEventListener('click', function() {
@@ -216,3 +219,34 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+navigator.mediaDevices.enumerateDevices().then(function(devices) {
+    // Kamera
+    const videoSelect = document.getElementById('camera-select');
+    if (videoSelect) {
+        videoSelect.innerHTML = "";
+        devices.filter(d => d.kind === "videoinput").forEach(function(device, i) {
+            const option = document.createElement("option");
+            option.value = device.deviceId;
+            option.text = device.label || `Kamera ${i+1}`;
+            videoSelect.appendChild(option);
+        });
+    }
+    // Mikrofon
+    const micSelect = document.getElementById('mic-select');
+    if (micSelect) {
+        micSelect.innerHTML = "";
+        const audios = devices.filter(d => d.kind === "audioinput");
+        audios.forEach(function(device, i) {
+            const option = document.createElement("option");
+            option.value = device.deviceId;
+            option.text = device.label || `Mikrofon ${i+1}`;
+            micSelect.appendChild(option);
+        });
+        if (audios.length === 0) {
+            const option = document.createElement("option");
+            option.text = "(Kein Mikrofon gefunden)";
+            option.disabled = true;
+            micSelect.appendChild(option);
+        }
+    }
+});

@@ -87,7 +87,7 @@ function pollSignaling() {
                 }
             })
             .catch(err => console.error("Polling-Fehler:", err));
-    }, 500);
+    }, 1500);
 }
 
 

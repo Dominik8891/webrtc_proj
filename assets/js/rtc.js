@@ -35,6 +35,24 @@ window.createPeerConnection = function(isInitiator = false) {
     };
     window.localPeerConnection = new RTCPeerConnection(config);
 
+    // >>>>>>> HIER NEU EINBAUEN:
+    window.localPeerConnection.onconnectionstatechange = function() {
+        console.log("WebRTC connectionState:", window.localPeerConnection.connectionState);
+        if (["disconnected", "failed", "closed"].includes(window.localPeerConnection.connectionState)) {
+            alert("Die Verbindung zum Gesprächspartner ist abgebrochen.");
+            window.endCall(false);
+        }
+    };
+
+    window.localPeerConnection.oniceconnectionstatechange = function() {
+        console.log("ICE connectionState:", window.localPeerConnection.iceConnectionState);
+        if (["disconnected", "failed", "closed"].includes(window.localPeerConnection.iceConnectionState)) {
+            alert("Die Verbindung zum Gesprächspartner ist unterbrochen (ICE).");
+            window.endCall(false);
+        }
+    };
+
+
     // Nur als Anrufer DataChannel erzeugen
     if (isInitiator) {
         window.dataChannel = window.localPeerConnection.createDataChannel("chat");

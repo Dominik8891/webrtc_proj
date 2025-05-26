@@ -1,6 +1,6 @@
 window.isCallActive = false;
 
-function endCall(sendSignal = true) {
+ window.endCall = function(sendSignal = true) {
     // PeerConnection beenden
     if (window.localPeerConnection) {
         window.localPeerConnection.close();
@@ -32,7 +32,7 @@ function endCall(sendSignal = true) {
             sendSignalMessage({ type: 'hangup', target: window.activeTargetUserId });
         }
     }
-    
+
     // State-Flags zurücksetzen
     window.tracksAdded = false;
     window.activeTargetUserId = null;
