@@ -30,6 +30,7 @@ window.startCall = async function(targetUserId) {
     setEndCallButtonVisible(true); // Zeige Button
     window.isCallActive = true; // Setze Call-Status global
     window.dumpWebRTCState("Nach Self-Call oder Outgoing Call");
+    document.body.classList.add('call-active');
 };
 
 

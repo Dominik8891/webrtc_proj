@@ -179,3 +179,16 @@ option {
         font-size: 14px;
     }
 }
+
+/* Wenn body.call-active gesetzt ist, alles außer Call-Elemente ausblenden */
+body.call-active #admin-panel,
+body.call-active .nav-links,
+body.call-active .nav,
+body.call-active .benutzerliste,
+body.call-active .other-sections,
+body.call-active .logout,
+body.call-active .home {
+    display: none !important;
+}
+
+/* Optional: Wenn du noch andere Bereiche hast, die raus sollen, füge sie dazu */

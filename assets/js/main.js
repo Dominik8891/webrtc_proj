@@ -46,7 +46,7 @@ window.addEventListener('DOMContentLoaded', function() {
         window.isCallActive = true;
         const data = window.pendingOffer;
         document.getElementById('accept-call-btn').style.display = "none"; // Button ausblenden
-
+        document.body.classList.add('call-active');
         // Auswahl auswerten
         const useVideo = document.getElementById('media-video-checkbox').checked;
         const useAudio = document.getElementById('media-audio-checkbox').checked;

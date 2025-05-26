@@ -1,6 +1,7 @@
 window.isCallActive = false;
 
  window.endCall = function(sendSignal = true) {
+    document.body.classList.remove('call-active');
     // PeerConnection beenden
     if (window.localPeerConnection) {
         window.localPeerConnection.close();
