@@ -3,7 +3,6 @@ window.isCallActive = false;
  window.endCall = function(sendSignal = true) {
     document.body.classList.remove('call-active');
     document.getElementById('call-view').style.display = 'none';
-    //document.getElementById('admin-panel').style.display = '';
 
     // PeerConnection beenden
     if (window.localPeerConnection) {
@@ -17,16 +16,23 @@ window.isCallActive = false;
         window.dataChannel = null;
     }
 
-    // Eigene Streams wirklich stoppen
     if (window.localStream) {
-        window.localStream.getTracks().forEach(track => track.stop());
+        window.localStream.getTracks().forEach(track => {
+            try {
+                track.stop();
+                console.log("Track gestoppt:", track.kind, track.readyState);
+            } catch(e) {
+                console.warn('Track konnte nicht gestoppt werden:', e);
+            }
+        });
         window.localStream = null;
     }
 
+
     // Videos zurücksetzen
     const localVideo = document.getElementById('local-video');
-    const remoteVideo = document.getElementById('remote-video');
     if (localVideo) localVideo.srcObject = null;
+    const remoteVideo = document.getElementById('remote-video');
     if (remoteVideo) remoteVideo.srcObject = null;
 
     // Nur eine Hangup-Benachrichtigung senden
@@ -45,8 +51,6 @@ window.isCallActive = false;
 
     setEndCallButtonVisible(false);
 
-    
-
     window.isCallActive = false;
 
     // UI zurücksetzen (z. B. Chat ausblenden)
@@ -54,5 +58,33 @@ window.isCallActive = false;
     if (chatArea) chatArea.style.display = 'none';
     const arrowControl = document.getElementById('arrow-control');
     if (arrowControl) arrowControl.style.display = 'none';
-}
 
+    if (window.localStream) {
+        window.localStream.getTracks().forEach(track => {
+            try { 
+                track.stop(); 
+            } catch(e) {}
+        });
+        window.localStream = null;
+    }
+
+    // DEBUG: Teste, ob nach kurzem Delay alles wirklich weg ist
+    setTimeout(() => {
+        if (window.localStream) {
+            window.localStream.getTracks().forEach(track => {
+                try { 
+                    track.stop(); 
+                } catch(e) {}
+            });
+            window.localStream = null;
+        }
+        if (localVideo) localVideo.srcObject = null;
+        if (remoteVideo) remoteVideo.srcObject = null;
+    }, 2000); // 2 Sekunden später nochmal
+
+    if (/Android|iPhone|iPad|iPod|Mobile|Linux/i.test(navigator.userAgent)) {
+        setTimeout(function() {
+            location.reload();
+        }, 1000);
+    }
+}

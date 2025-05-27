@@ -140,9 +140,6 @@ window.setupDataChannel = function(dc) {
         }
         if (typeof e.data === "string") {
             window.appendChatMsg("remote", e.data);
-        }
-        if (typeof e.data === "string") {
-            window.appendChatMsg("remote", e.data);
         } else {
             // Datei empfangen!
             const blob = new Blob([e.data]);
