@@ -205,13 +205,13 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-document.addEventListener('visibilitychange', function() {
+/*document.addEventListener('visibilitychange', function() {
     if (document.hidden) {
         if (window.isCallActive) {
             window.endCall(false);
         }
     }
-});
+});*/
 
 window.addEventListener('beforeunload', function() {
     if (typeof endCall === 'function') {
