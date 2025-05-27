@@ -40,6 +40,7 @@ window.isCallActive = false;
         window.hangupReceived = true;
         if (sendSignal && window.activeTargetUserId) {
             sendSignalMessage({ type: 'hangup', target: window.activeTargetUserId });
+            console.log("hangup");
         }
     }
 

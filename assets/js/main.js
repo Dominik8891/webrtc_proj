@@ -5,8 +5,13 @@ window.hangupReceived = false; // Verhindert doppelte Hangup-Meldung
 window.handleHangupSource = function(source) {
     if (window.hangupReceived) return; // Meldung nur einmal anzeigen
     window.hangupReceived = true;
-    alert("Der andere Teilnehmer hat das Gespräch beendet." + (source ? " (" + source + ")" : ""));
+    var dialog = document.getElementById('media-select-dialog');
+        if (dialog) {
+            dialog.style.display = 'none';
+        }
+    window.stopSound("incomming_call_ringtone");
     endCall(false); // Beende lokal, aber kein neues Signal senden
+    alert("Der andere Teilnehmer hat das Gespräch beendet." + (source ? " (" + source + ")" : ""));
 };
 
 
@@ -109,6 +114,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
     // 3. Medien-Dialog: Ablehnen
     document.getElementById('media-decline-btn').addEventListener('click', function() {
+        console.log("Button: media-decline-btn gedrückt");
         var dialog = document.getElementById('media-select-dialog');
         if (dialog) {
             dialog.style.display = 'none';
@@ -123,8 +129,11 @@ window.addEventListener('DOMContentLoaded', function() {
 
     // Dein bestehender End-Call-Button bleibt wie gehabt
     var endBtn = document.getElementById('end-call-btn');
+    console.log(endBtn);
     if (endBtn) {
         endBtn.addEventListener('click', function() {
+            console.log("Button: end-call-btn gedrückt");
+            console.log(window.activeTargetUserId);
             endCall(true); // Beim Klick wird hangup gesendet
         });
     }
