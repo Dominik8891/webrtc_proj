@@ -14,6 +14,11 @@ include 'controller/webrtc_system.php';
 include 'controller/api_system.php';
 include 'controller/location_system.php';
 
+if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
+    $httpsUrl = 'https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    header('Location: ' . $httpsUrl, true, 301);
+    exit;
+}
 // Erstellen einer Instanz der PDO-Verbindung zur Datenbank
 $pdo_instance = new PdoConnect();
 ini_set('display_errors', 1);

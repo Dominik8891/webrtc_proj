@@ -85,10 +85,10 @@ class Location
 
     public function select_all_countries() {
         try {
-            $query = "SELECT * FROM country";
-            $stmt = PdoConnect::$connection->prepare($query);
-            $stmt->execute();
-            $data = [];
+            $query  = "SELECT * FROM country";
+            $stmt   = PdoConnect::$connection->prepare($query);
+            $stmt   ->execute();
+            $data   = [];
             $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
             foreach($result as $row) {
                 $data[] = $row;
@@ -98,6 +98,19 @@ class Location
             // Fehlerbehandlung nach Bedarf
             return [];
         }
+    }
+
+    public function select_all_locations() {
+        $query = "SELECT user.username, user.user_status, country.country_name, city.city_name, `location`.latitude, `location`.longitude, `location`.`description` FROM `location` LEFT JOIN user ON `location`.user_id = user.id LEFT JOIN city ON `location`.city_id = city.id LEFT JOIN country ON city.country_id = country.id";
+        $stmt  = PdoConnect::$connection->prepare($query);
+        $stmt  ->execute();
+        $data  = [];
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach($result as $row) {
+            $data[] = $row;
+        }
+        return $data;
+
     }
 
     public function select_city() {
