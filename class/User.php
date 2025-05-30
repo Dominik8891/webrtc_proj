@@ -107,7 +107,7 @@ class User
                             username    = :username,
                             email       = :email,
                             pwd         = :pwd,
-                            typ3_id     = :type_id
+                            type_id     = :type_id,
                             deleted     = :deleted
                       WHERE id          = :user_id;";
 
@@ -335,6 +335,28 @@ class User
         } else {
             return 'kein gültiger user';
         }
+    }
+
+    public function set_usertype($in_usertype) {
+        $id = 0;
+        if(!is_numeric($in_usertype)) {
+            $query = "SELECT * FROM usertype WHERE `name` = :usertype";
+            $stmt  = PdoConnect::$connection->prepare($query);
+            $stmt  ->bindParam(":usertype", $in_usertype);
+            $stmt  ->execute();
+            $result = $stmt->fetchAll();
+            if($result) {
+                $id = $result[0]['id'];
+            }
+        } else {
+            $id = $in_usertype;
+        }
+        if($id > 0) {
+            $this->type_id = $id;
+        } else {
+            return false;
+        }
+        
     }
 
     // Setter-Methoden

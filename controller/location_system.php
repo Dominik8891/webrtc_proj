@@ -18,6 +18,16 @@
             $longitude = g('longitude');
             $latitude = g('latitude');
             $description = g('description');
+            
+            $user = new User($_SESSION['user_id']);
+            if($user->get_usertype() === 'tourist') {
+                try {
+                    $user->set_usertype('guide');
+                    $user->save();
+                } catch (e) {
+                    
+                }
+            }
 
             $tmp_location = new Location();
             $tmp_location->set_country($country);
@@ -27,7 +37,7 @@
             $tmp_location->set_description($description);
             $tmp_location->set_new_location($_SESSION['user_id'], $country_id);
 
-            echo 'passt';
+            home();
         }
        
     }
