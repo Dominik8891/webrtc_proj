@@ -22,6 +22,8 @@ function output($in_content)
 	// Standardmäßig wird der "Login"-Link angezeigt
 	$text = "<a href='index.php?act=login_page'>Login</a>";
 
+	$logged_in = 'false';
+	$user_role = null;
 	// Wenn der Benutzer angemeldet ist und eine Rolle größer als 2 hat (z.B. Admin oder Moderator)
 	if (isset($_SESSION['user_id']) && is_numeric($_SESSION['user_id']))
 	{	
@@ -32,7 +34,14 @@ function output($in_content)
 		$user_txt  = "| <span> Sie sind angemeldet als: <b>". $user->get_username() ."</b> </span>";		
 		$text = " <a href='index.php?act=logout'>Logout</a>";
 		$sign = "<a href='index.php?act=list_user'>Benutzerliste</a>"; // Link zur Benutzerliste für Administratoren
+
+		$logged_in = 'true';
+		$user_role = $user->get_usertype();
 	}
+
+	$logged_in_script = '<script> window.isLoggedIn = ' . $logged_in . '</script>';
+	$user_role_script = '<script> window.userRole = "'   . $user_role . '"</script>' . $logged_in_script;
+	$out = str_replace("###USERSTATUS###", $user_role_script, $out);
 	
 	// Ersetzt die Platzhalter ###LOGOUT###, ###USER### und ###REGISTER### mit den entsprechenden Werten
 	$out = str_replace("###LOGOUT###", $text, $out);

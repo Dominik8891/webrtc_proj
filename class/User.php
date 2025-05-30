@@ -12,6 +12,7 @@ class User
     private $username;
     private $email;
     private $pwd;
+    private $type_id;
     private $deleted;
 
     /**
@@ -36,11 +37,12 @@ class User
             if(count($result) == 1)
             {
                 // Benutzerinformationen aus der Datenbank in die Klassenattribute laden
-                $this->id       = $result[0]['id'];
-                $this->username = $result[0]['username'];
-                $this->email    = $result[0]['email'];
-                $this->pwd      = $result[0]['pwd'];
-                $this->deleted  = $result[0]['deleted'];
+                $this->id           = $result[0]['id'];
+                $this->username     = $result[0]['username'];
+                $this->email        = $result[0]['email'];
+                $this->pwd          = $result[0]['pwd'];
+                $this->type_id      = $result[0]['type_id'];
+                $this->deleted      = $result[0]['deleted'];
             }
             else
             {
@@ -66,7 +68,7 @@ class User
     }
 
     // Prepare und Ausführen des INSERT-Statements
-    $query = "INSERT INTO user (username, email, pwd) VALUES (:username, :email, :pwd)";
+    $query = "INSERT INTO user (username, email, pwd, type_id) VALUES (:username, :email, :pwd, 3)";
     $stmt = PdoConnect::$connection->prepare($query);
     $stmt->bindParam(":username", $this->username);
     $stmt->bindParam(":email", $this->email);
@@ -105,15 +107,17 @@ class User
                             username    = :username,
                             email       = :email,
                             pwd         = :pwd,
+                            typ3_id     = :type_id
                             deleted     = :deleted
                       WHERE id          = :user_id;";
 
         $stmt = PdoConnect::$connection->prepare($query);
-        $stmt ->bindParam(":user_id"  , $this->id);
-        $stmt ->bindParam(":username" , $this->username);
-        $stmt ->bindParam(":email"    , $this->email);
-        $stmt ->bindParam(":pwd"      , $this->pwd);
-        $stmt ->bindParam(":deleted"  , $this->deleted);
+        $stmt ->bindParam(":user_id"    , $this->id);
+        $stmt ->bindParam(":username"   , $this->username);
+        $stmt ->bindParam(":email"      , $this->email);
+        $stmt ->bindParam(":pwd"        , $this->pwd);
+        $stmt ->bindParam(":type_id"    , $this->type_id);
+        $stmt ->bindParam(":deleted"    , $this->deleted);
 
         $stmt ->execute();
     }
@@ -182,11 +186,10 @@ class User
 
         if(password_verify($pwd_peppered, $stored_hashed_pwd))
         {
-            /*
-            $update_query = "UPDATE user SET last_login = CURRENT_TIMESTAMP WHERE id = :id;";
+            $update_query = "UPDATE user SET updated_at = CURRENT_TIMESTAMP WHERE id = :id;";
             $update_stmt  = PdoConnect::$connection->prepare($update_query);
             $update_stmt  ->bindParam(':id', $result[0]['id']);
-            $update_stmt  ->execute();*/ 
+            $update_stmt  ->execute();
         
             $this->id       = $result[0]['id'];
             $this->setUserStatus('online');
@@ -200,35 +203,6 @@ class User
         
     }
 
-    /*ublic function createUserActivity($in_id)
-    {
-        $query = "INSERT INTO user_activity (user_id, created_at) VALUES (:id, CURRENT_TIMESTAMP);";
-        $stmt  = PdoConnect::$connection->prepare($query);
-        $stmt  ->bindParam(':id', $in_id);
-        $stmt  ->execute();
-    }
-
-    // Bei jedem Seitenaufruf oder Benutzerinteraktion
-    public function updateUserActivity() 
-    {   
-    // Aktiviere den Zeitstempel der letzten Aktivität
-    $query = "UPDATE user_activity SET last_activity = CURRENT_TIMESTAMP WHERE user_id = :user_id";
-    $stmt = PdoConnect::$connection->prepare($query);
-    $stmt ->bindParam(':user_id', $this->id);
-    $stmt->execute();
-    }
-
-    public function getLastUserActivity()
-    {
-    $query = "SELECT last_activity FROM user_activity WHERE user_id = :user_id";
-    $stmt = PdoConnect::$connection->prepare($query);
-    $stmt ->bindParam(':user_id', $this->id);
-    $stmt->execute();
-    $result = fetchAll();
-    return $result[0]['last_activity'];
-    }*/
-
-
     public function setUserStatus($status)
     {
         $update_query = "UPDATE user SET user_status = :status WHERE id = :id;";
@@ -240,8 +214,6 @@ class User
 
     public function getUserStatus($userId)
     {
-        $timeoutDuration = 10 * 60;
-
         $stmt = PdoConnect::$connection->prepare("SELECT user_status FROM user WHERE id = ?");
         $stmt ->execute([$userId]);
         $result = $stmt->fetchAll();
@@ -348,7 +320,22 @@ class User
         return $temp_array;
     }
 
-    
+    public function get_usertype() {
+        if($this->id > 0) {
+            $query = "SELECT * FROM usertype WHERE id = :type_id";
+            $stmt  = PdoConnect::$connection->prepare($query);
+            $stmt  ->bindParam(":type_id", $this->type_id);
+            $stmt  ->execute();
+            $result = $stmt->fetchAll();
+            if($result) {
+                return $result[0]['name'];
+            } else {
+                return false;
+            }
+        } else {
+            return 'kein gültiger user';
+        }
+    }
 
     // Setter-Methoden
 

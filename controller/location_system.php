@@ -1,9 +1,14 @@
 <?php
 
     function act_set_location_page() {
-        $out = file_get_contents('assets/html/set_location.html');
+        if($_SESSION['user_id']) {
+            $out = file_get_contents('assets/html/set_location.html');
 
-        output($out);
+            output($out);
+        } else {
+            home();
+        }
+        
     }
 
     function act_set_location() {

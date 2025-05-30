@@ -31,7 +31,10 @@ window.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('DOMContentLoaded', function() {
     window.dumpWebRTCState("App Start");
     setEndCallButtonVisible(false);
-    pollSignaling();
+    if(window.isLoggedIn) {
+        pollSignaling();
+        console.log('test');
+    }
     ringtone = 'incomming_call_ringtone';
     
 
@@ -276,5 +279,29 @@ navigator.mediaDevices.enumerateDevices().then(function(devices) {
             option.disabled = true;
             micSelect.appendChild(option);
         }
+    }
+});
+
+
+window.addEventListener('DOMContentLoaded', function() {
+    var locationButtonDiv = document.getElementById('location-button');
+    // Erst alles leeren, falls das Element aus Versehen irgendwo vorkommt
+    locationButtonDiv.innerHTML = '';
+
+    if (window.isLoggedIn && window.userRole) {
+        let text = '';
+        if (window.userRole === 'admin' || window.userRole === 'guide') {
+            text = 'Neue Lokation hinzufügen';
+        } else if (window.userRole === 'tourist') {
+            text = 'Jetzt Tour-Guide werden!';
+        }
+        if (text) {
+            locationButtonDiv.innerHTML = `<a href="index.php?act=set_location_page">${text}</a>`;
+            locationButtonDiv.style.display = '';
+        } else {
+            locationButtonDiv.style.display = 'none';
+        }
+    } else {
+        locationButtonDiv.style.display = 'none';
     }
 });
