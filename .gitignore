@@ -2,3 +2,5 @@
 *.log
 *.txt
 sql_exequte.php
+create_backup.php
+upload_import_db.php
