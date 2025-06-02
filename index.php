@@ -3,8 +3,9 @@
 include 'class/PdoConnect.php';    // Verbindet die Datenbankklasse
 include 'class/User.php';          // Verbindet die Benutzerklasse
 include 'class/Message.php';       // Verbindet die Chat-Protokoll-Klasse
-include 'class/Connection.php';    // Verbindet die WebRTC-Klasse
+include 'class/WebRTCHandler.php';    // Verbindet die WebRTC-Klasse
 include 'class/Location.php';
+include 'class/MeteredTurnService.php';
 include 'controller/system.php';  // Verbindet allgemeine Systemfunktionen
 include 'controller/login_system.php'; // Verbindet das Login-System
 include 'controller/signup_system.php'; // Verbindet das Anmelde-/Registrierungssystem

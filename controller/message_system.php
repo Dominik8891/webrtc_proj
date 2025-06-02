@@ -2,171 +2,152 @@
 
 /**
  * Verarbeitet eine gesendete Nachricht vom Benutzer und gibt eine Antwort zurück.
- * Speichert die Nachrichten sowohl des Benutzers als auch der Antwort des Bots in der Session-Historie.
  */
 function act_process_message()
 {
-    // Überprüft, ob die Methode POST ist und ob eine Nachricht gesendet wurde
-    if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['message'])) {
-    
-        // Bereinigt die Nachricht des Benutzers vor der Verarbeitung
-        $user_msg = htmlspecialchars($_POST['message']);
-        // Holt das aktuelle Datum und die Uhrzeit für die Historie
+    if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['message'])) {
+        $user_msg = trim(htmlspecialchars($_POST['message']));
         $history_date = date("d.m.Y H:i");
 
-        // Erzeugt ein JSON-Array mit der Benutzer-ID und der Nachricht des Benutzers
-        $json_data = array(
+        $json_data = [
             'message' => $user_msg,
             'user_id' => $_SESSION['user_id']
-        );
+        ];
 
-        // Sendet das JSON an das LLM und holt die Antwort
+        // LLM-Antwort holen
         $response = send_json_to_llm($json_data);
 
-        // Falls keine Antwort vom LLM kommt, wird die letzte Antwort aus dem Chat-Log geholt
-        if($response == null || $response == "")
-        {
+        // Fallback: letzte Bot-Antwort aus DB, falls LLM nicht antwortet
+        if (empty($response)) {
             $chat = new ChatLog();
             $chat->set_user_id($_SESSION['user_id']);
             $response = $chat->get_last_answer();
         }
 
-        // Speichert die Nachricht des Benutzers in der Session-Historie
-        $_SESSION['chat_history'][] = array(
+        // In Session-Chat-History speichern
+        $_SESSION['chat_history'][] = [
             'role' => 'user',
-            'content' => htmlspecialchars($user_msg),
+            'content' => $user_msg,
             'timestamp' => $history_date
-        );
-
-        // Speichert die Antwort des Bots in der Session-Historie
-        $_SESSION['chat_history'][] = array(
+        ];
+        $_SESSION['chat_history'][] = [
             'role' => 'bot',
             'content' => $response,
             'timestamp' => $history_date
-        );
+        ];
 
-        // Gibt das Benutzer- und Bot-Nachrichtenpaar als JSON zurück
-        echo json_encode(array(
-            'user_message' => htmlspecialchars($user_msg),
-            'bot_message' => htmlspecialchars($response),
-            'time' => $history_date,
-            'now' => date('m.d.Y')
-        ));
+        // Auch in DB schreiben
+        write_message_in_db($user_msg, 'user');
+        write_message_in_db($response, 'bot');
+
+        // Antwort als JSON zurückgeben
+        echo json_encode([
+            'user_message' => $user_msg,
+            'bot_message' => $response,
+            'time'        => $history_date,
+            'now'         => date('m.d.Y')
+        ]);
+        exit;
     }
 }
 
 /**
  * Sendet JSON-Daten an das LLM und empfängt die Antwort.
- * 
- * @param array $in_json Das JSON, das an das LLM gesendet wird.
- * @return string Die Antwort vom LLM.
  */
 function send_json_to_llm($in_json)
 {
-    $original_dir = getcwd(); // Speichert das aktuelle Verzeichnis
-    chdir('python'); // Wechselt in das Python-Verzeichnis
-    $command = 'python main.py ' . base64_encode(json_encode($in_json)); // Erzeugt den Befehl zum Aufruf des Python-Skripts
-    $output = shell_exec(escapeshellcmd($command)); // Führt den Befehl aus
-    chdir($original_dir); // Wechselt zurück ins ursprüngliche Verzeichnis
+    $original_dir = getcwd();
+    chdir('python');
+    $command = 'python main.py ' . base64_encode(json_encode($in_json));
+    $output = shell_exec(escapeshellcmd($command));
+    chdir($original_dir);
 
-    // Falls keine Ausgabe von shell_exec kommt, wird eine leere Antwort zurückgegeben
-    if ($output === null || $output === false) {
-        return "";  // Fehlerbehandlung falls keine Ausgabe erfolgt
+    if (empty($output)) {
+        return "";
     }
+    $response = json_decode($output, true);
 
-    $response = json_decode($output); // Dekodiert die JSON-Antwort
-
-    return $response; // Gibt die Antwort zurück
+    // Falls $response ein Array mit Antwort ist, extrahiere String
+    if (is_array($response) && isset($response['answer'])) {
+        return $response['answer'];
+    }
+    // Falls Antwort direkt als String
+    if (is_string($response)) {
+        return $response;
+    }
+    return "";
 }
 
 /**
  * Zeigt das Chat-Interface an und füllt den Chatverlauf.
- * 
- * @return string Der HTML-Code des Chat-Interfaces mit der Chat-Historie.
  */
 function show_chatbot()
 {
-    // Holt das Chat-HTML-Template
-    $chat_history = file_get_contents("assets/html/frontend/chatbot.html");
-    $bot_history  = file_get_contents("assets/html/frontend/history_bot.html");
-    $user_history = file_get_contents("assets/html/frontend/history_user.html");
+    $chat_history_tpl = file_get_contents("assets/html/frontend/chatbot.html");
+    $bot_history_tpl  = file_get_contents("assets/html/frontend/history_bot.html");
+    $user_history_tpl = file_get_contents("assets/html/frontend/history_user.html");
 
-    $tmp_history = ""; // Variable für die temporäre Chat-Historie
+    $tmp_history = "";
 
-    // Falls es eine gespeicherte Chat-Historie in der Session gibt
-    if(isset($_SESSION['chat_history']))
-    {
+    if (!empty($_SESSION['chat_history'])) {
         foreach ($_SESSION['chat_history'] as $message) {
-            $time = $message['timestamp']; // Holt die Zeit des aktuellen Nachrichten-Items
-            // Falls die Nachricht heute gesendet wurde, wird "today" anstelle des Datums angezeigt
-            if (substr($message['timestamp'], 0, 10) == date('d.m.Y')) {
-                $time = "heute" . substr($message['timestamp'], 10);
+            $time = $message['timestamp'];
+            if (substr($time, 0, 10) == date('d.m.Y')) {
+                $time = "heute" . substr($time, 10);
             }
-            // Unterscheidet zwischen Benutzer- und Bot-Nachrichten
             if ($message['role'] === 'user') {
-                $tmp_hist = str_replace("###MESSAGE###", $message['content'], $user_history);
+                $msg_tpl = $user_history_tpl;
             } elseif ($message['role'] === 'bot') {
-                $tmp_hist = str_replace("###MESSAGE###", $message['content'], $bot_history);
+                $msg_tpl = $bot_history_tpl;
+            } else {
+                continue; // Unbekannte Rolle: ignorieren
             }
-            // Ersetzt den Zeit-Platzhalter im Nachrichten-Template
-            $tmp_hist = str_replace("###TIME###", $time, $tmp_hist);
-
-            $tmp_history .= $tmp_hist; // Fügt die Nachricht der Historie hinzu
+            $msg_tpl = str_replace("###MESSAGE###", htmlspecialchars($message['content']), $msg_tpl);
+            $msg_tpl = str_replace("###TIME###", $time, $msg_tpl);
+            $tmp_history .= $msg_tpl;
         }
     }
-    // Ersetzt die Historie im Chat-HTML mit der generierten Historie
-    $chat_history = str_replace("###HISTORY###", $tmp_history, $chat_history);
+    $chat_history_tpl = str_replace("###HISTORY###", $tmp_history, $chat_history_tpl);
 
-    return $chat_history;
+    return $chat_history_tpl;
 }
 
 /**
  * Leitet den Benutzer zum Chat weiter, falls er eingeloggt ist.
- * Falls der Benutzer nicht eingeloggt ist, wird die Home-Seite angezeigt.
  */
 function act_goto_chat()
 {
-    // Falls der Benutzer eingeloggt ist
-    if(isset($_SESSION['user_id']))
-    {
-        $out = show_chatbot(); // Holt das Chat-Interface
-        $out = str_replace("###LOGIN_SCRIPT###", "<script src='assets/js/scroll.js' defer></script>", $out );
-        output_fe($out); // Gibt das Frontend aus
-        return; // Verhindert, dass die Home-Seite aufgerufen wird
+    if (!empty($_SESSION['user_id'])) {
+        $out = show_chatbot();
+        $out = str_replace("###LOGIN_SCRIPT###", "<script src='assets/js/scroll.js' defer></script>", $out);
+        output_fe($out);
+        return;
     }
-    home(); // Falls der Benutzer nicht eingeloggt ist, zur Startseite leiten
+    home();
 }
 
 /**
  * Sendet eine Begrüßungsnachricht an den Benutzer.
- * 
- * @param string $in_username Der Benutzername des Benutzers.
  */
 function send_greeting($in_username)
 {
-    // Erstellt eine Begrüßungsnachricht
-    $greeting = "Hallo " . $in_username . ", was kann ich für dich tun?";
+    $greeting = "Hallo " . htmlspecialchars($in_username) . ", was kann ich für dich tun?";
     $history_date = date("d.m.Y H:i");
-
-    // Speichert die Begrüßungsnachricht in der Chat-Historie
-    $_SESSION['chat_history'][] = array(
+    $_SESSION['chat_history'][] = [
         'role' => 'bot',
         'content' => $greeting,
         'timestamp' => $history_date
-    );
+    ];
 }
 
 /**
  * Schreibt eine Nachricht in die Datenbank.
- * 
- * @param string $in_msg Die Nachricht, die gespeichert werden soll.
- * @param string $in_msg_type Der Typ der Nachricht (z.B. Benutzer- oder Bot-Nachricht).
  */
 function write_message_in_db($in_msg, $in_msg_type)
 {
-    $chat = new ChatLog(); // Erstellt ein neues ChatLog-Objekt
-    $chat->set_user_id($_SESSION['user_id']); // Setzt die Benutzer-ID
-    $chat->set_msg($in_msg); // Setzt die Nachricht
-    $chat->set_msg_type($in_msg_type); // Setzt den Nachrichtentyp
-    $chat->save(); // Speichert die Nachricht in der Datenbank
+    $chat = new ChatLog();
+    $chat->set_user_id($_SESSION['user_id']);
+    $chat->set_msg($in_msg);
+    $chat->set_msg_type($in_msg_type);
+    $chat->save();
 }
