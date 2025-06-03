@@ -34,7 +34,8 @@ function act_set_location() {
         $location->set_description($description);
         $location->set_new_location($user_id, $country_id);
 
-        home();
+        header("Location: index.php?success=1");
+        exit;
     }
 }
 
@@ -48,7 +49,7 @@ function act_get_country() {
 
 function act_get_locations() {
     $location = new Location();
-    $data = $location->select_all_locations();
+    $data = $location->select_all_locations($_SESSION['user_id']);
     header('Content-Type: application/json');
     echo json_encode($data);
     exit();

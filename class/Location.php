@@ -95,7 +95,7 @@ class Location
     /**
      * Gibt alle gespeicherten Locations als Array zurück.
      */
-    public function select_all_locations()
+    public function select_all_locations($in_user_id)
     {
         $query = "SELECT user.id AS user_id, user.username, user.user_status, 
                          country.country_name, city.city_name, 
@@ -103,8 +103,10 @@ class Location
                   FROM location
                   LEFT JOIN user    ON location.user_id = user.id
                   LEFT JOIN city    ON location.city_id = city.id
-                  LEFT JOIN country ON city.country_id = country.id";
+                  LEFT JOIN country ON city.country_id = country.id
+                  WHERE user.id != :user_id";
         $stmt = PdoConnect::$connection->prepare($query);
+        $stmt ->bindParam(":user_id", $in_user_id);
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

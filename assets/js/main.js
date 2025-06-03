@@ -27,6 +27,8 @@ window.webrtcApp.init = function() {
             if (dialog) dialog.style.display = 'none';
             if (acceptBtn) acceptBtn.style.display = "none";
             window.webrtcApp.ui.setEndCallButtonVisible(false);
+            const data = window.webrtcApp.state.pendingOffer;
+            window.webrtcApp.state.activeTargetUserId = data.sender_id;
             window.webrtcApp.rtc.endCall(true);
             window.webrtcApp.sound.stop('incomming_call_ringtone');
         });

@@ -69,6 +69,8 @@ window.webrtcApp.signaling = {
                 window.webrtcApp.refs.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
             }
         } else if (data.type === 'hangup') {
+            alert("Der andere Teilnehmer hat die Verbindung beendet.");
+            window.webrtcApp.state.hangupReceived = true;
             window.webrtcApp.rtc.endCall(true);
             window.webrtcApp.sound.stop('call_ringtone');
             var acceptBtn = document.getElementById('accept-call-btn');

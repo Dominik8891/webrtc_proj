@@ -14,12 +14,12 @@
     <link rel="stylesheet" href="assets/css/call.css">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script src="assets/js/app.js"></script>
-<script src="assets/js/sound.js"></script>
-<script src="assets/js/rtc.js"></script>
-<script src="assets/js/signaling.js"></script>
-<script src="assets/js/chat.js"></script>
-<script src="assets/js/ui.js"></script>
-<script src="assets/js/main.js"></script>
+    <script src="assets/js/sound.js"></script>
+    <script src="assets/js/rtc.js"></script>
+    <script src="assets/js/signaling.js"></script>
+    <script src="assets/js/chat.js"></script>
+    <script src="assets/js/ui.js"></script>
+    <script src="assets/js/main.js"></script>
 
 
 
@@ -27,6 +27,9 @@
 
 <style>
         #map { width: 500px; height: 350px; }
+        #city-suggestions { position:absolute; background:#fff; z-index:1000; list-style:none; padding:0; margin:0; width:250px; border:1px solid #aaa;}
+        #city-suggestions li { padding:5px; border-bottom:1px solid #eee; }
+        #city-suggestions li:hover { background:#efefef; }
     </style>
 </head>
 <body>
@@ -87,9 +90,10 @@
                 <div class="row"><button id="btn-forward">↑</button></div>
                 <div class="row">
                     <button id="btn-left">←</button>
-                    <button id="btn-backward">↓</button>
+                    
                     <button id="btn-right">→</button>
                 </div>
+                <div class="row"><button id="btn-backward" class="down">↓</button></div>
                 </div>
                 <input type="file" id="file-input" style="margin-top:10px;">
                 <!--<button id="chat-send-btn" style="width:100%;margin-top:10px;">senden</button>-->
@@ -126,6 +130,13 @@
     <audio id="turn_left_sound"         src="assets/audio/turn_left.mp3"                preload="auto"></audio>
     <audio id="turn_right_sound"        src="assets/audio/turn_right.mp3"               preload="auto"></audio>
 
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.get('success') === '1'){
+            alert("Lokation erfolgreich gespeichert!");
+        }
+    </script>
 </body>
 </html>
 

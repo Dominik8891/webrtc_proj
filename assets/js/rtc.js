@@ -169,7 +169,8 @@ window.webrtcApp.rtc = {
         };
         dc.onmessage = (e) => {
             if (e.data === "__hangup__") {
-                alert("Der andere Teilnehmer hat die Verbindung beendet.");
+                alert("Der andere Teilnehmer hat die Verbindung beendet");
+                window.webrtcApp.state.hangupReceived = true;
                 window.webrtcApp.rtc.endCall(false);
                 return;
             }
