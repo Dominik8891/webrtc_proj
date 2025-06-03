@@ -54,7 +54,7 @@ function act_get_locations() {
     exit();
 }
 
-function act_show_locations() {
+function act_show_locations_page() {
     if (!empty($_SESSION['user_id'])) {
         $out = file_get_contents('assets/html/locations_table.html');
         output($out);

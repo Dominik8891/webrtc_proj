@@ -61,6 +61,7 @@ class User
 
         try {
             $stmt->execute();
+            $this->id = PdoConnect::$connection->lastInsertId();
         } catch (PDOException $e) {
             echo "Fehler beim Erstellen des Benutzers: " . $e->getMessage();
             return;
@@ -113,6 +114,34 @@ class User
         $this->update();
     }
 
+    public function register($in_username, $in_email, $in_pwd) {
+        try {
+
+            $hased_pwd = $this->pwd_encrypt($in_pwd);
+
+            $stmt = PdoConnect::$connection->prepare(
+                "INSERT INTO user ( username,  email,  pwd, type_id) 
+                        VALUES  (:username, :email, :pwd,    3   )"
+            );
+            $stmt->bindParam(":username", $in_username);
+            $stmt->bindParam(":email", $in_email);
+            $stmt->bindParam(":pwd", $hased_pwd);
+
+            try {
+                $stmt->execute();
+                $this->id = PdoConnect::$connection->lastInsertId();
+                return $this->id;
+            } catch (PDOException $e) {
+                echo "Fehler beim Erstellen des Benutzers: " . $e->getMessage();
+                return null;
+            }
+        
+        } catch (PDOException $e) {
+            echo "Fehler bei der Datenbankverbindung: " . $e->getMessage();
+            return null;
+        }
+    }
+
     /**
      * Authentifiziert einen Benutzer.
      */
@@ -144,6 +173,28 @@ class User
         } else {
             return false;
         }
+    }
+
+    public function username_exists() {
+        $stmt = PdoConnect::$connection->prepare(
+            "SELECT * FROM user WHERE username = :username AND deleted = 0"
+        );
+        $stmt->bindParam(":username", $this->username);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($result) return true;
+    }
+
+    public function email_exists() {
+        $stmt = PdoConnect::$connection->prepare(
+            "SELECT * FROM user WHERE email = :email AND deleted = 0"
+        );
+        $stmt->bindParam(":email", $this->email);
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($result) return true;
     }
 
     public function setUserStatus($status)
@@ -183,26 +234,6 @@ class User
             "UPDATE user SET user_status = ? WHERE id = ?"
         );
         $stmt->execute([$status, $userId]);
-    }
-
-    public function check_if_username_exists($in_username)
-    {
-        $stmt = PdoConnect::$connection->prepare(
-            "SELECT id FROM user WHERE username = :username"
-        );
-        $stmt->bindParam(":username", $in_username);
-        $stmt->execute();
-        return $stmt->fetch() ? true : false;
-    }
-
-    public function check_if_email_exists($in_email)
-    {
-        $stmt = PdoConnect::$connection->prepare(
-            "SELECT id FROM user WHERE email = :email"
-        );
-        $stmt->bindParam(":email", $in_email);
-        $stmt->execute();
-        return $stmt->fetch() ? true : false;
     }
 
     public function get_user_info_as_array()
@@ -256,6 +287,22 @@ class User
         }
         if ($id > 0) $this->type_id = $id;
         else return false;
+    }
+
+    public function pwd_encrypt($in_pwd)
+    {
+        // Lädt die Konfigurationsdatei, die den "Pepper" enthält
+        $config = include 'config/config.php';
+        $pepper = $config['pepper'];
+
+        // Kombiniert das Passwort mit dem "Pepper" und hasht es mit HMAC SHA-256
+        $pwd_peppered = hash_hmac("sha256", $in_pwd, $pepper);
+
+        // Verschlüsselt das gepefferte Passwort mit dem Argon2I-Algorithmus
+        $pwd_hashed = password_hash($pwd_peppered, PASSWORD_ARGON2I);
+
+        // Gibt das verschlüsselte Passwort zurück
+        return $pwd_hashed;
     }
 
     // Setter-Methoden

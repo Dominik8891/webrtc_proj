@@ -30,8 +30,8 @@ $(document).ready(function () {
             // Call-Button Handler
             $('.start-call-btn').on('click', function() {
                 const userId = $(this).data('userid');
-                if(typeof startCall === 'function') {
-                    startCall(userId);
+                if(typeof window.webrtcApp?.rtc?.startCall === 'function') {
+                    window.webrtcApp.rtc.startCall(userId);
                 } else {
                     alert("Call-Funktion nicht verfügbar.");
                 }

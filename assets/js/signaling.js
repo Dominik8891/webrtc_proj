@@ -1,101 +1,79 @@
-window.pollingIntervalId = null;
-
-
-function sendSignalMessage(msg) {
-    fetch('index.php?act=getSignal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(msg)
-    })
-    .then(r => r.text())
-    .then(console.log)
-    .catch(console.error);
-}
-window.pendingCandidates = window.pendingCandidates || [];
-
-function handleSignalingData(data) {
-    console.log("Empfangene Nachricht:", data);
-    if (data.type === 'offer') {
-        handleOffer(data);
-    } else if (data.type === 'answer') {
-        localPeerConnection.setRemoteDescription(new RTCSessionDescription({
-            type: data.type,
-            sdp: data.sdp
-        }))
-        .then(() => {
-            // Nach dem Setzen der RemoteDescription alle zwischengespeicherten ICE-Kandidaten hinzufügen
-            if (window.pendingCandidates && window.pendingCandidates.length) {
-                window.pendingCandidates.forEach(candidate =>
-                    window.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-                );
-                window.pendingCandidates = [];
-            }
-        });
-    } else if (data.type === 'iceCandidate') {
-        console.log("Empfange ICE-Kandidat:", data.candidate);
-
-        let candidateObj = data.candidate;
-
-        // IGNORIERE leere/null Kandidaten!
-        if (!candidateObj) return;
-
-        if (typeof candidateObj === "string") {
-            try {
-                candidateObj = JSON.parse(candidateObj);
-            } catch(e) {
-                console.warn("Konnte ICE candidate nicht parsen:", candidateObj);
-                return; // Fehlerhaften String-Kandidaten ebenfalls ignorieren
-            }
+// assets/js/signaling.js
+window.webrtcApp.signaling = {
+    sendSignalMessage(msg) {
+        console.log("Sende Signal-Nachricht:", msg); // <--- NEU
+        fetch('index.php?act=getSignal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(msg)
+        })
+        .then(r => r.text())
+        .catch(console.error);
+    },
+    pollSignaling() {
+        if (window.webrtcApp.refs.pollingIntervalId !== null) return;
+        console.log("Starte Polling..."); // <--- NEU
+        window.webrtcApp.refs.pollingIntervalId = setInterval(() => {
+            fetch('index.php?act=getSignal')
+                .then(r => r.json())
+                .then(msgArr => {
+                    console.log("Signaling-Nachrichten erhalten:", msgArr); // <--- NEU
+                    if (Array.isArray(msgArr)) {
+                        msgArr.forEach(msg => window.webrtcApp.signaling.handleSignalingData(msg));
+                    }
+                });
+        }, 1500);
+    },
+    stopPolling() {
+        if (window.webrtcApp.refs.pollingIntervalId !== null) {
+            clearInterval(window.webrtcApp.refs.pollingIntervalId);
+            window.webrtcApp.refs.pollingIntervalId = null;
         }
-        // NEU: Candidate speichern, wenn PeerConnection oder remoteDescription noch fehlt!
-        if (
-            !window.localPeerConnection ||
-            !window.localPeerConnection.remoteDescription ||
-            !window.localPeerConnection.remoteDescription.type
-        ) {
-            window.pendingCandidates.push(candidateObj);
-        } else {
-            window.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
-        }
-    } else if (data.type === 'hangup') {
-        window.handleHangupSource("Server");
-        var acceptBtn = document.getElementById('accept-call-btn');
-        if (acceptBtn) acceptBtn.style.display = "none";
-        setEndCallButtonVisible(false); // falls aktiv!
-        window.endCall(true);
-        window.stopSound('call_ringtone');
-        // Kein zusätzliches alert() mehr!
-    }
-}
-
-
-
-
-function pollSignaling() {
-    if (window.pollingIntervalId !== null) return; // Schon aktiv
-
-    console.log("Starte Polling!");
-    window.pollingIntervalId = setInterval(() => {
-        fetch('index.php?act=getSignal')
-            .then(r => r.json())
-            .then(msgArr => {
-                console.log("Nachrichten vom Server:", msgArr);
-                if (Array.isArray(msgArr)) {
-                    msgArr.forEach(msg => handleSignalingData(msg));
-                } else {
-                    console.error("Server hat kein Array zurückgegeben!", msgArr);
+    },
+    handleSignalingData(data) {
+        console.log("Empfange Signaling-Daten:", data); // <--- NEU
+        if (data.type === 'offer') {
+            window.webrtcApp.state.pendingOffer = data;
+            // UI für eingehenden Anruf anzeigen
+            var dialog = document.getElementById('media-select-dialog');
+            if (dialog) dialog.style.display = '';
+            var btn = document.getElementById('accept-call-btn');
+            if (btn) btn.style.display = "none";
+            window.webrtcApp.sound.play('incomming_call_ringtone');
+        } else if (data.type === 'answer') {
+            window.webrtcApp.refs.localPeerConnection.setRemoteDescription(new RTCSessionDescription({
+                type: data.type,
+                sdp: data.sdp
+            })).then(() => {
+                if (window.webrtcApp.refs.pendingCandidates && window.webrtcApp.refs.pendingCandidates.length) {
+                    window.webrtcApp.refs.pendingCandidates.forEach(candidate =>
+                        window.webrtcApp.refs.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+                    );
+                    window.webrtcApp.refs.pendingCandidates = [];
                 }
-            })
-            .catch(err => console.error("Polling-Fehler:", err));
-    }, 1500);
-}
-
-
-function stopPolling() {
-    if (window.pollingIntervalId !== null) {
-        clearInterval(window.pollingIntervalId);
-        window.pollingIntervalId = null;
-        console.log("Polling gestoppt!");
+            });
+        } else if (data.type === 'iceCandidate') {
+            let candidateObj = data.candidate;
+            if (!candidateObj) return;
+            if (typeof candidateObj === "string") {
+                try { candidateObj = JSON.parse(candidateObj); }
+                catch(e) { return; }
+            }
+            if (
+                !window.webrtcApp.refs.localPeerConnection ||
+                !window.webrtcApp.refs.localPeerConnection.remoteDescription ||
+                !window.webrtcApp.refs.localPeerConnection.remoteDescription.type
+            ) {
+                window.webrtcApp.refs.pendingCandidates.push(candidateObj);
+            } else {
+                window.webrtcApp.refs.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
+            }
+        } else if (data.type === 'hangup') {
+            window.webrtcApp.rtc.endCall(true);
+            window.webrtcApp.sound.stop('call_ringtone');
+            var acceptBtn = document.getElementById('accept-call-btn');
+            if (acceptBtn) acceptBtn.style.display = "none";
+            window.webrtcApp.ui.setEndCallButtonVisible(false);
+        }
     }
-}
-
+};

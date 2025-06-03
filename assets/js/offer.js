@@ -1,40 +1,36 @@
 
-window.startCall = async function(targetUserId) {
-    await window.initFakeSelfCall();
-    window.activeTargetUserId = targetUserId;
+window.webrtcApp.rtc.startCall = async function(targetUserId) {
+    await window.webrtcApp.rtc.initFakeSelfCall();
+    window.webrtcApp.state.activeTargetUserId = targetUserId;
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then(stream => {
-        window.localStream = stream;
-        document.getElementById('local-video').srcObject = stream;
-        window.createPeerConnection(true);
-        window.playSound('call_ringtone');
-
-        // 100ms Delay bevor Tracks hinzugefügt werden:
-        return new Promise(resolve => setTimeout(resolve, 100));
+            window.webrtcApp.refs.localStream = stream;
+            document.getElementById('local-video').srcObject = stream;
+            window.webrtcApp.rtc.createPeerConnection(true);
+            window.webrtcApp.sound.play('call_ringtone');
+            return new Promise(resolve => setTimeout(resolve, 100));
         })
         .then(() => {
-            window.addLocalTracks();
-            return window.localPeerConnection.createOffer();
+            window.webrtcApp.rtc.addLocalTracks();
+            return window.webrtcApp.refs.localPeerConnection.createOffer();
         })
         .then(offer => {
-            return window.localPeerConnection.setLocalDescription(offer).then(() => offer);
+            return window.webrtcApp.refs.localPeerConnection.setLocalDescription(offer).then(() => offer);
         })
         .then(offer => {
-            window.sendSignalMessage({
+            window.webrtcApp.signaling.sendSignalMessage({
                 type: 'offer',
                 sdp: offer.sdp,
                 target: targetUserId
             });
         })
         .catch(console.error);
-    setEndCallButtonVisible(true); // Zeige Button
-    window.isCallActive = true; // Setze Call-Status global
-    window.dumpWebRTCState("Nach Self-Call oder Outgoing Call");
+    window.webrtcApp.ui.setEndCallButtonVisible(true);
+    window.webrtcApp.state.isCallActive = true;
     document.body.classList.add('call-active');
     document.getElementById('call-view').style.display = '';
-    //document.getElementById('admin-panel').style.display = 'none'; // Adminpanel ausblenden
-
 };
+
 
 
 
