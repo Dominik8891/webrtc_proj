@@ -69,13 +69,20 @@ window.webrtcApp.signaling = {
                 window.webrtcApp.refs.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
             }
         } else if (data.type === 'hangup') {
-            alert("Der andere Teilnehmer hat die Verbindung beendet.");
-            window.webrtcApp.state.hangupReceived = true;
-            window.webrtcApp.rtc.endCall(true);
-            window.webrtcApp.sound.stop('call_ringtone');
-            var acceptBtn = document.getElementById('accept-call-btn');
-            if (acceptBtn) acceptBtn.style.display = "none";
-            window.webrtcApp.ui.setEndCallButtonVisible(false);
+            if (window.webrtcApp.state.isCallActive === true) {
+                alert("Der andere Teilnehmer hat die Verbindung beendet.");
+                window.webrtcApp.state.hangupReceived = true;
+                window.webrtcApp.rtc.endCall(true);
+                window.webrtcApp.sound.stop('call_ringtone');
+                var acceptBtn = document.getElementById('accept-call-btn');
+                if (acceptBtn) acceptBtn.style.display = "none";
+                window.webrtcApp.ui.setEndCallButtonVisible(false); 
+            } else if (window.webrtcApp.state.pendingOffer.sender_id === data.sender_id){
+                var dialog = document.getElementById('media-select-dialog');
+                if (dialog) dialog.style.display = 'none';
+                window.webrtcApp.sound.stop('incomming_call_ringtone');
+            }
+                
         }
     }
 };
