@@ -81,6 +81,7 @@ class User
                 email = :email,
                 pwd = :pwd,
                 type_id = :type_id,
+                updated_at = CURRENT_TIMESTAMP,
                 deleted = :deleted
             WHERE id = :user_id;"
         );
@@ -202,7 +203,7 @@ class User
     public function setUserStatus($status)
     {
         $stmt = PdoConnect::$connection->prepare(
-            "UPDATE user SET user_status = :status WHERE id = :id;"
+            "UPDATE user SET user_status = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id;"
         );
         $stmt->bindParam(':status', $status);
         $stmt->bindParam(':id', $this->id);
@@ -233,7 +234,7 @@ class User
     public function updateUserStatus($userId, $status)
     {
         $stmt = PdoConnect::$connection->prepare(
-            "UPDATE user SET user_status = ? WHERE id = ?"
+            "UPDATE user SET user_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
         );
         $stmt->execute([$status, $userId]);
     }

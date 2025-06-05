@@ -143,7 +143,6 @@ function act_heartbeat() {
         
 
         $user_id = (int)$_SESSION['user_id'] ?? null;
-        file_put_contents('heartbeat_debug.txt', date('c').' user_id:'.$user_id.' in_call:'.$in_call.PHP_EOL, FILE_APPEND);
         if (!$user_id) exit;
 
         $data = json_decode(file_get_contents("php://input"), true);
