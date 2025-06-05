@@ -106,10 +106,8 @@ function generate_user_rows($in_user, $in_user_ids)
         $tmp_user = new User($one_user_id);
         $action = "";
 
-        if ($in_user->get_role_id() === 1) {
-            $action = get_action($tmp_user);
-            $status = "Offline";
-        }
+        if ($in_user->get_role_id() === 1) $action = get_action($tmp_user);
+        $status = "Offline";
         if($tmp_user->getUserStatus($tmp_user->get_id()) === "online") {
             $status = "Online";
         } elseif ($tmp_user->getUserStatus($tmp_user->get_id()) === "in_call") {
