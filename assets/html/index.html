@@ -1,143 +1,57 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Adminpanel Chatbot für Umschüler</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-
+    <!-- CSS-Bibliotheken -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-4Q6Gf2aSP4eDXB8Miphtr37CMZZQ5oXLH2yaXMJ2w8e2ZtHTl7GptT4jmndRuHDT" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdn.datatables.net/2.3.1/css/dataTables.dataTables.css" />
     <link rel="stylesheet" href="assets/css/admin.css">
     <link rel="stylesheet" href="assets/css/call.css">
+    <link rel="stylesheet" href="assets/css/map.css">
+
+    <!-- JS-Bibliotheken -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-pip@latest/leaflet-pip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.datatables.net/2.3.1/js/dataTables.js"></script>
+
+    <!-- Eigene JS-Module -->
     <script src="assets/js/app.js"></script>
     <script src="assets/js/sound.js"></script>
     <script src="assets/js/rtc.js"></script>
     <script src="assets/js/signaling.js"></script>
     <script src="assets/js/chat.js"></script>
     <script src="assets/js/ui.js"></script>
+    <script src="assets/js/utils.js"></script>
     <script src="assets/js/main.js"></script>
-
-
-
-
-
-<style>
-        #map { width: 500px; height: 350px; }
-        #city-suggestions { position:absolute; background:#fff; z-index:1000; list-style:none; padding:0; margin:0; width:250px; border:1px solid #aaa;}
-        #city-suggestions li { padding:5px; border-bottom:1px solid #eee; }
-        #city-suggestions li:hover { background:#efefef; }
-    </style>
+    <script src="assets/js/locations_table.js"></script>
+    <script src="assets/js/map.js"></script>
 </head>
 <body>
     ###USERSTATUS###
-    <script>
-        
-        function del(in_url) {
-            if (window.confirm("Wollen Sie den Datensatz wirklich löschen?")) {
-                window.location.href = in_url;
-            } else {
-                alert("Löschen abgebrochen");
-            }
-        }
-    </script>
-    <div id="location-button"></div><div id="browse-locations-button"></div>
 
-    </div>
+    <div id="location-button"></div>
+    <div id="browse-locations-button"></div>
+
     <div id="admin-panel">
         <nav>
             <h3>Adminpanel</h3>
             <div class="nav-links">
                 ###REGISTER### ###USER### | ###LOGOUT###
             </div>
-           
         </nav>
-            ###CONTENT###
-    </div>
-    <div id="call-view" style="display:none;">
-        <div class="call-grid">
-            <!-- Beispiel: Weitere Bereiche wie Userinfo, Videos, etc. (aus deiner bisherigen Struktur) -->
-            <div class="user-info">
-            <span id="remote-username">Angerufener<br>Username</span>
-            </div>
-            <div class="remote-video-box">
-            <video id="remote-video" autoplay playsinline></video>
-            <!--<span class="remote-video-label">Video user angerufen</span>-->
-            </div>
-            <div class="call-controls">
-            <button id="end-call-btn">call beenden</button>
-            </div>
-            <div class="local-video-box">
-            <video id="local-video" autoplay muted playsinline></video>
-            <!--<span class="local-video-label">eigenes video</span>-->
-            </div>
-            <!-- Chatbereich mit Sidebar rechts -->
-            <div class="chat-row">
-            <div class="chat-box">
-                <div id="chat-area">
-                    <div id="chat-log"></div>
-                </div>
-                <div class="chat-input-row">
-                    <input id="chat-input" placeholder="Chat eingabe..." autocomplete="off" />
-                    <button id="chat-send-btn">senden</button>
-                </div>
-            </div>
-            <div class="sidebar-controls">
-                <div class="arrow-controls" id="arrow-control">
-                <div class="row"><button id="btn-forward">↑</button></div>
-                <div class="row">
-                    <button id="btn-left">←</button>
-                    
-                    <button id="btn-right">→</button>
-                </div>
-                <div class="row"><button id="btn-backward" class="down">↓</button></div>
-                </div>
-                <input type="file" id="file-input" style="margin-top:10px;">
-                <!--<button id="chat-send-btn" style="width:100%;margin-top:10px;">senden</button>-->
-            </div>
-            </div>
-        </div>
+        ###CONTENT###
     </div>
 
-
-
-    
-    <div id="media-select-dialog" style="display:none; position:fixed; top:30%; left:50%; transform:translate(-50%, -30%); background:#fff; padding:2em; border-radius:12px; box-shadow:0 2px 20px #0002; z-index:1000;">
-    <h3>Mit welchen Medien teilnehmen?</h3>
-    <label><input type="checkbox" id="media-video-checkbox" checked> Video senden</label><br>
-    <label for="camera-select">Kamera auswählen:</label>
-    <select id="camera-select"></select>
-    <label><input type="checkbox" id="media-audio-checkbox" checked> Audio senden</label><br><br>
-    <label for="mic-select">Mikrofon:</label>
-    <select id="mic-select"></select><br>
-    <button id="media-accept-btn">Annehmen</button>
-    <button id="media-decline-btn">Ablehnen</button>
-    </div>
-
-
-
-
-
-    <audio id="call_ringtone"           src="assets/audio/call_ringtone.mp3"            preload="auto"></audio>
-    <audio id="incomming_call_ringtone" src="assets/audio/incomming_call_ringtone.mp3"  preload="auto"></audio>
-    <audio id="look_down_sound"         src="assets/audio/look_down.mp3"                preload="auto"></audio>
-    <audio id="look_up_sound"           src="assets/audio/look_up.mp3"                  preload="auto"></audio>
-    <audio id="move_back_sound"         src="assets/audio/move_back.mp3"                preload="auto"></audio>
-    <audio id="move_forward_sound"      src="assets/audio/move_forward.mp3"             preload="auto"></audio>
-    <audio id="turn_left_sound"         src="assets/audio/turn_left.mp3"                preload="auto"></audio>
-    <audio id="turn_right_sound"        src="assets/audio/turn_right.mp3"               preload="auto"></audio>
-
-
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        if(urlParams.get('success') === '1'){
-            alert("Lokation erfolgreich gespeichert!");
-        }
-    </script>
+    ###INNER_CALL_CONTROLL###
+    ###CALL_CONTROLL###
+    ###MEDIA###
 </body>
 </html>
-
-  

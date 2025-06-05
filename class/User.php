@@ -274,6 +274,16 @@ class User
         }
     }
 
+    public function get_all_usertypes_as_array() {
+        $result = [];
+        $query = "SELECT id, name FROM usertype";
+        foreach (PdoConnect::$connection->query($query) as $row) {
+            $result[$row['id']] = $row['name'];
+        }
+        return $result;
+    }
+
+
     public function set_usertype($in_usertype)
     {
         $id = 0;

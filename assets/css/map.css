@@ -1,0 +1,4 @@
+#map { width: 500px; height: 350px; }
+#city-suggestions { position:absolute; background:#fff; z-index:1000; list-style:none; padding:0; margin:0; width:250px; border:1px solid #aaa;}
+#city-suggestions li { padding:5px; border-bottom:1px solid #eee; }
+#city-suggestions li:hover { background:#efefef; }

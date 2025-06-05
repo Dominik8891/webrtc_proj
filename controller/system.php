@@ -14,6 +14,9 @@ function output($in_content)
     $sign = "<a href='index.php?act=signup_page'>Sign Up</a>";
     $user_txt = "";
     $text = "<a href='index.php?act=login_page'>Login</a>";
+    $call = "";
+    $inner_call = "";
+    $media = "";
 
     $logged_in = 'false';
     $user_role = null;
@@ -25,14 +28,21 @@ function output($in_content)
         $sign = "<a href='index.php?act=list_user'>Benutzerliste</a>";
         $logged_in = 'true';
         $user_role = $user->get_usertype();
+        $call       = file_get_contents('assets/html/call_controll.html');
+        $inner_call = file_get_contents('assets/html/inner_call_controll.html');
+        $media      = file_get_contents('assets/html/media.html');
     }
 
     $logged_in_script = '<script>window.isLoggedIn = ' . $logged_in . ';</script>';
     $user_role_script = '<script>window.userRole = "' . $user_role . '";</script>' . $logged_in_script;
-    $out = str_replace("###USERSTATUS###", $user_role_script, $out);
-    $out = str_replace("###LOGOUT###", $text, $out);
-    $out = str_replace("###USER###", $user_txt, $out);
-    $out = str_replace("###REGISTER###", $sign, $out);
+
+    $out = str_replace("###CALL_CONTROLL###"        , $call             , $out);
+    $out = str_replace("###INNER_CALL_CONTROLL###"  , $inner_call       , $out);
+    $out = str_replace("###MEDIA###"                , $media            , $out);
+    $out = str_replace("###USERSTATUS###"           , $user_role_script , $out);
+    $out = str_replace("###LOGOUT###"               , $text             , $out);
+    $out = str_replace("###USER###"                 , $user_txt         , $out);
+    $out = str_replace("###REGISTER###"             , $sign             , $out);
 
     die($out); 
 }
@@ -59,7 +69,7 @@ function g($assoc_index)
 /**
  * Generiert ein HTML-Dropdown-Menü (Select-Optionen) basierend auf einem Array.
  */
-function gen_html_options($in_data_array, $in_selected_id, $in_add_empty)
+function gen_html_options($in_data_array, $in_selected_id, $in_add_empty = false)
 {   
     $out_opt = "";
 
@@ -68,10 +78,9 @@ function gen_html_options($in_data_array, $in_selected_id, $in_add_empty)
     }   
 
     foreach ($in_data_array as $key => $val) {        
-        $sel = ($key == $in_selected_id) ? "selected" : "";
+        $sel      = ((string)$key == (string)$in_selected_id) ? "selected" : "";
         $out_opt .= '<option value="' . htmlspecialchars($key) . '" ' . $sel . '>' . htmlspecialchars($val) . ' </option>';
     }   
-
     return $out_opt;
 }
 

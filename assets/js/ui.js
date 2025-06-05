@@ -60,3 +60,10 @@ window.webrtcApp.ui = {
         }
     }
 };
+window.webrtcApp.ui.confirmDelete = function(in_url) {
+    if (window.confirm("Wollen Sie den Datensatz wirklich löschen?")) {
+        window.location.href = in_url;
+    } else {
+        alert("Löschen abgebrochen");
+    }
+}

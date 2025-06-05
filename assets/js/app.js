@@ -21,5 +21,7 @@ window.webrtcApp = {
     sound: {},
     chat: {},
     signaling: {},
-    utils: {}
+    utils: {},
+    locationsTable: {},
+    locationMap: {}
 };
