@@ -137,3 +137,23 @@ function get_action($in_user, $in_current_user)
                 <a href="#" onclick="del(\'index.php?act=delete_user&user_id=' . $in_current_user->get_id() .'\')">Löschen</a>';
     }
 }
+
+function act_heartbeat() {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        
+
+        $user_id = (int)$_SESSION['user_id'] ?? null;
+        file_put_contents('heartbeat_debug.txt', date('c').' user_id:'.$user_id.' in_call:'.$in_call.PHP_EOL, FILE_APPEND);
+        if (!$user_id) exit;
+
+        $data = json_decode(file_get_contents("php://input"), true);
+        $in_call = isset($data['in_call']) ? $data['in_call'] : false;
+
+        $user_status = $in_call ? 'in_call' : 'online';
+
+        $user = new User($user_id);
+        $user->set_status($user_status);
+        $user->save();
+        exit;
+    }
+}

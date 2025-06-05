@@ -84,5 +84,14 @@ window.webrtcApp.signaling = {
             }
                 
         }
-    }
+    },
+    sendHeartbeat(inCall) {
+        fetch('index.php?act=heartbeat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                in_call: inCall ? 1 : 0
+            })
+    });
+}
 };

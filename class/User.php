@@ -77,6 +77,7 @@ class User
         $stmt = PdoConnect::$connection->prepare(
             "UPDATE user SET
                 username = :username,
+                user_status = :status,
                 email = :email,
                 pwd = :pwd,
                 type_id = :type_id,
@@ -85,6 +86,7 @@ class User
         );
         $stmt->bindParam(":user_id", $this->id);
         $stmt->bindParam(":username", $this->username);
+        $stmt->bindParam(":status", $this->status);
         $stmt->bindParam(":email", $this->email);
         $stmt->bindParam(":pwd", $this->pwd);
         $stmt->bindParam(":type_id", $this->type_id);

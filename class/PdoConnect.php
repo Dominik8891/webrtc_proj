@@ -21,7 +21,8 @@ class PdoConnect
     public function __construct()
     {
         // Laden der Konfigurationsdaten aus der externen Konfigurationsdatei db_config.php
-        $config = include 'config/db_config.php';
+        $config = include __DIR__ . '/../config/db_config.php';           
+        
         $this->host = $config['host'];
         $this->port = $config['port'];
         $this->dbname = $config['dbname'];

@@ -176,4 +176,12 @@ window.addEventListener('DOMContentLoaded', function() {
     window.webrtcApp.init();
     window.webrtcApp.ui.showLocationButton();
     window.webrtcApp.ui.showAllLocationsButton();
+    
+    if (window.isLoggedIn) {
+        setInterval(function() {
+            // Hier musst du selbst rausfinden, ob der User im Call ist!
+            // In diesem Beispiel einfach immer 0 senden
+            window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
+        }, 15000);  
+    }
 });
