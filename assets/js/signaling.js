@@ -30,13 +30,17 @@ window.webrtcApp.signaling = {
             window.webrtcApp.refs.pollingIntervalId = null;
         }
     },
-    handleSignalingData(data) {
+    handleSignalingData: async function(data) {
         console.log("Empfange Signaling-Daten:", data); // <--- NEU
         if (data.type === 'offer') {
             window.webrtcApp.state.pendingOffer = data;
             // UI für eingehenden Anruf anzeigen
             var dialog = document.getElementById('media-select-dialog');
-            if (dialog) dialog.style.display = '';
+            if (dialog) {
+                dialog.style.display = '';
+                window.webrtcApp.state.targetUsername     = await window.webrtcApp.ui.getUsername(data.sender_id);
+                document.getElementById('calling_user').textContent = window.webrtcApp.state.targetUsername + ' ruft an';
+            }
             var btn = document.getElementById('accept-call-btn');
             if (btn) btn.style.display = "none";
             window.webrtcApp.sound.play('incomming_call_ringtone');

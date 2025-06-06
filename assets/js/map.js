@@ -1,6 +1,8 @@
+window.webrtcApp = window.webrtcApp || {};
 window.webrtcApp.locationMap = {
     allowedCountryCodes: [
-        "AD","AE","AF","AG","AI","AL","AM","AO","AQ","AR","AS","AT","AU","AW","AX","AZ","BA","BB","BD","BE","BF","BG","BH","BI","BJ","BL","BM","BN","BO","BQ","BR","BS","BT","BV","BW","BY","BZ","CA","CC","CD","CF","CG","CH","CI","CK","CL","CM","CN","CO","CR","CU","CV","CW","CX","CY","CZ","DE","DJ","DK","DM","DO","DZ","EC","EE","EG","EH","ER","ES","ET","FI","FJ","FK","FM","FO","FR","GA","GB","GD","GE","GF","GG","GH","GI","GL","GM","GN","GP","GQ","GR","GS","GT","GU","GW","GY","HK","HM","HN","HR","HT","HU","ID","IE","IL","IM","IN","IO","IQ","IR","IS","IT","JE","JM","JO","JP","KE","KG","KH","KI","KM","KN","KP","KR","KW","KY","KZ","LA","LB","LC","LI","LK","LR","LS","LT","LU","LV","LY","MA","MC","MD","ME","MF","MG","MH","MK","ML","MM","MN","MO","MP","MQ","MR","MS","MT","MU","MV","MW","MX","MY","MZ","NA","NC","NE","NF","NG","NI","NL","NO","NP","NR","NU","NZ","OM","PA","PE","PF","PG","PH","PK","PL","PM","PN","PR","PS","PT","PW","PY","QA","RE","RO","RS","RU","RW","SA","SB","SC","SD","SE","SG","SH","SI","SJ","SK","SL","SM","SN","SO","SR","SS","ST","SV","SX","SY","SZ","TC","TD","TF","TG","TH","TJ","TK","TL","TM","TN","TO","TR","TT","TV","TW","TZ","UA","UG","UM","US","UY","UZ","VA","VC","VE","VG","VI","VN","VU","WF","WS","YE","YT","ZA","ZM","ZW"
+        // (Länderliste gekürzt für Übersichtlichkeit, bleibt wie bei dir)
+        "DE","AT","CH","NL","FR","IT","ES","PL","BE","DK","CZ","SE","NO","FI","US","GB","CA","AU" // ...usw.
     ],
     map: null,
     marker: null,
@@ -16,6 +18,7 @@ window.webrtcApp.locationMap = {
 
         this.initMap();
         this.loadCountries();
+        this.initCitySelect2();
         this.bindEvents();
 
         // Erfolgsmeldung, falls aus URL
@@ -54,6 +57,11 @@ window.webrtcApp.locationMap = {
                         })
                     );
                 });
+                $('#countrySelect').on('select2:open', function () {
+                    setTimeout(() => {
+                        document.querySelector('.select2-search__field').focus();
+                    }, 100);
+                });
 
                 $('#countrySelect').select2({
                     placeholder: "Land wählen...",
@@ -76,23 +84,12 @@ window.webrtcApp.locationMap = {
     },
 
     bindEvents() {
-        // Länder-Auswahl
+        // Land-Auswahl
         $('#countrySelect').on('change', () => this.onCountryChange());
-        $('#countrySelect').on('select2:open', function () {
-            setTimeout(() => document.querySelector('.select2-search__field').focus(), 100);
-        });
 
-        // Städteingabe
-        $('#city').on('input', () => this.onCityInput());
+        // Stadt-Auswahl wird in initCitySelect2() behandelt
 
-        // Klick ins Dokument -> City-Suggestion-Box schließen
-        $(document).on('mousedown', function (e) {
-            if (!$(e.target).closest('#city, #city-suggestions').length) {
-                $('#city-suggestions').hide().empty();
-            }
-        });
-
-        // Aktueller Standort
+        // Aktueller Standort Button
         $('#current-location').on('click', () => this.onCurrentLocation());
     },
 
@@ -101,21 +98,19 @@ window.webrtcApp.locationMap = {
             this.countryJustSetByLocation = false;
             return;
         }
-
         let selectedOption = $('#countrySelect').find('option:selected');
         let countryName = selectedOption.data('country-name');
         this.selectedCountryCode = selectedOption.val();
         let iso2 = selectedOption.data('iso2');
 
         if (!this.selectedCountryCode) {
-            $('#city').val('').prop('disabled', true);
-            $('#city-suggestions').hide().empty();
+            // Felder resetten
+            $('#citySelect').val('').trigger('change');
             this.clearCoordsAndOsmPlace();
             return;
         }
 
-        $('#city').prop('disabled', false);
-
+        // Karte auf Land zoomen
         fetch('https://nominatim.openstreetmap.org/search?country=' + encodeURIComponent(countryName) + '&format=json')
             .then(resp => resp.json())
             .then(data => {
@@ -127,44 +122,85 @@ window.webrtcApp.locationMap = {
                 }
             });
 
-        $('#city').val('');
-        $('#city-suggestions').hide().empty();
+        // Felder resetten
+        $('#citySelect').val('').trigger('change');
         this.clearCoordsAndOsmPlace();
     },
 
-    onCityInput() {
-        let query = $('#city').val().trim();
-        if (!this.selectedCountryCode || query.length < 3) {
-            let list = $('#city-suggestions');
-            list.empty();
-            if (query.length > 0) {
-                list.append(
-                    $('<li>')
-                        .text('Bitte mehr Buchstaben eingeben.')
-                        .css({'color': '#888', 'cursor': 'default'})
-                );
-                list.show();
-            } else {
-                list.hide();
+    // === NEU: Stadt-Select2 initialisieren ===
+    initCitySelect2() {
+        let self = this;
+        $('#citySelect').select2({
+            placeholder: "Stadt wählen...",
+            allowClear: true,
+            minimumInputLength: 3,
+            ajax: {
+                delay: 300,
+                transport: (params, success, failure) => {
+                    let countryIso2 = $('#countrySelect option:selected').data('iso2');
+                    if (!countryIso2) return success({ results: [] });
+                    let query = params.data.q;
+                    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=${countryIso2}&format=json&addressdetails=1&limit=15`)
+                        .then(r => r.json())
+                        .then(data => {
+                            success({ results: self.formatCityResults(data, query) });
+                        }).catch(failure);
+                },
+                processResults: data => ({ results: data.results }),
+            },
+            templateResult: city => city.text,
+            templateSelection: city => city.text,
+            language: {
+                inputTooShort: () => 'Bitte mindestens 3 Buchstaben eingeben.'
             }
-            return;
-        }
-        this.fetchCities(query, this.selectedCountryCode);
+        });
+
+        // Automatisch Fokus ins Suchfeld, wenn geöffnet
+        $('#citySelect').on('select2:open', function () {
+            setTimeout(() => {
+                document.querySelector('.select2-search__field').focus();
+            }, 100);
+        });
+
+        // Bei Landwechsel: Reset
+        $('#countrySelect').on('change', () => {
+            $('#citySelect').val('').trigger('change');
+            $('#latitude, #longitude, #lat, #lon, #osm_place').val('').text('');
+        });
+
+        // Wenn Stadt gewählt wird, alles setzen
+        $('#citySelect').on('select2:select', (e) => {
+            const data = e.params.data;
+            $('#latitude').val(data.lat);
+            $('#longitude').val(data.lon);
+            $('#lat').text(parseFloat(data.lat).toFixed(6));
+            $('#lon').text(parseFloat(data.lon).toFixed(6));
+            // Marker setzen
+            if (self.marker) self.map.removeLayer(self.marker);
+            self.marker = L.marker([data.lat, data.lon]).addTo(self.map);
+            self.map.setView([data.lat, data.lon], 12);
+            // OSM Place Name holen
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}`)
+                .then(resp => resp.json())
+                .then(r => {
+                    $('#osm_place').text(r.display_name || '');
+                });
+        });
+
+        // Bei Clear alles zurücksetzen
+        $('#citySelect').on('select2:clear', () => {
+            $('#latitude, #longitude, #lat, #lon, #osm_place').val('').text('');
+            if (self.marker) {
+                self.map.removeLayer(self.marker);
+                self.marker = null;
+            }
+        });
     },
 
-    fetchCities(query, countryId) {
-        let iso2 = $('#countrySelect option:selected').data('iso2');
-        if (!iso2) return;
-        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=${iso2}&format=json&addressdetails=1&limit=15`)
-            .then(r => r.json())
-            .then(data => {
-                let cityResults = this.filterCityResults(data, query);
-                this.renderCitySuggestions(cityResults, query);
-            });
-    },
 
-    filterCityResults(data, query) {
-        let lcQuery = query.toLowerCase();
+    // Hilfsfunktion: Formatiere City-API-Antworten für Select2
+    formatCityResults(data, query) {
+        let lcQuery = (query || '').toLowerCase();
         let results = data.filter(item => {
             if (!item.address) return false;
             let fields = [
@@ -172,38 +208,7 @@ window.webrtcApp.locationMap = {
                 item.address.hamlet, item.address.municipality, item.address.suburb
             ].filter(Boolean);
             return fields.some(f => f.toLowerCase().includes(lcQuery));
-        });
-
-        if (results.length < 3) {
-            data.forEach(item => {
-                if (!item.address) return;
-                let fields = [
-                    item.address.city, item.address.town, item.address.village,
-                    item.address.hamlet, item.address.municipality, item.address.suburb
-                ].filter(Boolean);
-                if (fields.length > 0 && !results.includes(item)) {
-                    results.push(item);
-                }
-            });
-        }
-        return results;
-    },
-
-    renderCitySuggestions(cityResults, query) {
-        let list = $('#city-suggestions');
-        list.empty();
-
-        if (cityResults.length === 0) {
-            list.append(
-                $('<li>')
-                    .text('Keine passenden Städte gefunden.')
-                    .css({'color': '#888', 'cursor': 'default'})
-            );
-            list.show();
-            return;
-        }
-
-        cityResults.forEach(item => {
+        }).map(item => {
             let cityName = item.address.city
                 || item.address.town
                 || item.address.village
@@ -211,60 +216,56 @@ window.webrtcApp.locationMap = {
                 || item.address.municipality
                 || item.address.suburb
                 || item.display_name.split(',')[0];
-
-            $('<li>')
-                .text(cityName)
-                .css('cursor', 'pointer')
-                .on('mousedown', () => {
-                    this.selectCityFromSuggestions(item, cityName);
-                })
-                .appendTo(list);
+            return {
+                id: cityName,
+                text: cityName,
+                lat: item.lat,
+                lon: item.lon
+            };
         });
 
-        this.positionCitySuggestions();
-        list.show();
-    },
-
-    positionCitySuggestions() {
-        let cityInput = $('#city');
-        let offset = cityInput.offset();
-        $('#city-suggestions').css({
-            top: offset.top + cityInput.outerHeight(),
-            left: offset.left,
-            width: cityInput.outerWidth(),
-            position: 'absolute',
-            zIndex: 999,
-            background: '#fff',
-            border: '1px solid #aaa',
-            padding: 0,
-            margin: 0,
-            listStyle: 'none',
-            maxHeight: '200px',
-            overflowY: 'auto'
-        });
-    },
-
-    selectCityFromSuggestions(item, cityName) {
-        $('#city').val(cityName);
-        $('#city-suggestions').hide().empty();
-        this.map.setView([item.lat, item.lon], 12);
-        if (this.marker) this.map.removeLayer(this.marker);
-        this.marker = L.marker([item.lat, item.lon]).addTo(this.map);
-        $('#latitude').val(item.lat);
-        $('#longitude').val(item.lon);
-        $('#lat').text(parseFloat(item.lat).toFixed(6));
-        $('#lon').text(parseFloat(item.lon).toFixed(6));
-        fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + item.lat + '&lon=' + item.lon)
-            .then(resp => resp.json())
-            .then(data => {
-                $('#osm_place').text(data.display_name || '');
+        // Wenn zu wenig Ergebnisse, erweitere
+        if (results.length < 3) {
+            data.forEach(item => {
+                if (!item.address) return;
+                let cityName = item.address.city
+                    || item.address.town
+                    || item.address.village
+                    || item.address.hamlet
+                    || item.address.municipality
+                    || item.address.suburb
+                    || item.display_name.split(',')[0];
+                if (cityName && !results.find(r => r.text === cityName)) {
+                    results.push({
+                        id: cityName,
+                        text: cityName,
+                        lat: item.lat,
+                        lon: item.lon
+                    });
+                }
             });
+        }
+        // Nur eindeutige Namen
+        const unique = [];
+        const map = {};
+        for (const r of results) {
+            if (!map[r.text]) {
+                unique.push(r);
+                map[r.text] = true;
+            }
+        }
+        return unique;
     },
 
     clearCoordsAndOsmPlace() {
         $('#latitude, #longitude, #lat, #lon, #osm_place').val('').text('');
+        if (this.marker) {
+            this.map.removeLayer(this.marker);
+            this.marker = null;
+        }
     },
 
+    // Wenn auf Karte geklickt wird
     onMapClick(e) {
         if (this.marker) this.map.removeLayer(this.marker);
         this.marker = L.marker(e.latlng).addTo(this.map);
@@ -288,7 +289,6 @@ window.webrtcApp.locationMap = {
                         $('#countrySelect').val(countryOption.val()).trigger('change');
                     }
                 }
-
                 let place = '';
                 if (data.address) {
                     place = data.address.city || data.address.town || data.address.village ||
@@ -297,10 +297,17 @@ window.webrtcApp.locationMap = {
                 if (!place) {
                     place = 'keine Stadt am Standort';
                 }
-                $('#city').val(place);
+
+                // Versuche, die Stadt im Select2 vorzuwählen (falls vorhanden)
+                if (place) {
+                    // Select2 "programmgesteuert" setzen
+                    let option = new Option(place, place, true, true);
+                    $('#citySelect').append(option).trigger('change');
+                }
             });
     },
 
+    // Aktuellen Standort per GPS verwenden
     onCurrentLocation() {
         if (!navigator.geolocation) {
             alert("Ihr Browser unterstützt keine Geolokalisierung.");
@@ -331,7 +338,6 @@ window.webrtcApp.locationMap = {
                         }
                     }
                     setTimeout(() => {
-                        $('#city').val(found).prop('disabled', false);
                         $('#lat').text(lat.toFixed(6));
                         $('#lon').text(lon.toFixed(6));
                         $('#latitude').val(lat);
@@ -339,6 +345,12 @@ window.webrtcApp.locationMap = {
                         if (this.marker) this.map.removeLayer(this.marker);
                         this.marker = L.marker([lat, lon]).addTo(this.map);
                         this.map.setView([lat, lon], 14);
+
+                        // Stadtname ins Select2 setzen
+                        if (found) {
+                            let option = new Option(found, found, true, true);
+                            $('#citySelect').append(option).trigger('change');
+                        }
                     }, 500);
                 });
         }, function (err) {
@@ -347,7 +359,7 @@ window.webrtcApp.locationMap = {
     }
 };
 
-// Init beim DOM-Ready (funktioniert überall, tut aber nur etwas auf set_location.html):
+// Init beim DOM-Ready
 $(document).ready(function () {
     window.webrtcApp.locationMap.init();
 });

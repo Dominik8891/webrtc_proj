@@ -49,8 +49,10 @@ window.webrtcApp.init = function() {
             window.webrtcApp.state.isCallActive = true;
             const data = window.webrtcApp.state.pendingOffer;
             window.webrtcApp.state.activeTargetUserId = data.sender_id;
+            window.webrtcApp.state.targetUsername     = await window.webrtcApp.ui.getUsername(data.sender_id);
             document.body.classList.add('call-active');
             document.getElementById('call-view').style.display = '';
+            document.getElementById('remote-username').textContent = 'Anruf mit ' + window.webrtcApp.state.targetUsername;
 
             // Medien-Auswahl lesen
             const useVideo = document.getElementById('media-video-checkbox').checked;
@@ -191,5 +193,6 @@ window.addEventListener('DOMContentLoaded', function() {
         }, 15000);  
     }
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Lokation erfolgreich gespeichert!');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Speichern nicht erfolgreich. Stadt oder Beschreibung fehlt');
 
 });

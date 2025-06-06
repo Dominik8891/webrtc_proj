@@ -58,7 +58,17 @@ window.webrtcApp.ui = {
         } else {
             browseLocationButtonDiv.style.display = 'none';
         }
-    }
+    },
+    getUsername(userId) {
+        console.log("Sende Signal-Nachricht:", userId); 
+        return fetch('index.php?act=get_username', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userId)
+        })
+        .then(r => r.text())
+        .catch(console.error);
+    },
 };
 window.webrtcApp.ui.confirmDelete = function(in_url) {
     if (window.confirm("Wollen Sie den Datensatz wirklich löschen?")) {

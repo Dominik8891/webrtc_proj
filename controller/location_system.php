@@ -17,6 +17,10 @@ function act_set_location() {
         $latitude    = g('latitude');
         $description = g('description');
         $user_id     = $_SESSION['user_id'];
+        if (strlen($city) < 2 || strlen($description) < 5) {
+            header("Location: index.php?act=set_location_page&success=0");
+            exit;
+        }
 
         // Dein Model-Konstruktor braucht User-ID
         $user = new User($user_id);

@@ -5,7 +5,8 @@ window.webrtcApp = {
         hangupReceived: false,
         isCallActive: false,
         pendingOffer: null,
-        tracksAdded: false
+        tracksAdded: false,
+        targetUsername: null
     },
     refs: {
         localPeerConnection: null,

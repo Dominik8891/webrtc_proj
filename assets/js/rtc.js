@@ -70,6 +70,7 @@ window.webrtcApp.rtc = {
         // 2. Jetzt kannst du sicher sein, dass die PeerConnection funktioniert!
         await window.webrtcApp.rtc.initFakeSelfCall();
         window.webrtcApp.state.activeTargetUserId = targetUserId;
+        window.webrtcApp.state.targetUsername     = await window.webrtcApp.ui.getUsername(targetUserId);
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
                 window.webrtcApp.refs.localStream = stream;
@@ -97,6 +98,8 @@ window.webrtcApp.rtc = {
         window.webrtcApp.state.isCallActive = true;
         document.body.classList.add('call-active');
         document.getElementById('call-view').style.display = '';
+        console.log('Geladener Username:', window.webrtcApp.state.targetUsername);
+        document.getElementById('remote-username').textContent = 'Rufe ' + window.webrtcApp.state.targetUsername + ' an';
     },
 
     createPeerConnection(isInitiator = false) {

@@ -164,3 +164,17 @@ function act_heartbeat() {
         exit;
     }
 }
+
+function act_get_username() {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $data = json_decode(file_get_contents("php://input"), true);
+        //file_put_contents('get_username_debug.txt', date('c').' data:'.$data.PHP_EOL, FILE_APPEND);
+
+        if ($data) {
+            $user = new User($data);
+            echo $user->get_username();
+            exit;
+        }
+        echo false;
+    }
+}
