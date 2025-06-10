@@ -1,0 +1,19 @@
+{
+    "name": "domin/rtc-psr",
+    "autoload": {
+        "psr-4": {
+            "Domin\\RtcPsr\\": "src/",
+            "App\\Controller\\": "class/Controller",
+            "App\\Model\\": "class/Model",
+            "App\\Helper\\": "class/Helper",
+            "App\\": "class/"
+        }
+    },
+    "authors": [
+        {
+            "name": "dominik8891",
+            "email": "dominikkusber33@gmail.com"
+        }
+    ],
+    "require": {}
+}
