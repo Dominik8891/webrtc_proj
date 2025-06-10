@@ -20,7 +20,7 @@ class SystemController
     /**
      * Generiert ein HTML-Dropdown-Menü (Select-Optionen) basierend auf einem Array.
      */
-    public function generateHtmlOptions($dataArray, $selectedId, $addEmpty = false): string
+    public static function generateHtmlOptions($dataArray, $selectedId, $addEmpty = false): string
     {
         $outOpt = "";
 

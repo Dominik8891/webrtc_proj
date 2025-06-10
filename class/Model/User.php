@@ -337,11 +337,12 @@ class User
     }
 
     // Setter-Methoden
-    public function setId($in_id)           { $this->id = $in_id; }
-    public function setStatus($in_status)   { $this->status = $in_status; }
-    public function setUsername($in_username) { $this->username = $in_username; }
-    public function setEmail($in_email)     { $this->email = $in_email; }
-    public function setPwd($in_pwd)         { $this->pwd = $in_pwd; }
+    public function setId($in_id)               { $this->id = $in_id; }
+    public function setStatus($in_status)       { $this->status = $in_status; }
+    public function setUsername($in_username)   { $this->username = $in_username; }
+    public function setEmail($in_email)         { $this->email = $in_email; }
+    public function setPwd($in_pwd)             { $this->pwd = $in_pwd; }
+    public function setRoleId($in_role_id)      { $this->type_id = $in_role_id; }
 
     // Getter-Methoden
     public function getId()       { return $this->id; }
@@ -349,5 +350,5 @@ class User
     public function getUsername() { return $this->username; }
     public function getEmail()    { return $this->email; }
     public function getPwd()      { return $this->pwd; }
-    public function getRoleId()  { return $this->type_id; }
+    public function getRoleId()   { return $this->type_id; }
 }

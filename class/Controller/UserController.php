@@ -26,7 +26,7 @@ class UserController
         $send     = Request::g('send');
 
         $tmp_user = new User(intval($user_id));
-        $role     = SystemController::genHtmlOptions($tmp_user->getAllUsertypesAsArray(), $tmp_user->getRoleId());
+        $role     = SystemController::generateHtmlOptions($tmp_user->getAllUsertypesAsArray(), $tmp_user->getRoleId());
 
         $user_info  = " neu anlegen";
 
@@ -35,10 +35,12 @@ class UserController
         }
         elseif ($send !== null) {
             $sel_user   = new User(Request::g('id'));
+            $role       = Request::g('role');
             $username   = Request::g('username');
             $email      = Request::g('email');
             $pwd        = Request::g('pwd');
 
+            $sel_user->setRoleId($role);
             if ($username !== null               ) $sel_user->setUsername($username);
             if ($email    !== null               ) $sel_user->setEmail($email);
             if ($pwd      !== null && $pwd !== '') $sel_user->setPwd(SystemController::pwdEncrypt($pwd));
