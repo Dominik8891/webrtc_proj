@@ -74,6 +74,8 @@ window.webrtcApp.rtc = {
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
                 window.webrtcApp.refs.localStream = stream;
+                updateCallIcons();
+
                 document.getElementById('local-video').srcObject = stream;
                 window.webrtcApp.rtc.createPeerConnection(true);
                 window.webrtcApp.sound.play('call_ringtone');
@@ -81,6 +83,8 @@ window.webrtcApp.rtc = {
             })
             .then(() => {
                 window.webrtcApp.rtc.addLocalTracks();
+                updateCallIcons();
+
                 return window.webrtcApp.refs.localPeerConnection.createOffer();
             })
             .then(offer => {
@@ -100,6 +104,9 @@ window.webrtcApp.rtc = {
         document.getElementById('call-view').style.display = '';
         console.log('Geladener Username:', window.webrtcApp.state.targetUsername);
         document.getElementById('remote-username').textContent = 'Rufe ' + window.webrtcApp.state.targetUsername + ' an';
+        
+        window.webrtcApp.rtc.startTimeout();
+
     },
 
     createPeerConnection(isInitiator = false) {
@@ -115,14 +122,14 @@ window.webrtcApp.rtc = {
 
         window.webrtcApp.refs.localPeerConnection.onconnectionstatechange = function() {
             if (["disconnected", "failed", "closed"].includes(window.webrtcApp.refs.localPeerConnection.connectionState)) {
-                alert("Die Verbindung zum Gesprächspartner ist abgebrochen.");
                 window.webrtcApp.rtc.endCall(false);
+                alert("Die Verbindung zum Gesprächspartner ist abgebrochen.");
             }
         };
         window.webrtcApp.refs.localPeerConnection.oniceconnectionstatechange = function() {
             if (["disconnected", "failed", "closed"].includes(window.webrtcApp.refs.localPeerConnection.iceConnectionState)) {
-                alert("Die Verbindung zum Gesprächspartner ist unterbrochen (ICE).");
                 window.webrtcApp.rtc.endCall(false);
+                alert("Die Verbindung zum Gesprächspartner ist unterbrochen (ICE).");
             }
         };
 
@@ -145,7 +152,15 @@ window.webrtcApp.rtc = {
         };
         window.webrtcApp.refs.localPeerConnection.ontrack = event => {
             const remoteVideo = document.getElementById('remote-video');
-            if (remoteVideo) remoteVideo.srcObject = event.streams[0];
+            const placeholder = document.getElementById('remote-video-placeholder');
+            if (remoteVideo) {
+                remoteVideo.srcObject = event.streams[0];
+                // Overlay auf jeden Fall ausblenden, sobald wirklich ein Video-Track da ist
+                if (placeholder && event.streams[0].getVideoTracks().length > 0) {
+                    placeholder.style.display = "none";
+                    remoteVideo.style.display = "block";
+                }
+            }
         };
         window.webrtcApp.state.tracksAdded = false;
     },
@@ -172,9 +187,22 @@ window.webrtcApp.rtc = {
         };
         dc.onmessage = (e) => {
             if (e.data === "__hangup__" && window.webrtcApp.state.isCallActive === true) {
-                alert("Der andere Teilnehmer hat die Verbindung beendet");
-                window.webrtcApp.state.hangupReceived = true;
                 window.webrtcApp.rtc.endCall(false);
+                alert("Der andere Teilnehmer hat die Verbindung beendet");
+                return;
+            }
+            if (e.data === "__video_off__") {
+                const remoteVideo = document.getElementById('remote-video');
+                const placeholder = document.getElementById('remote-video-placeholder');
+                if (remoteVideo) remoteVideo.style.display = "none";
+                if (placeholder) placeholder.style.display = "flex";
+                return;
+            }
+            if (e.data === "__video_on__") {
+                const remoteVideo = document.getElementById('remote-video');
+                const placeholder = document.getElementById('remote-video-placeholder');
+                if (remoteVideo) remoteVideo.style.display = "block";
+                if (placeholder) placeholder.style.display = "none";
                 return;
             }
             if (e.data === "__arrow_forward__") {
@@ -213,7 +241,11 @@ window.webrtcApp.rtc = {
                 await new Promise(resolve => setTimeout(resolve, 100));
                 const stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
                 window.webrtcApp.refs.localStream = stream;
+                updateCallIcons();
+
                 window.webrtcApp.rtc.addLocalTracks();
+                updateCallIcons();
+
                 const offer = await window.webrtcApp.refs.localPeerConnection.createOffer();
                 await window.webrtcApp.refs.localPeerConnection.setLocalDescription(offer);
             }
@@ -242,7 +274,28 @@ window.webrtcApp.rtc = {
         window.webrtcApp.refs.iceServersLoaded = true;
 
         console.log("ICE-Server (gekürzt):", iceServers);
+    },
+
+    startTimeout: function() {
+        if (window.webrtcApp.state.callTimeout) clearTimeout(window.webrtcApp.state.callTimeout);
+        window.webrtcApp.state.callTimeout = setTimeout(function() {
+            // 15 Sekunden sind vorbei, Call wurde nicht angenommen:
+            window.webrtcApp.signaling.sendSignalMessage({
+                type: 'hangup',
+                target: window.webrtcApp.state.activeTargetUserId,
+                reason: 'timeout'
+            });
+            window.webrtcApp.sound.stop('call_ringtone');
+            window.webrtcApp.rtc.endCall(false);
+            alert('Der Anruf wurde nicht angenommen.');
+        }, 25000);
+        console.log('Start Timeout :' + window.webrtcApp.state.callTimeout);
+    },
+
+    stopTimeout() {
+        if (window.webrtcApp.state.callTimeout) {
+            clearTimeout(window.webrtcApp.state.callTimeout);
+            window.webrtcApp.state.callTimeout = null;
+        }
     }
-
-
 };

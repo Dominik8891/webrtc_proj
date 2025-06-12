@@ -49,36 +49,50 @@ window.webrtcApp.init = function() {
             window.webrtcApp.state.isCallActive = true;
             const data = window.webrtcApp.state.pendingOffer;
             window.webrtcApp.state.activeTargetUserId = data.sender_id;
-            window.webrtcApp.state.targetUsername     = await window.webrtcApp.ui.getUsername(data.sender_id);
+            window.webrtcApp.state.targetUsername = await window.webrtcApp.ui.getUsername(data.sender_id);
             document.body.classList.add('call-active');
             document.getElementById('call-view').style.display = '';
             document.getElementById('remote-username').textContent = 'Anruf mit ' + window.webrtcApp.state.targetUsername;
 
-            // Medien-Auswahl lesen
+            // Checkboxen holen
             const useVideo = document.getElementById('media-video-checkbox').checked;
             const useAudio = document.getElementById('media-audio-checkbox').checked;
-            const videoDeviceId = document.getElementById('camera-select').value;
-            const audioDeviceId = document.getElementById('mic-select').value;
 
-            const constraints = {};
-            if (useVideo) constraints.video = videoDeviceId ? { deviceId: { exact: videoDeviceId } } : true;
-            if (useAudio) constraints.audio = audioDeviceId ? { deviceId: { exact: audioDeviceId } } : true;
+            let constraints = {};
+            if (useVideo) constraints.video = true;
+            if (useAudio) constraints.audio = true;
 
-            let stream = null;
-            if (constraints.video || constraints.audio) {
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia(constraints);
-                } catch (e) {
-                    alert('Konnte Medien nicht holen: ' + e.message);
-                    return;
-                }
-                window.webrtcApp.refs.localStream = stream;
-                document.getElementById('local-video').srcObject = stream;
-            } else {
-                window.webrtcApp.refs.localStream = null;
+            if (!useVideo && !useAudio) {
+                // Dem Sender mitteilen, dass der Call abgelehnt wurde!
+                window.webrtcApp.signaling.sendSignalMessage({
+                    type: 'call_failed',
+                    target: data.sender_id,
+                    reason: 'no_media_selected'
+                });
+                window.webrtcApp.rtc.endCall(false);
+                alert('Bitte mindestens Audio oder Video auswählen, um den Call zu starten!');
+                return;
             }
 
-            // *** WICHTIG: ICE-Server sicherstellen ***
+            let stream = null;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (e) {
+                window.webrtcApp.signaling.sendSignalMessage({
+                    type: 'call_failed',
+                    target: data.sender_id,
+                    reason: 'media_error'
+                });
+                window.webrtcApp.rtc.endCall(false);
+                alert('Konnte Medien nicht holen: ' + e.message);
+                return;
+            }
+
+            window.webrtcApp.refs.localStream = stream;
+            document.getElementById('local-video').srcObject = stream;
+
+
+            // *** ICE-Server sicherstellen ***
             await window.webrtcApp.rtc.loadIceServers();
 
             // *** PeerConnection erzeugen ***
@@ -114,6 +128,9 @@ window.webrtcApp.init = function() {
                 sdp: answer.sdp,
                 target: data.sender_id
             });
+
+            // Nach Call-Start Icons updaten!
+            updateCallIcons();
         });
     }
 
@@ -127,11 +144,11 @@ window.webrtcApp.init = function() {
             }
             console.log("Starte Call mit User:", userId);
             window.webrtcApp.rtc.startCall(userId);
+            setTimeout(updateCallIcons, 1000); // Nach Call-Start Icons aktualisieren
         });
     });
 
     if (window.isLoggedIn) {
-        // Am besten NACH dem DOMContentLoaded!
         document.getElementById('btn-forward').addEventListener('click', function() {
             window.webrtcApp.chat.send('__arrow_forward__');
         });
@@ -145,8 +162,6 @@ window.webrtcApp.init = function() {
             window.webrtcApp.chat.send('__arrow_right__');
         });
     }
-    
-
 
     navigator.mediaDevices.enumerateDevices().then(function(devices) {
         // Kamera
@@ -179,20 +194,209 @@ window.webrtcApp.init = function() {
             }
         }
     });
+
+    // IN-CALL Kamera/Mikrofon Selects
+    window.webrtcApp.init.updateMediaDeviceSelects = async function() {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+
+        // Kamera
+        const videoSelect = document.getElementById('camera-select-in-call');
+        if (videoSelect) {
+            videoSelect.innerHTML = "";
+            devices.filter(d => d.kind === "videoinput").forEach((device, i) => {
+                const option = document.createElement("option");
+                option.value = device.deviceId;
+                option.text = device.label || `Kamera ${i+1}`;
+                videoSelect.appendChild(option);
+            });
+            const currentVideoTrack = window.webrtcApp.refs.localStream?.getVideoTracks()[0];
+            if (currentVideoTrack) {
+                const settings = currentVideoTrack.getSettings();
+                if (settings.deviceId)
+                    videoSelect.value = settings.deviceId;
+            }
+        }
+
+        // Mikrofon
+        const micSelect = document.getElementById('mic-select-in-call');
+        if (micSelect) {
+            micSelect.innerHTML = "";
+            devices.filter(d => d.kind === "audioinput").forEach((device, i) => {
+                const option = document.createElement("option");
+                option.value = device.deviceId;
+                option.text = device.label || `Mikrofon ${i+1}`;
+                micSelect.appendChild(option);
+            });
+            const currentAudioTrack = window.webrtcApp.refs.localStream?.getAudioTracks()[0];
+            if (currentAudioTrack) {
+                const settings = currentAudioTrack.getSettings();
+                if (settings.deviceId)
+                    micSelect.value = settings.deviceId;
+            }
+        }
+    };
+
+    window.webrtcApp.init.handleMediaDeviceChange = async function(type) {
+        const select = document.getElementById(type === 'video' ? 'camera-select-in-call' : 'mic-select-in-call');
+        if (!select || !select.value) return;
+        const constraints = {};
+        constraints[type] = { deviceId: { exact: select.value } };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const track = type === 'video' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        const sender = pc?.getSenders().find(s => s.track && s.track.kind === type);
+        if (sender && track) {
+            await sender.replaceTrack(track);
+            const localStream = window.webrtcApp.refs.localStream;
+            if (localStream) {
+                localStream.getTracks().filter(t => t.kind === type).forEach(t => localStream.removeTrack(t));
+                localStream.addTrack(track);
+            }
+            if (type === 'video') {
+                document.getElementById('local-video').srcObject = window.webrtcApp.refs.localStream;
+            }
+        }
+        updateCallIcons();
+    };
+
+    // ========== ECHTER MUTE/UNMUTE & VIDEO ON/OFF ==========
+
+    function getSender(kind) {
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        if (!pc) return null;
+        // Zuerst mit aktivem Track
+        let sender = pc.getSenders().find(s => s.track && s.track.kind === kind);
+        // Wenn nicht, dann der erste Sender ohne aktiven Track (nach Mute)
+        if (!sender) {
+            sender = pc.getSenders().find(s => !s.track);
+        }
+        return sender;
+    }
+
+    // Mikrofon-Button & Icon
+    const micBtn = document.getElementById('switch-mic-btn');
+    const micIcon = document.getElementById('mic-icon');
+    function updateMicIcon() {
+        const sender = getSender('audio');
+        if (!micBtn || !micIcon) return;
+        if (sender && sender.track) {
+            micIcon.src = 'assets/img/mic.png';
+            micBtn.title = 'Mikrofon stummschalten';
+        } else {
+            micIcon.src = 'assets/img/mic-off.png';
+            micBtn.title = 'Mikrofon einschalten';
+        }
+    }
+    if (micBtn && micIcon) {
+        micBtn.addEventListener('click', async function() {
+            if (!window.webrtcApp.state.isCallActive) return;
+            const sender = getSender('audio');
+            if (sender && sender.track) {
+                await sender.replaceTrack(null);
+            } else {
+                const stream = window.webrtcApp.refs.localStream;
+                if (stream) {
+                    const newTrack = stream.getAudioTracks()[0];
+                    if (newTrack) await sender.replaceTrack(newTrack);
+                }
+            }
+            updateMicIcon();
+        });
+    }
+
+    // Kamera-Button & Icon
+    const camBtn = document.getElementById('switch-cam-btn');
+    const camIcon = document.getElementById('cam-icon');
+    function updateCamIcon() {
+        const sender = getSender('video');
+        if (!camBtn || !camIcon) return;
+        if (sender && sender.track) {
+            camIcon.src = 'assets/img/camera.png';
+            camBtn.title = 'Kamera ausschalten';
+        } else {
+            camIcon.src = 'assets/img/camera-off.png';
+            camBtn.title = 'Kamera einschalten';
+        }
+    }
+    if (camBtn && camIcon) {
+        camBtn.addEventListener('click', async function() {
+            if (!window.webrtcApp.state.isCallActive) return;
+            const sender = getSender('video');
+            const stream = window.webrtcApp.refs.localStream;
+
+            if (sender && sender.track) {
+                // Kamera aus (Track entfernen)
+                await sender.replaceTrack(null);
+                if (window.webrtcApp.refs.dataChannel && window.webrtcApp.refs.dataChannel.readyState === "open") {
+                    window.webrtcApp.refs.dataChannel.send("__video_off__");
+                }
+            } else {
+                // Kamera an (Track wieder aktivieren oder neuen holen)
+                let newTrack = null;
+                // Versuche zuerst, ob im Stream schon ein Track ist (war vielleicht nur disabled)
+                if (stream && stream.getVideoTracks().length > 0) {
+                    newTrack = stream.getVideoTracks()[0];
+                } else {
+                    // Noch kein Track: Jetzt Kamera holen!
+                    try {
+                        const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                        newTrack = newStream.getVideoTracks()[0];
+                        if (newTrack && stream) {
+                            stream.addTrack(newTrack);
+                        }
+                    } catch (e) {
+                        alert("Konnte Kamera nicht aktivieren: " + e.message);
+                        return;
+                    }
+                }
+
+                if (newTrack && sender) {
+                    await sender.replaceTrack(newTrack);
+                } else if (newTrack && stream && window.webrtcApp.refs.localPeerConnection) {
+                    // Es gibt keinen Sender mehr? Dann neuen Sender erzeugen!
+                    window.webrtcApp.refs.localPeerConnection.addTrack(newTrack, stream);
+                }
+
+                // Videoelement updaten
+                if (stream) {
+                    document.getElementById('local-video').srcObject = stream;
+                }
+
+                if (window.webrtcApp.refs.dataChannel && window.webrtcApp.refs.dataChannel.readyState === "open") {
+                    window.webrtcApp.refs.dataChannel.send("__video_on__");
+                }
+            }
+            updateCamIcon();
+        });
+    }
+
+    function updateCallIcons() {
+        updateMicIcon();
+        updateCamIcon();
+    }
+
+    window.updateMicIcon = updateMicIcon;
+    window.updateCamIcon = updateCamIcon;
+    window.updateCallIcons = updateCallIcons;
+
+    // Beim Start direkt Icons setzen
+    updateCallIcons();
+
+    // IN-CALL-Selects mit Event-Handlern
+    window.webrtcApp.init.updateMediaDeviceSelects();
+    document.getElementById('camera-select-in-call')?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('video'));
+    document.getElementById('mic-select-in-call')?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('audio'));
 };
 window.addEventListener('DOMContentLoaded', function() {
     window.webrtcApp.init();
     window.webrtcApp.ui.showLocationButton();
     window.webrtcApp.ui.showAllLocationsButton();
-    
+
     if (window.isLoggedIn) {
         setInterval(function() {
-            // Hier musst du selbst rausfinden, ob der User im Call ist!
-            // In diesem Beispiel einfach immer 0 senden
             window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
         }, 15000);  
     }
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Lokation erfolgreich gespeichert!');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Speichern nicht erfolgreich. Stadt oder Beschreibung fehlt');
-
 });

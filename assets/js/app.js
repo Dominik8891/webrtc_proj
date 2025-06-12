@@ -6,7 +6,9 @@ window.webrtcApp = {
         isCallActive: false,
         pendingOffer: null,
         tracksAdded: false,
-        targetUsername: null
+        targetUsername: null,
+        remoteVideoCheckInterval: null,
+        callTimeout: null
     },
     refs: {
         localPeerConnection: null,

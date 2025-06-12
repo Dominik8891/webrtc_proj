@@ -45,6 +45,8 @@ window.webrtcApp.signaling = {
             if (btn) btn.style.display = "none";
             window.webrtcApp.sound.play('incomming_call_ringtone');
         } else if (data.type === 'answer') {
+            console.log('Stopped Timeout :' + window.webrtcApp.state.callTimeout);
+            window.webrtcApp.rtc.stopTimeout();
             window.webrtcApp.refs.localPeerConnection.setRemoteDescription(new RTCSessionDescription({
                 type: data.type,
                 sdp: data.sdp
@@ -73,20 +75,26 @@ window.webrtcApp.signaling = {
                 window.webrtcApp.refs.localPeerConnection.addIceCandidate(new RTCIceCandidate(candidateObj));
             }
         } else if (data.type === 'hangup') {
+            window.webrtcApp.rtc.stopTimeout();
             if (window.webrtcApp.state.isCallActive === true) {
-                alert("Der andere Teilnehmer hat die Verbindung beendet.");
-                window.webrtcApp.state.hangupReceived = true;
-                window.webrtcApp.rtc.endCall(true);
+                window.webrtcApp.rtc.endCall(false);
                 window.webrtcApp.sound.stop('call_ringtone');
                 var acceptBtn = document.getElementById('accept-call-btn');
                 if (acceptBtn) acceptBtn.style.display = "none";
                 window.webrtcApp.ui.setEndCallButtonVisible(false); 
+                alert("Der andere Teilnehmer hat die Verbindung beendet.");
             } else if (window.webrtcApp.state.pendingOffer.sender_id === data.sender_id){
                 var dialog = document.getElementById('media-select-dialog');
                 if (dialog) dialog.style.display = 'none';
                 window.webrtcApp.sound.stop('incomming_call_ringtone');
-            }
-                
+            }    
+        } else if (data.type === 'call_failed') {
+            window.webrtcApp.sound.stop('call_ringtone');
+            window.webrtcApp.rtc.endCall(false);
+            // Empfänger hat Call abgebrochen/abgelehnt/Fehler
+            // Gib dem User einen Hinweis:
+            alert('Der Anruf konnte nicht gestartet werden.\nGrund: ' +
+                (data.reason === 'no_media_selected' ? 'Keine Medien ausgewählt.' : 'Fehler beim Aufbau der Verbindung.'));   
         }
     },
     sendHeartbeat(inCall) {
@@ -96,6 +104,7 @@ window.webrtcApp.signaling = {
             body: JSON.stringify({
                 in_call: inCall ? 1 : 0
             })
-    });
-}
+        });
+    },
+
 };
