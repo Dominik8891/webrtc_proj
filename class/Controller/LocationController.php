@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Model\User;
 use App\Model\Location;
 use App\Helper\Request;
+use App\Helper\ViewHelper;
 
 class LocationController
 {
@@ -14,7 +15,7 @@ class LocationController
     {
         if (!empty($_SESSION['user']['user_id'])) {
             $out = file_get_contents('assets/html/set_location.html');
-            \App\Helper\ViewHelper::output($out);
+            ViewHelper::output($out);
         } else {
             // Home als Rückfall (achte auf deinen Controller/Utility!)
             (new SystemController())->home();
@@ -89,7 +90,7 @@ class LocationController
     {
         if (!empty($_SESSION['user']['user_id'])) {
             $out = file_get_contents('assets/html/locations_table.html');
-            \App\Helper\ViewHelper::output($out);
+            ViewHelper::output($out);
         } else {
             (new SystemController())->home();
         }

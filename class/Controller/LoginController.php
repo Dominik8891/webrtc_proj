@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Model\User;
 use App\Helper\Request;
+use App\Helper\ViewHelper;
 
 class LoginController
 {
@@ -13,7 +14,7 @@ class LoginController
     {
         $html = file_get_contents('assets/html/login.html');
         $html = str_replace('###LOGIN_ERROR###', '', $html);
-        \App\Helper\ViewHelper::output($html);
+        ViewHelper::output($html);
     }
 
     /**
@@ -39,7 +40,7 @@ class LoginController
 
         $html = file_get_contents('assets/html/login.html');
         $html = str_replace('###LOGIN_ERROR###', 'Benutzername oder Passwort falsch.', $html);
-        \App\Helper\ViewHelper::output($html);
+        ViewHelper::output($html);
     }
 
     /**

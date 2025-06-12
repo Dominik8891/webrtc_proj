@@ -91,6 +91,7 @@ window.webrtcApp.signaling = {
         } else if (data.type === 'call_failed') {
             window.webrtcApp.sound.stop('call_ringtone');
             window.webrtcApp.rtc.endCall(false);
+            window.webrtcApp.rtc.stopTimeout();
             // Empfänger hat Call abgebrochen/abgelehnt/Fehler
             // Gib dem User einen Hinweis:
             alert('Der Anruf konnte nicht gestartet werden.\nGrund: ' +

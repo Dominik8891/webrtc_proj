@@ -293,9 +293,20 @@ window.webrtcApp.rtc = {
     },
 
     stopTimeout() {
+        console.log('stop: ' + window.webrtcApp.state.callTimeout);
         if (window.webrtcApp.state.callTimeout) {
             clearTimeout(window.webrtcApp.state.callTimeout);
             window.webrtcApp.state.callTimeout = null;
         }
+    },
+
+    sendCallFailedMsg(msg) {
+        window.webrtcApp.signaling.sendSignalMessage({
+            type: 'call_failed',
+            target: window.webrtcApp.state.activeTargetUserId,
+            reason: 'media_error'
+        });
+        window.webrtcApp.rtc.endCall(false);
+        alert(msg);
     }
 };

@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Model\User;
 use App\Helper\Request;
+use \App\Helper\ViewHelper;
 
 class MessageController
 {
@@ -126,7 +127,7 @@ class MessageController
         if (!empty($_SESSION['user_id'])) {
             $out = $this->showChatbot();
             $out = str_replace("###LOGIN_SCRIPT###", "<script src='assets/js/scroll.js' defer></script>", $out);
-            \App\Helper\ViewHelper::output_fe($out);
+            ViewHelper::output_fe($out);
             return;
         }
         (new SystemController())->home();

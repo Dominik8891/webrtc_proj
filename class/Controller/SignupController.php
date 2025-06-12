@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Model\User;
 use App\Helper\Request;
+use App\Helper\ViewHelper;
 
 class SignupController
 {
@@ -14,7 +15,7 @@ class SignupController
         $html = file_get_contents('assets/html/signup.html');
         // Fehler-Platzhalter leeren
         $html = str_replace('###ERROR###', '', $html);
-        \App\Helper\ViewHelper::output($html);
+        ViewHelper::output($html);
     }
 
     /**
@@ -68,7 +69,7 @@ class SignupController
                     $msg = "Ein unbekannter Fehler ist aufgetreten.";
             }
             $html = str_replace('###ERROR###', $msg, $html);
-            \App\Helper\ViewHelper::output($html);
+            ViewHelper::output($html);
         } else {
             // Wenn kein POST-Request: Zur Registrierungseite weiterleiten
             header("Location: index.php?act=signup_page");

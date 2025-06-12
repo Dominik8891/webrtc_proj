@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Model\User;
 use App\Helper\Request;
+use App\Helper\ViewHelper;
 
 /**
  * SystemController – übernimmt alle ehemals globalen Systemfunktionen außer output.
@@ -14,7 +15,7 @@ class SystemController
      */
     public function showAdmin($msg = "Willkommen im Admin Panel"): void
     {
-        \App\Helper\ViewHelper::output($msg);
+        ViewHelper::output($msg);
     }
 
     /**
@@ -40,7 +41,7 @@ class SystemController
      */
     public static function home(): void
     {
-        \App\Helper\ViewHelper::output('');
+        ViewHelper::output('');
     }
 
     /**

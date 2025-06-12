@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Model\User;
 use App\Helper\Request;
+use \App\Helper\ViewHelper;
 
 class UserController
 {
@@ -58,7 +59,7 @@ class UserController
         $out = str_replace("###PASSWORD###" , ""                                          , $out);
         $out = str_replace("###USER_INFO###", $user_info                                  , $out);
 
-        \App\Helper\ViewHelper::output($out);
+        ViewHelper::output($out);
     }
 
     /**
@@ -86,7 +87,7 @@ class UserController
         $out = str_replace("###ACTION###"    , $action   , $table_html);
         $out = str_replace("###NEW###"       , $new      , $out);
         $out = str_replace("###USER_ROWS###" , $all_rows , $out);
-        \App\Helper\ViewHelper::output($out);
+        ViewHelper::output($out);
     }
 
     /**

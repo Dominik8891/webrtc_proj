@@ -64,13 +64,15 @@ window.webrtcApp.init = function() {
 
             if (!useVideo && !useAudio) {
                 // Dem Sender mitteilen, dass der Call abgelehnt wurde!
-                window.webrtcApp.signaling.sendSignalMessage({
+                /*window.webrtcApp.signaling.sendSignalMessage({
                     type: 'call_failed',
                     target: data.sender_id,
                     reason: 'no_media_selected'
                 });
                 window.webrtcApp.rtc.endCall(false);
-                alert('Bitte mindestens Audio oder Video auswählen, um den Call zu starten!');
+                alert('Bitte mindestens Audio oder Video auswählen, um den Call zu starten!');*/
+                msg = 'Bitte mindestens Audio oder Video auswählen, um den Call zu starten!';
+                window.webrtcApp.rtc.sendCallFailedMsg(msg)
                 return;
             }
 
@@ -78,13 +80,15 @@ window.webrtcApp.init = function() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
             } catch (e) {
-                window.webrtcApp.signaling.sendSignalMessage({
+                /*window.webrtcApp.signaling.sendSignalMessage({
                     type: 'call_failed',
                     target: data.sender_id,
                     reason: 'media_error'
                 });
                 window.webrtcApp.rtc.endCall(false);
-                alert('Konnte Medien nicht holen: ' + e.message);
+                alert('Konnte Medien nicht holen: ' + e.message);*/
+                msg = 'Konnte Medien nicht holen: ' + e.message;
+                window.webrtcApp.rtc.sendCallFailedMsg(msg)
                 return;
             }
 
