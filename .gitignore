@@ -1,6 +1,11 @@
-/config
+api.php
+config.php
+db_config.php
+turn.php
 *.log
 *.txt
 sql_exequte.php
 create_backup.php
 upload_import_db.php
+*.env
+*.sql

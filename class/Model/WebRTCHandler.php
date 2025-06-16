@@ -39,7 +39,7 @@ class WebRTCHandler {
             }
             else
             {
-                throw new Exception("RTC Signal mit ID {$in_id} nicht gefunden.");
+                throw new \Exception("RTC Signal mit ID {$in_id} nicht gefunden.");
             }
         }
         else

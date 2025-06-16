@@ -12,7 +12,7 @@ class TurnController
     {
         header('Content-Type: application/json');
         try {
-            $service = new MeteredTurnService(__DIR__ . '/../../config/api.php');
+            $service = new MeteredTurnService();
             $result = $service->fetch_turn_credentials();
             echo $result;
         } catch (\Exception $e) {

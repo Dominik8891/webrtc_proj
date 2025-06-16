@@ -1,0 +1,73 @@
+<div id="call-view" style="display:none;">
+    <div class="call-grid">
+        <!-- Beispiel: Weitere Bereiche wie Userinfo, Videos, etc. (aus deiner bisherigen Struktur) -->
+        <div class="user-info">
+            <span id="remote-username">Angerufener<br>Username</span>
+        </div>
+        <div class="remote-video-box" style="position:relative;">
+            <video id="remote-video" autoplay playsinline style="width:100%;background:#111;"></video>
+            <div id="remote-video-placeholder"
+                style="display:none; position:absolute; left:0; top:0; width:100%; height:100%;
+                        background:rgba(16,18,22,0.96); z-index:2; display:flex; align-items:center; justify-content:center;">
+                <div style="display:flex; flex-direction:column; align-items:center;">
+                    <div style="width:140px; height:140px; border-radius:50%; border:4px solid #777;
+                                display:flex; align-items:center; justify-content:center; margin-bottom:16px; background:rgba(24,28,32,0.94);">
+                    <!-- Hier als Icon (Unicode-Kamera mit Slash) -->
+                        <span style="color:#fff; font-size:3em; user-select:none;">&#128249;&#x20E0;</span>
+                    </div>
+                    <span style="color:#bbb; font-size:1.1em;">Kein Videobild verfügbar</span>
+                </div>
+            </div>
+        </div>
+        <div class="call-controls">
+            <button id="end-call-btn">call beenden</button>
+        </div>
+        <div id="media-device-controls" style="margin-top:10px; display: flex; gap: 20px; align-items: center;">
+            <!-- Kamera -->
+            <div>
+                <button id="switch-cam-btn" title="Kamera ausschalten" style="background:none;border:none;">
+                    <img id="cam-icon" src="assets/img/camera.png" alt="Kamera" style="width:28px;height:28px;">
+                </button>
+
+                <select id="camera-select-in-call" style="min-width:120px;"></select>
+            </div>
+            <!-- Mikrofon -->
+            <div>
+                <button id="switch-mic-btn" title="Mikrofon stummschalten" style="background:none;border:none;">
+                    <img id="mic-icon" src="assets/img/mic.png" alt="Mikrofon" style="width:28px;height:28px;">
+                </button>
+                <select id="mic-select-in-call" style="min-width:120px;"></select>
+            </div>
+        </div>
+
+        <div class="local-video-box">
+            <video id="local-video" autoplay muted playsinline></video>
+        <!--<span class="local-video-label">eigenes video</span>-->
+        </div>
+        <!-- Chatbereich mit Sidebar rechts -->
+        <div class="chat-row">
+            <div class="chat-box">
+                <div id="chat-area">
+                    <div id="chat-log"></div>
+                </div>
+                <div class="chat-input-row">
+                    <input id="chat-input" placeholder="Chat eingabe..." autocomplete="off" />
+                    <button id="chat-send-btn">senden</button>
+                </div>
+            </div>
+            <div class="sidebar-controls">
+                <div class="arrow-controls" id="arrow-control">
+                    <div class="row"><button id="btn-forward">↑</button></div>
+                    <div class="row">
+                        <button id="btn-left">←</button>
+                        
+                        <button id="btn-right">→</button>
+                    </div>
+                    <div class="row"><button id="btn-backward" class="down">↓</button></div>
+                </div>
+                <input type="file" id="file-input" style="margin-top:10px;">
+                <!--<button id="chat-send-btn" style="width:100%;margin-top:10px;">senden</button>-->
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,21 @@
+<h3>Benutzer ###USER_INFO###</h3>
+
+<form action="index.php?act=manage_user" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="id" value="###ID###" autocomplete="off">
+
+    <label>Typ:</label>
+    <select name="role" >
+        ###ROLE###					  
+    </select>
+
+    <label>Benutzername:</label>
+    <input type="text" name="username" value="###USERNAME###" autocomplete="off">
+
+    <label>Email:</label>
+    <input type="email" name="email" value="###EMAIL###" autocomplete="off">
+
+    <label>Passwort:</label>
+    <input type="text" name="pwd" value="###PASSWORD###" autocomplete="off">
+
+    <input type="submit" name="send" value="Speichern">
+</form>

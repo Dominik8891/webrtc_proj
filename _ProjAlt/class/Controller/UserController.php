@@ -1,0 +1,194 @@
+<?php
+namespace App\Controller;
+
+use App\Model\User;
+use App\Helper\Request;
+use \App\Helper\ViewHelper;
+
+class UserController
+{
+    /**
+     * Verwaltung eines Benutzers (Anlegen/Bearbeiten)
+     */
+    public function manageUser()
+    {
+        if (!isset($_SESSION['user']['user_id'])) {
+            SystemController::home();
+            exit;
+        }
+        if ($_SESSION['user']['role_id'] > 1) {
+            SystemController::home();
+            exit;
+        }
+
+        $out = file_get_contents("assets/html/manage_user.html");
+
+        $user_id  = Request::g('user_id');
+        $send     = Request::g('send');
+
+        $tmp_user = new User(intval($user_id));
+        $role     = SystemController::generateHtmlOptions($tmp_user->getAllUsertypesAsArray(), $tmp_user->getRoleId());
+
+        $user_info  = " neu anlegen";
+
+        if ($user_id !== null && $send === null) {
+            $user_info  = $tmp_user->getId() . " (" . htmlspecialchars($tmp_user->getUsername()) . ") bearbeiten ";
+        }
+        elseif ($send !== null) {
+            $sel_user   = new User(Request::g('id'));
+            $role       = Request::g('role');
+            $username   = Request::g('username');
+            $email      = Request::g('email');
+            $pwd        = Request::g('pwd');
+
+            $sel_user->setRoleId($role);
+            if ($username !== null               ) $sel_user->setUsername($username);
+            if ($email    !== null               ) $sel_user->setEmail($email);
+            if ($pwd      !== null && $pwd !== '') $sel_user->setPwd(SystemController::pwdEncrypt($pwd));
+
+            $sel_user->save();
+            $this->listUser();
+            return;
+        }
+
+        // Platzhalter ersetzen
+        $out = str_replace("###ID###"       , $tmp_user->getId()                         , $out);
+        $out = str_replace("###ROLE###"     , $role                                       , $out);
+        $out = str_replace("###USERNAME###" , htmlspecialchars($tmp_user->getUsername()) , $out);
+        $out = str_replace("###EMAIL###"    , htmlspecialchars($tmp_user->getEmail())    , $out);
+        $out = str_replace("###PASSWORD###" , ""                                          , $out);
+        $out = str_replace("###USER_INFO###", $user_info                                  , $out);
+
+        ViewHelper::output($out);
+    }
+
+    /**
+     * Zeigt eine Liste aller Benutzer im System an.
+     */
+    public function listUser()
+    {
+        if (!isset($_SESSION['user']['user_id'])) 
+        {
+            SystemController::home();
+        }
+        $table_html = file_get_contents("assets/html/list_user.html");
+        $user = new User($_SESSION['user']['user_id']);
+
+        $action = "";
+        $new    = "";
+        if ($user->getRoleId() === 1) {
+            $action = "<th>Aktion</th>";
+            $new    = '<a href="index.php?act=manage_user" class="button">NEU</a>';
+        }
+
+        $all_user_ids = $user->getAll();
+        $all_rows = $this->generateUserRows($user, $all_user_ids);
+
+        $out = str_replace("###ACTION###"    , $action   , $table_html);
+        $out = str_replace("###NEW###"       , $new      , $out);
+        $out = str_replace("###USER_ROWS###" , $all_rows , $out);
+        ViewHelper::output($out);
+    }
+
+    /**
+     * Löscht einen Benutzer aus dem System.
+     */
+    public function deleteUser()
+    {
+        $tmp_user = new User(Request::g('user_id'));
+        $tmp_user->del_it();
+        $this->listUser();
+    }
+
+    /**
+     * Generiert die HTML-Zeilen für die Benutzerliste.
+     */
+    private function generateUserRows($in_user, $in_user_ids)
+    {
+        $row_html = file_get_contents("assets/html/list_user_row.html");
+        $all_rows = "";
+
+        foreach ($in_user_ids as $one_user_id) {
+            if ($one_user_id == $in_user->getId()) continue;
+
+            $tmp_user = new User($one_user_id);
+            $action = "";
+
+            if ($in_user->getRoleId() === 1) $action = $this->getAction($tmp_user);
+            $status = "Offline";
+            if($tmp_user->getUserStatus($tmp_user->getId()) === "online") {
+                $status = "Online";
+            } elseif ($tmp_user->getUserStatus($tmp_user->getId()) === "in_call") {
+                $status = "In Call";
+            }
+            $call_btn = $this->createCallBtn($tmp_user->getId());
+
+            $tmp_row = str_replace("###ID###"       , $tmp_user->getId()                         , $row_html);
+            $tmp_row = str_replace("###STATUS###"   , $status                                     , $tmp_row);
+            $tmp_row = str_replace("###CALL###"     , $call_btn                                   , $tmp_row);
+            $tmp_row = str_replace("###USERNAME###" , htmlspecialchars($tmp_user->getUsername()) , $tmp_row);
+            $tmp_row = str_replace("###EMAIL###"    , htmlspecialchars($tmp_user->getEmail())    , $tmp_row);
+            $tmp_row = str_replace("###ACTION###"   , $action                                     , $tmp_row);
+
+            $all_rows .= $tmp_row;
+        }
+        return $all_rows;
+    }
+
+    /**
+     * Erzeugt den "Call"-Button für einen Benutzer.
+     */
+    private function createCallBtn($btn_id)
+    {
+        return '<button class="start-call-btn" id="start-call-btn-' . intval($btn_id) . '">Call</button>';
+    }
+
+    /**
+     * Generiert die möglichen Aktionen (Ändern/Löschen) für jeden Benutzer.
+     */
+    private function getAction($in_current_user)
+    {
+        return '<td>
+                    <a href="index.php?act=manage_user&user_id=' . $in_current_user->getId() .'">Ändern</a> | 
+                    <a href="#" onclick="window.webrtcApp.ui.confirmDelete(\'index.php?act=delete_user&user_id=' . $in_current_user->getId() .'\')">Löschen</a>
+                </td>';
+    }
+
+    /**
+     * Heartbeat-Schnittstelle zum Setzen des Online-Status (AJAX).
+     */
+    public function heartbeat()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $user_id = (int)($_SESSION['user']['user_id'] ?? null);
+            if (!$user_id) exit;
+
+            $data = json_decode(file_get_contents("php://input"), true);
+            $in_call = isset($data['in_call']) ? $data['in_call'] : false;
+
+            $user_status = $in_call ? 'in_call' : 'online';
+
+            $user = new User($user_id);
+            $user->setStatus($user_status);
+            $user->save();
+            exit;
+        }
+    }
+
+    /**
+     * API: Gibt den Benutzernamen für eine User-ID zurück (JSON).
+     */
+    public function getUsername()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $data = json_decode(file_get_contents("php://input"), true);
+
+            if ($data) {
+                $user = new User($data);
+                echo $user->getUsername();
+                exit;
+            }
+            echo false;
+        }
+    }
+}

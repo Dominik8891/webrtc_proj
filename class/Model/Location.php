@@ -37,7 +37,7 @@ class Location
                 $this->longitude   = $result['longitude'];
                 $this->description = $result['description'];
             } else {
-                throw new Exception("Location mit ID {$in_id} nicht gefunden.");
+                throw new \Exception("Location mit ID {$in_id} nicht gefunden.");
             }
         } else {
             $this->id = 0;
@@ -57,7 +57,7 @@ class Location
                 $city_id = $result['id'];
             }
             if (empty($city_id)) {
-                throw new Exception("City konnte nicht bestimmt werden!");
+                throw new \Exception("City konnte nicht bestimmt werden!");
             }
             return $this->insertLocation($user_id, $city_id);
         }

@@ -2,8 +2,11 @@
 namespace App\Controller;
 
 use App\Model\User;
+use App\Model\Email;
+use App\Model\PdoConnect;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
+use App\Controller\EmailVerificationController;
 
 class SignupController
 {
@@ -24,52 +27,52 @@ class SignupController
     public function handleSignup(): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $username   = trim(htmlspecialchars($this->g('username')));
-            $email      = trim(htmlspecialchars($this->g('email')));
-            $pwd        = $this->g('pwd');
-            $pwd_scnd   = $this->g('pwd_scnd');
+            $username   = trim(REQUEST::g('username'));
+            $email      = trim(REQUEST::g('email'));
+            $pwd        =      REQUEST::g('pwd');
+            $pwd_scnd   =      REQUEST::g('pwd_scnd');
 
             $error = "";
 
-            // Passwort-Doppelprüfung
+            // --- Eingabe validieren ---
             if ($pwd !== $pwd_scnd) {
                 $error = "pw";
+            } elseif (!preg_match('/^[\w]{3,20}$/', $username)) {
+                $error = "username_invalid";
+            } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $error = "email_invalid";
+            } elseif (strlen($pwd) < 8) {
+                $error = "pwd_short";
             } else {
                 $user = new User();
-                if ($user->usernameExists($username)) {
+                $user->setUsername($username);
+                $user->setEmail($email);
+                if ($user->usernameExists()) {
                     $error = "username";
-                } elseif ($user->emailExists($email)) {
+                } elseif ($user->emailExists()) {
                     $error = "email";
                 } else {
                     // User anlegen
                     $user_id = $user->register($username, $email, $pwd);
                     if ($user_id > 0) {
-                        // Registrierung erfolgreich: Weiterleitung zum Login
-                        header("Location: index.php?act=login_page");
+                        /*
+                         *
+                         * Viewhelper rausnehmen und Emailverification rein wenn auf Online Server
+                         * da ich keinen SMTP service habe der das kann.
+                         * Lokal läuft es aber
+                         * 
+                        */
+                        ViewHelper::output($out);
+                        //(new EmailVerificationController)::sendVerification($user_id);
                         exit;
                     } else {
                         $error = "unknown";
+                        error_log("Fehler bei der Registrierung für User $username/$email");
                     }
                 }
             }
 
-            // Fehlerfall: Formular mit Fehler anzeigen
-            $html = file_get_contents('assets/html/signup.html');
-            switch ($error) {
-                case "username":
-                    $msg = "Der Benutzername ist bereits vergeben.";
-                    break;
-                case "email":
-                    $msg = "Die E-Mail-Adresse ist bereits vergeben.";
-                    break;
-                case "pw":
-                    $msg = "Die Passwörter stimmen nicht überein.";
-                    break;
-                default:
-                    $msg = "Ein unbekannter Fehler ist aufgetreten.";
-            }
-            $html = str_replace('###ERROR###', $msg, $html);
-            ViewHelper::output($html);
+            $this->outputSignupError($error);
         } else {
             // Wenn kein POST-Request: Zur Registrierungseite weiterleiten
             header("Location: index.php?act=signup_page");
@@ -77,22 +80,22 @@ class SignupController
         }
     }
 
-    /**
-     * Holt einen Wert aus $_REQUEST (Utility, weil du es bisher so genutzt hast)
-     */
-    private function g($assoc_index)
+    public function outputSignupError($error): void
     {
-        return isset($_REQUEST[$assoc_index]) ? $_REQUEST[$assoc_index] : null;
+        // Fehlerfall: Formular mit Fehler anzeigen
+        $html = file_get_contents('assets/html/signup.html');
+        switch ($error) {
+            case "username":         $msg = "Der Benutzername ist bereits vergeben."; break;
+            case "email":            $msg = "Die E-Mail-Adresse ist bereits vergeben."; break;
+            case "pw":               $msg = "Die Passwörter stimmen nicht überein."; break;
+            case "username_invalid": $msg = "Ungültiger Benutzername. Nur Buchstaben/Zahlen/Unterstrich, 3-20 Zeichen."; break;
+            case "email_invalid":    $msg = "Bitte gib eine gültige E-Mail-Adresse ein."; break;
+            case "pwd_short":        $msg = "Das Passwort muss mindestens 8 Zeichen lang sein."; break;
+            default:                 $msg = "Ein unbekannter Fehler ist aufgetreten.";
+        }
+        $html = str_replace('###ERROR###', $msg, $html);
+        ViewHelper::output($html);
     }
 
-    /**
-     * Gibt das HTML aus und beendet das Skript
-     */
-    private function output($in_content)
-    {
-        // Hier kannst du auch dein system.php-output nachbauen, falls du willst!
-        $out = file_get_contents("assets/html/index.html");
-        $out = str_replace("###CONTENT###", $in_content, $out);
-        die($out);
-    }
+    
 }

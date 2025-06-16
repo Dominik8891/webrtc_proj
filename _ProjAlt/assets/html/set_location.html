@@ -1,0 +1,29 @@
+<form action="index.php?act=set_location" method="post">
+    <input type="hidden" name="type_id" value="1">
+    <button id="current-location" type="button">Aktuellen Standort verwenden</button>
+    <select id="countrySelect" name="country" style="width:300px;" required>
+        <option value="">Land wählen...</option>
+        <!-- Optionen werden per JS eingefügt -->
+    </select>
+    
+    <!--<input id="city" type="text" name="city" placeholder="Stadt eingeben..." autocomplete="off" required>-->
+    <select id="citySelect" name="city" style="width:300px;" required>
+        <option value="">Stadt wählen...</option>
+    </select>
+    <!--<ul id="city-suggestions"></ul>-->
+    <!-- Hidden-Inputs für Koordinaten - außerhalb des <select> -->
+    <input type="hidden" id="latitude" name="latitude" value="" required>
+    <input type="hidden" id="longitude" name="longitude" value="" required>
+    <input type="hidden" name="country-iso2" id="country-iso2">
+
+    <label for="description">Hier eine kurze Beschreibung einfügen</label>
+    <input type="text" name="description" placeholder="" class="formcontrol" required>
+    <input type="submit" value="Lokation hinzufügen">
+</form>
+
+<div id="map"></div>
+<p>
+    <b>Latitude:</b> <span id="lat"></span><br>
+    <b>Longitude:</b> <span id="lon"></span><br>
+    <b>Ort laut OSM:</b> <span id="osm_place"></span>
+</p>

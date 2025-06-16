@@ -2,18 +2,14 @@
 
 namespace App\Model;
 
+use PDO;
+use PDOException;
+
 /**
  * Klasse zur Verwaltung der Datenbankverbindung mittels PDO.
  */
 class PdoConnect
 {
-    // Private Attribute für Datenbank-Verbindungsinformationen
-    private $host;
-    private $port;
-    private $dbname;
-    private $dbusername;
-    private $dbpassword;
-    
     // Statische Eigenschaft zur Speicherung der Datenbankverbindung
     public static $connection = null;
 
@@ -21,31 +17,36 @@ class PdoConnect
      * Konstruktor zur Initialisierung und Herstellung der Datenbankverbindung.
      */
     public function __construct()
-    {
-        // Laden der Konfigurationsdaten aus der externen Konfigurationsdatei db_config.php
-        $config = include __DIR__ . '/../../config/db_config.php';           
-        
-        $this->host = $config['host'];
-        $this->port = $config['port'];
-        $this->dbname = $config['dbname'];
-        $this->dbusername = $config['username'];
-        $this->dbpassword = $config['password'];
+    {       
+        if(self::$connection !== null) {
+            return;
+        }
+
+        $host       = $_ENV['DB_HOST'];
+        $port       = $_ENV['DB_PORT'];
+        $dbname     = $_ENV['DB_NAME'];
+        $username   = $_ENV['DB_USER'];
+        $password   = $_ENV['DB_PW'  ];
+        error_log('HOST: ' .$host);
+        error_log('DB: ' . $dbname);
+        error_log('USERNAME: ' . $username);
+        error_log('PW: ' . $password);
+
+        $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
 
         // Versuch, die Datenbankverbindung über PDO herzustellen
         try {
             // Erstellen der PDO-Instanz mit den geladenen Konfigurationsdaten
-            PdoConnect::$connection = new \PDO(
-                "mysql:host=$this->host;port=$this->port;dbname=$this->dbname", 
-                $this->dbusername, 
-                $this->dbpassword
-            );
-            
-            // Setzen des Fehlermodus auf Ausnahme, um bei Fehlern eine Exception auszulösen
-            PdoConnect::$connection->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-        
-        } catch(\PDOException $e) {
-            // Falls die Verbindung fehlschlägt, wird eine Fehlermeldung ausgegeben und das Skript beendet
-            die('Connection failed: ' . $e->getMessage());
+            self::$connection = new PDO($dsn, $username, $password, [
+                PDO::ATTR_ERRMODE             => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE  => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES    => false
+            ]);
+        } catch(PDOException $e) {
+            // Fehler immer nur ins Log!
+            error_log('DB_Verbindung fehlgeschlagen: ' . $e->getMessage());
+            http_response_code(500);
+            die('Interner Serverfehler. Bitte später erneut versuchen.');
         }
     }
 }

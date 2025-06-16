@@ -1,0 +1,9 @@
+<form action="index.php?act=reset_pw" method="post">
+    <input type="hidden" name="token" value="###TOKEN###">
+    <label for="pwd1">Neues Passwort:</label>
+    <input type="password" name="pwd1" required>
+    <label for="pwd2">Neues Passwort wiederholen:</label>
+    <input type="password" name="pwd2" required>
+    <button type="submit">Passwort ändern</button>
+</form>
+<div style="color:red;">###PW_RESET_MSG###</div>

@@ -1,0 +1,407 @@
+/* ----------- DESKTOP (ab 651px) ----------- */
+
+#call-view {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    z-index: 9999;
+    top: 0;
+    left: 0;
+    background: #f0f2f5;
+    overflow: hidden;
+}
+
+.call-grid {
+    display: grid;
+    width: 100vw;
+    height: 100vh;
+    grid-template-columns: 2fr 6fr 2fr;
+    grid-template-rows: min-content minmax(320px, 60vh) 1fr 20px;
+    gap: 8px;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+}
+
+/* Kopfzeile */
+.user-info {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+    background: #f5f7fa;
+    border: 1.5px solid #007BFF;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.03em;
+    color: #007BFF;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.04);
+}
+.call-controls {
+    grid-column: 3 / 4;
+    grid-row: 1 / 2;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding-right: 8px;
+}
+#end-call-btn {
+    min-width: 115px;
+    min-height: 36px;
+    font-size: 1em;
+    border: 1.5px solid #007BFF;
+    border-radius: 6px;
+    background: #ff6666;
+    color: #fff;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 1px 6px #ff666622;
+    transition: background 0.2s;
+}
+#end-call-btn:hover {
+    background: #d9534f;
+}
+
+/* Video */
+.remote-video-box {
+    grid-column: 2 / 3;
+    grid-row: 2 / 3;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    background: #f0f4fa;
+    border: 2px solid #007BFF;
+    border-radius: 0;
+    min-height: 320px;
+    max-height: 60vh;
+    height: 100%;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.06);
+    position: relative;
+}
+.remote-video-box video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 0;
+    background: #000;
+    box-shadow: 0 2px 10px #007bff14;
+}
+.local-video-box {
+    grid-column: 3 / 4;
+    grid-row: 2 / 3;
+    background: #eaf2fd;
+    border: 1.5px solid #007BFF;
+    border-radius: 0;
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px #007bff16;
+}
+.local-video-box video {
+    width: 100%;
+    height: auto;
+    max-height: 60vh;
+    object-fit: contain;
+    border-radius: 0;
+    background: #222;
+}
+
+/* Chatbereich + Sidebar (Desktop nebeneinander) */
+.chat-row {
+    grid-column: 1 / 4;
+    grid-row: 3 / 4;
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    padding: 0 1vw;
+    gap: 0;
+}
+.chat-box {
+    flex: 5 1 0;
+    display: flex;
+    flex-direction: column;
+    background: #f8f9fc;
+    border: 1.5px solid #007BFF;
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-right: 8px;
+    height: 100%;
+    min-width: 0;
+    box-shadow: 0 2px 10px #007bff12;
+}
+#chat-area {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #fff;
+    border-radius: 5px;
+    padding: 6px 8px;
+    font-size: 15px;
+    margin-bottom: 5px;
+    min-height: 40px;
+}
+#chat-log {
+    min-height: 38px;
+    font-size: 1em;
+    color: #333;
+    word-break: break-word;
+}
+/* --- Chat Eingabe + Button nebeneinander (Desktop) --- */
+.chat-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+#chat-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid #007BFF;
+    border-radius: 6px;
+    font-size: 1em;
+}
+#chat-send-btn {
+    flex: 0 0 auto;
+    padding: 9px 18px;
+    font-size: 1em;
+    border-radius: 6px;
+    margin-left: 8px;
+    background: #007BFF;
+    color: #fff;
+    border: 1.5px solid #007BFF;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+#chat-send-btn:hover {
+    background: #0056b3;
+}
+.sidebar-controls {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 22px;
+    justify-content: center;
+    margin-left: 0;
+    margin-top: 0;
+}
+.arrow-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.arrow-controls .row {
+    display: flex;
+    justify-content: center;
+    gap: 14px;
+    margin: 4px 0;
+}
+.arrow-controls button {
+    width: 72px;
+    height: 56px;
+    font-size: 2em;
+    border-radius: 8px;
+    border: 2px solid #007BFF;
+    background: #f5f5f5;
+    color: #007BFF;
+    transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+    cursor: pointer;
+    font-weight: bold;
+}
+.arrow-controls button:hover {
+    background: #e0eaff;
+    color: #0056b3;
+    box-shadow: 0 2px 8px #007bff22;
+}
+#file-input { display: none !important; }
+
+/* ----------- MOBILE (max-width: 650px) ----------- */
+@media (max-width: 650px) {
+    html, body, #call-view, .call-grid {
+        height: 100vh !important;
+        min-height: 100vh !important;
+        width: 100vw !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        background: #fff !important;
+    }
+
+    .chat-row, .sidebar-controls {
+        display: contents !important;
+    }
+
+    .call-grid {
+        display: grid !important;
+        grid-template-columns: 1fr 128px;
+        grid-template-rows:
+            54px                   /* Header: Username + Button */
+            minmax(120px, 32vh)    /* Video */
+            100px                  /* Pfeiltasten */
+            minmax(90px, 20vh)     /* Chatbox */
+            64px;                  /* Eingabe + Senden */
+        gap: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background: #fff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .user-info {
+        grid-column: 1 / 2 !important;
+        grid-row: 1 / 2 !important;
+        font-size: 1.1em !important;
+        border-radius: 12px 0 0 0 !important;
+        padding: 8px 10px !important;
+        display: flex !important;
+        align-items: center !important;
+        height: 54px !important;
+        background: #f5f7fa !important;
+        min-height: 54px !important;
+    }
+    .call-controls {
+        grid-column: 2 / 3 !important;
+        grid-row: 1 / 2 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        padding: 6px 6px 6px 2px !important;
+        height: 54px !important;
+        min-width: 64px !important;
+        background: #fff !important;
+    }
+    #end-call-btn {
+        width: 100% !important;
+        height: 40px !important;
+        min-width: 62px !important;
+        min-height: 40px !important;
+        font-size: 1.15em !important;
+        border-radius: 7px !important;
+        padding: 0 !important;
+    }
+
+    .remote-video-box {
+        grid-column: 1 / 3 !important;
+        grid-row: 2 / 3 !important;
+        min-height: 120px !important;
+        max-height: 32vh !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: #000 !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        display: flex !important;
+    }
+    .remote-video-box video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: contain !important;
+        background: #000 !important;
+    }
+    .local-video-box { display: none !important; }
+
+    /* Pfeiltasten */
+    .arrow-controls {
+        grid-column: 1 / 3 !important;
+        grid-row: 3 / 4 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 0 !important;
+        margin: 0 !important;
+        justify-content: center !important;
+    }
+    .arrow-controls .row {
+        display: flex !important;
+        justify-content: center !important;
+        gap: 8px !important;
+        margin: 4px 0 !important;
+    }
+    .arrow-controls button {
+        width: 54px !important;
+        height: 44px !important;
+        font-size: 1.3em !important;
+        border-radius: 10px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Chatbox: Verlauf nur vertikal scrollbar, Text kompakt */
+    .chat-box {
+        grid-column: 1 / 3 !important;
+        grid-row: 4 / 5 !important;
+        display: block !important;
+        padding: 6px 6px 4px 6px !important;
+        min-height: 80px !important;
+        max-height: 24vh !important;
+        background: #f8f9fc !important;
+        border-radius: 10px !important;
+        border: 1.5px solid #007BFF !important;
+        overflow: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    #chat-area {
+        height: 100% !important;
+        min-height: 36px !important;
+        max-height: 18vh !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        background: #fff !important;
+        border-radius: 6px !important;
+        font-size: 0.93em !important;
+        padding: 3px 4px !important;
+        box-sizing: border-box !important;
+    }
+    #chat-log {
+        font-size: 0.93em !important;
+        word-break: break-word;
+    }
+    /* --- Chat Eingabe + Button untereinander (Mobile) --- */
+    .chat-input-row {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 6px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+    #chat-input, #chat-send-btn {
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+    }
+    #chat-input {
+        height: 38px !important;
+        font-size: 1em !important;
+        border-radius: 8px !important;
+    }
+    #chat-send-btn {
+        height: 36px !important;
+        border-radius: 8px !important;
+        font-size: 1em !important;
+        margin-top: 0 !important;
+        margin-left: 0 !important;
+        background: #007BFF !important;
+        color: #fff !important;
+        border: 1.5px solid #007BFF !important;
+        font-weight: bold !important;
+        cursor: pointer !important;
+        transition: background 0.2s !important;
+    }
+    #chat-send-btn:hover {
+        background: #0056b3 !important;
+    }
+}

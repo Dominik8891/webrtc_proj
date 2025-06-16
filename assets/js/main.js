@@ -37,6 +37,10 @@ window.webrtcApp.init = function() {
     // Optional: Signaling starten
     if (window.isLoggedIn) {
         window.webrtcApp.signaling.pollSignaling();
+        const settings = document.getElementById('settings');
+        if (settings) {
+            settings.style.display = '';
+        }
     }
 
     const acceptMediaBtn = document.getElementById('media-accept-btn');
@@ -403,4 +407,6 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Lokation erfolgreich gespeichert!');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Speichern nicht erfolgreich. Stadt oder Beschreibung fehlt');
+    // funktioniert noch nicht da der header nur verändert wird aber es wird nicht neu geladen...
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '5', 'Registrierung erfolgreich!');
 });
