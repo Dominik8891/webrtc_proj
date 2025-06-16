@@ -21,8 +21,8 @@ class MeteredTurnService
             throw new \Exception("metered_app_name or metered_api_key missing in config");
         }*/
 
-        $appname = getenv('METERED_APP_NAME');
-        $apikey = getenv('METERED_API_KEY');
+        $appname = $_ENV['METERED_APP_NAME'];
+        $apikey = $_ENV['METERED_API_KEY'];
         $url = "https://$appname.metered.live/api/v1/turn/credentials?apiKey=$apikey";
 
         $ch = curl_init($url);

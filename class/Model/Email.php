@@ -19,14 +19,14 @@ class Email
         $mail->isSMTP();
         $mail->SMTPAuth = true;
 
-        $mail->Host = getenv('SMTP_SERVER');
+        $mail->Host = $_ENV['SMTP_SERVER'];
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = getenv('SMTP_PORT');
+        $mail->Port = $_ENV['SMTP_PORT'];
 
-        $mail->Username = getenv('SMTP_USERNAME');
-        $mail->Password = getenv('SMTP_PASSWORD');
+        $mail->Username = $_ENV['SMTP_USERNAME'];
+        $mail->Password = $_ENV['SMTP_PASSWORD'];
 
-        $mail->setFrom(getenv('SMTP_USERNAME'), 'Test');
+        $mail->setFrom($_ENV['SMTP_USERNAME'], 'Test');
         $mail->addAddress($in_email, $in_email);
 
         $mail->Subject = $in_subject;

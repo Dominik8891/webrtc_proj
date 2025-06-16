@@ -162,12 +162,12 @@ HTML;
     // Verschlüsselung für Secret
     private function encryptTotpSecret($secret)
     {
-        $key = getenv('PEPPER');
+        $key = $_ENV['PEPPER'];
         return openssl_encrypt($secret, 'aes-256-cbc', $key, 0, substr($key, 0, 16));
     }
     private function decryptTotpSecret($encSecret)
     {
-        $key = getenv('PEPPER');
+        $key = $_ENV['PEPPER'];
         return openssl_decrypt($encSecret, 'aes-256-cbc', $key, 0, substr($key, 0, 16));
     }
 

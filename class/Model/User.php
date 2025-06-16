@@ -182,7 +182,7 @@ class User
 
         if (!$result) return false;
 
-        $pepper = getenv('PEPPER');
+        $pepper = $_ENV['PEPPER'];
         if (!$pepper) {
             error_log("PEPPER nicht gesetzt!");
             return false;
@@ -345,7 +345,7 @@ class User
     public function pwdEncrypt($in_pwd)
     {
         // Lädt pepper aus der .env DAtei
-        $pepper = getenv('PEPPER');
+        $pepper = $_ENV['PEPPER'];
         if (!$pepper) {
             error_log("PEPPER nicht gesetzt!");
             throw new \Exception("Fehlende Server-Konfiguration.");

@@ -27,10 +27,6 @@ class PdoConnect
         $dbname     = $_ENV['DB_NAME'];
         $username   = $_ENV['DB_USER'];
         $password   = $_ENV['DB_PW'  ];
-        error_log('HOST: ' .$host);
-        error_log('DB: ' . $dbname);
-        error_log('USERNAME: ' . $username);
-        error_log('PW: ' . $password);
 
         $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
 

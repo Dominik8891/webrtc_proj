@@ -154,7 +154,7 @@ class PasswordController
         $stmt->execute();
         $result = $stmt->fetch();
 
-        $pepper = getenv('PEPPER');
+        $pepper = $_ENV['PEPPER'];
         if (!$pepper) {
             error_log("PEPPER nicht gesetzt!");
             return false;
