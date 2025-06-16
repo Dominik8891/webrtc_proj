@@ -53,7 +53,7 @@ window.webrtcApp.ui = {
 
         // Button für ALLE eingeloggten User, Rolle egal!
         if (window.isLoggedIn) {
-            browseLocationButtonDiv.innerHTML = `<a href="index.php?act=show_locations_page" class="btn btn-primary" style="margin-bottom:10px;">Alle Locations durchsuchen</a>`;
+            browseLocationButtonDiv.innerHTML = `<a href="index.php?act=show_locations_page" class="btn btn-primary text-light" style="margin-bottom:10px;">Alle Locations durchsuchen</a>`;
             browseLocationButtonDiv.style.display = '';
         } else {
             browseLocationButtonDiv.style.display = 'none';

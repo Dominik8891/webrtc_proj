@@ -37,7 +37,10 @@ return [
     'set_location'          => [LocationController::class           , 'setLocation'             ],
     'get_country'           => [LocationController::class           , 'getCountry'              ],
     'get_locations'         => [LocationController::class           , 'getLocations'            ],
+    'get_my_locations'      => [LocationController::class           , 'getMyLocations'          ],
     'show_locations_page'   => [LocationController::class           , 'showLocationsPage'       ],
+    'edit_location_desc'    => [LocationController::class           , 'editLocationDesc'        ],
+    'delete_location'       => [LocationController::class           , 'deleteLocation'          ],
     
     'getSignal'             => [WebRTCController::class             , 'getSignal'               ],
     

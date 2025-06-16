@@ -5,4 +5,81 @@
   <tr><td>2FA:</td><td>###TWOFASTATUS### ###TWOFABTN###</td></tr>
   ###MAILCONFIRM###
 </table>
+
 <a href='index.php?act=change_pw_page&username=###USERNAME###'>Passwort ändern</a>
+
+<!-- Button zum Ein-/Ausblenden der eigenen Locations -->
+<a href="#" id="showOwnLocationsBtn" style="display:none; margin-left: 20px;">Eigene Locations bearbeiten</a>
+
+<!-- Meine Locations (zunächst versteckt) -->
+<div id="myLocationsSection" style="display:none; margin-top: 32px;">
+  <h2>Meine Locations</h2>
+  <div id="location-button" class="btn btn-primary mb-3 text-light">
+    <a href="index.php?act=set_location_page" class="text-light">Neue Lokation Hinzufügen</a>
+  </div>
+  <table class="table table-bordered table-striped" id="locationsTable" tabindex="-1">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Status</th>
+        <th>Land</th>
+        <th>Stadt</th>
+        <th>Beschreibung</th>
+        <th>Aktionen</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Wird per JS befüllt -->
+    </tbody>
+  </table>
+</div>
+
+<!-- Mini-Map-Popup für Beschreibung (bleibt erhalten, wird JS-mäßig geteilt) -->
+<div id="descMapPopup" style="display:none; position:absolute; z-index:9999; background:white; border:1px solid #aaa; border-radius:10px; box-shadow:0 2px 8px #888; min-width:260px; max-width:350px;">
+  <div id="descMapHeader" style="padding:8px; font-weight:bold;"></div>
+  <div id="descMap" style="height:200px; width:100%;"></div>
+</div>
+
+<!-- Modal für große Map (kann von beiden Tabellen genutzt werden) -->
+<div class="modal fade" id="mapModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div id="modalLocationInfo" style="font-weight:bold;"></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="height: 400px;">
+        <div id="modalMap" style="height:100%; width:100%;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Beschreibung ändern -->
+<div class="modal fade" id="editDescModal" tabindex="-1" aria-labelledby="editDescModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editDescModalLabel">Beschreibung ändern</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editDescForm">
+          <div class="mb-3">
+            <label for="currentDescription" class="form-label">Aktuelle Beschreibung</label>
+            <input type="text" class="form-control" id="currentDescription" readonly>
+          </div>
+          <div class="mb-3">
+            <label for="newDescription" class="form-label">Neue Beschreibung</label>
+            <textarea class="form-control" id="newDescription" required></textarea>
+          </div>
+          <input type="hidden" id="editLocationId">
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+        <button type="submit" class="btn btn-primary" form="editDescForm">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>

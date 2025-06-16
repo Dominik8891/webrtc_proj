@@ -80,7 +80,7 @@ class UserController
         if ($user->getRoleId() === 1) {
             $action = "<th>Aktion</th>";
             $email  = "<th>Email</th>";
-            $new    = '<a href="index.php?act=manage_user" class="button">NEU</a>';
+            $new    = '<a href="index.php?act=manage_user" class="button">Neuen Benutzer anlegen</a>';
         }
 
         $all_user_ids = $user->getAll();

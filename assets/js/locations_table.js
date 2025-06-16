@@ -1,9 +1,16 @@
-// assets/js/locations_table.js
-
 window.webrtcApp.locationsTable = {
-    loadLocationsTable() {
+    /**
+     * Konfigurierbares Laden für alle oder eigene Locations
+     * options: {
+     *    onlyOwn: bool,
+     *    showActions: Array<"call"|"edit"|"delete">,
+     *    tableSelector: string
+     * }
+     */
+loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showActions: ["call"], tableSelector: "#locationsTable"}, options || {});
+            let apiUrl = options.onlyOwn ? 'index.php?act=get_my_locations' : 'index.php?act=get_locations';
         $.ajax({
-            url: 'index.php?act=get_locations',
+            url: apiUrl,
             method: 'GET',
             dataType: 'json',
             success: function (data) {
@@ -18,36 +25,61 @@ window.webrtcApp.locationsTable = {
                         icon = "🟢";
                         status = "Online";
                     }
-                    rows += `<tr>
-                        <td>${i + 1}</td>
-                        <td>${status}</td>
-                        <td>${icon} ${item.username}</td>
-                        <td>${item.country_name ?? ''}</td>
-                        <td>${item.city_name ?? ''}</td>
-                        <td>
-                            <span 
-                                class="desc-hover" 
-                                data-lat="${item.latitude}" 
-                                data-lng="${item.longitude}" 
-                                data-country="${item.country_name ?? ''}" 
-                                data-city="${item.city_name ?? ''}" 
-                                style="cursor:pointer; color:#0366d6; text-decoration:underline;">
-                                ${item.description}
-                            </span>
-                        </td>
-                        <td>
+
+                    // Beschreibung wie gehabt
+                    let descHtml = `
+                        <span 
+                            class="desc-hover" 
+                            data-lat="${item.latitude}" 
+                            data-lng="${item.longitude}" 
+                            data-country="${item.country_name ?? ''}" 
+                            data-city="${item.city_name ?? ''}" 
+                            style="cursor:pointer; color:#0366d6; text-decoration:underline;">
+                            ${item.description}
+                        </span>
+                    `;
+
+                    // Aktionen je nach Optionen
+                    let actionBtns = '';
+                    if(options.showActions.includes("call")) {
+                        actionBtns += `
                             <button class="btn btn-success start-call-btn"
                                 data-userid="${item.user_id}"
                                 ${item.user_status !== "online" ? "disabled aria-disabled='true' style='pointer-events:none;opacity:0.5;'" : ""}
                             >
-                            Call
-                        </td>
+                                Call
+                            </button>
+                        `;
+                    }
+                    if(options.showActions.includes("edit")) {
+                        actionBtns += `
+                            <button class="btn btn-warning edit-location-btn" data-locationid="${item.id}">Ändern</button>
+                        `;
+                        console.log(item.id, item);
+
+                    }
+                    if(options.showActions.includes("delete")) {
+                        actionBtns += `
+                            <button class="btn btn-danger delete-location-btn" data-locationid="${item.id}">Löschen</button>
+                        `;
+                    }
+
+                    rows += `<tr>
+                        <td>${i + 1}</td>
+                        <td>${status}</td>
+                        ${options.onlyOwn ? "" : `<td>${icon} ${item.username}</td>`}
+                        <td>${item.country_name ?? ''}</td>
+                        <td>${item.city_name ?? ''}</td>
+                        <td>${descHtml}</td>
+                        <td>${actionBtns}</td>
                     </tr>`;
                 });
-                $('#locationsTable tbody').html(rows);
+
+                // Tabelle je nach Selector füllen
+                $(options.tableSelector + ' tbody').html(rows);
             },
             error: function () {
-                $('#locationsTable tbody').html('<tr><td colspan="7">Fehler beim Laden der Daten.</td></tr>');
+                $(options.tableSelector + ' tbody').html('<tr><td colspan="7">Fehler beim Laden der Daten.</td></tr>');
             }
         });
     },
@@ -98,14 +130,14 @@ window.webrtcApp.locationsTable = {
     mapInitialized: false,
     modalMapInitialized: false,
 
-    bindEvents() {
-        // Nur binden, wenn die Tabelle da ist!
-        if (!$('#locationsTable').length) return;
-        $('#locationsTable').DataTable();
-        this.loadLocationsTable();
-        setInterval(() => this.loadLocationsTable(), 10000);
+    bindEvents(options = {onlyOwn: false, tableSelector: "#locationsTable"}) {
+        if (!$(options.tableSelector).length) return;
+        $(options.tableSelector).DataTable();
+        // Initial laden:
+        this.loadLocationsTable(options);
 
-        $('#locationsTable').on('mouseenter', '.desc-hover', (e) => {
+        // Map Events (wie gehabt, du kannst sie so lassen)
+        $(options.tableSelector).on('mouseenter', '.desc-hover', (e) => {
             let $t = $(e.currentTarget);
             let lat = parseFloat($t.data('lat'));
             let lng = parseFloat($t.data('lng'));
@@ -115,13 +147,13 @@ window.webrtcApp.locationsTable = {
             if(isNaN(lat) || isNaN(lng)) return;
             this.showMapPopup(e, lat, lng, country, city, description);
         });
-        $('#locationsTable').on('mousemove', '.desc-hover', (e) => {
+        $(options.tableSelector).on('mousemove', '.desc-hover', (e) => {
             $('#descMapPopup').css({left: e.pageX + 15, top: e.pageY - 80});
         });
-        $('#locationsTable').on('mouseleave', '.desc-hover', () => {
+        $(options.tableSelector).on('mouseleave', '.desc-hover', () => {
             this.hideMapPopup();
         });
-        $('#locationsTable').on('click', '.desc-hover', (e) => {
+        $(options.tableSelector).on('click', '.desc-hover', (e) => {
             e.stopPropagation();
             let $t = $(e.currentTarget);
             let lat = parseFloat($t.data('lat'));
@@ -132,16 +164,8 @@ window.webrtcApp.locationsTable = {
             if(isNaN(lat) || isNaN(lng)) return;
             this.showModalMap(lat, lng, country, city, description);
         });
-        $('#mapModal').on('hidden.bs.modal', () => {
-            if(this.modalMap) this.modalMap.eachLayer(function (layer) {
-                if(layer instanceof L.Marker) this.modalMap.removeLayer(layer);
-            }.bind(this));
-            setTimeout(function(){
-                $('#locationsTable').focus();
-            }, 10);
-        });
-
-        $('#locationsTable').on('click', '.start-call-btn', function() {
+        // Actions:
+        $(options.tableSelector).on('click', '.start-call-btn', function() {
             const userId = $(this).data('userid');
             if(typeof window.webrtcApp?.rtc?.startCall === 'function') {
                 window.webrtcApp.rtc.startCall(userId);
@@ -149,10 +173,115 @@ window.webrtcApp.locationsTable = {
                 alert("Call-Funktion nicht verfügbar.");
             }
         });
-    }
+        // Nur für eigene Locations
+        $(options.tableSelector)
+        .off('click', '.edit-location-btn')
+        .on('click', '.edit-location-btn', function() {
+            const locationId = $(this).data('locationid'); // <-- Muss eine echte Zahl sein, z.B. 7
+            const $row = $(this).closest('tr');
+            const currentDescription = $row.find('.desc-hover').text().trim();
+
+            $('#editLocationId').val(locationId); // <-- Hier MUSS jetzt z.B. '7' stehen, NICHT 'undefined'
+            $('#currentDescription').val(currentDescription);
+            $('#newDescription').val('');
+            $('#editDescModal').modal('show');
+        });
+        $(options.tableSelector)
+            .off('click', '.delete-location-btn')
+            .on('click', '.delete-location-btn', function() {
+                const locationId = $(this).data('locationid');
+                if (!locationId) {
+                    alert("Fehler: Keine Location-ID gefunden!");
+                    return;
+                }
+                if (confirm("Willst du diese Location wirklich löschen?")) {
+                    $.ajax({
+                        url: 'index.php?act=delete_location',
+                        method: 'POST',
+                        data: { id: locationId },
+                        dataType: 'json',
+                        success: function(response) {
+                            if (response.success) {
+                                // Tabelle neu laden
+                                window.webrtcApp.locationsTable.loadLocationsTable({
+                                    onlyOwn: true,
+                                    showActions: ["edit", "delete"],
+                                    tableSelector: "#locationsTable"
+                                });
+                            } else {
+                                alert('Fehler: ' + (response.error || 'Unbekannter Fehler'));
+                            }
+                        },
+                        error: function() {
+                            alert('Fehler beim Löschen!');
+                        }
+                    });
+                }
+            });
+    },
 };
 
 // Initialisierung beim DOM-Ready:
 $(document).ready(function () {
     window.webrtcApp.locationsTable.bindEvents();
+        // Für die globale Tabelle auf der Übersichtsseite:
+    if($('#locationsTable').length && !$('#myLocationsSection').length) { // auf der Hauptseite
+        window.webrtcApp.locationsTable.bindEvents({
+            onlyOwn: false,
+            showActions: ["call"],
+            tableSelector: "#locationsTable"
+        });
+    }
+
+    // Für die eigene Locations-Tabelle auf der settings.html
+    if($('#myLocationsSection').length) {
+        $('#showOwnLocationsBtn').show().on('click', function(e) {
+            e.preventDefault();
+            $('#myLocationsSection').toggle();
+            // Tabelle initialisieren, falls noch nicht geladen
+            window.webrtcApp.locationsTable.bindEvents({
+                onlyOwn: true,
+                showActions: ["edit", "delete"],
+                tableSelector: "#locationsTable"
+            });
+        });
+    }
+
+    $('#editDescForm').off('submit').on('submit', function(e) {
+        e.preventDefault();
+
+        const locationId = $('#editLocationId').val();
+        const newDesc = $('#newDescription').val().trim();
+
+        if (!newDesc) {
+            alert('Bitte eine neue Beschreibung eingeben!');
+            return;
+        }
+
+        $.ajax({
+            url: 'index.php?act=edit_location_desc',
+            method: 'POST',
+            data: {
+                id: locationId,
+                description: newDesc
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    $('#editDescModal').modal('hide');
+                    window.webrtcApp.locationsTable.loadLocationsTable({
+                        onlyOwn: true,
+                        showActions: ["edit", "delete"],
+                        tableSelector: "#locationsTable"
+                    });
+                } else {
+                    alert('Fehler: ' + (response.error || 'Unbekannter Fehler'));
+                }
+            },
+            error: function() {
+                alert('Fehler beim Ändern!');
+            }
+        });
+    });
+
 });

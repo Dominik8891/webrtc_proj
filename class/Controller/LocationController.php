@@ -83,6 +83,15 @@ class LocationController
         exit();
     }
 
+    public function getMyLocations()
+    {
+        $location = new Location();
+        $data = $location->selectAllLocationsOfOneUser($_SESSION['user']['user_id']);
+        header('Content-Type: application/json');
+        echo json_encode($data);
+        exit();
+    }
+
     /**
      * Zeigt die Seite mit der Locations-Tabelle an.
      */
@@ -94,5 +103,51 @@ class LocationController
         } else {
             (new SystemController())->home();
         }
+    }
+
+    public function editLocationDesc()
+    {
+        $location_id = (int)Request::g('id');
+        $new_desc    = Request::g('description');
+        if (!$location_id || !$new_desc) {
+             // Fehler: Parameter fehlen
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Fehlende Daten']);
+            exit;
+        }
+
+        $location    = new Location($location_id);
+        $location->setDescription($new_desc);
+        if ($location->updateLocation()) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true]);
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Update fehlgeschlagen']);
+        }
+        exit;
+    }
+
+    public function deleteLocation()
+    {
+        // Parameter holen (bei POST)
+        $location_id = Request::g('id') ?? null;
+
+        if (!$location_id) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Keine Location-ID übergeben!']);
+            exit;
+        }
+
+        
+        $location = new Location($location_id);
+        if ($location->deleteLocation()) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => true]);
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Fehler beim Löschen: ' . $e->getMessage()]);
+        }
+        exit;
     }
 }

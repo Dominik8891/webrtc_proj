@@ -81,6 +81,45 @@ class Location
         return PdoConnect::$connection->lastInsertId();
     }
 
+    public function updateLocation()
+    {
+        try {
+            $query = "UPDATE location SET
+                        longitude   = :longitude,
+                        latitude    = :latitude,
+                        description = :description
+                           WHERE id = :id";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt ->bindParam(':longitude'     , $this->longitude     );
+            $stmt ->bindParam(':latitude'      , $this->latitude      );
+            $stmt ->bindParam(':description'   , $this->description   );
+            $stmt ->bindParam(':id'            , $this->id            );
+            $stmt->execute();
+            error_log('Lokation erfolgereich Aktualisiert!');
+            return true;
+        } catch (Exception $e) 
+        {
+            error_log('Fehler beim Aktualisieren der Lokation!');
+            return false;
+        } 
+    }
+
+    public function deleteLocation()
+    {
+        try {
+            $query = "DELETE FROM location WHERE id = :id";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':id', $this->id, \PDO::PARAM_INT);
+            $stmt->execute();
+            error_log('Lokation erfolgereich gelöscht!');
+            return true;
+        } catch (Exception $e) 
+        {
+            error_log('Fehler beim Löschen der Lokation!');
+            return false;
+        } 
+    }
+
     /**
      * Gibt alle Länder als Array zurück.
      */
@@ -106,6 +145,25 @@ class Location
                   LEFT JOIN city    ON location.city_id = city.id
                   LEFT JOIN country ON city.country_id = country.id
                   WHERE user.id != :user_id";
+        $stmt = PdoConnect::$connection->prepare($query);
+        $stmt ->bindParam(":user_id", $in_user_id);
+        $stmt->execute();
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Gibt alle gespeicherten Locations als Array zurück.
+     */
+    public function selectAllLocationsOfOneUser($in_user_id)
+    {
+        $query = "SELECT user.id AS user_id, user.username, user.user_status, 
+                         country.country_name, city.city_name, location.id,
+                         location.latitude, location.longitude, location.description
+                  FROM location
+                  LEFT JOIN user    ON location.user_id = user.id
+                  LEFT JOIN city    ON location.city_id = city.id
+                  LEFT JOIN country ON city.country_id = country.id
+                  WHERE user.id = :user_id";
         $stmt = PdoConnect::$connection->prepare($query);
         $stmt ->bindParam(":user_id", $in_user_id);
         $stmt->execute();
