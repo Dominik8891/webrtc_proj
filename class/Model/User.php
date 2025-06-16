@@ -197,14 +197,13 @@ class User
             $update_stmt->execute();
 
             // User-Objekt mit allen Daten füllen!
-            $this->id        = $result['id'];
-            $this->username  = $result['username'];
-            $this->email     = $result['email'];
-            $this->pwd       = $result['pwd'];
-            $this->type_id   = $result['type_id'];
-            $this->deleted   = $result['deleted'];
-            $this->status    = $result['user_status'] ?? null;
-            $this->verified  = $result['email_verified'];
+            $this->id           = $result['id'];
+            $this->username     = $result['username'];
+            $this->email        = $result['email'];
+            $this->pwd          = $result['pwd'];
+            $this->type_id      = $result['type_id'];
+            $this->deleted      = $result['deleted'];
+            $this->verified     = $result['email_verified'];
             $this->totp_secret  = $result['totp_secret'] ?? null;
             $this->totp_enabled = $result['totp_enabled'] ?? 0;
 
@@ -340,6 +339,22 @@ class User
         }
         if ($id > 0) $this->type_id = $id;
         else return false;
+    }
+
+    public function saveLocation($latitude, $longitude)
+    {
+        try {
+            $sql = "UPDATE user SET latitude = :lat, longitude = :lon, location_updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+            $stmt = PdoConnect::$connection->prepare($sql);
+            $stmt->bindParam(':lat', $latitude);
+            $stmt->bindParam(':lon', $longitude);
+            $stmt->bindParam(':id', $this->id, \PDO::PARAM_INT);
+
+            return $stmt->execute();
+        } catch (\Exception $e) {
+            error_log("Aktuelle position konnte nicht gespeichert werden Fehler: " . $e);
+            return false;
+        }
     }
 
     public function pwdEncrypt($in_pwd)

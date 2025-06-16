@@ -75,18 +75,21 @@ class UserController
         $user = new User($_SESSION['user']['user_id']);
 
         $action = "";
+        $email  = "";
         $new    = "";
         if ($user->getRoleId() === 1) {
             $action = "<th>Aktion</th>";
+            $email  = "<th>Email</th>";
             $new    = '<a href="index.php?act=manage_user" class="button">NEU</a>';
         }
 
         $all_user_ids = $user->getAll();
         $all_rows = $this->generateUserRows($user, $all_user_ids);
 
-        $out = str_replace("###ACTION###"    , $action   , $table_html);
-        $out = str_replace("###NEW###"       , $new      , $out);
-        $out = str_replace("###USER_ROWS###" , $all_rows , $out);
+        $out = str_replace("###EMAIL###"     , $email    , $table_html  );
+        $out = str_replace("###ACTION###"    , $action   , $out         );
+        $out = str_replace("###NEW###"       , $new      , $out         );
+        $out = str_replace("###USER_ROWS###" , $all_rows , $out         );
         ViewHelper::output($out);
     }
 
@@ -113,8 +116,12 @@ class UserController
 
             $tmp_user = new User($one_user_id);
             $action = "";
+            $email  = "";
 
-            if ($in_user->getRoleId() === 1) $action = $this->getAction($tmp_user);
+            if ($in_user->getRoleId() === 1) {
+                $action = $this->getAction($tmp_user);
+                $email  = htmlspecialchars($tmp_user->getEmail());
+            }
             $status = "Offline";
             if($tmp_user->getUserStatus($tmp_user->getId()) === "online") {
                 $status = "Online";
@@ -126,8 +133,8 @@ class UserController
             $tmp_row = str_replace("###ID###"       , $tmp_user->getId()                         , $row_html);
             $tmp_row = str_replace("###STATUS###"   , $status                                     , $tmp_row);
             $tmp_row = str_replace("###CALL###"     , $call_btn                                   , $tmp_row);
-            $tmp_row = str_replace("###USERNAME###" , htmlspecialchars($tmp_user->getUsername()) , $tmp_row);
-            $tmp_row = str_replace("###EMAIL###"    , htmlspecialchars($tmp_user->getEmail())    , $tmp_row);
+            $tmp_row = str_replace("###USERNAME###" , htmlspecialchars($tmp_user->getUsername())  , $tmp_row);
+            $tmp_row = str_replace("###EMAIL###"    , $email                                      , $tmp_row);
             $tmp_row = str_replace("###ACTION###"   , $action                                     , $tmp_row);
 
             $all_rows .= $tmp_row;
@@ -190,5 +197,35 @@ class UserController
             }
             echo false;
         }
+    }
+
+    public function saveLocation()
+    {
+        if (!isset($_SESSION['user']['user_id'])) {
+            http_response_code(401);
+            exit('Nicht eingeloggt!');
+        }
+
+        $raw = file_get_contents('php://input');
+        $data = json_decode($raw, true);
+        $lat = isset($data['lat']) ? $data['lat'] : null;
+        $lon = isset($data['lon']) ? $data['lon'] : null;
+        error_log('kam was? ' . $lat . ' & ' . $lon);
+
+        if ($lat !== null && $lon !== null && is_numeric($lat) && is_numeric($lon)) {
+            $user = new User($_SESSION['user']['user_id']);
+            $result = $user->saveLocation($lat, $lon);
+            if ($result) {
+                http_response_code(200);
+                echo 'ok';
+            } else {
+                http_response_code(500);
+                echo 'Fehler beim Speichern.';
+            }
+        } else {
+            http_response_code(400);
+            echo 'Ungültige Daten.';
+        }
+        exit;
     }
 }

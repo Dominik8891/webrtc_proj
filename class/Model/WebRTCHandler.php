@@ -62,7 +62,11 @@ class WebRTCHandler {
     }
 
     public function getAllSignalsForReceiver($in_receiver) {
-        $query = "SELECT * FROM rtc_signal WHERE receiver_id = :receiver ORDER BY created_at ASC";
+        $query = "  SELECT * FROM rtc_signal
+                    WHERE receiver_id = :receiver
+                    AND created_at > NOW() - INTERVAL 15 SECOND
+                    ORDER BY created_at ASC;
+                    ";
         $stmt = PdoConnect::$connection->prepare($query);
         $stmt->bindParam(':receiver', $in_receiver);
         $stmt->execute();

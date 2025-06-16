@@ -78,6 +78,14 @@ class LoginController
                 'email'         => $user->getEmail(),
                 'role_id'       => $user->getRoleId(),
             ];
+
+            if ($user->getRoleId() < 3 && !isset($_SESSION['location_prompt_shown'])) {
+                $_SESSION['location_prompt_shown'] = true;
+                $html = file_get_contents('assets/html/location_prompt.html');
+                ViewHelper::output($html);
+                exit;
+            }
+
             unset($_SESSION['login_attempts'][$username]);
             unset($_SESSION['login_blocked_until'][$username]);
             header("Location: index.php?act=home");

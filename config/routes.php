@@ -31,6 +31,7 @@ return [
     'delete_user'           => [UserController::class               , 'deleteUser'              ],
     'heartbeat'             => [UserController::class               , 'heartbeat'               ],
     'get_username'          => [UserController::class               , 'getUsername'             ],
+    'save_location'         => [UserController::class               , 'saveLocation'            ],
     
     'set_location_page'     => [LocationController::class           , 'setLocationPage'         ],
     'set_location'          => [LocationController::class           , 'setLocation'             ],

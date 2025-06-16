@@ -288,7 +288,7 @@ window.webrtcApp.rtc = {
             window.webrtcApp.sound.stop('call_ringtone');
             window.webrtcApp.rtc.endCall(false);
             alert('Der Anruf wurde nicht angenommen.');
-        }, 25000);
+        }, 15000);
         console.log('Start Timeout :' + window.webrtcApp.state.callTimeout);
     },
 
