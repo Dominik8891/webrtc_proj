@@ -390,9 +390,17 @@ setInterval(function () {
                         if (msg.id > maxMsgId) maxMsgId = msg.id;
                     });
                     if (hasNewPartnerMsg && newPartnerMsgId != myLastMsgId) {
-                        window.webrtcApp.sound && window.webrtcApp.sound.play && window.webrtcApp.sound.play('notification_sound_msg', false, 0.25);
                         if ($tab.hasClass('minimized')) {
+                            window.webrtcApp.sound && window.webrtcApp.sound.play && window.webrtcApp.sound.play('notification_sound_msg', false, 0.25);
                             $tab.addClass('attention');
+                        } else {
+                            // Popup ist maximiert: Nachricht direkt als gelesen markieren!
+                            const chatId = $tab.attr('id').split('-').pop();
+                            fetch('?act=chat_set_seen', {
+                                method: 'POST',
+                                body: new URLSearchParams({chat_id: chatId, sender_id: window.userId}),
+                                credentials: 'same-origin'
+                            });
                         }
                     }
                     $tab.find('.chat-popup-messages').empty();
