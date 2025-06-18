@@ -1,10 +1,11 @@
 // assets/js/sound.js
 window.webrtcApp.sound = {
-    play(audio_in, loop = true) {
+    play(audio_in, loop = true, volume = 1.0) {
         const audio = document.getElementById(audio_in);
         if (audio) {
             audio.currentTime = 0;
             audio.loop = loop;
+            audio.volume = volume;
             audio.play();
             console.log("[Ringtone] Klingelton gestartet.");
         } else {

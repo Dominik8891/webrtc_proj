@@ -12,6 +12,7 @@ use App\Controller\PasswordController;
 use App\Controller\EmailVerificationController;
 use App\Controller\TwoFactorController;
 use App\Controller\SettingsController;
+use App\Controller\ChatController;
 // weitere Controller
 
 return [
@@ -66,5 +67,14 @@ return [
     "2fa_disable"           => [TwoFactorController::class          , "disable2FA"              ],
     
     "settings"              => [SettingsController::class           , "showSettingsPage"        ],
+
+    'chat_start'            => [ChatController::class               , 'startChat'               ],
+    'chat_accept'           => [ChatController::class               , 'acceptChat'              ],
+    'chat_get_chats'        => [ChatController::class               , 'getChats'                ],
+    'chat_get_messages'     => [ChatController::class               , 'getMessages'             ],
+    'chat_send_message'     => [ChatController::class               , 'sendMessage'             ],
+    'chat_get_invitations'  => [ChatController::class               , 'getChatInvitations'      ],
+    'chat_decline'          => [ChatController::class               , 'declineChat'             ],
+    'chat_set_seen'         => [ChatController::class               , 'setMessagesSeen'         ],
 
 ];

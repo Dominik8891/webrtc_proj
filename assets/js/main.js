@@ -9,7 +9,7 @@ window.webrtcApp.init = function() {
     }
 
     // Chat-UI
-    window.webrtcApp.ui.initChatUI();
+    window.webrtcApp.uiRtc.initChatUI();
 
     // Call annehmen/ablehnen Buttons
     const acceptBtn = document.getElementById('accept-call-btn');
@@ -26,13 +26,20 @@ window.webrtcApp.init = function() {
             const dialog = document.getElementById('media-select-dialog');
             if (dialog) dialog.style.display = 'none';
             if (acceptBtn) acceptBtn.style.display = "none";
-            window.webrtcApp.ui.setEndCallButtonVisible(false);
+            window.webrtcApp.uiRtc.setEndCallButtonVisible(false);
             const data = window.webrtcApp.state.pendingOffer;
             window.webrtcApp.state.activeTargetUserId = data.sender_id;
             window.webrtcApp.rtc.endCall(true);
             window.webrtcApp.sound.stop('incomming_call_ringtone');
         });
     }
+
+    $(document).on('click', '.start-chat-btn', function () {
+        const userId = $(this).data('userid');
+        console.log('userid vor funktionsaufruf: ' );
+        console.log(userId);
+        window.webrtcApp.uiChat.openChatPopup(userId);
+    });
 
     // Optional: Signaling starten
     if (window.isLoggedIn) {
@@ -41,6 +48,7 @@ window.webrtcApp.init = function() {
         if (settings) {
             settings.style.display = '';
         }
+        window.webrtcApp.uiChat.updatePollingState();
     }
 
     const acceptMediaBtn = document.getElementById('media-accept-btn');
@@ -49,11 +57,12 @@ window.webrtcApp.init = function() {
             window.webrtcApp.sound.stop('incomming_call_ringtone');
             const dialog = document.getElementById('media-select-dialog');
             if (dialog) dialog.style.display = 'none';
-            window.webrtcApp.ui.setEndCallButtonVisible(true);
+            window.webrtcApp.uiRtc.setEndCallButtonVisible(true);
             window.webrtcApp.state.isCallActive = true;
+            window.webrtcApp.uiChat.updatePollingState();
             const data = window.webrtcApp.state.pendingOffer;
             window.webrtcApp.state.activeTargetUserId = data.sender_id;
-            window.webrtcApp.state.targetUsername = await window.webrtcApp.ui.getUsername(data.sender_id);
+            window.webrtcApp.state.targetUsername = await window.webrtcApp.uiRtc.getUsername(data.sender_id);
             document.body.classList.add('call-active');
             document.getElementById('call-view').style.display = '';
             document.getElementById('remote-username').textContent = 'Anruf mit ' + window.webrtcApp.state.targetUsername;
@@ -67,14 +76,6 @@ window.webrtcApp.init = function() {
             if (useAudio) constraints.audio = true;
 
             if (!useVideo && !useAudio) {
-                // Dem Sender mitteilen, dass der Call abgelehnt wurde!
-                /*window.webrtcApp.signaling.sendSignalMessage({
-                    type: 'call_failed',
-                    target: data.sender_id,
-                    reason: 'no_media_selected'
-                });
-                window.webrtcApp.rtc.endCall(false);
-                alert('Bitte mindestens Audio oder Video auswählen, um den Call zu starten!');*/
                 msg = 'Bitte mindestens Audio oder Video auswählen, um den Call zu starten!';
                 window.webrtcApp.rtc.sendCallFailedMsg(msg)
                 return;
@@ -84,13 +85,6 @@ window.webrtcApp.init = function() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
             } catch (e) {
-                /*window.webrtcApp.signaling.sendSignalMessage({
-                    type: 'call_failed',
-                    target: data.sender_id,
-                    reason: 'media_error'
-                });
-                window.webrtcApp.rtc.endCall(false);
-                alert('Konnte Medien nicht holen: ' + e.message);*/
                 msg = 'Konnte Medien nicht holen: ' + e.message;
                 window.webrtcApp.rtc.sendCallFailedMsg(msg)
                 return;

@@ -115,8 +115,9 @@ class UserController
             if ($one_user_id == $in_user->getId()) continue;
 
             $tmp_user = new User($one_user_id);
-            $action = "";
-            $email  = "";
+            $action  = "";
+            $email   = "";
+            $message = "<button class='btn btn-primary start-chat-btn' data-userid='{$one_user_id}'>Chat</button>";
 
             if ($in_user->getRoleId() === 1) {
                 $action = $this->getAction($tmp_user);
@@ -136,6 +137,7 @@ class UserController
             $tmp_row = str_replace("###USERNAME###" , htmlspecialchars($tmp_user->getUsername())  , $tmp_row);
             $tmp_row = str_replace("###EMAIL###"    , $email                                      , $tmp_row);
             $tmp_row = str_replace("###ACTION###"   , $action                                     , $tmp_row);
+            $tmp_row = str_replace("###MESSAGE###"  , $message                                    , $tmp_row);
 
             $all_rows .= $tmp_row;
         }

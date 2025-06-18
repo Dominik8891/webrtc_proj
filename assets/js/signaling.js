@@ -38,7 +38,7 @@ window.webrtcApp.signaling = {
             var dialog = document.getElementById('media-select-dialog');
             if (dialog) {
                 dialog.style.display = '';
-                window.webrtcApp.state.targetUsername     = await window.webrtcApp.ui.getUsername(data.sender_id);
+                window.webrtcApp.state.targetUsername     = await window.webrtcApp.uiRtc.getUsername(data.sender_id);
                 document.getElementById('calling_user').textContent = window.webrtcApp.state.targetUsername + ' ruft an';
             }
             var btn = document.getElementById('accept-call-btn');
@@ -81,7 +81,7 @@ window.webrtcApp.signaling = {
                 window.webrtcApp.sound.stop('call_ringtone');
                 var acceptBtn = document.getElementById('accept-call-btn');
                 if (acceptBtn) acceptBtn.style.display = "none";
-                window.webrtcApp.ui.setEndCallButtonVisible(false); 
+                window.webrtcApp.uiRtc.setEndCallButtonVisible(false); 
                 alert("Der andere Teilnehmer hat die Verbindung beendet.");
             } else if (window.webrtcApp.state.pendingOffer.sender_id === data.sender_id){
                 var dialog = document.getElementById('media-select-dialog');

@@ -23,6 +23,7 @@ class ViewHelper
 
         $logged_in = 'false';
         $user_role = null;
+        $user_id_script = null;
 
         if (isset($_SESSION['user'])) {
             $user = new User($_SESSION['user']['user_id']);
@@ -34,9 +35,10 @@ class ViewHelper
             $call       = file_get_contents('assets/html/call_controll.html');
             $inner_call = file_get_contents('assets/html/inner_call_controll.html');
             $media      = file_get_contents('assets/html/media.html');
+            $user_id_script   = '<script>window.userId = ' . $_SESSION['user']['user_id'] . ';</script>';
         }
-
-        $logged_in_script = '<script>window.isLoggedIn = ' . $logged_in . ';</script>';
+        
+        $logged_in_script = '<script>window.isLoggedIn = ' . $logged_in . ';</script>' . $user_id_script;
         $user_role_script = '<script>window.userRole = "' . $user_role . '";</script>' . $logged_in_script;
 
         $out = str_replace("###CALL_CONTROLL###"        , $call             , $out);

@@ -9,3 +9,4 @@ create_backup.php
 upload_import_db.php
 *.env
 *.sql
+.txt

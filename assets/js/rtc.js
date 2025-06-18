@@ -20,8 +20,9 @@ window.webrtcApp.rtc = {
         window.webrtcApp.state.activeTargetUserId = null;
         window.webrtcApp.state.hangupReceived = false;
         window.webrtcApp.state.pendingOffer = null;
-        window.webrtcApp.ui.setEndCallButtonVisible(false);
+        window.webrtcApp.uiRtc.setEndCallButtonVisible(false);
         window.webrtcApp.state.isCallActive = false;
+        window.webrtcApp.uiChat.updatePollingState();
 
         if (/Android|iPhone|iPad|iPod|Mobile|Linux/i.test(navigator.userAgent)) {
             setTimeout(() => location.reload(), 1000);
@@ -70,7 +71,7 @@ window.webrtcApp.rtc = {
         // 2. Jetzt kannst du sicher sein, dass die PeerConnection funktioniert!
         await window.webrtcApp.rtc.initFakeSelfCall();
         window.webrtcApp.state.activeTargetUserId = targetUserId;
-        window.webrtcApp.state.targetUsername     = await window.webrtcApp.ui.getUsername(targetUserId);
+        window.webrtcApp.state.targetUsername     = await window.webrtcApp.uiRtc.getUsername(targetUserId);
         navigator.mediaDevices.getUserMedia({ video: true, audio: true })
             .then(stream => {
                 window.webrtcApp.refs.localStream = stream;
@@ -98,8 +99,9 @@ window.webrtcApp.rtc = {
                 });
             })
             .catch(console.error);
-        window.webrtcApp.ui.setEndCallButtonVisible(true);
+        window.webrtcApp.uiRtc.setEndCallButtonVisible(true);
         window.webrtcApp.state.isCallActive = true;
+        window.webrtcApp.uiChat.updatePollingState();
         document.body.classList.add('call-active');
         document.getElementById('call-view').style.display = '';
         console.log('Geladener Username:', window.webrtcApp.state.targetUsername);
