@@ -5,12 +5,18 @@ use App\Model\User;
 use App\Model\WebRTCHandler;
 use App\Helper\Request;
 
+/**
+ * WebRTCController – Steuert das Signaling für WebRTC-Verbindungen.
+ * Übernimmt die Annahme und Verteilung von Offer/Answer/Candidate zwischen Nutzern.
+ */
 class WebRTCController
 {
     /**
      * Handhabt Signalisierung für WebRTC.
      * - POST: Neue Nachricht abspeichern (offer, answer, candidate)
      * - GET:  Nachrichten für diesen Empfänger abrufen
+     *
+     * @return void
      */
     public function getSignal()
     {

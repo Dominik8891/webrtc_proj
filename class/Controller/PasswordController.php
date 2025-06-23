@@ -7,9 +7,15 @@ use App\Model\User;
 use App\Model\Email;
 use App\Model\PdoConnect;
 
+/**
+ * Controller Passwort-Reset und Ändern 
+ */
 class PasswordController
 {
-    // 1. Schritt: "Passwort vergessen?" - Formular anzeigen und E-Mail abfragen
+    /**
+     * Zeigt das "Passwort vergessen?"-Formular an.
+     * @return void
+     */
     public function showForgotPwForm(): void
     {
         $html = file_get_contents('assets/html/forgot_pw.html');
@@ -17,7 +23,11 @@ class PasswordController
         ViewHelper::output($html);
     }
 
-    // 2. Schritt: Reset-Token erzeugen und Mail schicken
+    /**
+     * Verarbeitet das Absenden des "Passwort vergessen?"-Formulars, erzeugt Token und sendet Mail.
+     * Antwort ist immer gleich, um Enumeration zu verhindern.
+     * @return void
+     */
     public function handleForgotPassword(): void
     {
         $email = trim(Request::g('email'));
@@ -58,7 +68,10 @@ class PasswordController
         ViewHelper::output($html);
     }
 
-    // 3. Schritt: Reset-Formular anzeigen
+    /**
+     * Zeigt das Passwort-Zurücksetzen-Formular an (nur bei gültigem Token).
+     * @return void
+     */
     public function showResetForm(): void
     {
         $token = Request::g('token');
@@ -82,7 +95,11 @@ class PasswordController
         }
     }
 
-    // 4. Schritt: Neues Passwort setzen
+    /**
+     * Setzt das neue Passwort nach Token-Prüfung.
+     * Löscht das Token, zeigt Erfolg oder Fehler an.
+     * @return void
+     */
     public function handleResetPassword(): void
     {
         $token = Request::g('token');
@@ -131,6 +148,10 @@ class PasswordController
         }
     }
 
+    /**
+     * Zeigt das Passwort-Ändern-Formular für eingeloggte User an.
+     * @return void
+     */
     public function showChangePwForm() 
     {
         $username = Request::g('username');
@@ -140,6 +161,11 @@ class PasswordController
         ViewHelper::output($html);
     }
 
+    /**
+     * Verarbeitet die Änderung des Passworts durch den User.
+     * Prüft altes Passwort, setzt neues, zeigt Fehler oder Erfolg.
+     * @return void
+     */
     public function handleChangePassword()
     {
         $username   = Request::g('username');
@@ -148,7 +174,6 @@ class PasswordController
         $pwd2       = Request::g('pwd2');
         $msg = "";
         
-
         $stmt = PdoConnect::$connection->prepare("SELECT * FROM user WHERE username = :username");
         $stmt->bindParam(":username", $username);
         $stmt->execute();
@@ -187,7 +212,5 @@ class PasswordController
         // Weiterleitung mit Erfolgsmeldung
         header("Location: index.php?act=settings&change=1");
         exit;
-
-        
     }
 }

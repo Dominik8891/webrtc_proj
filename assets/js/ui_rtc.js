@@ -3,11 +3,13 @@
 window.webrtcApp = window.webrtcApp || {};
 
 /**
- * Alle UI-Funktionen rund um RTC/Call – vorher in ui.js
+ * Modul für alle UI-Funktionen rund um RTC/Call (vorher in ui.js).
+ * Beinhaltet: Sichtbarkeit der Call-Buttons, Initialisierung der Call-Chat-UI und Username-Auflösung.
  */
 window.webrtcApp.uiRtc = {
     /**
-     * Zeigt/Versteckt den End-Call-Button.
+     * Zeigt oder versteckt den "End Call"-Button.
+     * @param {boolean} visible - true = anzeigen, false = verstecken
      */
     setEndCallButtonVisible: function(visible) {
         const btn = document.getElementById('end-call-btn');
@@ -15,12 +17,14 @@ window.webrtcApp.uiRtc = {
     },
 
     /**
-     * Initialisiert die Call-Chat-UI (Text und Datei).
+     * Initialisiert die UI für den Call-Chat (Textnachrichten & Datei-Upload).
+     * Fügt Eventlistener für Send-Button, Enter-Taste und Datei-Upload hinzu.
      */
     initChatUI: function() {
         const sendBtn = document.getElementById("chat-send-btn");
         const chatInput = document.getElementById("chat-input");
         if (sendBtn && chatInput) {
+            // Textnachricht senden
             sendBtn.addEventListener('click', function() {
                 const msg = chatInput.value;
                 if (msg) {
@@ -28,10 +32,12 @@ window.webrtcApp.uiRtc = {
                     chatInput.value = "";
                 }
             });
+            // Enter = Senden
             chatInput.addEventListener('keydown', function(e) {
                 if (e.key === "Enter") sendBtn.click();
             });
         }
+        // Datei senden
         const fileInput = document.getElementById("file-input");
         if (fileInput) {
             fileInput.addEventListener('change', function(e) {
@@ -41,7 +47,9 @@ window.webrtcApp.uiRtc = {
     },
 
     /**
-     * Holt den Usernamen für die Call-UI.
+     * Holt den Usernamen für die Anzeige im Call.
+     * @param {number} userId - ID des Users
+     * @returns {Promise<string>} Usernamen (oder leere Zeichenkette bei Fehler)
      */
     getUsername: function(userId) {
         return fetch('index.php?act=get_username', {
@@ -54,8 +62,8 @@ window.webrtcApp.uiRtc = {
     },
 };
 
+// Bei DOM-Ready Chat-UI initialisieren (sofern vorhanden)
 document.addEventListener('DOMContentLoaded', function() {
-    // Nur initialisieren, wenn die Call-View/Chat-UI existiert
     if(document.getElementById("chat-send-btn") || document.getElementById("chat-input")) {
         window.webrtcApp.uiRtc.initChatUI();
     }

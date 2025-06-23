@@ -1,12 +1,23 @@
+/**
+ * Modul für die UI und Logik der Chat-Popups.
+ * Beinhaltet: Öffnen/Schließen/Minimieren von Tabs, Senden/Empfangen von Nachrichten,
+ * Annahme/Ablehnung von Chat-Einladungen und Synchronisation mit ChatManager.
+ */
 window.webrtcApp = window.webrtcApp || {};
 
 window.webrtcApp.uiChat = {
+    /**
+     * Öffnet ein Chat-Popup mit einem User (per Klick auf "Chat"-Button).
+     * Lädt ggf. Chat-Daten und initialisiert Tab/UI.
+     */
     openChatPopup: function(userId, partnerName) {
+        // Container anlegen, falls noch nicht vorhanden
         let $container = $('#chat-popup-container');
         if (!$container.length) {
             $('body').append('<div id="chat-popup-container" style="position:fixed;bottom:0;left:0;z-index:9999;width:370px;"></div>');
             $container = $('#chat-popup-container');
         }
+        // Chat vom Server holen/anlegen
         fetch('?act=chat_start', {
             method: 'POST',
             body: new URLSearchParams({target_id: userId}),
@@ -28,27 +39,25 @@ window.webrtcApp.uiChat = {
             const isActive = !!data.chat.is_active;
             const isEmpfaenger = (data.chat.pending_for == window.userId);
             
-
-            // ChatManager: Chat anlegen
+            // ChatManager: Chat registrieren
             if(window.webrtcApp.chatManager) {
                 window.webrtcApp.chatManager.createChat(chatId, [window.userId, userId]);
                 window.webrtcApp.chatManager.setActive(chatId, isActive);
             }
 
             const $tab = window.webrtcApp.uiChat.buildTab(tabId, userId, partnerUserName, false);
-
             $container.append($tab);
             $tab.find('.chat-popup-content').show();
             $tab.removeClass('minimized attention');
-
-
             window.webrtcApp.uiChat.setTabUiByActiveState($tab, isActive, isEmpfaenger, partnerUserName);
             window.webrtcApp.uiChat.bindTabEvents($tab, chatId, isEmpfaenger, partnerUserName);
-
             window.webrtcApp.uiChat.loadChatMessages(chatId, $tab);
         });
     },
 
+    /**
+     * Öffnet einen Chat-Tab für eine Einladung (ohne Chatverlauf).
+     */
     openInvitationTab: function(inviteData) {
         let $container = $('#chat-popup-container');
         if (!$container.length) {
@@ -78,10 +87,12 @@ window.webrtcApp.uiChat = {
         // Kein loadChatMessages – Nachrichten kommen erst nach Annahme
     },
 
+    /**
+     * Erstellt ein neues Tab-Element (jQuery) für einen Chat.
+     */
     buildTab: function(tabId, partnerId, partnerName, minimized) {
         // minimized (optional): true/false
-        return $(`
-            <div class="chat-popup-tab${minimized ? ' minimized attention' : ''}" id="${tabId}" data-partner-id="${partnerId}" data-partner-name="${partnerName}" style="background:#fff;border-radius:16px 16px 0 0;box-shadow:0 2px 10px #0002;margin-bottom:8px;">
+        return $(`<div class="chat-popup-tab${minimized ? ' minimized attention' : ''}" id="${tabId}" data-partner-id="${partnerId}" data-partner-name="${partnerName}" style="background:#fff;border-radius:16px 16px 0 0;box-shadow:0 2px 10px #0002;margin-bottom:8px;">
                 <div class="chat-tab-header" style="background:#eee;padding:8px 12px;cursor:pointer;font-weight:bold;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;">
                     <span>Chat mit ${partnerName}<br></span>
                     <button class="close-chat-tab btn btn-sm btn-danger" title="Schließen" style="margin-left:4px;">×</button>
@@ -94,10 +105,12 @@ window.webrtcApp.uiChat = {
                     </div>
                     <div class="chat-popup-accept" style="display:none;padding:12px;text-align:center;"></div>
                 </div>
-            </div>
-        `);
+            </div>`);
     },
 
+    /**
+     * Bindet alle UI-Events für einen Chat-Tab.
+     */
     bindTabEvents: function($tab, chatId, isEmpfaenger, partnerName) {
         // Minimieren/Maximieren
         $tab.find('.chat-tab-header').on('click', function(e) {
@@ -152,6 +165,9 @@ window.webrtcApp.uiChat = {
         });
     },
 
+    /**
+     * Annahme eines Chat-Invites (Freischalten des Chats).
+     */
     acceptChat: function($tab, chatId, isEmpfaenger, partnerName) {
         fetch('?act=chat_accept', {
             method: 'POST',
@@ -168,6 +184,9 @@ window.webrtcApp.uiChat = {
         });
     },
 
+    /**
+     * Ablehnen eines Chat-Invites (Tab schließen, Chat aus ChatManager entfernen).
+     */
     declineChat: function($tab, chatId) {
         fetch('?act=chat_decline', {
             method: 'POST',
@@ -182,8 +201,10 @@ window.webrtcApp.uiChat = {
         });
     },
 
+    /**
+     * Senden einer Nachricht aus dem Chat-Popup.
+     */
     sendMessage: function($tab, chatId) {
-        console.log("SENDEN-BUTTON geklickt!", {chatId, chatManager: window.webrtcApp.chatManager});
         if (window.webrtcApp.chatManager && !window.webrtcApp.chatManager.isActive(chatId)) return;
         const $input = $tab.find('.chat-popup-input');
         const msg = $input.val();
@@ -207,6 +228,9 @@ window.webrtcApp.uiChat = {
         });
     },
 
+    /**
+     * Holt Nachrichten für einen Chat und füllt das Popup.
+     */
     loadChatMessages: function(chatId, $tab) {
         fetch('?act=chat_get_messages&chat_id=' + chatId)
         .then(r => r.json()).then(data => {
@@ -227,6 +251,9 @@ window.webrtcApp.uiChat = {
         });
     },
 
+    /**
+     * Fügt eine Nachricht in das Chat-Popup ein.
+     */
     addChatMessage: function($tab, msg) {
         const partnerUserId = $tab.data('partner-id');
         const isPartner = (msg.sender_id == partnerUserId);
@@ -239,6 +266,9 @@ window.webrtcApp.uiChat = {
         $tab.find('.chat-popup-messages').append(msgHtml);
     },
 
+    /**
+     * Aktualisiert die UI eines Tabs je nach Chat-Status (offen, angenommen, wartend etc.).
+     */
     setTabUiByActiveState: function($tab, isActive, isEmpfaenger, partnerName) {
         $tab.find('.chat-popup-actions').hide();
         $tab.find('.chat-popup-accept').hide();
@@ -272,9 +302,14 @@ window.webrtcApp.uiChat = {
         }
     },
 
+    // === Polling/Sync für alle offenen Popups ===
+
     globalChatPollingInterval: null,
     invitePollingInterval: null,
 
+    /**
+     * Startet das periodische Polling für neue Nachrichten (nur wenn kein Call aktiv!).
+     */
     startGlobalChatPolling() {
         if (window.webrtcApp.globalChatPollingInterval) return;
         window.webrtcApp.globalChatPollingInterval = setInterval(function() {
@@ -321,6 +356,9 @@ window.webrtcApp.uiChat = {
         }, 10000);
     },
 
+    /**
+     * Beendet das Polling für Chat-Nachrichten.
+     */
     stopGlobalChatPolling() {
         if (window.webrtcApp.globalChatPollingInterval) {
             clearInterval(window.webrtcApp.globalChatPollingInterval);
@@ -328,6 +366,9 @@ window.webrtcApp.uiChat = {
         }
     },
 
+    /**
+     * Startet das Polling für neue Chat-Einladungen.
+     */
     startInvitePolling() {
         if (window.webrtcApp.invitePollingInterval) return;
         window.webrtcApp.invitePollingInterval = setInterval(function() {
@@ -346,6 +387,9 @@ window.webrtcApp.uiChat = {
         }, 3000);
     },
 
+    /**
+     * Beendet das Polling für Chat-Einladungen.
+     */
     stopInvitePolling() {
         if (window.webrtcApp.invitePollingInterval) {
             clearInterval(window.webrtcApp.invitePollingInterval);
@@ -353,6 +397,9 @@ window.webrtcApp.uiChat = {
         }
     },
 
+    /**
+     * Aktualisiert, welche Pollings aktiv sein sollen (z.B. bei aktivem Call stoppen).
+     */
     updatePollingState() {
         if (window.webrtcApp.state.isCallActive) {
             window.webrtcApp.uiChat.stopGlobalChatPolling();
@@ -362,10 +409,12 @@ window.webrtcApp.uiChat = {
             window.webrtcApp.uiChat.startInvitePolling();
         }
     },
-
 };
 
-// === Nachrichten-Polling ===
+/**
+ * Separates Nachrichten-Polling für alle offenen Chat-Popups.
+ * Holt regelmäßig neue Nachrichten und aktualisiert die UI.
+ */
 setInterval(function () {
     $('#chat-popup-container .chat-popup-tab').each(function () {
         const $tab = $(this);

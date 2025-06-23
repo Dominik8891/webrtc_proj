@@ -1,6 +1,10 @@
-// assets/js/main.js
+
+/**
+ * Initialisiert alle Events und UI-Elemente rund um das WebRTC-Frontend.
+ * Bindet Buttons, Devices, Call-Logik und Chat.
+ */
 window.webrtcApp.init = function() {
-    // End Call Button
+    // ---------- Call beenden-Button ----------
     const endCallBtn = document.getElementById('end-call-btn');
     if (endCallBtn) {
         endCallBtn.addEventListener('click', function() {
@@ -8,21 +12,23 @@ window.webrtcApp.init = function() {
         });
     }
 
-    // Chat-UI
+    // ---------- Initialisiere Chat-UI ----------
     window.webrtcApp.uiRtc.initChatUI();
 
-    // Call annehmen/ablehnen Buttons
+    // ---------- Call-Annehmen/Ablehnen-Buttons ----------
     const acceptBtn = document.getElementById('accept-call-btn');
     if (acceptBtn) {
         acceptBtn.addEventListener('click', function() {
+            // Zeige Medianauswahl-Dialog für akzeptierten Call
             const dialog = document.getElementById('media-select-dialog');
             if (dialog) dialog.style.display = '';
         });
     }
-    
+
     const declineBtn = document.getElementById('media-decline-btn');
     if (declineBtn) {
         declineBtn.addEventListener('click', function() {
+            // Medianauswahl-Dialog schließen und Call ablehnen
             const dialog = document.getElementById('media-select-dialog');
             if (dialog) dialog.style.display = 'none';
             if (acceptBtn) acceptBtn.style.display = "none";
@@ -34,6 +40,7 @@ window.webrtcApp.init = function() {
         });
     }
 
+    // ---------- Chat-Popup öffnen über Button ----------
     $(document).on('click', '.start-chat-btn', function () {
         const userId = $(this).data('userid');
         console.log('userid vor funktionsaufruf: ' );
@@ -41,7 +48,7 @@ window.webrtcApp.init = function() {
         window.webrtcApp.uiChat.openChatPopup(userId);
     });
 
-    // Optional: Signaling starten
+    // ---------- Starte Polling für Signaling nach Login ----------
     if (window.isLoggedIn) {
         window.webrtcApp.signaling.pollSignaling();
         const settings = document.getElementById('settings');
@@ -51,6 +58,7 @@ window.webrtcApp.init = function() {
         window.webrtcApp.uiChat.updatePollingState();
     }
 
+    // ---------- Medienauswahl für Call akzeptieren ----------
     const acceptMediaBtn = document.getElementById('media-accept-btn');
     if (acceptMediaBtn) {
         acceptMediaBtn.addEventListener('click', async function() {
@@ -67,7 +75,7 @@ window.webrtcApp.init = function() {
             document.getElementById('call-view').style.display = '';
             document.getElementById('remote-username').textContent = 'Anruf mit ' + window.webrtcApp.state.targetUsername;
 
-            // Checkboxen holen
+            // Video/Audio-Checkboxen holen
             const useVideo = document.getElementById('media-video-checkbox').checked;
             const useAudio = document.getElementById('media-audio-checkbox').checked;
 
@@ -81,6 +89,7 @@ window.webrtcApp.init = function() {
                 return;
             }
 
+            // Lokalen MediaStream holen
             let stream = null;
             try {
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -93,17 +102,16 @@ window.webrtcApp.init = function() {
             window.webrtcApp.refs.localStream = stream;
             document.getElementById('local-video').srcObject = stream;
 
-
-            // *** ICE-Server sicherstellen ***
+            // ICE-Server Konfiguration laden
             await window.webrtcApp.rtc.loadIceServers();
 
-            // *** PeerConnection erzeugen ***
+            // PeerConnection erzeugen
             window.webrtcApp.rtc.createPeerConnection(false);
 
-            // *** Jetzt Local Tracks hinzufügen ***
+            // Tracks hinzufügen
             window.webrtcApp.rtc.addLocalTracks();
 
-            // *** Jetzt setRemoteDescription machen ***
+            // RemoteDescription setzen
             try {
                 await window.webrtcApp.refs.localPeerConnection.setRemoteDescription(new RTCSessionDescription({
                     type: data.type,
@@ -114,7 +122,7 @@ window.webrtcApp.init = function() {
                 return;
             }
 
-            // *** Jetzt Answer erzeugen ***
+            // Answer erzeugen und senden
             let answer;
             try {
                 answer = await window.webrtcApp.refs.localPeerConnection.createAnswer();
@@ -124,21 +132,22 @@ window.webrtcApp.init = function() {
                 return;
             }
 
-            // *** Answer an den Anrufer senden ***
+            // Antwort via Signaling an den Anrufer schicken
             window.webrtcApp.signaling.sendSignalMessage({
                 type: 'answer',
                 sdp: answer.sdp,
                 target: data.sender_id
             });
 
-            // Nach Call-Start Icons updaten!
+            // Call-Icons updaten
             updateCallIcons();
         });
     }
 
+    // ---------- Call per Button starten ----------
     document.querySelectorAll('.start-call-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            // Button-ID hat das Format "start-call-btn-2"
+            // Button-ID auslesen
             const btnId = this.id || '';
             let userId = null;
             if (btnId.startsWith('start-call-btn-')) {
@@ -146,10 +155,11 @@ window.webrtcApp.init = function() {
             }
             console.log("Starte Call mit User:", userId);
             window.webrtcApp.rtc.startCall(userId);
-            setTimeout(updateCallIcons, 1000); // Nach Call-Start Icons aktualisieren
+            setTimeout(updateCallIcons, 1000);
         });
     });
 
+    // ---------- Steuerungsbuttons im Chat (z.B. für Roboter o.ä.) ----------
     if (window.isLoggedIn) {
         document.getElementById('btn-forward').addEventListener('click', function() {
             window.webrtcApp.chat.send('__arrow_forward__');
@@ -165,6 +175,7 @@ window.webrtcApp.init = function() {
         });
     }
 
+    // ---------- Geräteauswahl (Kamera/Mikro) füllen ----------
     navigator.mediaDevices.enumerateDevices().then(function(devices) {
         // Kamera
         const videoSelect = document.getElementById('camera-select');
@@ -197,7 +208,7 @@ window.webrtcApp.init = function() {
         }
     });
 
-    // IN-CALL Kamera/Mikrofon Selects
+    // ---------- In-Call-Selects für Kamera/Mikro + Event-Handler ----------
     window.webrtcApp.init.updateMediaDeviceSelects = async function() {
         const devices = await navigator.mediaDevices.enumerateDevices();
 
@@ -238,6 +249,7 @@ window.webrtcApp.init = function() {
         }
     };
 
+    // ---------- Kamera/Mikro im laufenden Call wechseln ----------
     window.webrtcApp.init.handleMediaDeviceChange = async function(type) {
         const select = document.getElementById(type === 'video' ? 'camera-select-in-call' : 'mic-select-in-call');
         if (!select || !select.value) return;
@@ -261,21 +273,20 @@ window.webrtcApp.init = function() {
         updateCallIcons();
     };
 
-    // ========== ECHTER MUTE/UNMUTE & VIDEO ON/OFF ==========
-
+    // ---------- ECHTER MUTE/UNMUTE & VIDEO ON/OFF -----------
     function getSender(kind) {
         const pc = window.webrtcApp.refs.localPeerConnection;
         if (!pc) return null;
-        // Zuerst mit aktivem Track
+        // Mit aktivem Track
         let sender = pc.getSenders().find(s => s.track && s.track.kind === kind);
-        // Wenn nicht, dann der erste Sender ohne aktiven Track (nach Mute)
         if (!sender) {
+            // Erster Sender ohne aktiven Track (nach Mute)
             sender = pc.getSenders().find(s => !s.track);
         }
         return sender;
     }
 
-    // Mikrofon-Button & Icon
+    // Mikrofon an/aus & Icon aktualisieren
     const micBtn = document.getElementById('switch-mic-btn');
     const micIcon = document.getElementById('mic-icon');
     function updateMicIcon() {
@@ -306,7 +317,7 @@ window.webrtcApp.init = function() {
         });
     }
 
-    // Kamera-Button & Icon
+    // Kamera an/aus & Icon aktualisieren
     const camBtn = document.getElementById('switch-cam-btn');
     const camIcon = document.getElementById('cam-icon');
     function updateCamIcon() {
@@ -333,13 +344,11 @@ window.webrtcApp.init = function() {
                     window.webrtcApp.refs.dataChannel.send("__video_off__");
                 }
             } else {
-                // Kamera an (Track wieder aktivieren oder neuen holen)
+                // Kamera an (Track reaktivieren oder neuen holen)
                 let newTrack = null;
-                // Versuche zuerst, ob im Stream schon ein Track ist (war vielleicht nur disabled)
                 if (stream && stream.getVideoTracks().length > 0) {
                     newTrack = stream.getVideoTracks()[0];
                 } else {
-                    // Noch kein Track: Jetzt Kamera holen!
                     try {
                         const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
                         newTrack = newStream.getVideoTracks()[0];
@@ -355,11 +364,9 @@ window.webrtcApp.init = function() {
                 if (newTrack && sender) {
                     await sender.replaceTrack(newTrack);
                 } else if (newTrack && stream && window.webrtcApp.refs.localPeerConnection) {
-                    // Es gibt keinen Sender mehr? Dann neuen Sender erzeugen!
                     window.webrtcApp.refs.localPeerConnection.addTrack(newTrack, stream);
                 }
 
-                // Videoelement updaten
                 if (stream) {
                     document.getElementById('local-video').srcObject = stream;
                 }
@@ -372,35 +379,48 @@ window.webrtcApp.init = function() {
         });
     }
 
+    // Call-Icon-Status aktualisieren (wird mehrfach verwendet)
     function updateCallIcons() {
         updateMicIcon();
         updateCamIcon();
     }
 
+    // Icons direkt bei Start setzen
     window.updateMicIcon = updateMicIcon;
     window.updateCamIcon = updateCamIcon;
     window.updateCallIcons = updateCallIcons;
-
-    // Beim Start direkt Icons setzen
     updateCallIcons();
 
-    // IN-CALL-Selects mit Event-Handlern
+    // IN-CALL Kamera/Mic-Select-Handler setzen
     window.webrtcApp.init.updateMediaDeviceSelects();
     document.getElementById('camera-select-in-call')?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('video'));
     document.getElementById('mic-select-in-call')?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('audio'));
+
 };
+
+// ---------- DOMContentLoaded: Initialisierung & Intervall-Tasks ----------
 window.addEventListener('DOMContentLoaded', function() {
     window.webrtcApp.init();
-    window.webrtcApp.ui.showLocationButton();
-    window.webrtcApp.ui.showAllLocationsButton();
+
+    const params = new URLSearchParams(window.location.search);
+    const act = params.get('act');
+    if (act === 'settings' || act === 'get_all_chats' || act === 'show_chat') {
+        window.webrtcApp.ui.setDisplay('chats', '');
+        window.webrtcApp.ui.setDisplay('settings', '');
+    } else {
+        window.webrtcApp.ui.showLocationButton();
+        window.webrtcApp.ui.showAllLocationsButton();
+    }
 
     if (window.isLoggedIn) {
         setInterval(function() {
             window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
-        }, 15000);  
+        }, 15000);  // alle 15s
     }
+    // Success Alerts anzeigen, wenn bestimmte Aktionen erfolgt sind
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Lokation erfolgreich gespeichert!');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Speichern nicht erfolgreich. Stadt oder Beschreibung fehlt');
     // funktioniert noch nicht da der header nur verändert wird aber es wird nicht neu geladen...
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '5', 'Registrierung erfolgreich!');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('change', '1', 'Passwort erfolgreich geändert!');
 });

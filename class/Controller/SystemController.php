@@ -12,6 +12,8 @@ class SystemController
 {
     /**
      * Gibt die Adminseite aus, optional mit Nachricht.
+     * @param string $msg Optional anzuzeigende Nachricht
+     * @return void
      */
     public function showAdmin($msg = "Willkommen im Admin Panel"): void
     {
@@ -20,6 +22,10 @@ class SystemController
 
     /**
      * Generiert ein HTML-Dropdown-Menü (Select-Optionen) basierend auf einem Array.
+     * @param array $dataArray Array für Optionen (Key => Value)
+     * @param mixed $selectedId Vorzubelegende ID
+     * @param bool $addEmpty Optionale Leerauswahl hinzufügen
+     * @return string HTML-Optionen
      */
     public static function generateHtmlOptions($dataArray, $selectedId, $addEmpty = false): string
     {
@@ -38,6 +44,7 @@ class SystemController
 
     /**
      * Gibt die Startseite (Backend) oder das Chatfenster (Frontend), wenn der Benutzer eingeloggt ist.
+     * @return void
      */
     public static function home(): void
     {
@@ -46,6 +53,7 @@ class SystemController
 
     /**
      * Zeigt die Startseite oder das Chatfenster, abhängig vom Benutzerstatus.
+     * @return void
      */
     public function showStart(): void
     {

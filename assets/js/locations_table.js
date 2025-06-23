@@ -1,21 +1,34 @@
+
+/**
+ * Modul für die Verwaltung und Anzeige der Locations-Tabelle.
+ * Beinhaltet das dynamische Laden, die Anzeige auf Karte und die Bearbeitungs-/Löschfunktionen.
+ */
 window.webrtcApp.locationsTable = {
     /**
-     * Konfigurierbares Laden für alle oder eigene Locations
-     * options: {
-     *    onlyOwn: bool,
-     *    showActions: Array<"call"|"edit"|"delete">,
-     *    tableSelector: string
-     * }
+     * Lädt Locations aus dem Backend und baut die Tabelle dynamisch auf.
+     * @param {Object} options - Einstellungen, z.B. nur eigene Locations, welche Aktionen erlaubt sind etc.
      */
-loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showActions: ["call"], tableSelector: "#locationsTable"}, options || {});
-            let apiUrl = options.onlyOwn ? 'index.php?act=get_my_locations' : 'index.php?act=get_locations';
+    loadLocationsTable(options) {
+        // Standardoptionen setzen & mit übergebenen überschreiben
+        options = Object.assign({
+            onlyOwn: false,                               // Nur eigene Locations laden?
+            showActions: ["call"],                        // Mögliche Aktionen: ["call", "edit", "delete"]
+            tableSelector: "#locationsTable"              // Wo soll die Tabelle befüllt werden?
+        }, options || {});
+
+        // Richtige API-URL wählen
+        let apiUrl = options.onlyOwn ? 'index.php?act=get_my_locations' : 'index.php?act=get_locations';
+
+        // AJAX-Request an Server
         $.ajax({
             url: apiUrl,
             method: 'GET',
             dataType: 'json',
             success: function (data) {
                 let rows = '';
+                // Für jeden Datensatz eine Tabellenzeile erzeugen
                 data.forEach(function (item, i) {
+                    // Status-Icon & -Text je nach user_status bestimmen
                     let icon = "🔴";
                     let status = "Offline";
                     if (item.user_status === "in_call") {
@@ -26,7 +39,7 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
                         status = "Online";
                     }
 
-                    // Beschreibung wie gehabt
+                    // Beschreibung als klickbaren/hoverbaren Text anzeigen
                     let descHtml = `
                         <span 
                             class="desc-hover" 
@@ -39,7 +52,7 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
                         </span>
                     `;
 
-                    // Aktionen je nach Optionen
+                    // Aktions-Buttons je nach Option
                     let actionBtns = '';
                     if(options.showActions.includes("call")) {
                         actionBtns += `
@@ -55,8 +68,7 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
                         actionBtns += `
                             <button class="btn btn-warning edit-location-btn" data-locationid="${item.id}">Ändern</button>
                         `;
-                        console.log(item.id, item);
-
+                        //console.log(item.id, item);
                     }
                     if(options.showActions.includes("delete")) {
                         actionBtns += `
@@ -64,6 +76,7 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
                         `;
                     }
 
+                    // Zusammenbauen der Tabellenzeile
                     rows += `<tr>
                         <td>${i + 1}</td>
                         <td>${status}</td>
@@ -75,7 +88,7 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
                     </tr>`;
                 });
 
-                // Tabelle je nach Selector füllen
+                // In das Ziel-Table-Element einfügen
                 $(options.tableSelector + ' tbody').html(rows);
             },
             error: function () {
@@ -84,6 +97,9 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
         });
     },
 
+    /**
+     * Zeigt einen kleinen Kartenausschnitt bei Hover über die Beschreibung an.
+     */
     showMapPopup(e, lat, lng, country, city, description) {
         $('#descMapHeader').text(`${country} ${city ? '– ' + city : ''}`);
         $('#descMapPopup').css({
@@ -100,6 +116,9 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
         L.marker([lat, lng]).addTo(this.map).bindPopup(description).openPopup();
     },
 
+    /**
+     * Blendet das kleine Karten-Popup aus und entfernt Marker.
+     */
     hideMapPopup() {
         $('#descMapPopup').hide();
         if(this.map) this.map.eachLayer(function (layer) {
@@ -107,6 +126,9 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
         }.bind(this));
     },
 
+    /**
+     * Zeigt eine große Karte im Modal an.
+     */
     showModalMap(lat, lng, country, city, description) {
         $('#modalLocationInfo').text(`${country} ${city ? '– ' + city : ''}`);
         $('#mapModal').modal('show');
@@ -118,6 +140,7 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
             } else {
                 this.modalMap.setView([lat, lng], 16);
             }
+            // Alle Marker entfernen
             this.modalMap.eachLayer(function (layer) {
                 if(layer instanceof L.Marker) this.modalMap.removeLayer(layer);
             }.bind(this));
@@ -125,18 +148,23 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
         }, 200);
     },
 
-    map: null,
-    modalMap: null,
-    mapInitialized: false,
-    modalMapInitialized: false,
+    map: null,                  // Leaflet-Map-Objekt für Popup
+    modalMap: null,             // Leaflet-Map-Objekt für Modal
+    mapInitialized: false,      // Flag: ist Popup-Map initialisiert?
+    modalMapInitialized: false, // Flag: ist Modal-Map initialisiert?
 
+    /**
+     * Bindet sämtliche Events auf die Tabelle und initialisiert DataTables.
+     * @param {Object} options
+     */
     bindEvents(options = {onlyOwn: false, tableSelector: "#locationsTable"}) {
         if (!$(options.tableSelector).length) return;
+        // Tabelle als DataTable initialisieren
         $(options.tableSelector).DataTable();
-        // Initial laden:
+        // Direkt laden
         this.loadLocationsTable(options);
 
-        // Map Events (wie gehabt, du kannst sie so lassen)
+        // Map Events (Mouseover, Klick etc.)
         $(options.tableSelector).on('mouseenter', '.desc-hover', (e) => {
             let $t = $(e.currentTarget);
             let lat = parseFloat($t.data('lat'));
@@ -164,7 +192,7 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
             if(isNaN(lat) || isNaN(lng)) return;
             this.showModalMap(lat, lng, country, city, description);
         });
-        // Actions:
+        // Call-Button-Click
         $(options.tableSelector).on('click', '.start-call-btn', function() {
             const userId = $(this).data('userid');
             if(typeof window.webrtcApp?.rtc?.startCall === 'function') {
@@ -173,19 +201,20 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
                 alert("Call-Funktion nicht verfügbar.");
             }
         });
-        // Nur für eigene Locations
+        // Edit-Button für eigene Locations
         $(options.tableSelector)
         .off('click', '.edit-location-btn')
         .on('click', '.edit-location-btn', function() {
-            const locationId = $(this).data('locationid'); // <-- Muss eine echte Zahl sein, z.B. 7
+            const locationId = $(this).data('locationid');
             const $row = $(this).closest('tr');
             const currentDescription = $row.find('.desc-hover').text().trim();
 
-            $('#editLocationId').val(locationId); // <-- Hier MUSS jetzt z.B. '7' stehen, NICHT 'undefined'
+            $('#editLocationId').val(locationId);
             $('#currentDescription').val(currentDescription);
             $('#newDescription').val('');
             $('#editDescModal').modal('show');
         });
+        // Delete-Button für eigene Locations
         $(options.tableSelector)
             .off('click', '.delete-location-btn')
             .on('click', '.delete-location-btn', function() {
@@ -221,11 +250,13 @@ loadLocationsTable(options) {options = Object.assign({onlyOwn: false, showAction
     },
 };
 
-// Initialisierung beim DOM-Ready:
+// Initialisierung bei DOM-Ready
 $(document).ready(function () {
+    // Standard-Tabelle initialisieren
     window.webrtcApp.locationsTable.bindEvents();
-        // Für die globale Tabelle auf der Übersichtsseite:
-    if($('#locationsTable').length && !$('#myLocationsSection').length) { // auf der Hauptseite
+
+    // Globale Tabelle auf der Übersichtsseite
+    if($('#locationsTable').length && !$('#myLocationsSection').length) {
         window.webrtcApp.locationsTable.bindEvents({
             onlyOwn: false,
             showActions: ["call"],
@@ -233,12 +264,11 @@ $(document).ready(function () {
         });
     }
 
-    // Für die eigene Locations-Tabelle auf der settings.html
+    // Eigene Locations-Tabelle auf der settings.html
     if($('#myLocationsSection').length) {
         $('#showOwnLocationsBtn').show().on('click', function(e) {
             e.preventDefault();
             $('#myLocationsSection').toggle();
-            // Tabelle initialisieren, falls noch nicht geladen
             window.webrtcApp.locationsTable.bindEvents({
                 onlyOwn: true,
                 showActions: ["edit", "delete"],
@@ -247,6 +277,7 @@ $(document).ready(function () {
         });
     }
 
+    // Edit-Formular absenden
     $('#editDescForm').off('submit').on('submit', function(e) {
         e.preventDefault();
 
@@ -283,5 +314,4 @@ $(document).ready(function () {
             }
         });
     });
-
 });

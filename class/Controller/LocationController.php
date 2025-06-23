@@ -10,6 +10,8 @@ class LocationController
 {
     /**
      * Zeigt das Formular zum Setzen einer Location an.
+     * Gibt ggf. die Startseite aus, wenn der User nicht eingeloggt ist.
+     * @return void
      */
     public function setLocationPage()
     {
@@ -24,6 +26,8 @@ class LocationController
 
     /**
      * Verarbeitet das Absenden des Location-Formulars.
+     * Setzt die Location, prüft die Eingaben und ändert ggf. den User-Typ.
+     * @return void
      */
     public function setLocation()
     {
@@ -61,6 +65,7 @@ class LocationController
 
     /**
      * Gibt alle Länder als JSON zurück (API).
+     * @return void
      */
     public function getCountry()
     {
@@ -73,6 +78,7 @@ class LocationController
 
     /**
      * Gibt alle Locations des aktuellen Benutzers als JSON zurück (API).
+     * @return void
      */
     public function getLocations()
     {
@@ -83,6 +89,10 @@ class LocationController
         exit();
     }
 
+    /**
+     * Gibt alle eigenen Locations des aktuellen Benutzers als JSON zurück.
+     * @return void
+     */
     public function getMyLocations()
     {
         $location = new Location();
@@ -94,6 +104,7 @@ class LocationController
 
     /**
      * Zeigt die Seite mit der Locations-Tabelle an.
+     * @return void
      */
     public function showLocationsPage()
     {
@@ -105,6 +116,11 @@ class LocationController
         }
     }
 
+    /**
+     * Bearbeitet die Beschreibung einer Location.
+     * Gibt ein JSON-Objekt mit Erfolg oder Fehler zurück.
+     * @return void
+     */
     public function editLocationDesc()
     {
         $location_id = (int)Request::g('id');
@@ -128,6 +144,11 @@ class LocationController
         exit;
     }
 
+    /**
+     * Löscht eine Location anhand der ID.
+     * Gibt Erfolg oder Fehlermeldung als JSON zurück.
+     * @return void
+     */
     public function deleteLocation()
     {
         // Parameter holen (bei POST)
@@ -139,12 +160,18 @@ class LocationController
             exit;
         }
 
-        
-        $location = new Location($location_id);
-        if ($location->deleteLocation()) {
-            header('Content-Type: application/json');
-            echo json_encode(['success' => true]);
-        } else {
+        // Fehlerbehandlung und Logging:
+        try {
+            $location = new Location($location_id);
+            if ($location->deleteLocation()) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true]);
+            } else {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'error' => 'Fehler beim Löschen!']);
+            }
+        } catch (\Exception $e) {
+            error_log("Fehler beim Löschen der Location #$location_id: ".$e->getMessage());
             header('Content-Type: application/json');
             echo json_encode(['success' => false, 'error' => 'Fehler beim Löschen: ' . $e->getMessage()]);
         }

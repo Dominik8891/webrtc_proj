@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Adminpanel Chatbot für Umschüler</title>
+    <title>WebRTC-App</title>
 
     <!-- CSS-Bibliotheken -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -44,15 +44,15 @@
 </head>
 <body>
     ###USERSTATUS###
-    <a href="index.php?act=settings" id="settings" style="display: none;">Mein Account/Einstellungen</a>
-
+    <a href="index.php?act=settings" id="settings" class="nav-button">Mein Account/Einstellungen</a>
+    <a href="index.php?act=get_all_chats" id="chats" class="nav-button" style="display: none;">Alle Chats</a>
 
     <div id="location-button"></div>
     <div id="browse-locations-button"></div>
 
     <div id="admin-panel">
         <nav>
-            <h3>Adminpanel</h3>
+            <h3>WebRTC-App</h3>
             <div class="nav-links">
                 ###REGISTER### ###USER### | ###LOGOUT###
             </div>

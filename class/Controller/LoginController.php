@@ -5,10 +5,14 @@ use App\Model\User;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 
+/**
+ * Controller für Login, Logout und Login-Fehlermeldungen.
+ */
 class LoginController
 {
     /**
      * Zeigt das Loginformular an.
+     * @return void
      */
     public function showLoginForm(): void
     {
@@ -18,7 +22,9 @@ class LoginController
     }
 
     /**
-     * Verarbeitet einen Login-Versuch.
+     * Verarbeitet einen Login-Versuch inkl. Brute-Force- und Lockout-Logik.
+     * Bei Erfolg Weiterleitung; bei Fehler Anzeige mit Fehlermeldung.
+     * @return void
      */
     public function handleLogin(): void
     {
@@ -110,6 +116,11 @@ class LoginController
         }
     }
 
+    /**
+     * Gibt das Loginformular mit einer Fehlermeldung aus.
+     * @param string $msg
+     * @return void
+     */
     public function outputLoginError($msg = 'Benutzername oder Passwort falsch.'): void
     {
         $html = file_get_contents('assets/html/login.html');
@@ -118,7 +129,8 @@ class LoginController
     }
 
     /**
-     * Loggt den Benutzer aus.
+     * Loggt den Benutzer aus und löscht die Session.
+     * @return void
      */
     public function handleLogout(): void
     {

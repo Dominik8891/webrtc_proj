@@ -5,10 +5,17 @@ use App\Model\User;
 use App\Helper\Request;
 use \App\Helper\ViewHelper;
 
+/**
+ * UserController – Verwaltung und Anzeige von Benutzern im Adminbereich.
+ */
 class UserController
 {
     /**
-     * Verwaltung eines Benutzers (Anlegen/Bearbeiten)
+     * Verwaltung eines Benutzers (Anlegen/Bearbeiten).
+     * Zeigt das User-Formular an, übernimmt Speichern bei "send".
+     * Zugang nur für eingeloggte Admins (RoleId <= 1).
+     *
+     * @return void
      */
     public function manageUser()
     {
@@ -64,6 +71,9 @@ class UserController
 
     /**
      * Zeigt eine Liste aller Benutzer im System an.
+     * Nur sichtbar für eingeloggte Nutzer.
+     *
+     * @return void
      */
     public function listUser()
     {
@@ -94,7 +104,9 @@ class UserController
     }
 
     /**
-     * Löscht einen Benutzer aus dem System.
+     * Löscht einen Benutzer aus dem System (setzt gelöscht-Flag).
+     *
+     * @return void
      */
     public function deleteUser()
     {
@@ -104,7 +116,91 @@ class UserController
     }
 
     /**
-     * Generiert die HTML-Zeilen für die Benutzerliste.
+     * Heartbeat-Schnittstelle zum Setzen des Online-Status (AJAX).
+     * Erwartet POST mit "in_call".
+     *
+     * @return void
+     */
+    public function heartbeat()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $user_id = (int)($_SESSION['user']['user_id'] ?? null);
+            if (!$user_id) exit;
+
+            $data = json_decode(file_get_contents("php://input"), true);
+            $in_call = isset($data['in_call']) ? $data['in_call'] : false;
+
+            $user_status = $in_call ? 'in_call' : 'online';
+
+            $user = new User($user_id);
+            $user->setStatus($user_status);
+            $user->save();
+            exit;
+        }
+    }
+
+    /**
+     * API: Gibt den Benutzernamen für eine User-ID zurück (JSON).
+     * Erwartet POST mit user_id im Payload.
+     *
+     * @return void
+     */
+    public function getUsername()
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $data = json_decode(file_get_contents("php://input"), true);
+
+            if ($data) {
+                $user = new User($data);
+                echo $user->getUsername();
+                exit;
+            }
+            echo false;
+        }
+    }
+
+    /**
+     * API: Speichert die übermittelte Location für den aktuellen User (Latitude/Longitude).
+     * Erwartet POST mit JSON {"lat":..., "lon":...}
+     *
+     * @return void
+     */
+    public function saveLocation()
+    {
+        if (!isset($_SESSION['user']['user_id'])) {
+            http_response_code(401);
+            exit('Nicht eingeloggt!');
+        }
+
+        $raw = file_get_contents('php://input');
+        $data = json_decode($raw, true);
+        $lat = isset($data['lat']) ? $data['lat'] : null;
+        $lon = isset($data['lon']) ? $data['lon'] : null;
+        error_log('kam was? ' . $lat . ' & ' . $lon);
+
+        if ($lat !== null && $lon !== null && is_numeric($lat) && is_numeric($lon)) {
+            $user = new User($_SESSION['user']['user_id']);
+            $result = $user->saveLocation($lat, $lon);
+            if ($result) {
+                http_response_code(200);
+                echo 'ok';
+            } else {
+                http_response_code(500);
+                echo 'Fehler beim Speichern.';
+            }
+        } else {
+            http_response_code(400);
+            echo 'Ungültige Daten.';
+        }
+        exit;
+    }
+
+    /**
+     * Generiert die HTML-Zeilen für die Benutzerliste (private Hilfsmethode).
+     *
+     * @param User $in_user
+     * @param array $in_user_ids
+     * @return string
      */
     private function generateUserRows($in_user, $in_user_ids)
     {
@@ -145,7 +241,10 @@ class UserController
     }
 
     /**
-     * Erzeugt den "Call"-Button für einen Benutzer.
+     * Erzeugt den "Call"-Button für einen Benutzer (private Hilfsmethode).
+     *
+     * @param int $btn_id
+     * @return string
      */
     private function createCallBtn($btn_id)
     {
@@ -153,7 +252,10 @@ class UserController
     }
 
     /**
-     * Generiert die möglichen Aktionen (Ändern/Löschen) für jeden Benutzer.
+     * Generiert die möglichen Aktionen (Ändern/Löschen) für jeden Benutzer (private Hilfsmethode).
+     *
+     * @param User $in_current_user
+     * @return string
      */
     private function getAction($in_current_user)
     {
@@ -161,73 +263,5 @@ class UserController
                     <a href="index.php?act=manage_user&user_id=' . $in_current_user->getId() .'">Ändern</a> | 
                     <a href="#" onclick="window.webrtcApp.ui.confirmDelete(\'index.php?act=delete_user&user_id=' . $in_current_user->getId() .'\')">Löschen</a>
                 </td>';
-    }
-
-    /**
-     * Heartbeat-Schnittstelle zum Setzen des Online-Status (AJAX).
-     */
-    public function heartbeat()
-    {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $user_id = (int)($_SESSION['user']['user_id'] ?? null);
-            if (!$user_id) exit;
-
-            $data = json_decode(file_get_contents("php://input"), true);
-            $in_call = isset($data['in_call']) ? $data['in_call'] : false;
-
-            $user_status = $in_call ? 'in_call' : 'online';
-
-            $user = new User($user_id);
-            $user->setStatus($user_status);
-            $user->save();
-            exit;
-        }
-    }
-
-    /**
-     * API: Gibt den Benutzernamen für eine User-ID zurück (JSON).
-     */
-    public function getUsername()
-    {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $data = json_decode(file_get_contents("php://input"), true);
-
-            if ($data) {
-                $user = new User($data);
-                echo $user->getUsername();
-                exit;
-            }
-            echo false;
-        }
-    }
-
-    public function saveLocation()
-    {
-        if (!isset($_SESSION['user']['user_id'])) {
-            http_response_code(401);
-            exit('Nicht eingeloggt!');
-        }
-
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
-        $lat = isset($data['lat']) ? $data['lat'] : null;
-        $lon = isset($data['lon']) ? $data['lon'] : null;
-        error_log('kam was? ' . $lat . ' & ' . $lon);
-
-        if ($lat !== null && $lon !== null && is_numeric($lat) && is_numeric($lon)) {
-            $user = new User($_SESSION['user']['user_id']);
-            $result = $user->saveLocation($lat, $lon);
-            if ($result) {
-                http_response_code(200);
-                echo 'ok';
-            } else {
-                http_response_code(500);
-                echo 'Fehler beim Speichern.';
-            }
-        } else {
-            http_response_code(400);
-            echo 'Ungültige Daten.';
-        }
-        exit;
     }
 }

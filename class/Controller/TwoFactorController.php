@@ -11,7 +11,10 @@ use Endroid\QrCode\Writer\PngWriter;
 
 class TwoFactorController
 {
-    // 1. QR-Code und Formular anzeigen (2FA Setup)
+    /**
+     * Zeigt das 2FA-Setup-Formular inkl. QR-Code und Eingabefeld für Code.
+     * @return void
+     */
     public function show2FASetup(): void
     {
         $userId = $_SESSION['user']['user_id'] ?? null;
@@ -61,7 +64,10 @@ HTML;
         ViewHelper::output($html);
     }
 
-    // 2. User bestätigt Code (2FA Setup abschließen)
+    /**
+     * Aktiviert 2FA für den angemeldeten User nach erfolgreicher Code-Eingabe.
+     * @return void
+     */
     public function handle2FAActivate(): void
     {
         $userId = $_SESSION['user']['user_id'] ?? null;
@@ -105,7 +111,10 @@ HTML;
         }
     }
 
-    // 3. Nach Passwort-Login: 2FA-Code abfragen
+    /**
+     * Zeigt das Eingabefeld für den 2FA-Code beim Login an.
+     * @return void
+     */
     public function show2FAVerifyForm(): void
     {
         $userId = $_SESSION['2fa_userid'] ?? null;
@@ -124,7 +133,10 @@ HTML;
         ViewHelper::output($html);
     }
 
-    // 4. 2FA-Code prüfen und Login abschließen
+    /**
+     * Prüft den 2FA-Code nach dem Login und schließt Login ggf. ab.
+     * @return void
+     */
     public function handle2FAVerify(): void
     {
         $userId = $_SESSION['2fa_userid'] ?? null;
@@ -158,8 +170,28 @@ HTML;
             $this->outputError("Ungültiger Code. Bitte erneut versuchen.");
         }
     }
+    
+    /**
+     * Deaktiviert 2FA für den angemeldeten User.
+     * @return void
+     */
+    public function disable2FA(): void
+    {
+        $userId = $_SESSION['user']['user_id'] ?? null;
+        if (!$userId) {
+            header("Location: index.php?act=login_page");
+            exit;
+        }
+        $user = new User($userId);
+        $user->setTotpEnabled(0);
+        $user->setTotpSecret(null);
+        $user->save();
 
-    // Verschlüsselung für Secret
+        $html = "<h3>2FA wurde deaktiviert.</h3><a href='index.php?act=settings'>Zurück zu den Einstellungen</a>";
+        ViewHelper::output($html);
+    }
+
+    // Hilfsmethoden
     private function encryptTotpSecret($secret)
     {
         $key = $_ENV['PEPPER'];
@@ -177,20 +209,5 @@ HTML;
         ViewHelper::output($html);
     }
 
-    public function disable2FA(): void
-    {
-        $userId = $_SESSION['user']['user_id'] ?? null;
-        if (!$userId) {
-            header("Location: index.php?act=login_page");
-            exit;
-        }
-        $user = new User($userId);
-        $user->setTotpEnabled(0);
-        $user->setTotpSecret(null);
-        $user->save();
-
-        $html = "<h3>2FA wurde deaktiviert.</h3><a href='index.php?act=settings'>Zurück zu den Einstellungen</a>";
-        ViewHelper::output($html);
-    }
 
 }

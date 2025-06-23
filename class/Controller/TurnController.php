@@ -3,10 +3,15 @@ namespace App\Controller;
 
 use App\Model\MeteredTurnService;
 
+/**
+ * Controller für Turnserver.
+ */
 class TurnController
 {
     /**
      * Gibt die TURN-Credentials als JSON aus.
+     * Holt die Credentials vom MeteredTurnService und behandelt Fehler sauber.
+     * @return void
      */
     public function getTurnCredentials()
     {

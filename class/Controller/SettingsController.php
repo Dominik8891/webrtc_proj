@@ -4,8 +4,15 @@ namespace App\Controller;
 use App\Helper\ViewHelper;
 use App\Model\User;
 
+/**
+ * Controller für Settingseite
+ */
 class SettingsController
 {
+    /**
+     * Zeigt die Einstellungsseite des Benutzers inkl. 2FA-Status, Username und E-Mail.
+     * @return void
+     */
     public function showSettingsPage(): void
     {
         $userId = $_SESSION['user']['user_id'] ?? null;

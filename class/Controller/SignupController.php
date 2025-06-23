@@ -8,10 +8,14 @@ use App\Helper\Request;
 use App\Helper\ViewHelper;
 use App\Controller\EmailVerificationController;
 
+/**
+ * Controller für Signup und Signup-Fehlermeldungen.
+ */
 class SignupController
 {
     /**
      * Zeigt das Registrierungsformular an.
+     * @return void
      */
     public function showSignupForm(): void
     {
@@ -22,7 +26,9 @@ class SignupController
     }
 
     /**
-     * Verarbeitet eine Nutzer-Registrierung.
+     * Verarbeitet eine Nutzer-Registrierung (Validierung und Anlage).
+     * Gibt Fehler zurück oder registriert den User, ggf. inkl. E-Mail-Verifikation.
+     * @return void
      */
     public function handleSignup(): void
     {
@@ -80,6 +86,11 @@ class SignupController
         }
     }
 
+    /**
+     * Gibt das Registrierungsformular mit Fehlerhinweis aus.
+     * @param string $error Fehlercode für Fehlermeldung
+     * @return void
+     */
     public function outputSignupError($error): void
     {
         // Fehlerfall: Formular mit Fehler anzeigen
@@ -96,6 +107,4 @@ class SignupController
         $html = str_replace('###ERROR###', $msg, $html);
         ViewHelper::output($html);
     }
-
-    
 }
