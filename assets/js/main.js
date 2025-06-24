@@ -396,21 +396,25 @@ window.webrtcApp.init = function() {
     document.getElementById('camera-select-in-call')?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('video'));
     document.getElementById('mic-select-in-call')?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('audio'));
 
+    // Zeigen und verstecken der Buttons für Einstellungen, Locations usw.
+    const params = new URLSearchParams(window.location.search);
+    const act = params.get('act');
+    if (act === 'settings' || act === 'get_all_chats' || act === 'show_chat') {
+        window.webrtcApp.ui.setDisplay('chats', '');
+    } else {
+        window.webrtcApp.ui.showLocationButton();
+        window.webrtcApp.ui.showAllLocationsButton();
+    }
+
+    if (window.isLoggedIn) window.webrtcApp.ui.setDisplay('settings', '');
+
 };
 
 // ---------- DOMContentLoaded: Initialisierung & Intervall-Tasks ----------
 window.addEventListener('DOMContentLoaded', function() {
     window.webrtcApp.init();
 
-    const params = new URLSearchParams(window.location.search);
-    const act = params.get('act');
-    if (act === 'settings' || act === 'get_all_chats' || act === 'show_chat') {
-        window.webrtcApp.ui.setDisplay('chats', '');
-        window.webrtcApp.ui.setDisplay('settings', '');
-    } else {
-        window.webrtcApp.ui.showLocationButton();
-        window.webrtcApp.ui.showAllLocationsButton();
-    }
+    
 
     if (window.isLoggedIn) {
         setInterval(function() {
