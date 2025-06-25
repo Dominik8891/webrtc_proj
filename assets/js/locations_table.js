@@ -18,8 +18,8 @@ window.webrtcApp.locationsTable = {
 
         // Richtige API-URL wählen
         let apiUrl = options.onlyOwn ? 'index.php?act=get_my_locations' : 'index.php?act=get_locations';
+        const $table = $(options.tableSelector);
 
-        // AJAX-Request an Server
         $.ajax({
             url: apiUrl,
             method: 'GET',
@@ -32,22 +32,22 @@ window.webrtcApp.locationsTable = {
                     let icon = "🔴";
                     let status = "Offline";
                     if (item.user_status === "in_call") {
-                        icon = '<span style="color: orange; font-size: 1.5em;">&#x1F7E0;</span>';
+                        icon = '<span class="badge rounded-pill bg-warning text-dark fs-4">&#x1F7E0;</span>';
                         status = "Befindet sich in Call";
                     } else if (item.user_status === "online") {
                         icon = "🟢";
                         status = "Online";
                     }
 
-                    // Beschreibung als klickbaren/hoverbaren Text anzeigen
+                    // Beschreibung als klickbaren Text (für Popup/Modal)
                     let descHtml = `
                         <span 
-                            class="desc-hover" 
+                            class="desc-hover fw-semibold text-primary text-decoration-underline"
                             data-lat="${item.latitude}" 
                             data-lng="${item.longitude}" 
                             data-country="${item.country_name ?? ''}" 
                             data-city="${item.city_name ?? ''}" 
-                            style="cursor:pointer; color:#0366d6; text-decoration:underline;">
+                            style="cursor:pointer;">
                             ${item.description}
                         </span>
                     `;
@@ -55,10 +55,12 @@ window.webrtcApp.locationsTable = {
                     // Aktions-Buttons je nach Option
                     let actionBtns = '';
                     if(options.showActions.includes("call")) {
-                        actionBtns += `
-                            <button class="btn btn-success start-call-btn"
+                        actionBtns +=  `
+                            <button type="button"
+                                class="btn btn-success btn-sm start-call-btn"
                                 data-userid="${item.user_id}"
-                                ${item.user_status !== "online" ? "disabled aria-disabled='true' style='pointer-events:none;opacity:0.5;'" : ""}
+                                ${item.user_status !== "online" ? "disabled aria-disabled='true'" : ""}
+                                style="${item.user_status !== "online" ? "pointer-events:none;opacity:0.5;" : ""}"
                             >
                                 Call
                             </button>
@@ -66,9 +68,8 @@ window.webrtcApp.locationsTable = {
                     }
                     if(options.showActions.includes("edit")) {
                         actionBtns += `
-                            <button class="btn btn-warning edit-location-btn" data-locationid="${item.id}">Ändern</button>
+                            <button type="button" class="btn btn-warning btn-sm edit-location-btn" data-locationid="${item.id}">Ändern</button>
                         `;
-                        //console.log(item.id, item);
                     }
                     if(options.showActions.includes("delete")) {
                         actionBtns += `
@@ -88,11 +89,22 @@ window.webrtcApp.locationsTable = {
                     </tr>`;
                 });
 
-                // In das Ziel-Table-Element einfügen
-                $(options.tableSelector + ' tbody').html(rows);
+                // Vor Initialisierung der DataTable immer eine evtl. bestehende Instanz zerstören!
+                if ($.fn.DataTable.isDataTable($table)) {
+                    $table.DataTable().destroy();
+                }
+
+                // Neue Zeilen in das <tbody> einsetzen
+                $table.find('tbody').html(rows);
+
+                // DataTable mit Responsive-Plugin neu initialisieren
+                $table.DataTable({
+                    responsive: true
+                });
             },
             error: function () {
-                $(options.tableSelector + ' tbody').html('<tr><td colspan="7">Fehler beim Laden der Daten.</td></tr>');
+                // Fehlerausgabe in der Tabelle anzeigen
+                $table.find('tbody').html('<tr><td colspan="7">Fehler beim Laden der Daten.</td></tr>');
             }
         });
     },
@@ -159,8 +171,7 @@ window.webrtcApp.locationsTable = {
      */
     bindEvents(options = {onlyOwn: false, tableSelector: "#locationsTable"}) {
         if (!$(options.tableSelector).length) return;
-        // Tabelle als DataTable initialisieren
-        $(options.tableSelector).DataTable();
+                
         // Direkt laden
         this.loadLocationsTable(options);
 
@@ -197,6 +208,7 @@ window.webrtcApp.locationsTable = {
             const userId = $(this).data('userid');
             if(typeof window.webrtcApp?.rtc?.startCall === 'function') {
                 window.webrtcApp.rtc.startCall(userId);
+                setTimeout(updateCallIcons(), 1000);
             } else {
                 alert("Call-Funktion nicht verfügbar.");
             }

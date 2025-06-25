@@ -28,9 +28,11 @@ class SettingsController
 
         // Button für 2FA
         if ($is2fa) {
-            $twofaBtn = "<form action='index.php?act=2fa_disable' method='post'><button type='submit'>2FA deaktivieren</button></form>";
+            $twofaBtn = '<form action="index.php?act=2fa_disable" method="post" class="d-inline">
+                            <button type="submit" class="btn btn-outline-danger btn-sm">2FA deaktivieren</button>
+                        </form>';
         } else {
-            $twofaBtn = "<a href='index.php?act=2fa_setup'>2FA einrichten</a>";
+            $twofaBtn = "<a href='index.php?act=2fa_setup' class='btn btn-outline-primary btn-sm'>2FA einrichten</a>";
         }
 
         // E-Mail-Bestätigungsstatus (optional)

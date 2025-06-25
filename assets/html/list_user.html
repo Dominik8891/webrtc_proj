@@ -1,16 +1,25 @@
-<div id="admin-panel">
-    ###NEW###
-
-    <table>
-        <tr>
-            <th>ID</th>
-            <th>Status</th>
-            <th>Anrufen</th>
-            <th>Username</th>
-            <th>Message</th>
-            ###EMAIL###
-            ###ACTION###
-        </tr>
-        ###USER_ROWS###
-    </table>
+<div class="container">
+    <div class="card shadow-sm p-4 my-4">
+        <div class="mb-3">
+            ###NEW###
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="user_table_desktop">ID</th>
+                        <th class="user_table_desktop">Status</th>
+                        <th>Anrufen</th>
+                        <th>Username</th>
+                        <th>Message</th>
+                        ###EMAIL###
+                        ###ACTION###
+                    </tr>
+                </thead>
+                <tbody>
+                    ###USER_ROWS###
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>

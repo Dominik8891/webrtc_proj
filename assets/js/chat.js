@@ -1,4 +1,3 @@
-
 // Haupt-Chat-Modul im globalen webrtcApp-Objekt
 window.webrtcApp.chat = {
     /**
@@ -7,20 +6,41 @@ window.webrtcApp.chat = {
      * @param {string} msg  - Der eigentliche Nachrichten-Text
      */
     appendMsg(who, msg) {
-        const log = document.getElementById("chat-log"); // Container für den Chatverlauf
-        const div = document.createElement("div");        // Neue Zeile für die Nachricht
+        // Standardtext-Log (Desktop)
+        const log = document.getElementById("chat-log");
+        const div = document.createElement("div");
         let displayMsg = msg;
 
-        // Steuerzeichen durch Pfeil-Symbole ersetzen (falls nötig)
+        // Steuerzeichen durch Pfeile ersetzen
         if (msg === "__arrow_forward__")      displayMsg = "↑";
         else if (msg === "__arrow_backward__") displayMsg = "↓";
         else if (msg === "__arrow_left__")     displayMsg = "←";
         else if (msg === "__arrow_right__")    displayMsg = "→";
 
-        // Formatierung: Wer hat die Nachricht gesendet?
         div.textContent = (who === "remote" ? "Partner: " : "Du: ") + displayMsg;
+        log?.appendChild(div);
+        log && (log.scrollTop = log.scrollHeight);
 
-        // An Chat-Log anhängen und immer nach unten scrollen
+        // --- NEU: Auch im mobilen Log anzeigen ---
+        this.appendToMobileChatLog(who, msg);
+    },
+
+    /**
+     * Fügt eine Nachricht dem mobilen Chatlog (Bottom-Sheet) hinzu, inklusive Absender.
+     * @param {string} who
+     * @param {string} msg
+     */
+    appendToMobileChatLog(who, msg) {
+        const log = document.getElementById('chat-log-mobile');
+        if (!log) return;
+        let displayMsg = msg;
+        if (msg === "__arrow_forward__")      displayMsg = "↑";
+        else if (msg === "__arrow_backward__") displayMsg = "↓";
+        else if (msg === "__arrow_left__")     displayMsg = "←";
+        else if (msg === "__arrow_right__")    displayMsg = "→";
+        // Optional: einheitliches Layout für mobile Nachrichten
+        const div = document.createElement('div');
+        div.textContent = (who === "remote" ? "Partner: " : "Du: ") + displayMsg;
         log.appendChild(div);
         log.scrollTop = log.scrollHeight;
     },
@@ -30,24 +50,23 @@ window.webrtcApp.chat = {
      * @param {string} msg  - Die zu sendende Nachricht
      */
     send(msg) {
-        const dc = window.webrtcApp.refs.dataChannel; // DataChannel-Referenz
+        const dc = window.webrtcApp.refs.dataChannel;
         if (dc && dc.readyState === "open") {
-            dc.send(msg); // Nachricht senden (Peer-to-Peer)
-            window.webrtcApp.chat.appendMsg("self", msg); // Direkt im eigenen Chatlog anzeigen
+            dc.send(msg);
+            this.appendMsg("self", msg);
         }
     },
 
     /**
      * Sendet eine Datei als ArrayBuffer über den DataChannel.
-     * Hinweis: Funktioniert nur mit "open" DataChannel.
-     * @param {File} file  - Das zu sendende File-Objekt (z.B. von <input>)
+     * @param {File} file
      */
     sendFile(file) {
-        const dc = window.webrtcApp.refs.dataChannel; // DataChannel-Referenz
+        const dc = window.webrtcApp.refs.dataChannel;
         if (dc && dc.readyState === "open") {
             file.arrayBuffer().then(buffer => {
-                dc.send(buffer); // Binärdaten senden
-                window.webrtcApp.chat.appendMsg("self", "Datei gesendet: " + file.name);
+                dc.send(buffer);
+                this.appendMsg("self", "Datei gesendet: " + file.name);
             });
         }
     }

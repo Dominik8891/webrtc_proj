@@ -1,12 +1,24 @@
-<div id="admin-panel">
-    <h3>Sign Up</h3>
-    <form action="index.php?act=signup" method="post">
-        <input type="hidden" name="type_id" value="1">
-        <input type="text" name="username" placeholder="Username" required>
-        <input type="email" name="email" placeholder="Email" required>
-        <input type="password" name="pwd" placeholder="Password" required>
-        <input type="password" name="pwd_scnd" placeholder="Password wiederholen" required>
-        <input type="submit" value="Sign Up">
-    </form>
+<div class="d-flex justify-content-center align-items-center">
+    <div class="card shadow-sm p-4" style="max-width: 350px; width: 100%;">
+        <h3 class="mb-3 text-center">Sign Up</h3>
+        <form action="index.php?act=signup" method="post" autocomplete="off">
+            <input type="hidden" name="type_id" value="1">
+            <div class="mb-3">
+                <input type="text" name="username" class="form-control" placeholder="Username" required>
+            </div>
+            <div class="mb-3">
+                <input type="email" name="email" class="form-control" placeholder="Email" required>
+            </div>
+            <div class="mb-3">
+                <input type="password" name="pwd" class="form-control" placeholder="Password" required>
+            </div>
+            <div class="mb-3">
+                <input type="password" name="pwd_scnd" class="form-control" placeholder="Password wiederholen" required>
+            </div>
+            <button type="submit" class="btn btn-success w-100">Sign Up</button>
+        </form>
+        <div class="text-danger text-center mt-3">
+            ###ERROR###
+        </div>
+    </div>
 </div>
-###ERROR###

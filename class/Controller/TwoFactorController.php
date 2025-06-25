@@ -25,7 +25,9 @@ class TwoFactorController
         $user = new User($userId);
 
         if ($user->getTotpEnabled()) {
-            $html = "<h3>2FA ist bereits aktiviert!</h3>";
+            $html = '<div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;">
+                        <h4 class="alert-heading mb-0">2FA ist bereits aktiviert!</h4>
+                    </div>';
             ViewHelper::output($html);
             return;
         }
@@ -52,15 +54,23 @@ class TwoFactorController
         $qrBase64 = 'data:image/png;base64,' . base64_encode($qrCodeData);
 
         $html = <<<HTML
-<h2>2-Faktor-Authentifizierung einrichten</h2>
-<p>Scanne den QR-Code mit deiner Authenticator-App und gib den aktuellen 6-stelligen Code unten ein:</p>
-<img src="$qrBase64" alt="QR-Code">
-<form action="index.php?act=2fa_activate" method="post">
-    <label for="2fa_code">Code:</label>
-    <input type="text" name="2fa_code" pattern="[0-9]{6}" required>
-    <button type="submit">2FA aktivieren</button>
-</form>
-HTML;
+                    <div class="container d-flex justify-content-center align-items-center">
+                        <div class="card shadow-sm p-4" style="max-width: 400px; width: 100%;">
+                            <h2 class="mb-3 text-center">2-Faktor-Authentifizierung einrichten</h2>
+                            <p>Scanne den QR-Code mit deiner Authenticator-App und gib den aktuellen 6-stelligen Code unten ein:</p>
+                                <div class="d-flex justify-content-center my-3">
+                                <img src="$qrBase64" alt="QR-Code" style="max-width:200px;">
+                            </div>
+                            <form action="index.php?act=2fa_activate" method="post" autocomplete="off">
+                            <div class="mb-3">
+                                <label for="2fa_code" class="form-label">Code:</label>
+                                <input type="text" name="2fa_code" id="2fa_code" class="form-control" pattern="[0-9]{6}" required>
+                            </div>
+                            <button type="submit" class="btn btn-success w-100">2FA aktivieren</button>
+                            </form>
+                        </div>
+                    </div>
+                HTML;
         ViewHelper::output($html);
     }
 
@@ -104,7 +114,12 @@ HTML;
             $decTest = $this->decryptTotpSecret($encSecret);
             error_log("// DEBUG: Direkt wieder entschlüsselt: [$decTest]");
             unset($_SESSION['2fa_temp_secret']);
-            $html = "<h3>2FA erfolgreich aktiviert!</h3><a href='index.php?act=home'>Zurück</a>";
+            $html = '
+                    <div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;">
+                        <h4 class="alert-heading mb-3">2FA erfolgreich aktiviert!</h4>
+                        <a href="index.php?act=home" class="btn btn-outline-primary btn-sm">Zurück</a>
+                    </div>
+                    ';
             ViewHelper::output($html);
         } else {
             $this->outputError("Ungültiger Code. Versuche es erneut.");
@@ -123,13 +138,19 @@ HTML;
             exit;
         }
         $html = <<<HTML
-<h2>2FA-Code eingeben</h2>
-<form action="index.php?act=2fa_verify" method="post">
-    <label for="2fa_code">Authenticator-Code:</label>
-    <input type="text" name="2fa_code" pattern="[0-9]{6}" required>
-    <button type="submit">Anmelden</button>
-</form>
-HTML;
+                    <div class="container d-flex justify-content-center align-items-center">
+                        <div class="card shadow-sm p-4" style="max-width: 350px; width: 100%;">
+                            <h2 class="mb-3 text-center">2FA-Code eingeben</h2>
+                            <form action="index.php?act=2fa_verify" method="post" autocomplete="off">
+                            <div class="mb-3">
+                                <label for="2fa_code" class="form-label">Authenticator-Code:</label>
+                                <input type="text" name="2fa_code" id="2fa_code" class="form-control" pattern="[0-9]{6}" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Anmelden</button>
+                            </form>
+                        </div>
+                    </div>
+                HTML;
         ViewHelper::output($html);
     }
 
@@ -187,7 +208,12 @@ HTML;
         $user->setTotpSecret(null);
         $user->save();
 
-        $html = "<h3>2FA wurde deaktiviert.</h3><a href='index.php?act=settings'>Zurück zu den Einstellungen</a>";
+        $html = '
+                <div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;">
+                    <h4 class="alert-heading mb-3">2FA wurde deaktiviert.</h4>
+                    <a href="index.php?act=settings" class="btn btn-outline-primary btn-sm">Zurück zu den Einstellungen</a>
+                </div>
+                ';
         ViewHelper::output($html);
     }
 
@@ -205,7 +231,14 @@ HTML;
 
     private function outputError($msg)
     {
-        $html = "<div style='color:red;'>$msg</div><a href='index.php?act=home'>Zurück</a>";
+        $html = '
+                <div class="alert alert-danger text-center my-4" role="alert" style="max-width:400px; margin:0 auto;">
+                    ' . htmlspecialchars($msg) . '
+                    <div class="mt-3">
+                        <a href="index.php?act=home" class="btn btn-outline-primary btn-sm">Zurück</a>
+                    </div>
+                </div>
+                ';
         ViewHelper::output($html);
     }
 

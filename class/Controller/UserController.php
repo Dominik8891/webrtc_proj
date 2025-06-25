@@ -57,6 +57,7 @@ class UserController
             $this->listUser();
             return;
         }
+        
 
         // Platzhalter ersetzen
         $out = str_replace("###ID###"       , $tmp_user->getId()                         , $out);
@@ -89,8 +90,8 @@ class UserController
         $new    = "";
         if ($user->getRoleId() === 1) {
             $action = "<th>Aktion</th>";
-            $email  = "<th>Email</th>";
-            $new    = '<a href="index.php?act=manage_user" class="button">Neuen Benutzer anlegen</a>';
+            $email  = '<th class="user_table_desktop">Email</th>';
+            $new    = '<a href="index.php?act=manage_user" class="btn btn-success btn-sm">Neuen Benutzer anlegen</a>';
         }
 
         $all_user_ids = $user->getAll();
@@ -220,20 +221,23 @@ class UserController
                 $email  = htmlspecialchars($tmp_user->getEmail());
             }
             $status = "Offline";
+            $dot = '<span class="status-dot me-1" style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#dc3545;"></span>';
             if($tmp_user->getUserStatus($tmp_user->getId()) === "online") {
                 $status = "Online";
+                $dot = '<span class="status-dot me-1" style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#28a745;"></span>';
             } elseif ($tmp_user->getUserStatus($tmp_user->getId()) === "in_call") {
                 $status = "In Call";
+                $dot = '<span class="status-dot me-1" style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#ffc107;"></span>';
             }
             $call_btn = $this->createCallBtn($tmp_user->getId());
 
-            $tmp_row = str_replace("###ID###"       , $tmp_user->getId()                         , $row_html);
-            $tmp_row = str_replace("###STATUS###"   , $status                                     , $tmp_row);
-            $tmp_row = str_replace("###CALL###"     , $call_btn                                   , $tmp_row);
-            $tmp_row = str_replace("###USERNAME###" , htmlspecialchars($tmp_user->getUsername())  , $tmp_row);
-            $tmp_row = str_replace("###EMAIL###"    , $email                                      , $tmp_row);
-            $tmp_row = str_replace("###ACTION###"   , $action                                     , $tmp_row);
-            $tmp_row = str_replace("###MESSAGE###"  , $message                                    , $tmp_row);
+            $tmp_row = str_replace("###ID###"       , $tmp_user->getId()                                , $row_html);
+            $tmp_row = str_replace("###STATUS###"   , $status                                           , $tmp_row);
+            $tmp_row = str_replace("###CALL###"     , $call_btn                                         , $tmp_row);
+            $tmp_row = str_replace("###USERNAME###" , $dot . htmlspecialchars($tmp_user->getUsername()) , $tmp_row);
+            $tmp_row = str_replace("###EMAIL###"    , $email                                            , $tmp_row);
+            $tmp_row = str_replace("###ACTION###"   , $action                                           , $tmp_row);
+            $tmp_row = str_replace("###MESSAGE###"  , $message                                          , $tmp_row);
 
             $all_rows .= $tmp_row;
         }
@@ -248,7 +252,7 @@ class UserController
      */
     private function createCallBtn($btn_id)
     {
-        return '<button class="start-call-btn" id="start-call-btn-' . intval($btn_id) . '">Call</button>';
+        return '<button class="btn btn-success start-call-btn btn-sm" id="start-call-btn-' . intval($btn_id) . '">Call</button>';
     }
 
     /**
@@ -260,8 +264,8 @@ class UserController
     private function getAction($in_current_user)
     {
         return '<td>
-                    <a href="index.php?act=manage_user&user_id=' . $in_current_user->getId() .'">Ändern</a> | 
-                    <a href="#" onclick="window.webrtcApp.ui.confirmDelete(\'index.php?act=delete_user&user_id=' . $in_current_user->getId() .'\')">Löschen</a>
+                    <a href="index.php?act=manage_user&user_id=' . $in_current_user->getId() . '" class="btn btn-warning btn-sm me-2">Ändern</a>
+                    <a href="#" onclick="window.webrtcApp.ui.confirmDelete(\'index.php?act=delete_user&user_id=' . $in_current_user->getId() . '\')" class="btn btn-danger btn-sm">Löschen</a>
                 </td>';
     }
 }

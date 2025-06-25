@@ -65,5 +65,42 @@ window.webrtcApp.ui = {
     setDisplay: function(id, value) {
         const el = document.getElementById(id);
         if (el) el.style.display = value;
+    },
+
+    /**
+     * Entfernt Padding und Box-Styles im Admin-Panel und den Cards,
+     * um auf Seiten mit breiten Tabellen (wie Locations- und User-Listen) mehr Platz zu schaffen.
+     * Erkennt die Seite anhand des Query-Parameters 'act'.
+     * Muss nach dem DOM-Load ausgeführt werden!
+     */
+    expandPanelForWideTableIfNeeded() {
+        const params = new URLSearchParams(window.location.search);
+        const act = params.get('act');
+        // Seiten, auf denen der Content breiter sein soll:
+        const widePages = ['show_locations_page', 'list_user', 'settings', 'get_all_chats'];
+
+        if (widePages.includes(act)) {
+            // Admin-Panel Styling entfernen
+            const adminPanel = document.getElementById('admin-panel');
+            if (adminPanel) {
+                adminPanel.classList.remove('p-4', 'bg-white', 'rounded', 'shadow-sm');
+                adminPanel.style.padding = '0';
+                adminPanel.style.background = 'none';
+                adminPanel.style.boxShadow = 'none';
+                adminPanel.style.borderRadius = '0';
+            }
+            // Auch alle Cards im Admin-Panel anpassen
+            if (adminPanel) {
+                const cards = adminPanel.getElementsByClassName('card');
+                for (let card of cards) {
+                    card.classList.remove('shadow-sm', 'p-4');
+                    card.style.padding = '0';
+                    card.style.boxShadow = 'none';
+                    card.style.borderRadius = '0';
+                    card.style.background = 'none';
+                }
+            }
+        }
     }
+
 };

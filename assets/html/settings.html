@@ -1,51 +1,53 @@
-<h2>Mein Account</h2>
-<table>
-  <tr><td>Benutzername:</td><td>###USERNAME###</td></tr>
-  <tr><td>E-Mail:</td><td>###EMAIL###</td></tr>
-  <tr><td>2FA:</td><td>###TWOFASTATUS### ###TWOFABTN###</td></tr>
-  ###MAILCONFIRM###
-</table>
+<div class="container">
+    <div class="card shadow-sm p-4 my-4">
+        <h2 class="mb-4 text-center">Mein Account</h2>
+        <table class="table">
+            <tr><td>Benutzername:</td><td>###USERNAME###</td></tr>
+            <tr><td>E-Mail:</td><td>###EMAIL###</td></tr>
+            <tr><td>2FA:</td><td>###TWOFASTATUS### ###TWOFABTN###</td></tr>
+            ###MAILCONFIRM###
+        </table>
+        <div class="d-flex justify-content-center gap-2 mb-3 flex-wrap">
+            <a href='index.php?act=change_pw_page&username=###USERNAME###' class="btn btn-primary">Passwort ändern</a>
+            <button class="btn btn-secondary" id="showOwnLocationsBtn" style="display:none;">Eigene Locations bearbeiten</button>
+        </div>
 
-<a href='index.php?act=change_pw_page&username=###USERNAME###'>Passwort ändern</a>
 
-<!-- Button zum Ein-/Ausblenden der eigenen Locations -->
-<a href="#" id="showOwnLocationsBtn" style="display:none; margin-left: 20px;">Eigene Locations bearbeiten</a>
-
-<!-- Meine Locations (zunächst versteckt) -->
-<div id="myLocationsSection" style="display:none; margin-top: 32px;">
-  <h2>Meine Locations</h2>
-  <div id="location-button" class="btn btn-primary mb-3 text-light">
-    <a href="index.php?act=set_location_page" class="text-light">Neue Lokation Hinzufügen</a>
-  </div>
-  <table class="table table-bordered table-striped" id="locationsTable" tabindex="-1">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Status</th>
-        <th>Land</th>
-        <th>Stadt</th>
-        <th>Beschreibung</th>
-        <th>Aktionen</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- Wird per JS befüllt -->
-    </tbody>
-  </table>
+        <!-- Eigene Locations -->
+        <div id="myLocationsSection" style="display:none;">
+            <h3 class="mb-3 mt-4">Meine Locations</h3>
+            <a href="index.php?act=set_location_page" class="btn btn-primary mb-3">Neue Lokation Hinzufügen</a>
+            <table class="table table-bordered table-striped" id="locationsTable">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Status</th>
+                        <th>Land</th>
+                        <th>Stadt</th>
+                        <th>Beschreibung</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Wird per JS befüllt -->
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
-<!-- Mini-Map-Popup für Beschreibung (bleibt erhalten, wird JS-mäßig geteilt) -->
-<div id="descMapPopup" style="display:none; position:absolute; z-index:9999; background:white; border:1px solid #aaa; border-radius:10px; box-shadow:0 2px 8px #888; min-width:260px; max-width:350px;">
-  <div id="descMapHeader" style="padding:8px; font-weight:bold;"></div>
+<!-- Mini-Map-Popup für Beschreibung -->
+<div id="descMapPopup" class="shadow rounded" style="display:none; position:absolute; z-index:9999; background:white; border:1px solid #aaa; min-width:260px; max-width:350px;">
+  <div id="descMapHeader" class="fw-bold p-2 border-bottom"></div>
   <div id="descMap" style="height:200px; width:100%;"></div>
 </div>
 
-<!-- Modal für große Map (kann von beiden Tabellen genutzt werden) -->
+<!-- Modal für große Map -->
 <div class="modal fade" id="mapModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <div id="modalLocationInfo" style="font-weight:bold;"></div>
+        <div id="modalLocationInfo" class="fw-bold"></div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" style="height: 400px;">

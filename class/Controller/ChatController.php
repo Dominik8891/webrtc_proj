@@ -253,7 +253,7 @@ class ChatController
             $rowTpl = file_get_contents('assets/html/list_chat_row.html');
             $rowTpl = str_replace(
                 ['###STATUS', '###PARTNER_NAME', '###LAST_MSG###', '###SHOW_CHAT###'],
-                [$status, htmlspecialchars($partnerName), $chat->getLastMsgAt(), $showChat],
+                [htmlspecialchars($status), htmlspecialchars($partnerName), $chat->getLastMsgAt(), $showChat],
                 $rowTpl
             );
             $rowsHtml .= $rowTpl;
@@ -287,10 +287,18 @@ class ChatController
         // Nun HTML bauen (assets/html/show_chat.html als Basis)
         $tpl = file_get_contents('assets/html/show_chat.html');
         $messagesHtml = '';
-        foreach ($messages as $msg) {
-            $messagesHtml .= '<div><b>'.(new User($msg->getSenderId()))->getUsername().':</b> '
-                        .htmlspecialchars($msg->getMsg())
-                        .' <span style="color: #aaa;">['.$msg->getSentAt().']</span></div>';
+        foreach ($messages as $msg) { 
+            $messagesHtml .= '<div class="mb-2">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center">
+                                            <span class="fw-bold me-2">' . htmlspecialchars((new User($msg->getSenderId()))->getUsername()) . ':</span>
+                                            <span>' . htmlspecialchars($msg->getMsg()) . '</span>
+                                            <span class="ms-auto text-muted small">' . htmlspecialchars($msg->getSentAt()) . '</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>';
         }
         $tpl = str_replace('<!-- MESSAGES HERE -->', $messagesHtml, $tpl);
         ViewHelper::Output($tpl);

@@ -1,16 +1,14 @@
-
 /**
  * Initialisiert alle Events und UI-Elemente rund um das WebRTC-Frontend.
  * Bindet Buttons, Devices, Call-Logik und Chat.
  */
 window.webrtcApp.init = function() {
     // ---------- Call beenden-Button ----------
-    const endCallBtn = document.getElementById('end-call-btn');
-    if (endCallBtn) {
-        endCallBtn.addEventListener('click', function() {
+    ['end-call-btn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', function() {
             window.webrtcApp.rtc.endCall(true);
         });
-    }
+    });
 
     // ---------- Initialisiere Chat-UI ----------
     window.webrtcApp.uiRtc.initChatUI();
@@ -19,7 +17,6 @@ window.webrtcApp.init = function() {
     const acceptBtn = document.getElementById('accept-call-btn');
     if (acceptBtn) {
         acceptBtn.addEventListener('click', function() {
-            // Zeige Medianauswahl-Dialog für akzeptierten Call
             const dialog = document.getElementById('media-select-dialog');
             if (dialog) dialog.style.display = '';
         });
@@ -28,7 +25,6 @@ window.webrtcApp.init = function() {
     const declineBtn = document.getElementById('media-decline-btn');
     if (declineBtn) {
         declineBtn.addEventListener('click', function() {
-            // Medianauswahl-Dialog schließen und Call ablehnen
             const dialog = document.getElementById('media-select-dialog');
             if (dialog) dialog.style.display = 'none';
             if (acceptBtn) acceptBtn.style.display = "none";
@@ -43,8 +39,6 @@ window.webrtcApp.init = function() {
     // ---------- Chat-Popup öffnen über Button ----------
     $(document).on('click', '.start-chat-btn', function () {
         const userId = $(this).data('userid');
-        console.log('userid vor funktionsaufruf: ' );
-        console.log(userId);
         window.webrtcApp.uiChat.openChatPopup(userId);
     });
 
@@ -52,9 +46,7 @@ window.webrtcApp.init = function() {
     if (window.isLoggedIn) {
         window.webrtcApp.signaling.pollSignaling();
         const settings = document.getElementById('settings');
-        if (settings) {
-            settings.style.display = '';
-        }
+        if (settings) settings.style.display = '';
         window.webrtcApp.uiChat.updatePollingState();
     }
 
@@ -75,71 +67,44 @@ window.webrtcApp.init = function() {
             document.getElementById('call-view').style.display = '';
             document.getElementById('remote-username').textContent = 'Anruf mit ' + window.webrtcApp.state.targetUsername;
 
-            // Video/Audio-Checkboxen holen
             const useVideo = document.getElementById('media-video-checkbox').checked;
             const useAudio = document.getElementById('media-audio-checkbox').checked;
-
             let constraints = {};
             if (useVideo) constraints.video = true;
             if (useAudio) constraints.audio = true;
-
             if (!useVideo && !useAudio) {
                 msg = 'Bitte mindestens Audio oder Video auswählen, um den Call zu starten!';
                 window.webrtcApp.rtc.sendCallFailedMsg(msg)
                 return;
             }
-
-            // Lokalen MediaStream holen
             let stream = null;
-            try {
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-            } catch (e) {
+            try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
+            catch (e) {
                 msg = 'Konnte Medien nicht holen: ' + e.message;
                 window.webrtcApp.rtc.sendCallFailedMsg(msg)
                 return;
             }
-
             window.webrtcApp.refs.localStream = stream;
             document.getElementById('local-video').srcObject = stream;
-
-            // ICE-Server Konfiguration laden
             await window.webrtcApp.rtc.loadIceServers();
-
-            // PeerConnection erzeugen
             window.webrtcApp.rtc.createPeerConnection(false);
-
-            // Tracks hinzufügen
             window.webrtcApp.rtc.addLocalTracks();
-
-            // RemoteDescription setzen
             try {
                 await window.webrtcApp.refs.localPeerConnection.setRemoteDescription(new RTCSessionDescription({
                     type: data.type,
                     sdp: data.sdp
                 }));
-            } catch (e) {
-                alert("Fehler bei setRemoteDescription: " + e.message);
-                return;
-            }
-
-            // Answer erzeugen und senden
+            } catch (e) { alert("Fehler bei setRemoteDescription: " + e.message); return; }
             let answer;
             try {
                 answer = await window.webrtcApp.refs.localPeerConnection.createAnswer();
                 await window.webrtcApp.refs.localPeerConnection.setLocalDescription(answer);
-            } catch (e) {
-                alert("Fehler bei create/setLocalDescription: " + e.message);
-                return;
-            }
-
-            // Antwort via Signaling an den Anrufer schicken
+            } catch (e) { alert("Fehler bei create/setLocalDescription: " + e.message); return; }
             window.webrtcApp.signaling.sendSignalMessage({
                 type: 'answer',
                 sdp: answer.sdp,
                 target: data.sender_id
             });
-
-            // Call-Icons updaten
             updateCallIcons();
         });
     }
@@ -147,112 +112,96 @@ window.webrtcApp.init = function() {
     // ---------- Call per Button starten ----------
     document.querySelectorAll('.start-call-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            // Button-ID auslesen
             const btnId = this.id || '';
             let userId = null;
             if (btnId.startsWith('start-call-btn-')) {
                 userId = btnId.substring('start-call-btn-'.length);
             }
-            console.log("Starte Call mit User:", userId);
             window.webrtcApp.rtc.startCall(userId);
-            setTimeout(updateCallIcons, 1000);
+            setTimeout(updateCallIcons(), 1000);
         });
     });
 
-    // ---------- Steuerungsbuttons im Chat (z.B. für Roboter o.ä.) ----------
-    if (window.isLoggedIn) {
-        document.getElementById('btn-forward').addEventListener('click', function() {
-            window.webrtcApp.chat.send('__arrow_forward__');
-        });
-        document.getElementById('btn-backward').addEventListener('click', function() {
-            window.webrtcApp.chat.send('__arrow_backward__');
-        });
-        document.getElementById('btn-left').addEventListener('click', function() {
-            window.webrtcApp.chat.send('__arrow_left__');
-        });
-        document.getElementById('btn-right').addEventListener('click', function() {
-            window.webrtcApp.chat.send('__arrow_right__');
-        });
-    }
+    const throttleTime = 100; // ms
+    const lastClicked = {};
 
-    // ---------- Geräteauswahl (Kamera/Mikro) füllen ----------
-    navigator.mediaDevices.enumerateDevices().then(function(devices) {
-        // Kamera
-        const videoSelect = document.getElementById('camera-select');
-        if (videoSelect) {
-            videoSelect.innerHTML = "";
-            devices.filter(d => d.kind === "videoinput").forEach(function(device, i) {
+    // ---------- Steuerungsbuttons (Desktop UND Mobile) ----------
+    ['btn-forward', 'btn-backward', 'btn-left', 'btn-right', 'btn-forward-mobile', 'btn-backward-mobile', 'btn-left-mobile', 'btn-right-mobile'].forEach(id => {
+        document.querySelectorAll(`#${id}`).forEach(btn => {
+            btn.addEventListener('click', function() {
+                const now = Date.now();
+                if (!lastClicked[id] || now - lastClicked[id] > throttleTime) {
+                    lastClicked[id] = now;
+                    const name = id.replace('btn-', '').replace('-mobile', '');
+                    window.webrtcApp.chat.send(`__arrow_${name}__`);
+                    setTimeout(() => btn.blur(), 150);
+                }
+            });
+        });
+    });
+
+    // ---------- Geräteauswahl (Kamera/Mikro) füllen (Setup für beide) ----------
+    async function populateMediaDeviceLists() {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const selects = [
+            ['camera-select', 'camera-select-in-call', 'camera-select-in-call-mobile'],
+            ['mic-select', 'mic-select-in-call', 'mic-select-in-call-mobile']
+        ];
+        // Kameras
+        selects[0].forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            sel.innerHTML = "";
+            devices.filter(d => d.kind === "videoinput").forEach((device, i) => {
                 const option = document.createElement("option");
                 option.value = device.deviceId;
                 option.text = device.label || `Kamera ${i+1}`;
-                videoSelect.appendChild(option);
+                sel.appendChild(option);
             });
-        }
-        // Mikrofon
-        const micSelect = document.getElementById('mic-select');
-        if (micSelect) {
-            micSelect.innerHTML = "";
+        });
+        // Mikrofone
+        selects[1].forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            sel.innerHTML = "";
             const audios = devices.filter(d => d.kind === "audioinput");
-            audios.forEach(function(device, i) {
+            audios.forEach((device, i) => {
                 const option = document.createElement("option");
                 option.value = device.deviceId;
                 option.text = device.label || `Mikrofon ${i+1}`;
-                micSelect.appendChild(option);
+                sel.appendChild(option);
             });
             if (audios.length === 0) {
                 const option = document.createElement("option");
                 option.text = "(Kein Mikrofon gefunden)";
                 option.disabled = true;
-                micSelect.appendChild(option);
+                sel.appendChild(option);
             }
-        }
-    });
+        });
+    }
+    populateMediaDeviceLists();
 
     // ---------- In-Call-Selects für Kamera/Mikro + Event-Handler ----------
-    window.webrtcApp.init.updateMediaDeviceSelects = async function() {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-
-        // Kamera
-        const videoSelect = document.getElementById('camera-select-in-call');
-        if (videoSelect) {
-            videoSelect.innerHTML = "";
-            devices.filter(d => d.kind === "videoinput").forEach((device, i) => {
-                const option = document.createElement("option");
-                option.value = device.deviceId;
-                option.text = device.label || `Kamera ${i+1}`;
-                videoSelect.appendChild(option);
-            });
-            const currentVideoTrack = window.webrtcApp.refs.localStream?.getVideoTracks()[0];
-            if (currentVideoTrack) {
-                const settings = currentVideoTrack.getSettings();
-                if (settings.deviceId)
-                    videoSelect.value = settings.deviceId;
-            }
-        }
-
-        // Mikrofon
-        const micSelect = document.getElementById('mic-select-in-call');
-        if (micSelect) {
-            micSelect.innerHTML = "";
-            devices.filter(d => d.kind === "audioinput").forEach((device, i) => {
-                const option = document.createElement("option");
-                option.value = device.deviceId;
-                option.text = device.label || `Mikrofon ${i+1}`;
-                micSelect.appendChild(option);
-            });
-            const currentAudioTrack = window.webrtcApp.refs.localStream?.getAudioTracks()[0];
-            if (currentAudioTrack) {
-                const settings = currentAudioTrack.getSettings();
-                if (settings.deviceId)
-                    micSelect.value = settings.deviceId;
-            }
-        }
-    };
+    window.webrtcApp.init.updateMediaDeviceSelects = populateMediaDeviceLists;
 
     // ---------- Kamera/Mikro im laufenden Call wechseln ----------
     window.webrtcApp.init.handleMediaDeviceChange = async function(type) {
-        const select = document.getElementById(type === 'video' ? 'camera-select-in-call' : 'mic-select-in-call');
-        if (!select || !select.value) return;
+        // Hole alle passenden Selects
+        let selects = [];
+        if (type === 'video') {
+            selects = [
+                document.getElementById('camera-select-in-call'),
+                document.getElementById('camera-select-in-call-mobile')
+            ];
+        } else {
+            selects = [
+                document.getElementById('mic-select-in-call'),
+                document.getElementById('mic-select-in-call-mobile')
+            ];
+        }
+        // Hole ersten Select mit Value
+        let select = selects.find(sel => sel && sel.value);
+        if (!select) return;
         const constraints = {};
         constraints[type] = { deviceId: { exact: select.value } };
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -273,35 +222,45 @@ window.webrtcApp.init = function() {
         updateCallIcons();
     };
 
-    // ---------- ECHTER MUTE/UNMUTE & VIDEO ON/OFF -----------
+    // Event-Handler für ALLE Kamera/Mikro-Selects
+    ['camera-select-in-call', 'camera-select-in-call-mobile'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('video'));
+    });
+    ['mic-select-in-call', 'mic-select-in-call-mobile'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('audio'));
+    });
+
+    // ---------- ECHTER MUTE/UNMUTE & VIDEO ON/OFF für Desktop UND Mobile -----------
     function getSender(kind) {
         const pc = window.webrtcApp.refs.localPeerConnection;
         if (!pc) return null;
-        // Mit aktivem Track
         let sender = pc.getSenders().find(s => s.track && s.track.kind === kind);
-        if (!sender) {
-            // Erster Sender ohne aktiven Track (nach Mute)
-            sender = pc.getSenders().find(s => !s.track);
-        }
+        if (!sender) sender = pc.getSenders().find(s => !s.track);
         return sender;
     }
 
-    // Mikrofon an/aus & Icon aktualisieren
-    const micBtn = document.getElementById('switch-mic-btn');
-    const micIcon = document.getElementById('mic-icon');
+    // Helper: alle Buttons/Icons holen
+    function getBoth(desktopId, mobileId) {
+        return [
+            document.getElementById(desktopId),
+            document.getElementById(mobileId)
+        ].filter(Boolean);
+    }
+
+    // --- Mikro ---
+    const micBtns  = getBoth('switch-mic-btn', 'switch-mic-btn-mobile');
+    const micIcons = getBoth('mic-icon', 'mic-icon-mobile');
     function updateMicIcon() {
         const sender = getSender('audio');
-        if (!micBtn || !micIcon) return;
-        if (sender && sender.track) {
-            micIcon.src = 'assets/img/mic.png';
-            micBtn.title = 'Mikrofon stummschalten';
-        } else {
-            micIcon.src = 'assets/img/mic-off.png';
-            micBtn.title = 'Mikrofon einschalten';
-        }
+        micIcons.forEach(icon => {
+            icon.src = (sender && sender.track) ? 'assets/img/mic.png' : 'assets/img/mic-off.png';
+        });
+        micBtns.forEach(btn => {
+            btn.title = (sender && sender.track) ? 'Mikrofon stummschalten' : 'Mikrofon einschalten';
+        });
     }
-    if (micBtn && micIcon) {
-        micBtn.addEventListener('click', async function() {
+    micBtns.forEach(btn => {
+        btn.addEventListener('click', async function() {
             if (!window.webrtcApp.state.isCallActive) return;
             const sender = getSender('audio');
             if (sender && sender.track) {
@@ -315,36 +274,31 @@ window.webrtcApp.init = function() {
             }
             updateMicIcon();
         });
-    }
+    });
 
-    // Kamera an/aus & Icon aktualisieren
-    const camBtn = document.getElementById('switch-cam-btn');
-    const camIcon = document.getElementById('cam-icon');
+    // --- Kamera ---
+    const camBtns  = getBoth('switch-cam-btn', 'switch-cam-btn-mobile');
+    const camIcons = getBoth('cam-icon', 'cam-icon-mobile');
     function updateCamIcon() {
         const sender = getSender('video');
-        if (!camBtn || !camIcon) return;
-        if (sender && sender.track) {
-            camIcon.src = 'assets/img/camera.png';
-            camBtn.title = 'Kamera ausschalten';
-        } else {
-            camIcon.src = 'assets/img/camera-off.png';
-            camBtn.title = 'Kamera einschalten';
-        }
+        camIcons.forEach(icon => {
+            icon.src = (sender && sender.track) ? 'assets/img/camera.png' : 'assets/img/camera-off.png';
+        });
+        camBtns.forEach(btn => {
+            btn.title = (sender && sender.track) ? 'Kamera ausschalten' : 'Kamera einschalten';
+        });
     }
-    if (camBtn && camIcon) {
-        camBtn.addEventListener('click', async function() {
+    camBtns.forEach(btn => {
+        btn.addEventListener('click', async function() {
             if (!window.webrtcApp.state.isCallActive) return;
             const sender = getSender('video');
             const stream = window.webrtcApp.refs.localStream;
-
             if (sender && sender.track) {
-                // Kamera aus (Track entfernen)
                 await sender.replaceTrack(null);
                 if (window.webrtcApp.refs.dataChannel && window.webrtcApp.refs.dataChannel.readyState === "open") {
                     window.webrtcApp.refs.dataChannel.send("__video_off__");
                 }
             } else {
-                // Kamera an (Track reaktivieren oder neuen holen)
                 let newTrack = null;
                 if (stream && stream.getVideoTracks().length > 0) {
                     newTrack = stream.getVideoTracks()[0];
@@ -352,49 +306,37 @@ window.webrtcApp.init = function() {
                     try {
                         const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
                         newTrack = newStream.getVideoTracks()[0];
-                        if (newTrack && stream) {
-                            stream.addTrack(newTrack);
-                        }
+                        if (newTrack && stream) stream.addTrack(newTrack);
                     } catch (e) {
                         alert("Konnte Kamera nicht aktivieren: " + e.message);
                         return;
                     }
                 }
-
                 if (newTrack && sender) {
                     await sender.replaceTrack(newTrack);
                 } else if (newTrack && stream && window.webrtcApp.refs.localPeerConnection) {
                     window.webrtcApp.refs.localPeerConnection.addTrack(newTrack, stream);
                 }
-
                 if (stream) {
                     document.getElementById('local-video').srcObject = stream;
                 }
-
                 if (window.webrtcApp.refs.dataChannel && window.webrtcApp.refs.dataChannel.readyState === "open") {
                     window.webrtcApp.refs.dataChannel.send("__video_on__");
                 }
             }
             updateCamIcon();
         });
-    }
+    });
 
     // Call-Icon-Status aktualisieren (wird mehrfach verwendet)
     function updateCallIcons() {
         updateMicIcon();
         updateCamIcon();
     }
-
-    // Icons direkt bei Start setzen
     window.updateMicIcon = updateMicIcon;
     window.updateCamIcon = updateCamIcon;
     window.updateCallIcons = updateCallIcons;
     updateCallIcons();
-
-    // IN-CALL Kamera/Mic-Select-Handler setzen
-    window.webrtcApp.init.updateMediaDeviceSelects();
-    document.getElementById('camera-select-in-call')?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('video'));
-    document.getElementById('mic-select-in-call')?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('audio'));
 
     // Zeigen und verstecken der Buttons für Einstellungen, Locations usw.
     const params = new URLSearchParams(window.location.search);
@@ -405,26 +347,54 @@ window.webrtcApp.init = function() {
         window.webrtcApp.ui.showLocationButton();
         window.webrtcApp.ui.showAllLocationsButton();
     }
-
     if (window.isLoggedIn) window.webrtcApp.ui.setDisplay('settings', '');
+
+    // Chat-FAB/Overlay für Mobile
+    const fab = document.getElementById('chat-fab');
+    const overlay = document.getElementById('mobile-chat-overlay'); // Overlay über dem ganzen Screen
+    if (fab && overlay) {
+        fab.onclick = function(e) {
+            overlay.classList.add('active');
+        };
+        // Klick außerhalb des Bottom-Sheets schließt den Chat
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) {
+                overlay.classList.remove('active');
+            }
+        });
+    }
+
+    // Nachrichten senden im mobilen Chat (setzt immer die .send()-Funktion des Chatmoduls ab)
+    document.getElementById('chat-send-btn-mobile')?.addEventListener('click', function() {
+        const input = document.getElementById('chat-input-mobile');
+        const value = input?.value?.trim();
+        if (value) {
+            window.webrtcApp.chat.send(value);
+            input.value = "";
+        }
+    });
+
+    document.getElementById('mobile-chat-close')?.addEventListener('click', function() {
+        const sheet = document.getElementById('mobile-chat-sheet');
+        if (sheet) sheet.classList.remove('active'), sheet.style.display = 'none';
+    });
 
 };
 
 // ---------- DOMContentLoaded: Initialisierung & Intervall-Tasks ----------
 window.addEventListener('DOMContentLoaded', function() {
     window.webrtcApp.init();
-
-    
-
     if (window.isLoggedIn) {
         setInterval(function() {
             window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
-        }, 15000);  // alle 15s
+        }, 15000);
     }
-    // Success Alerts anzeigen, wenn bestimmte Aktionen erfolgt sind
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Lokation erfolgreich gespeichert!');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Speichern nicht erfolgreich. Stadt oder Beschreibung fehlt');
-    // funktioniert noch nicht da der header nur verändert wird aber es wird nicht neu geladen...
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '5', 'Registrierung erfolgreich!');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('change', '1', 'Passwort erfolgreich geändert!');
+    // Mobile Browser fix: reload nach Call-Ende
+    if (/Android|iPhone|iPad|iPod|Mobile|Linux/i.test(navigator.userAgent)) {
+        window.webrtcApp.ui.expandPanelForWideTableIfNeeded();
+    }
 });

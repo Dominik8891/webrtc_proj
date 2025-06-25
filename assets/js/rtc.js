@@ -201,7 +201,10 @@ window.webrtcApp.rtc = {
                 remoteVideo.srcObject = event.streams[0];
                 // Overlay verbergen, wenn Video kommt
                 if (placeholder && event.streams[0].getVideoTracks().length > 0) {
-                    placeholder.style.display = "none";
+                    placeholder.classList.remove('d-flex', 'show', 'align-items-center', 'justify-content-center');
+                    placeholder.style.display = 'none';
+                    placeholder.style.opacity = '0';
+                    placeholder.style.visibility = 'hidden';
                     remoteVideo.style.display = "block";
                 }
             }
@@ -229,13 +232,13 @@ window.webrtcApp.rtc = {
         dc.onopen = () => {
             window.webrtcApp.sound.stop('call_ringtone');
             document.getElementById('chat-area').style.display = "";
-            document.getElementById('arrow-control').style.display = "";
+            //document.getElementById('arrow-control').style.display = "";
             window.webrtcApp.signaling.stopPolling();
         };
         dc.onclose = () => {
             window.webrtcApp.sound.stop('call_ringtone');
-            document.getElementById('chat-area').style.display = "none";
-            document.getElementById('arrow-control').style.display = "none";
+            // document.getElementById('chat-area').style.display = "none";
+            // document.getElementById('arrow-control').style.display = "none";
             window.webrtcApp.signaling.pollSignaling();
         };
         dc.onmessage = (e) => {
@@ -249,14 +252,24 @@ window.webrtcApp.rtc = {
                 const remoteVideo = document.getElementById('remote-video');
                 const placeholder = document.getElementById('remote-video-placeholder');
                 if (remoteVideo) remoteVideo.style.display = "none";
-                if (placeholder) placeholder.style.display = "flex";
+                if (placeholder) {
+                    placeholder.classList.add('d-flex', 'show', 'align-items-center', 'justify-content-center');
+                    placeholder.style.display = 'flex';
+                    placeholder.style.opacity = '';
+                    placeholder.style.visibility = '';
+                }
                 return;
             }
             if (e.data === "__video_on__") {
                 const remoteVideo = document.getElementById('remote-video');
                 const placeholder = document.getElementById('remote-video-placeholder');
                 if (remoteVideo) remoteVideo.style.display = "block";
-                if (placeholder) placeholder.style.display = "none";
+                if (placeholder) {
+                    placeholder.classList.remove('d-flex', 'show', 'align-items-center', 'justify-content-center');
+                    placeholder.style.display = 'none';
+                    placeholder.style.opacity = '0';
+                    placeholder.style.visibility = 'hidden';
+                }
                 return;
             }
             // Steuerpfeile als Sound abspielen

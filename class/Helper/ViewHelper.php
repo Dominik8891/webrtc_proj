@@ -40,9 +40,9 @@ class ViewHelper
         $out = str_replace("###CONTENT###", $in_content, $out);
 
         // Standardlinks (nicht angemeldet)
-        $sign      = "<a href='index.php?act=signup_page'>Sign Up</a>";
+        $sign      = "<a href='index.php?act=signup_page' class='btn btn-success btn-sm'>Sign Up</a>";
         $user_txt  = "";
-        $text      = "<a href='index.php?act=login_page'>Login</a>";
+        $text      = "<a href='index.php?act=login_page' class='btn btn-outline-primary btn-sm'>Login</a>";
         $call      = "";
         $inner_call= "";
         $media     = "";
@@ -55,9 +55,9 @@ class ViewHelper
         if (isset($_SESSION['user'])) {
             $user = new User($_SESSION['user']['user_id']);
             // Begrüßungstext mit Username (XSS-sicher)
-            $user_txt  = "| <span> Sie sind angemeldet als: <b>" . htmlspecialchars($user->getUsername()) . "</b> </span>";
-            $text      = "<a href='index.php?act=logout'>Logout</a>";
-            $sign      = "<a href='index.php?act=list_user'>Benutzerliste</a>";
+            $user_txt  = '<span class="fw-bold ms-2">Sie sind angemeldet als: <span class="text-primary">' . htmlspecialchars($user->getUsername()) . '</span></span>';
+            $text      = "<a href='index.php?act=logout' class='btn btn-outline-primary btn-sm'>Logout</a>";
+            $sign      = "<a href='index.php?act=list_user' class='btn btn-outline-primary btn-sm'>Benutzerliste</a>";
             $logged_in = 'true';
             $user_role = $user->getUsertype();
 

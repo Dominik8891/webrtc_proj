@@ -92,20 +92,22 @@ window.webrtcApp.uiChat = {
      */
     buildTab: function(tabId, partnerId, partnerName, minimized) {
         // minimized (optional): true/false
-        return $(`<div class="chat-popup-tab${minimized ? ' minimized attention' : ''}" id="${tabId}" data-partner-id="${partnerId}" data-partner-name="${partnerName}" style="background:#fff;border-radius:16px 16px 0 0;box-shadow:0 2px 10px #0002;margin-bottom:8px;">
-                <div class="chat-tab-header" style="background:#eee;padding:8px 12px;cursor:pointer;font-weight:bold;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;">
-                    <span>Chat mit ${partnerName}<br></span>
-                    <button class="close-chat-tab btn btn-sm btn-danger" title="Schließen" style="margin-left:4px;">×</button>
-                </div>
-                <div class="chat-popup-content" style="display:none;">
-                    <div class="chat-popup-messages" style="height:200px;overflow-y:auto;padding:8px;border-bottom:1px solid #ccc;"></div>
-                    <div class="chat-popup-actions" style="display:none;">
-                        <input type="text" class="form-control chat-popup-input" placeholder="Nachricht..." style="flex:1 1 auto;">
-                        <button class="btn btn-primary chat-popup-send" style="margin-left:4px;">Senden</button>
+        return $(`
+                <div class="chat-popup-tab${minimized ? ' minimized attention' : ''}" id="${tabId}" data-partner-id="${partnerId}" data-partner-name="${partnerName}" style="background:#fff; border-radius:1rem 1rem 0 0; box-shadow:0 2px 10px #0002; margin-bottom:8px;">
+                    <div class="chat-tab-header d-flex align-items-center justify-content-between" style="background:#eee; padding:8px 12px; cursor:pointer; font-weight:bold; border-radius:1rem 1rem 0 0;">
+                        <span>Chat mit ${partnerName}</span>
+                        <button class="close-chat-tab btn btn-danger btn-sm ms-2" title="Schließen">×</button>
                     </div>
-                    <div class="chat-popup-accept" style="display:none;padding:12px;text-align:center;"></div>
+                    <div class="chat-popup-content" style="display:none;">
+                        <div class="chat-popup-messages border-bottom" style="height:200px; overflow-y:auto; padding:8px;"></div>
+                        <div class="chat-popup-actions d-flex" style="display:none;">
+                            <input type="text" class="form-control chat-popup-input me-2" placeholder="Nachricht...">
+                            <button class="btn btn-primary chat-popup-send">Senden</button>
+                        </div>
+                        <div class="chat-popup-accept text-center py-3" style="display:none;"></div>
+                    </div>
                 </div>
-            </div>`);
+                `);
     },
 
     /**
@@ -258,11 +260,16 @@ window.webrtcApp.uiChat = {
         const partnerUserId = $tab.data('partner-id');
         const isPartner = (msg.sender_id == partnerUserId);
         const cleanMsg = String(msg.msg).replace(/\n/g, '<br>');
-        const msgHtml = `<div style="margin:2px 0;text-align:${isPartner ? 'left':'right'};">
-            <span class="badge bg-${isPartner?'secondary':'primary'}">${isPartner?'Partner':'Du'}:</span><br>
-            <span>${cleanMsg}</span>
-            <small style="color:#888;">${msg.sent_at}</small>
-        </div>`;
+        const msgAlign = isPartner ? 'start' : 'end';
+        const badgeClass = isPartner ? 'secondary' : 'primary';
+        const msgHtml = `
+                            <div class="my-1 text-${msgAlign}">
+                                <span class="badge bg-${badgeClass}">${isPartner ? 'Partner' : 'Du'}:</span><br>
+                                <span>${cleanMsg}</span>
+                                <br>
+                                <small class="text-muted">${msg.sent_at}</small>
+                            </div>
+                        `;
         $tab.find('.chat-popup-messages').append(msgHtml);
     },
 
@@ -291,9 +298,11 @@ window.webrtcApp.uiChat = {
         } else if(isEmpfaenger) {
             $tab.find('.chat-popup-accept')
                 .html(
-                `<span>${partnerName || 'Partner'} möchte mit dir chatten.</span><br>
-                <button class="btn btn-success accept-chat-btn">Chat annehmen</button>
-                <button class="btn btn-danger decline-chat-btn">Ablehnen</button>`
+                `<span>${partnerName || 'Partner'} möchte mit dir chatten.</span>
+                <div class="mt-3 d-flex gap-2 justify-content-center">
+                    <button class="btn btn-success accept-chat-btn">Chat annehmen</button>
+                    <button class="btn btn-danger decline-chat-btn">Ablehnen</button>
+                </div>`
                 ).show();
             if(window.webrtcApp.chatManager) {
                 const chatId = $tab.attr('id').split('-').pop();
@@ -328,7 +337,7 @@ window.webrtcApp.uiChat = {
 
                                 let $container = $('#chat-popup-container');
                                 if (!$container.length) {
-                                    $('body').append('<div id="chat-popup-container" style="position:fixed;bottom:0;left:0;z-index:9999;width:370px;"></div>');
+                                    $('body').append('<div id="chat-popup-container" class="position-fixed bottom-0 start-0" style="z-index:9999; width:370px;"></div>');
                                     $container = $('#chat-popup-container');
                                 }
                                 $container.append($tab);
@@ -469,9 +478,11 @@ setInterval(function () {
                 } else if(!data.success && data.declined) {
                     $tab.find('.chat-popup-accept, .chat-popup-actions').hide();
                     $tab.find('.chat-popup-messages').html(
-                        `<div style="text-align:center;color:#a00;padding:20px;">${
-                          data.error ? data.error : 'Chat wurde abgelehnt oder existiert nicht mehr.'
-                        }</div>`
+                        `
+                        <div class="alert alert-danger text-center my-3" role="alert">
+                            ${data.error ? data.error : 'Chat wurde abgelehnt oder existiert nicht mehr.'}
+                        </div>
+                        `
                     );
                     setTimeout(() => {
                         $tab.remove();

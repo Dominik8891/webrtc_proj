@@ -1,17 +1,22 @@
-<div id="admin-panel">
-    <h3>Login</h3>
-    <form action="index.php?act=login" method="post">
-        <input type="text" name="username" placeholder="Username" required>
-        <input type="password" name="pwd" placeholder="Password" required>
-        <input type="submit" value="Login">
-    </form>
-    <!--
-    ##############################################################
-    ##############################################################
-    
-    keinen SMTP Server daher daktivieren!
-    <div style="margin-top:8px;">
-        <a href="index.php?act=forgot_pw_page">Passwort vergessen?</a>
-    </div>-->
-    ###LOGIN_ERROR###
+<div class="d-flex justify-content-center align-items-center">
+    <div class="card shadow-sm p-4" style="max-width: 350px; width: 100%;">
+        <h3 class="mb-3 text-center">Login</h3>
+        <form action="index.php?act=login" method="post" autocomplete="off">
+            <div class="mb-3">
+                <input type="text" name="username" class="form-control" placeholder="Username" required autofocus>
+            </div>
+            <div class="mb-3">
+                <input type="password" name="pwd" class="form-control" placeholder="Password" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Login</button>
+        </form>
+        <!--
+        <div class="mt-3">
+            <a href="index.php?act=forgot_pw_page" class="small">Passwort vergessen?</a>
+        </div>
+        -->
+        <div class="text-danger text-center mt-3">
+            ###LOGIN_ERROR###
+        </div>
+    </div>
 </div>

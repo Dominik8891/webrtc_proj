@@ -1,6 +1,15 @@
-<form action="index.php?act=forgot_pw" method="post">
-    <label for="email">E-Mail-Adresse:</label>
-    <input type="email" name="email" required>
-    <button type="submit">Passwort zurücksetzen</button>
-</form>
-<div style="color:red;">###PW_FORGOT_MSG###</div>
+<div class="d-flex justify-content-center">
+    <div class="card shadow-sm p-4" style="max-width: 350px; width: 100%;">
+        <h3 class="mb-3 text-center">Passwort vergessen</h3>
+        <form action="index.php?act=forgot_pw" method="post" autocomplete="off">
+            <div class="mb-3">
+                <label for="email" class="form-label">E-Mail-Adresse</label>
+                <input type="email" name="email" class="form-control" required autofocus>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Passwort zurücksetzen</button>
+        </form>
+        <div class="text-danger text-center mt-3">
+            ###PW_FORGOT_MSG###
+        </div>
+    </div>
+</div>

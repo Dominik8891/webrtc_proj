@@ -1,33 +1,39 @@
-<div class="container mt-5">
-    <h2>Alle Locations</h2>
-    <table class="table table-bordered table-striped" id="locationsTable" tabindex="-1">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Status</th>
-                <th>User</th>
-                <th>Land</th>
-                <th>Stadt</th>
-                <th>Beschreibung</th>
-                <th>Anrufen</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Wird per JS befüllt -->
-        </tbody>
-    </table>
+<div class="container my-5">
+    <div class="card shadow-sm p-4">
+        <h2 class="mb-4 text-center">Alle Locations</h2>
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped align-middle" id="locationsTable" tabindex="-1">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Status</th>
+                        <th>User</th>
+                        <th>Land</th>
+                        <th>Stadt</th>
+                        <th>Beschreibung</th>
+                        <th>Anrufen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Wird per JS befüllt -->
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+
 <!-- Mini Map Popup -->
-<div id="descMapPopup" style="display:none; position:absolute; z-index:9999; background:white; border:1px solid #aaa; border-radius:10px; box-shadow:0 2px 8px #888; min-width:260px; max-width:350px;">
-    <div id="descMapHeader" style="padding:8px; font-weight:bold;"></div>
+<div id="descMapPopup" class="shadow rounded" style="display:none; position:absolute; z-index:9999; background:white; border:1px solid #aaa; min-width:260px; max-width:350px;">
+    <div id="descMapHeader" class="fw-bold p-2 border-bottom"></div>
     <div id="descMap" style="height:200px; width:100%;"></div>
 </div>
+
 <!-- Modal für große Map -->
 <div class="modal fade" id="mapModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <div id="modalLocationInfo" style="font-weight:bold;"></div>
+        <div id="modalLocationInfo" class="fw-bold"></div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" style="height: 400px;">
