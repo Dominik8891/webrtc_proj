@@ -39,7 +39,8 @@ Importiere die mitgelieferte `database.sql` in deine MySQL-Instanz. Diese erstel
 ### 2. Umgebungsvariablen (`.env`)
 Erstelle eine `.env`-Datei im Root-Verzeichnis und hinterlege deine Zugangsdaten:
 
-```env
+```
+.env
 # Datenbank-Zugang
 DB_HOST=localhost
 DB_PORT=3306
