@@ -42,14 +42,14 @@ Erstelle eine `.env`-Datei im Root-Verzeichnis und hinterlege deine Zugangsdaten
 ```
 .env
 # Datenbank-Zugang
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=dein_benutzer
-DB_PW=dein_passwort
-DB_NAME=webrtc_guidance
+DB_HOST=
+DB_PORT=
+DB_USER=
+DB_PW=
+DB_NAME=
 
 # Sicherheit
-APP_ENV=production
+APP_ENV=
 PEPPER=dein_geheimer_pepper_string
 
 # WebRTC TURN-Server (Metered.ca)
