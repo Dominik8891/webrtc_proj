@@ -3,8 +3,18 @@
 ini_set('display_errors', 0);
 // Fehlerprotokollierung aktivieren
 ini_set('log_errors', 1);
-// Fehler werden in die angegebene Logdatei geschrieben
-ini_set('error_log', __DIR__ . '/../php-error.log');
+
+// Logpfad ermitteln (LOG_PATH aus der Umgebung, sonst Fallback oberhalb des
+// Document Root). Details und der Hinweis auf die alte Logdatei im Webroot
+// stehen in config/log_path.php.
+$logFile = require __DIR__ . '/log_path.php';
+
+// Nur setzen, wenn ein beschreibbarer Pfad ermittelt werden konnte.
+// Sonst bleibt das Standard-Fehlerlog des Webservers aktiv.
+if ($logFile !== null) {
+    ini_set('error_log', $logFile);
+}
+
 // Alle Fehlertypen werden erfasst (E_ALL)
 error_reporting(E_ALL);
 

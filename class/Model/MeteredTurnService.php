@@ -43,7 +43,8 @@ class MeteredTurnService
             curl_close($ch);
 
             if ($httpcode != 200 || !$response) {
-                error_log("Fehler beim Abrufen der TURN-Credentials (HTTP $httpcode): $response");
+                // Antwortkoerper NICHT loggen - er kann TURN-Credentials enthalten.
+                error_log("Fehler beim Abrufen der TURN-Credentials (HTTP $httpcode), Antwort " . ($response ? 'vorhanden' : 'fehlt'));
                 throw new \Exception("Could not fetch TURN credentials (HTTP $httpcode)");
             }
             return $response;

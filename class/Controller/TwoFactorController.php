@@ -38,11 +38,9 @@ class TwoFactorController
             $totp = TOTP::create(null, 30, 'sha1', 6, 0, $clock);
             $secret = $totp->getSecret();
             $_SESSION['2fa_temp_secret'] = $secret;
-            error_log("// DEBUG: Neues Secret erzeugt: [$secret]");
         } else {
             $secret = $_SESSION['2fa_temp_secret'];
             $totp = TOTP::create($secret, 30, 'sha1', 6, 0, $clock);
-            error_log("// DEBUG: Temporäres Secret aus Session: [$secret]");
         }
 
         $totp->setLabel($user->getEmail());
@@ -90,8 +88,13 @@ class TwoFactorController
         $code = Request::g('2fa_code');
         $clock = new NativeClock(new \DateTimeZone('Europe/Berlin'));
 
-        error_log("// DEBUG: Eingabecode: [$code]");
-        error_log("// DEBUG: Setup-Secret (raw): [$secret]");
+        // Kein Loggen von Code oder Secret - nur, ob beide Werte vorliegen.
+        error_log(sprintf(
+            '2FA-Setup: Secret %s, Code %s (UserID %d)',
+            $secret ? 'vorhanden' : 'fehlt',
+            $code    ? 'vorhanden' : 'fehlt',
+            $userId
+        ));
 
         if (!$secret || !$code) {
             $this->outputError("Fehler: Bitte QR-Code erneut scannen.");
@@ -101,18 +104,14 @@ class TwoFactorController
         $totp = TOTP::create($secret, 30, 'sha1', 6, 0, $clock);
         $isValid = $totp->verify($code);
 
-        error_log("// DEBUG: Setup-Code Verification Result: [" . ($isValid ? 'OK' : 'FAIL') . "]");
+        error_log("2FA-Setup: Code-Pruefung " . ($isValid ? 'OK' : 'FAIL') . " (UserID {$userId})");
 
         if ($isValid) {
-            error_log("// DEBUG: Vor dem Verschlüsseln (Setup): [$secret]");
             $encSecret = $this->encryptTotpSecret($secret);
-            error_log("// DEBUG: Nach dem Verschlüsseln (Setup): [$encSecret]");
             $user->setTotpSecret($encSecret);
             $user->setTotpEnabled(1);
             $user->save();
-            // Test-Entschlüsselung direkt hier!
-            $decTest = $this->decryptTotpSecret($encSecret);
-            error_log("// DEBUG: Direkt wieder entschlüsselt: [$decTest]");
+            error_log("2FA erfolgreich aktiviert (UserID {$userId})");
             unset($_SESSION['2fa_temp_secret']);
             $html = '
                     <div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;">
@@ -172,15 +171,18 @@ class TwoFactorController
         $encSecret = $user->getTotpSecret();
         $secret = $this->decryptTotpSecret($encSecret);
 
-        error_log("// DEBUG: Entschlüsseltes Secret vor Trim: [$secret]");
         $secret = trim($secret, " \t\n\r\0\x0B");
-        error_log("// DEBUG: Entschlüsseltes Secret nach Trim: [$secret]");
-        error_log("// DEBUG: Login-Code: [$code]");
+        // Kein Loggen von Secret oder Code - nur, ob das Secret entschluesselt werden konnte.
+        error_log(sprintf(
+            '2FA-Login: Secret %s (UserID %d)',
+            $secret !== '' ? 'vorhanden' : 'fehlt',
+            $userId
+        ));
 
         $totp = TOTP::create($secret, 30, 'sha1', 6, 0, $clock);
         $isValid = $totp->verify($code);
 
-        error_log("// DEBUG: Login-Code Verification Result: [" . ($isValid ? 'OK' : 'FAIL') . "]");
+        error_log("2FA-Login: Code-Pruefung " . ($isValid ? 'OK' : 'FAIL') . " (UserID {$userId})");
 
         if ($isValid) {
             $_SESSION['user'] = $user->getUserDetails();

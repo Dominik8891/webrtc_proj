@@ -143,7 +143,8 @@ class PasswordController
             $html = file_get_contents('assets/html/reset_pw.html');
             $html = str_replace('###TOKEN###', '', $html);
             $html = str_replace('###PW_RESET_MSG###', $msg, $html);
-            error_log("FEHLGESCHLAGENER Passwort-Reset mit ungültigem Token {$token} von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
+            // Reset-Token NICHT loggen - wer ihn hat, uebernimmt das Konto.
+            error_log("FEHLGESCHLAGENER Passwort-Reset (Token ungültig oder abgelaufen) von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
             ViewHelper::output($html);
         }
     }

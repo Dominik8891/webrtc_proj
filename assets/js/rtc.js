@@ -348,7 +348,8 @@ window.webrtcApp.rtc = {
 
         window.webrtcApp.refs.meteredIceServers = iceServers;
         window.webrtcApp.refs.iceServersLoaded = true;
-        console.log("ICE-Server (gekürzt):", iceServers);
+        // TURN-Credentials (username/credential) NICHT ausgeben - nur die Anzahl.
+        console.log("ICE-Server geladen:", Array.isArray(iceServers) ? iceServers.length : 0);
     },
 
     /**

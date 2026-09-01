@@ -9,7 +9,12 @@ require_once __DIR__ . '/../config/env.php';
 // Fehlerbehandlung: Fehler werden ins Log geschrieben, aber nicht ausgegeben
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/../php-error.log');
+// Logpfad wie im Web-Einstieg ermitteln, damit der Cronjob nicht weiterhin
+// in den Webroot schreibt (siehe config/log_path.php).
+$logFile = require __DIR__ . '/../config/log_path.php';
+if ($logFile !== null) {
+    ini_set('error_log', $logFile);
+}
 
 try {
     // Datenbankverbindung herstellen

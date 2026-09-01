@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------------------
+# Zugriffsschutz fuer sensible Dateien im Document Root
+#
+# Blockiert den direkten HTTP-Abruf von Dateien, die Betriebs-, Konfigurations-
+# oder Strukturinformationen enthalten. Die Anwendung selbst laeuft
+# ausschliesslich ueber index.php und ist davon nicht betroffen.
+#
+# HINWEIS: .htaccess wirkt nur unter Apache und nur, wenn "AllowOverride"
+# fuer dieses Verzeichnis aktiviert ist. Unter nginx muessen entsprechende
+# location-Regeln in der Server-Konfiguration gesetzt werden.
+# ---------------------------------------------------------------------------
+
+# Logdateien (*.log), Datenbank-Dumps (*.sql), Dokumentation (*.md),
+# Umgebungsvariablen (.env, .env.beliebig) und Composer-Dateien
+# (composer.json, composer.lock)
+<FilesMatch "(\.(log|sql|md)$|^\.env|^composer\.)">
+    # Apache 2.4
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    # Apache 2.2 (Rueckwaertskompatibilitaet)
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Versteckte Dateien und Verzeichnisse generell sperren (.git, .gitignore, ...)
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Verzeichnis-Listing abschalten, damit die Ordnerstruktur nicht auslesbar ist
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>

@@ -45,7 +45,8 @@ class EmailVerificationController
                 $html = file_get_contents('assets/html/email_verified.html');
                 ViewHelper::output($html);
             } else {
-                error_log("FEHLGESCHLAGENE E-Mail-Bestätigung mit Token {$token} von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
+                // Verifikations-Token NICHT loggen - er bestaetigt eine fremde Adresse.
+                error_log("FEHLGESCHLAGENE E-Mail-Bestätigung (Token ungültig oder abgelaufen) von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
                 $html = file_get_contents('assets/html/email_verified_error.html');
                 ViewHelper::output($html);
             }
