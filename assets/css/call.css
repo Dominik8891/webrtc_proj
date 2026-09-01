@@ -435,3 +435,144 @@
   font-size: 0.85rem;
   font-style: italic;
 }
+
+/* ---------------------------------------------------------------------------
+   Steuerprotokoll: Rollen, Richtungsanzeige, Sperre
+   Siehe PROTOKOLL.md. Die Rolle steht als Klasse "role-guide" bzw.
+   "role-viewer" auf #call-view; gesetzt von control.updateRoleUi().
+   --------------------------------------------------------------------------- */
+
+/* Das Steuerkreuz gibt es ausschliesslich beim Zuschauer. Ohne bekannte Rolle
+   ebenfalls nicht - im Zweifel steuert niemand. Die Regeln stehen bewusst
+   hoeher in der Spezifitaet als die "display: block !important" der
+   Mobil-Medienabfrage weiter oben, sonst kaeme das Steuerkreuz auf dem
+   Telefon des Guides doch wieder zum Vorschein. */
+#call-view:not(.role-viewer) #desktop-controls,
+#call-view:not(.role-viewer) #mobile-controls {
+  display: none !important;
+}
+
+/* Umgekehrt: Sperrschalter und Richtungsanzeige gehoeren nur zum Guide. */
+#call-view:not(.role-guide) #control-lock-bar,
+#call-view:not(.role-guide) #direction-indicator {
+  display: none !important;
+}
+#call-view:not(.role-viewer) #control-lock-notice {
+  display: none !important;
+}
+
+/* Gesperrtes Steuerkreuz: waehrend einer Sperre oder solange die Bestaetigung
+   des Guides aussteht. Sichtbar, aber erkennbar nicht bedienbar - ein
+   verschwindender Knopf waere unter dem Daumen schlimmer als ein grauer. */
+.arrow-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Wartet auf die Bestaetigung: dezent gepunkteter Rand, damit der Zuschauer
+   sieht, dass der Druck unterwegs ist, und nicht nachdrueckt. */
+.arrow-controls button.is-waiting {
+  border-style: dashed !important;
+}
+
+/* --- Grosse Richtungsanzeige beim Guide ---------------------------------- */
+/* Bildschirmfuellend ueber dem Videobild, damit sie im Augenwinkel erfassbar
+   ist. Der Ton bleibt das Hauptsignal; das hier ist die zweite Spur fuer
+   laute Umgebungen. */
+.direction-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 14;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;             /* darf keinen Klick abfangen */
+  background: rgba(0, 0, 0, 0.45);
+  color: #ffe000;
+  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.95);
+}
+
+.direction-indicator--visible {
+  display: flex;
+  animation: direction-indicator-in 120ms ease-out;
+}
+
+.direction-indicator__arrow {
+  font-size: 42vmin;
+  line-height: 0.9;
+  font-weight: 700;
+}
+
+.direction-indicator__label {
+  font-size: 8vmin;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin-top: 0.2em;
+}
+
+@keyframes direction-indicator-in {
+  from { opacity: 0; transform: scale(0.82); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Wer Bewegtbild reduziert haben moechte, bekommt die Anzeige ohne
+   Aufziehen - sichtbar bleibt sie in jedem Fall, sie ist ein Sicherheitshinweis. */
+@media (prefers-reduced-motion: reduce) {
+  .direction-indicator--visible { animation: none; }
+}
+
+/* --- Sperrschalter des Guides -------------------------------------------- */
+/* Im Videobild statt im Kopfbereich: Der Guide haelt das Geraet in der Hand,
+   der Daumen liegt unten. */
+.control-lock-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  z-index: 13;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.control-lock-btn {
+  pointer-events: auto;
+  min-width: 210px;
+  min-height: 54px;
+  font-size: 1.05rem;
+  border-radius: 999px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
+}
+
+/* --- Sperranzeige beim Zuschauer ----------------------------------------- */
+.control-lock-notice {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Unterhalb der Statusanzeige (.connection-status--overlay, top 10px), damit
+     die Sperre den Verbindungsstatus nicht verdeckt - beide sind wichtig. */
+  top: 48px;
+  z-index: 13;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(132, 32, 41, 0.94);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+}
+
+.control-lock-notice__icon {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.control-lock-notice__text {
+  font-size: 1rem;
+}

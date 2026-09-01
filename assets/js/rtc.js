@@ -57,8 +57,9 @@ window.webrtcApp.rtc = {
         window.webrtcApp.state.isCallActive = false;
 
         this.stopReconnect();        // Alle Wiederverbindungs-Timer stoppen
+        window.webrtcApp.control.reset();  // Rolle, Sequenznummern, Sperre, Anzeige
         this.resetUI();              // Entfernt UI-Call-Status
-        this.closePeerConnection();  // PeerConnection & DataChannel schließen
+        this.closePeerConnection();  // PeerConnection & DataChannels schließen
         this.clearMediaStreams();    // Lokalen & Remote MediaStream beenden
         this.hideChatAndArrow();     // Chat/Arrow-Bereich verstecken
 
@@ -96,14 +97,10 @@ window.webrtcApp.rtc = {
      * das Auflegen in handleRemoteHangup() nur einmal aus.
      */
     sendHangup() {
-        const dc = window.webrtcApp.refs.dataChannel;
-        if (dc && dc.readyState === "open") {
-            try {
-                dc.send("__hangup__");
-            } catch (e) {
-                console.warn("Hangup über DataChannel fehlgeschlagen:", e);
-            }
-        }
+        // Über den Steuerkanal, nicht mehr über den Chatkanal: Auflegen ist
+        // eine Protokollnachricht, kein Nutzerinhalt.
+        window.webrtcApp.control.sendHangup();
+
         if (window.webrtcApp.state.activeTargetUserId) {
             window.webrtcApp.signaling.sendSignalMessage({
                 type: 'hangup',
@@ -179,10 +176,11 @@ window.webrtcApp.rtc = {
             refs.localPeerConnection.close();
             refs.localPeerConnection = null;
         }
-        if (refs.dataChannel) {
-            try { refs.dataChannel.close(); } catch (e) {}
-            refs.dataChannel = null;
-        }
+        ['chatChannel', 'controlChannel'].forEach(key => {
+            if (!refs[key]) return;
+            try { refs[key].close(); } catch (e) {}
+            refs[key] = null;
+        });
     },
 
     /**
@@ -208,8 +206,9 @@ window.webrtcApp.rtc = {
     hideChatAndArrow() {
         const chatArea = document.getElementById('chat-area');
         if (chatArea) chatArea.style.display = 'none';
-        const arrowControl = document.getElementById('arrow-control');
-        if (arrowControl) arrowControl.style.display = 'none';
+        // Das Steuerkreuz haengt an der Rollenklasse auf #call-view; die
+        // entfernt control.reset(). Der frueher hier abgefragte
+        // 'arrow-control' war eine ID, die es im HTML nie gab (Befund F-4).
     },
 
     /**
@@ -256,11 +255,19 @@ window.webrtcApp.rtc = {
                 return window.webrtcApp.refs.localPeerConnection.setLocalDescription(offer).then(() => offer);
             })
             .then(offer => {
-                window.webrtcApp.signaling.sendSignalMessage({
+                return window.webrtcApp.signaling.sendSignalMessage({
                     type: 'offer',
                     sdp: offer.sdp,
                     target: targetUserId
                 });
+            })
+            .then(response => {
+                // Die Rolle in diesem Call vergibt der Server (siehe
+                // WebRTCController::roleForCall). Sie haengt an der Antwort
+                // auf das Offer, damit es dafuer keine zweite Anfrage und
+                // kein Zeitfenster ohne Rolle braucht. Bleibt sie aus, gilt
+                // die Rolle als unbekannt - dann steuert niemand.
+                window.webrtcApp.control.applyRole(response ? response.role : null);
             })
             .catch(console.error);
 
@@ -306,15 +313,20 @@ window.webrtcApp.rtc = {
             console.warn("ICE-Kandidatenfehler (" + event.errorCode + ") bei " + (event.url || 'unbekanntem Server'));
         };
 
-        // DataChannel initialisieren (nur Initiator)
+        // Zwei DataChannels anlegen (nur der Initiator legt an, die Gegenseite
+        // bekommt sie ueber ondatachannel). Getrennte Kanaele, damit
+        // Nutzerinhalt und Steuerprotokoll nichts mehr miteinander zu tun
+        // haben - siehe PROTOKOLL.md.
+        const protocol = window.webrtcApp.protocol;
         if (isInitiator) {
-            window.webrtcApp.refs.dataChannel = window.webrtcApp.refs.localPeerConnection.createDataChannel("chat");
-            window.webrtcApp.rtc.setupDataChannel(window.webrtcApp.refs.dataChannel);
+            const pc = window.webrtcApp.refs.localPeerConnection;
+            window.webrtcApp.rtc.attachChannel(pc.createDataChannel(protocol.CHANNEL_CHAT));
+            window.webrtcApp.rtc.attachChannel(pc.createDataChannel(protocol.CHANNEL_CONTROL));
         }
-        // Remote DataChannel wird gesetzt
+        // Die Reihenfolge, in der die Kanaele beim Angerufenen ankommen, ist
+        // nicht zugesichert. Zugeordnet wird deshalb ueber das Label.
         window.webrtcApp.refs.localPeerConnection.ondatachannel = (event) => {
-            window.webrtcApp.refs.dataChannel = event.channel;
-            window.webrtcApp.rtc.setupDataChannel(window.webrtcApp.refs.dataChannel);
+            window.webrtcApp.rtc.attachChannel(event.channel);
         };
 
         // ICE-Candidates an Partner senden
@@ -360,15 +372,42 @@ window.webrtcApp.rtc = {
     },
 
     /**
-     * Konfiguriert den DataChannel (Message-Handler, onOpen/onClose).
-     * @param {RTCDataChannel} dc - DataChannel-Objekt
+     * Ordnet einen DataChannel anhand seines Labels zu und haengt die
+     * Handler an.
+     *
+     * Ein Kanal mit unbekanntem Label wird geschlossen statt benutzt: Er
+     * gehoert nicht zum Protokoll, und was darauf ankaeme, waere ungeprueft.
+     *
+     * @param {RTCDataChannel} dc - Der zuzuordnende Kanal
      */
-    setupDataChannel(dc) {
+    attachChannel(dc) {
+        const protocol = window.webrtcApp.protocol;
+
+        if (dc.label === protocol.CHANNEL_CHAT) {
+            window.webrtcApp.refs.chatChannel = dc;
+            window.webrtcApp.rtc.setupChatChannel(dc);
+            return;
+        }
+        if (dc.label === protocol.CHANNEL_CONTROL) {
+            window.webrtcApp.refs.controlChannel = dc;
+            window.webrtcApp.rtc.setupControlChannel(dc);
+            return;
+        }
+
+        console.warn('DataChannel mit unbekanntem Label verworfen: "' + dc.label + '"');
+        try { dc.close(); } catch (e) {}
+    },
+
+    /**
+     * Konfiguriert den Chatkanal. Er traegt ausschliesslich Nutzerinhalt.
+     * @param {RTCDataChannel} dc - DataChannel "chat"
+     */
+    setupChatChannel(dc) {
         dc.onopen = () => {
             window.webrtcApp.sound.stop('call_ringtone');
             const chatArea = document.getElementById('chat-area');
             if (chatArea) chatArea.style.display = "";
-            // Das Polling wird hier NICHT mehr abgeschaltet. Es ist der einzige
+            // Das Polling wird hier NICHT abgeschaltet. Es ist der einzige
             // Weg, über den Auflegen und ICE-Restart den Gegenüber erreichen,
             // wenn die Peer-Verbindung gestört ist (Befund F-3).
             window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IN_CALL);
@@ -384,69 +423,30 @@ window.webrtcApp.rtc = {
             window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IDLE);
         };
         dc.onmessage = (e) => {
-            // Spezielle Steuerzeichen auswerten
-            if (e.data === "__hangup__") {
-                window.webrtcApp.rtc.handleRemoteHangup();
-                return;
-            }
-            if (e.data === "__video_off__") {
-                const remoteVideo = document.getElementById('remote-video');
-                const placeholder = document.getElementById('remote-video-placeholder');
-                if (remoteVideo) remoteVideo.style.display = "none";
-                if (placeholder) {
-                    placeholder.classList.add('d-flex', 'show', 'align-items-center', 'justify-content-center');
-                    placeholder.style.display = 'flex';
-                    placeholder.style.opacity = '';
-                    placeholder.style.visibility = '';
-                }
-                return;
-            }
-            if (e.data === "__video_on__") {
-                const remoteVideo = document.getElementById('remote-video');
-                const placeholder = document.getElementById('remote-video-placeholder');
-                if (remoteVideo) remoteVideo.style.display = "block";
-                if (placeholder) {
-                    placeholder.classList.remove('d-flex', 'show', 'align-items-center', 'justify-content-center');
-                    placeholder.style.display = 'none';
-                    placeholder.style.opacity = '0';
-                    placeholder.style.visibility = 'hidden';
-                }
-                return;
-            }
-            // Steuerpfeile als Sound abspielen.
-            // Sie werden nur ausgeführt, wenn die Verbindung im Moment des
-            // Empfangs stabil ist. Ein Befehl, der aus der Zeit vor einer
-            // Unterbrechung stammt, ist keine gültige Anweisung mehr - er wird
-            // verworfen und nicht nachgeholt.
-            const arrowSounds = {
-                "__arrow_forward__":  "move_forward_sound",
-                "__arrow_backward__": "move_back_sound",
-                "__arrow_left__":     "turn_left_sound",
-                "__arrow_right__":    "turn_right_sound"
-            };
-            if (Object.prototype.hasOwnProperty.call(arrowSounds, e.data)) {
-                if (!window.webrtcApp.rtc.mayExecuteControlCommand()) {
-                    console.warn("Steuerbefehl verworfen (Verbindung nicht stabil):", e.data);
-                    window.webrtcApp.rtc.showSystemNotice("Steuerbefehl verworfen – Verbindung war unterbrochen.");
-                    return;
-                }
-                window.webrtcApp.sound.play(arrowSounds[e.data], false);
-                window.webrtcApp.chat.appendMsg("remote", e.data);
-                return;
-            }
-            // Normale Chatnachricht
-            if (typeof e.data === "string") {
-                window.webrtcApp.chat.appendMsg("remote", e.data);
-            } else {
-                // Binärdaten = Datei empfangen
-                const blob = new Blob([e.data]);
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "empfangene_datei";
-                a.textContent = "Datei herunterladen";
-                document.getElementById("chat-log").appendChild(a);
-            }
+            window.webrtcApp.chat.handleMessage(e.data);
+        };
+    },
+
+    /**
+     * Konfiguriert den Steuerkanal. Er traegt ausschliesslich
+     * Protokollnachrichten; die Auswertung liegt vollstaendig in control.js.
+     * @param {RTCDataChannel} dc - DataChannel "control"
+     */
+    setupControlChannel(dc) {
+        dc.onopen = () => {
+            // Steht der Kanal, bevor die Rolle vom Server da war, holt
+            // control.applyRole() das "hello" nach.
+            window.webrtcApp.control.sendHello();
+            window.webrtcApp.control.updateRoleUi();
+            window.webrtcApp.rtc.handleConnectionStateChange();
+        };
+        dc.onclose = () => {
+            // Ohne Steuerkanal kann niemand mehr steuern. Das Steuerkreuz
+            // wird gesperrt, damit kein Druck ins Leere geht.
+            window.webrtcApp.control.updatePadState();
+        };
+        dc.onmessage = (e) => {
+            window.webrtcApp.control.handleMessage(e.data);
         };
     },
 
@@ -1023,7 +1023,7 @@ window.webrtcApp.rtc = {
      */
     canSendControlCommand() {
         const state = window.webrtcApp.state;
-        const dc = window.webrtcApp.refs.dataChannel;
+        const dc = window.webrtcApp.refs.controlChannel;
 
         if (!state.isCallActive) return false;
         if (state.connectionStatus !== 'connected') return false;
@@ -1050,33 +1050,6 @@ window.webrtcApp.rtc = {
         if (state.connectionStatus !== 'connected') return false;
         if (!state.connectedSince) return false;
         return (Date.now() - state.connectedSince) >= window.webrtcApp.rtc.CONTROL_SETTLE_MS;
-    },
-
-    /**
-     * Sendet einen Richtungsbefehl über den DataChannel.
-     * @param {string} direction - forward|backward|left|right
-     * @returns {boolean} true, wenn der Befehl abgesetzt wurde
-     */
-    sendControlCommand(direction) {
-        const command = '__arrow_' + direction + '__';
-
-        if (!window.webrtcApp.rtc.canSendControlCommand()) {
-            // Verwerfen statt puffern - siehe canSendControlCommand().
-            window.webrtcApp.rtc.showSystemNotice(
-                "Steuerbefehl nicht gesendet – Verbindung ist gerade nicht stabil."
-            );
-            return false;
-        }
-
-        try {
-            window.webrtcApp.refs.dataChannel.send(command);
-            window.webrtcApp.chat.appendMsg("self", command);
-            return true;
-        } catch (e) {
-            console.warn("Steuerbefehl konnte nicht gesendet werden:", e);
-            window.webrtcApp.rtc.showSystemNotice("Steuerbefehl nicht gesendet – Übertragungsfehler.");
-            return false;
-        }
     },
 
     /**

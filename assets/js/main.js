@@ -69,6 +69,11 @@ window.webrtcApp.init = function() {
             window.webrtcApp.uiChat.updatePollingState();
             const data = window.webrtcApp.state.pendingOffer;
             window.webrtcApp.state.activeTargetUserId = data.sender_id;
+            // Die Rolle hat der Server an das Offer gestempelt (siehe
+            // WebRTCController::roleForCall). Fehlt sie, gilt sie als
+            // unbekannt - dann rendert kein Steuerkreuz und eingehende
+            // Bewegungsbefehle werden abgelehnt.
+            window.webrtcApp.control.applyRole(data.role || null);
             window.webrtcApp.state.targetUsername = await window.webrtcApp.uiRtc.getUsername(data.sender_id);
             document.body.classList.add('call-active');
             document.getElementById('call-view').style.display = '';
@@ -140,14 +145,22 @@ window.webrtcApp.init = function() {
                 if (!lastClicked[id] || now - lastClicked[id] > throttleTime) {
                     lastClicked[id] = now;
                     const name = id.replace('btn-', '').replace('-mobile', '');
-                    // Steuerbefehle laufen über rtc.sendControlCommand: Bei
-                    // instabiler Verbindung werden sie verworfen statt
-                    // gepuffert (siehe rtc.canSendControlCommand).
-                    window.webrtcApp.rtc.sendControlCommand(name);
+                    // Steuerbefehle laufen über control.sendMove: Dort werden
+                    // Rolle, Sperre und ausstehende Bestätigung geprüft, und
+                    // bei instabiler Verbindung wird verworfen statt gepuffert
+                    // (siehe rtc.canSendControlCommand).
+                    window.webrtcApp.control.sendMove(name);
                     setTimeout(() => btn.blur(), 150);
                 }
             });
         });
+    });
+
+    // ---------- Steuerung sperren/freigeben (nur Guide) ----------
+    // Der Guide haelt die Steuerung kurz an, etwa beim Ueberqueren einer
+    // Strasse. Die Schaltflaeche ist nur in seiner Rolle sichtbar (call.css).
+    document.getElementById('control-lock-btn')?.addEventListener('click', function() {
+        window.webrtcApp.control.toggleLock();
     });
 
     // ---------- Geräteauswahl (Kamera/Mikro) füllen (Setup für beide) ----------
@@ -305,9 +318,7 @@ window.webrtcApp.init = function() {
             const stream = window.webrtcApp.refs.localStream;
             if (sender && sender.track) {
                 await sender.replaceTrack(null);
-                if (window.webrtcApp.refs.dataChannel && window.webrtcApp.refs.dataChannel.readyState === "open") {
-                    window.webrtcApp.refs.dataChannel.send("__video_off__");
-                }
+                window.webrtcApp.control.sendVideoState(false);
             } else {
                 let newTrack = null;
                 if (stream && stream.getVideoTracks().length > 0) {
@@ -330,9 +341,7 @@ window.webrtcApp.init = function() {
                 if (stream) {
                     document.getElementById('local-video').srcObject = stream;
                 }
-                if (window.webrtcApp.refs.dataChannel && window.webrtcApp.refs.dataChannel.readyState === "open") {
-                    window.webrtcApp.refs.dataChannel.send("__video_on__");
-                }
+                window.webrtcApp.control.sendVideoState(true);
             }
             updateCamIcon();
         });

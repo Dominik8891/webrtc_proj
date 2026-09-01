@@ -30,6 +30,27 @@ window.webrtcApp = {
         // Zeitpunkt, an dem die Verbindung zuletzt als stabil galt. Steuerbefehle
         // werden kurz danach noch verworfen (siehe rtc.canSendControlCommand).
         connectedSince: null,
+
+        // ----- Steuerprotokoll -----
+        // Rolle in diesem Call: 'guide' | 'viewer' | null.
+        // Sie kommt vom Server (WebRTCController stempelt sie an das Offer)
+        // und wird hier NUR abgelegt - der Client vergibt sie sich nicht
+        // selbst. null heisst: Rolle unbekannt, also steuert niemand.
+        callRole: null,
+
+        // Zustand des Steuerkanals. Wird von control.reset() bei jedem
+        // Call-Ende geleert, damit nichts in den naechsten Call laeuft.
+        control: {
+            nextSeq: 1,             // Zuschauer: naechste zu vergebende Sequenznummer
+            pendingSeq: null,       // Zuschauer: Befehl, dessen Bestaetigung aussteht
+            ackTimer: null,         // Frist, nach der ohne Bestaetigung freigegeben wird
+            lastRemoteSeq: 0,       // Guide: hoechste bereits ausgefuehrte Sequenznummer
+            locked: false,          // Steuerung gesperrt (Guide hat angehalten)
+            helloSent: false,       // Wurde die eigene Rolle schon gemeldet?
+            indicatorTimer: null,   // Frist der grossen Richtungsanzeige
+            rejected: 0,            // Zahl verworfener Protokollnachrichten
+            lastRejectCode: null    // Code der zuletzt verworfenen Nachricht
+        },
         reconnect: {
             graceTimer: null,              // 5-s-Frist bei "disconnected", bevor neu ausgehandelt wird
             deadlineTimer: null,           // Gesamtfrist, danach wird endgültig beendet
@@ -42,7 +63,13 @@ window.webrtcApp = {
     // ----- Referenzen auf aktuelle Verbindungen und Streams -----
     refs: {
         localPeerConnection: null,         // RTCPeerConnection-Objekt für die Verbindung
-        dataChannel: null,                 // RTCDataChannel für Textnachrichten etc.
+
+        // Zwei getrennte DataChannels statt eines gemeinsamen: "chat" traegt
+        // ausschliesslich Nutzerinhalt (Text, Dateien), "control" ausschliesslich
+        // Protokollnachrichten (Bewegung, Sperre, Bestaetigung, Videozustand,
+        // Auflegen). Siehe PROTOKOLL.md.
+        chatChannel: null,                 // RTCDataChannel "chat"
+        controlChannel: null,              // RTCDataChannel "control"
         localStream: null,                 // Lokaler MediaStream (Webcam/Mikrofon)
         pollingIntervalId: null,           // ID des Polling-Intervalls für Fallback-Signalisierung
         meteredIceServers: null,           // ICE-Server-Konfiguration (z.B. von Metered TURN/STUN)
@@ -54,6 +81,8 @@ window.webrtcApp = {
 
     // ----- Hauptmodule (werden im Verlauf befüllt) -----
     rtc: {},              // WebRTC-spezifische Logik und Methoden (Verbindungsaufbau, Handling etc.)
+    protocol: {},         // Definition und Pruefung des Steuerprotokolls (protocol.js)
+    control: {},          // Steuerkanal: Senden, Empfangen, Anzeige (control.js)
     ui: {},               // User-Interface-Logik (Fenstersteuerung, Anzeigen, UI-Interaktionen)
     sound: {},            // Sounds für Call (Klingeln, Auflegen etc.)
     chat: {},             // Chat-Logik (Nachrichtenverarbeitung, Verlauf, Rendering)

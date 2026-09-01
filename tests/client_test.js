@@ -17,9 +17,13 @@ app.rtc.RECONNECT_GRACE_MS = 200;
 app.rtc.RECONNECT_DEADLINE_MS = 1200;
 app.rtc.RESTART_RETRY_MS = 400;
 app.rtc.CONTROL_SETTLE_MS = 50;
+app.control.ACK_TIMEOUT_MS = 150;
+
+const P = app.protocol;
 
 function resetAll() {
     app.rtc.stopReconnect();
+    app.control.reset();
     app.signaling.stopPolling();
     Object.assign(app.state, {
         activeTargetUserId: null, hangupReceived: false, isCallActive: false,
@@ -27,15 +31,23 @@ function resetAll() {
         connectionStatus: 'idle', connectedSince: null, callTimeout: null
     });
     app.refs.localPeerConnection = null;
-    app.refs.dataChannel = null;
+    app.refs.chatChannel = null;
+    app.refs.controlChannel = null;
     app.refs.localStream = null;
     app.refs.pendingCandidates = [];
+    app.sound.plays.length = 0;
     global.__signals.length = 0;
     global.__alerts.length = 0;
+    global.__clearLogs();
 }
 
-/** Baut einen "laufenden Call" auf, ohne die Media-Pfade zu benötigen. */
-function fakeActiveCall({ initiator = true } = {}) {
+/**
+ * Baut einen "laufenden Call" auf, ohne die Media-Pfade zu benötigen.
+ * @param {Object} [opts]
+ * @param {boolean} [opts.initiator] - Anrufer (true) oder Angerufener
+ * @param {string|null} [opts.role]  - Rolle, die der Server vergeben haette
+ */
+function fakeActiveCall({ initiator = true, role = 'viewer' } = {}) {
     resetAll();
     app.refs.iceServersLoaded = true;
     app.refs.meteredIceServers = [{ urls: 'stun:x' }];
@@ -43,10 +55,34 @@ function fakeActiveCall({ initiator = true } = {}) {
     app.state.isInitiator = initiator;
     app.state.isCallActive = true;
     app.rtc.createPeerConnection(initiator);
-    app.refs.dataChannel = makeChannel();
+    // Der Angerufene bekommt die Kanaele sonst erst ueber ondatachannel.
+    if (!app.refs.chatChannel) app.rtc.attachChannel(makeChannel(P.CHANNEL_CHAT));
+    if (!app.refs.controlChannel) app.rtc.attachChannel(makeChannel(P.CHANNEL_CONTROL));
+    app.control.applyRole(role);
     const pc = app.refs.localPeerConnection;
     pc.setState('connected');
     return pc;
+}
+
+/** Was auf dem Steuerkanal rausging, als geparste Objekte. */
+function controlSent() {
+    return app.refs.controlChannel.sent.map(JSON.parse);
+}
+
+/** Spielt eine Nachricht der Gegenseite in den Steuerkanal ein. */
+function receiveControl(obj) {
+    app.control.handleMessage(typeof obj === 'string' ? obj : JSON.stringify(obj));
+}
+
+/** Spielt einen Rohframe (auch nicht-Text) in den Steuerkanal ein. */
+function receiveControl_raw(raw) {
+    app.control.handleMessage(raw);
+}
+
+/** Bestaetigt beim Zuschauer den zuletzt gesendeten Bewegungsbefehl. */
+function ackLastMove(status = 'executed', reason) {
+    const seq = app.state.control.pendingSeq;
+    receiveControl({ v: P.VERSION, type: 'ack', seq, status, reason });
 }
 
 (async () => {
@@ -152,9 +188,11 @@ function fakeActiveCall({ initiator = true } = {}) {
     console.error('\n7) Auflegen erreicht den Gegenueber auf beiden Wegen');
     {
         const pc = fakeActiveCall();
-        const dc = app.refs.dataChannel;
+        const dc = app.refs.controlChannel;
         app.rtc.endCall(true);
-        assert.ok(dc.sent.includes('__hangup__'), 'ueber den DataChannel');
+        const hangup = dc.sent.map(JSON.parse).find(m => m.type === 'hangup');
+        assert.ok(hangup, 'ueber den Steuerkanal');
+        assert.strictEqual(hangup.v, P.VERSION, 'mit Protokollversion');
         assert.strictEqual(global.__signals.filter(s => s.type === 'hangup').length, 1,
             'und als Server-Fallback');
         assert.strictEqual(app.state.isCallActive, false);
@@ -191,34 +229,38 @@ function fakeActiveCall({ initiator = true } = {}) {
     // -----------------------------------------------------------------
     console.error('\n10) Steuerbefehle werden bei Stoerung verworfen, nicht gepuffert');
     {
-        const pc = fakeActiveCall();
+        const pc = fakeActiveCall({ role: 'viewer' });
         await sleep(60);                            // Settle-Fenster abwarten
-        const dc = app.refs.dataChannel;
-        assert.strictEqual(app.rtc.sendControlCommand('forward'), true);
-        assert.deepStrictEqual(dc.sent, ['__arrow_forward__']);
+        const moves = () => controlSent().filter(m => m.type === 'move');
+
+        assert.strictEqual(app.control.sendMove('forward'), true);
+        assert.deepStrictEqual(moves().map(m => m.dir), ['forward']);
+        assert.strictEqual(moves()[0].seq, 1, 'Sequenznummer beginnt bei 1');
+        ackLastMove();
         ok('bei stabiler Verbindung wird gesendet');
 
         pc.setState('disconnected');
-        assert.strictEqual(app.rtc.sendControlCommand('left'), false);
-        assert.strictEqual(app.rtc.sendControlCommand('right'), false);
-        assert.deepStrictEqual(dc.sent, ['__arrow_forward__'], 'nichts nachgeschoben');
+        assert.strictEqual(app.control.sendMove('left'), false);
+        assert.strictEqual(app.control.sendMove('right'), false);
+        assert.deepStrictEqual(moves().map(m => m.dir), ['forward'], 'nichts nachgeschoben');
         ok('waehrend der Stoerung wird verworfen statt gepuffert');
 
         pc.setState('connected');
         await sleep(60);
-        assert.strictEqual(app.rtc.sendControlCommand('backward'), true);
-        assert.deepStrictEqual(dc.sent, ['__arrow_forward__', '__arrow_backward__'],
+        assert.strictEqual(app.control.sendMove('backward'), true);
+        assert.deepStrictEqual(moves().map(m => m.dir), ['forward', 'backward'],
             'kein Schwall alter Befehle nach dem Reconnect');
+        assert.deepStrictEqual(moves().map(m => m.seq), [1, 2], 'Sequenznummern laufen aufwaerts');
         ok('nach der Erholung nur der neue Befehl');
     }
 
     // -----------------------------------------------------------------
     console.error('\n11) Voller Sendepuffer blockiert Steuerbefehle');
     {
-        const pc = fakeActiveCall();
+        const pc = fakeActiveCall({ role: 'viewer' });
         await sleep(60);
-        app.refs.dataChannel.bufferedAmount = app.rtc.CONTROL_MAX_BUFFER + 1;
-        assert.strictEqual(app.rtc.sendControlCommand('forward'), false);
+        app.refs.controlChannel.bufferedAmount = app.rtc.CONTROL_MAX_BUFFER + 1;
+        assert.strictEqual(app.control.sendMove('forward'), false);
         ok('gestauter Kanal nimmt keine Steuerbefehle an');
     }
 
@@ -291,6 +333,238 @@ function fakeActiveCall({ initiator = true } = {}) {
         assert.strictEqual(app.refs.iceServersDegraded, false);
         assert.strictEqual(new Set(urls).size, urls.length, 'keine Doppelungen');
         ok('turns: ueberlebt die Kuerzung, STUN-Fallback wird ergaenzt');
+    }
+
+    // -----------------------------------------------------------------
+    console.error('\n15) Chat und Steuerung laufen ueber getrennte Kanaele');
+    {
+        fakeActiveCall({ role: 'guide' });
+        await sleep(60);
+
+        // Der frueher ausloesende Magic String ist jetzt nur noch Text.
+        app.chat.handleMessage(JSON.stringify({ v: P.VERSION, type: 'chat', text: '__arrow_forward__' }));
+        assert.deepStrictEqual(global.__logLines('chat-log'), ['Partner: __arrow_forward__']);
+        assert.deepStrictEqual(app.sound.plays, [], 'kein Signalton durch Chattext');
+        ok('ein in den Chat getippter Magic String steuert nichts mehr');
+
+        // Und umgekehrt: eine Steuernachricht auf dem Chatkanal ist ungueltig.
+        global.__clearLogs();
+        const before = app.state.control.rejected;
+        app.chat.handleMessage(JSON.stringify({ v: P.VERSION, type: 'move', dir: 'forward', seq: 1 }));
+        assert.strictEqual(app.state.control.lastRejectCode, 'wrong_channel');
+        assert.strictEqual(app.state.control.rejected, before + 1);
+        assert.deepStrictEqual(global.__logLines('chat-log'), [], 'nicht als Chattext angezeigt');
+        assert.deepStrictEqual(app.sound.plays, [], 'und nicht ausgefuehrt');
+        ok('Steuernachricht auf dem Chatkanal wird verworfen');
+
+        // Binaerdaten bleiben auf dem Chatkanal eine Datei, auf dem
+        // Steuerkanal sind sie es nie.
+        global.__clearLogs();
+        app.chat.handleMessage(new ArrayBuffer(8));
+        assert.strictEqual(global.__logLines('chat-log').length, 1, 'Download-Link angeboten');
+        receiveControl_raw(new ArrayBuffer(8));
+        assert.strictEqual(app.state.control.lastRejectCode, 'not_text');
+        ok('Binaerdaten nur auf dem Chatkanal');
+    }
+
+    // -----------------------------------------------------------------
+    console.error('\n16) Ungueltige Nachrichten werden verworfen und geloggt');
+    {
+        fakeActiveCall({ role: 'guide' });
+        await sleep(60);
+        global.__clearLogs();
+
+        const cases = [
+            ['kein JSON',              '__arrow_forward__',                                              'not_json'],
+            ['JSON-Array',             '[1,2,3]',                                                        'not_object'],
+            ['Version fehlt',          JSON.stringify({ type: 'move', dir: 'left', seq: 1 }),            'bad_version'],
+            ['fremde Version',         JSON.stringify({ v: 99, type: 'move', dir: 'left', seq: 1 }),     'bad_version'],
+            ['unbekannter Typ',        JSON.stringify({ v: P.VERSION, type: 'look_up' }),                'unknown_type'],
+            ['geerbter Name als Typ',  JSON.stringify({ v: P.VERSION, type: 'constructor' }),            'unknown_type'],
+            ['Pflichtfeld fehlt',      JSON.stringify({ v: P.VERSION, type: 'move', seq: 1 }),           'bad_field'],
+            ['unzulaessige Richtung',  JSON.stringify({ v: P.VERSION, type: 'move', dir: 'up', seq: 1 }), 'bad_field'],
+            ['seq als Zeichenkette',   JSON.stringify({ v: P.VERSION, type: 'move', dir: 'left', seq: '1' }), 'bad_field'],
+            ['zu grosser Frame',       JSON.stringify({ v: P.VERSION, type: 'move', dir: 'left', seq: 1, pad: 'x'.repeat(5000) }), 'too_large']
+        ];
+
+        cases.forEach(([name, raw, expected]) => {
+            const before = app.state.control.rejected;
+            receiveControl(raw);
+            assert.strictEqual(app.state.control.lastRejectCode, expected, name + ': erwartet ' + expected);
+            assert.strictEqual(app.state.control.rejected, before + 1, name + ': mitgezaehlt');
+        });
+        assert.deepStrictEqual(global.__logLines('chat-log'), [], 'nichts davon im Chatfenster');
+        assert.deepStrictEqual(app.sound.plays, [], 'nichts davon ausgefuehrt');
+        ok('alle zehn Faelle verworfen, geloggt und nie als Chattext angezeigt');
+    }
+
+    // -----------------------------------------------------------------
+    console.error('\n17) Rollen: jede Richtung nur in ihrer Richtung');
+    {
+        // Guide: nimmt Bewegungsbefehle an und bestaetigt sie.
+        fakeActiveCall({ role: 'guide' });
+        await sleep(60);
+        receiveControl({ v: P.VERSION, type: 'move', dir: 'forward', seq: 1 });
+        assert.deepStrictEqual(app.sound.plays, ['move_forward_sound'], 'Signalton beim Guide');
+        const ack = controlSent().find(m => m.type === 'ack');
+        assert.ok(ack && ack.seq === 1 && ack.status === 'executed', 'Bestaetigung zurueck');
+        ok('Guide fuehrt "move" aus und bestaetigt');
+
+        // Guide darf selbst kein "move" senden.
+        assert.strictEqual(app.control.sendMove('left'), false);
+        assert.strictEqual(controlSent().filter(m => m.type === 'move').length, 0);
+        ok('Guide kann keine Bewegungsbefehle senden');
+
+        // Und lehnt eine Sperre der Gegenseite ab - die darf nur er selbst setzen.
+        receiveControl({ v: P.VERSION, type: 'control_lock', locked: true });
+        assert.strictEqual(app.state.control.lastRejectCode, 'forbidden_direction');
+        assert.strictEqual(app.state.control.locked, false, 'Sperre nicht uebernommen');
+        ok('Guide lehnt control_lock der Gegenseite ab');
+
+        // Zuschauer: lehnt Bewegungsbefehle ab, darf keine Sperre setzen.
+        fakeActiveCall({ role: 'viewer' });
+        await sleep(60);
+        receiveControl({ v: P.VERSION, type: 'move', dir: 'forward', seq: 1 });
+        assert.strictEqual(app.state.control.lastRejectCode, 'forbidden_direction');
+        assert.deepStrictEqual(app.sound.plays, [], 'kein Signalton beim Zuschauer');
+        assert.strictEqual(app.control.setLock(true), false);
+        assert.strictEqual(controlSent().filter(m => m.type === 'control_lock').length, 0);
+        ok('Zuschauer lehnt "move" ab und kann nicht sperren');
+
+        // Ohne bekannte Rolle steuert niemand.
+        fakeActiveCall({ role: 'admin' });          // unbekannter Wert -> null
+        await sleep(60);
+        assert.strictEqual(app.state.callRole, null, 'unbekannte Rolle wird verworfen');
+        receiveControl({ v: P.VERSION, type: 'move', dir: 'forward', seq: 1 });
+        assert.strictEqual(app.state.control.lastRejectCode, 'no_role');
+        assert.strictEqual(app.control.sendMove('forward'), false);
+        assert.deepStrictEqual(app.sound.plays, []);
+        ok('ohne Rolle wird weder gesendet noch ausgefuehrt');
+    }
+
+    // -----------------------------------------------------------------
+    console.error('\n18) Steuerkreuz nur beim Zuschauer');
+    {
+        const callView = global.__el('call-view');
+
+        fakeActiveCall({ role: 'viewer' });
+        assert.ok(callView.classList.contains('role-viewer'));
+        assert.strictEqual(global.__el('btn-forward').disabled, false, 'bedienbar');
+        ok('Zuschauer bekommt ein bedienbares Steuerkreuz');
+
+        fakeActiveCall({ role: 'guide' });
+        assert.ok(callView.classList.contains('role-guide'));
+        assert.ok(!callView.classList.contains('role-viewer'), 'keine Zuschauerklasse');
+        assert.strictEqual(global.__el('btn-forward').disabled, true, 'gesperrt');
+        assert.strictEqual(global.__el('control-lock-bar').style.display, 'flex', 'Sperrschalter sichtbar');
+        ok('Guide bekommt kein Steuerkreuz, dafuer den Sperrschalter');
+
+        app.rtc.endCall(false);
+        assert.ok(!callView.classList.contains('role-guide'), 'Rolle beim Auflegen abgeraeumt');
+        ok('Call-Ende raeumt die Rolle ab');
+    }
+
+    // -----------------------------------------------------------------
+    console.error('\n19) Bestaetigung verhindert Mehrfachdruecken bei Latenz');
+    {
+        fakeActiveCall({ role: 'viewer' });
+        await sleep(60);
+
+        assert.strictEqual(app.control.sendMove('forward'), true);
+        assert.strictEqual(app.state.control.pendingSeq, 1);
+        assert.strictEqual(global.__el('btn-forward').disabled, true, 'Steuerkreuz wartet');
+        assert.strictEqual(app.control.sendMove('forward'), false, 'zweiter Druck geht nicht raus');
+        assert.strictEqual(controlSent().filter(m => m.type === 'move').length, 1);
+        ok('waehrend die Bestaetigung aussteht, wird nichts nachgeschoben');
+
+        ackLastMove();
+        assert.strictEqual(app.state.control.pendingSeq, null);
+        assert.strictEqual(global.__el('btn-forward').disabled, false, 'wieder frei');
+        ok('Bestaetigung gibt das Steuerkreuz wieder frei');
+
+        // Bleibt die Bestaetigung aus, gibt die Frist frei - sonst waere das
+        // Steuerkreuz nach einem verlorenen "ack" dauerhaft tot.
+        assert.strictEqual(app.control.sendMove('left'), true);
+        assert.strictEqual(global.__el('btn-forward').disabled, true);
+        await sleep(app.control.ACK_TIMEOUT_MS + 60);
+        assert.strictEqual(app.state.control.pendingSeq, null);
+        assert.strictEqual(global.__el('btn-forward').disabled, false);
+        ok('ausbleibende Bestaetigung sperrt das Steuerkreuz nicht dauerhaft');
+
+        // Eine veraltete Bestaetigung hebt eine neuere Sperre nicht auf.
+        assert.strictEqual(app.control.sendMove('right'), true);
+        const current = app.state.control.pendingSeq;
+        receiveControl({ v: P.VERSION, type: 'ack', seq: current - 1, status: 'executed' });
+        assert.strictEqual(app.state.control.pendingSeq, current, 'alte Bestaetigung ignoriert');
+        ok('veraltete Bestaetigung wird nicht verwechselt');
+    }
+
+    // -----------------------------------------------------------------
+    console.error('\n20) control_lock haelt die Steuerung an');
+    {
+        // Guide sperrt.
+        fakeActiveCall({ role: 'guide' });
+        await sleep(60);
+        assert.strictEqual(app.control.setLock(true), true);
+        const lock = controlSent().find(m => m.type === 'control_lock');
+        assert.ok(lock && lock.locked === true && lock.v === P.VERSION);
+        assert.strictEqual(global.__el('control-lock-btn').textContent, 'Steuerung freigeben');
+        ok('Guide sendet die Sperre und sieht den Schalter umgestellt');
+
+        // Waehrend der Sperre wird ein Bewegungsbefehl abgelehnt statt ausgefuehrt.
+        receiveControl({ v: P.VERSION, type: 'move', dir: 'forward', seq: 1 });
+        assert.deepStrictEqual(app.sound.plays, [], 'nicht ausgefuehrt');
+        const nack = controlSent().find(m => m.type === 'ack' && m.status === 'rejected');
+        assert.ok(nack && nack.reason === 'locked', 'mit Grund abgelehnt');
+        ok('gesperrter Guide fuehrt keinen Bewegungsbefehl aus');
+
+        // Zuschauer uebernimmt die Sperre und sendet nicht mehr.
+        fakeActiveCall({ role: 'viewer' });
+        await sleep(60);
+        receiveControl({ v: P.VERSION, type: 'control_lock', locked: true, reason: 'Strasse' });
+        assert.strictEqual(app.state.control.locked, true);
+        assert.strictEqual(global.__el('control-lock-notice').style.display, 'flex', 'sichtbar angezeigt');
+        assert.strictEqual(global.__el('btn-forward').disabled, true);
+        assert.strictEqual(app.control.sendMove('forward'), false);
+        assert.strictEqual(controlSent().filter(m => m.type === 'move').length, 0, 'nichts gesendet');
+        ok('Zuschauer sieht die Sperre und sendet waehrenddessen nicht');
+
+        receiveControl({ v: P.VERSION, type: 'control_lock', locked: false });
+        assert.strictEqual(app.state.control.locked, false);
+        assert.strictEqual(global.__el('control-lock-notice').style.display, 'none');
+        assert.strictEqual(app.control.sendMove('forward'), true);
+        ok('nach der Freigabe geht es weiter');
+    }
+
+    // -----------------------------------------------------------------
+    console.error('\n21) Wiederholte Sequenznummern werden nicht doppelt ausgefuehrt');
+    {
+        fakeActiveCall({ role: 'guide' });
+        await sleep(60);
+        receiveControl({ v: P.VERSION, type: 'move', dir: 'forward', seq: 7 });
+        receiveControl({ v: P.VERSION, type: 'move', dir: 'forward', seq: 7 });
+        receiveControl({ v: P.VERSION, type: 'move', dir: 'left',    seq: 3 });
+        assert.deepStrictEqual(app.sound.plays, ['move_forward_sound'], 'nur einmal ausgefuehrt');
+        const rejected = controlSent().filter(m => m.type === 'ack' && m.status === 'rejected');
+        assert.strictEqual(rejected.length, 2);
+        assert.ok(rejected.every(m => m.reason === 'duplicate'));
+        ok('Wiederholung und Rueckschritt werden abgelehnt, aber bestaetigt');
+    }
+
+    // -----------------------------------------------------------------
+    console.error('\n22) Die Rolle kommt vom Server, nicht aus dem Client');
+    {
+        // Der Angerufene bekommt sie am ausgelieferten Offer.
+        resetAll();
+        await app.signaling.handleSignalingData({ type: 'offer', sdp: 'x', sender_id: 42, role: 'guide' });
+        assert.strictEqual(app.state.pendingOffer.role, 'guide', 'Rolle haengt am Offer');
+        ok('das Offer transportiert die Serverentscheidung');
+
+        // Der Anrufer bekommt sie in der Antwort auf sein eigenes Offer.
+        resetAll();
+        const answer = await app.signaling.sendSignalMessage({ type: 'offer', sdp: 'x', target: 42 });
+        assert.ok(answer && typeof answer === 'object', 'Antwort wird durchgereicht');
+        ok('sendSignalMessage reicht die Serverantwort durch');
     }
 
     console.error('\n' + passed + ' Pruefungen bestanden.');

@@ -16,18 +16,29 @@ window.webrtcApp.signaling = {
 
     /**
      * Sendet eine Signalnachricht (z.B. offer/answer/candidate/hangup) per POST an das Backend.
+     *
+     * Die Antwort wird zurueckgegeben, weil der Server beim Offer die
+     * Call-Rolle mitschickt (Feld "role"). Aufrufer, die sie nicht brauchen,
+     * ignorieren den Rueckgabewert wie bisher.
+     *
      * @param {Object} msg - Zu sendende Nachricht (JSON)
+     * @returns {Promise<Object|null>} Antwort des Servers oder null
      */
     sendSignalMessage(msg) {
         // Nachrichteninhalt (SDP, ICE-Kandidaten) nur bei aktiviertem Debug-Flag ausgeben
         if (window.webrtcApp.debug) console.log("Sende Signal-Nachricht:", msg);
-        fetch('index.php?act=getSignal', {
+        return fetch('index.php?act=getSignal', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(msg)
         })
         .then(r => r.text())
-        .catch(console.error);
+        .then(text => {
+            // Eine Fehlerseite statt JSON darf hier nicht werfen - der
+            // Signalweg laeuft sonst weiter, nur ohne auswertbare Antwort.
+            try { return JSON.parse(text); } catch (e) { return null; }
+        })
+        .catch(err => { console.error(err); return null; });
     },
 
     /**

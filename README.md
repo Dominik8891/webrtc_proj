@@ -1,11 +1,11 @@
 # WebRTC Remote-Guidance & Location Platform
 
-Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermöglicht Guides, Standorte für Führungen anzubieten, bei denen der Zuschauer die Regie übernimmt. Über eine Peer-to-Peer-Verbindung steuert der User den Guide vor Ort in Echtzeit per Tastaturbefehl.
+Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermöglicht Guides, Standorte für Führungen anzubieten, bei denen der Zuschauer die Regie übernimmt. Über eine Peer-to-Peer-Verbindung steuert der Zuschauer den Guide vor Ort in Echtzeit über ein Steuerkreuz.
 
 ---
 
 ## 💡 Das Konzept
-* **Interaktive Steuerung:** Zuschauer navigieren den Guide via Pfeiltasten über WebRTC-Datenkanäle.
+* **Interaktive Steuerung:** Der Zuschauer navigiert den Guide über ein Steuerkreuz. Die Befehle laufen über einen eigenen WebRTC-Datenkanal, getrennt vom Chat, als versioniertes JSON-Protokoll mit Rollen, Bestätigung und Sperre — vollständig beschrieben in [`PROTOKOLL.md`](PROTOKOLL.md).
 * **Geo-Präsenz:** Guides hinterlegen Standorte in der Datenbank, die für User sichtbar sind.
 * **Echtzeit-Kommunikation:** P2P-Video/Audio mit minimaler Latenz.
 
@@ -17,7 +17,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 * **High-Security:** * Passwort-Hashing mit individuellem **Pepper**.
     * **Zwei-Faktor-Authentifizierung (2FA/TOTP)** inklusive QR-Code-Generierung.
     * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP.
-* **Rollen-System:** Berechtigungsmodell (Admin, Guide, User, Trial).
+* **Rollen-System:** Berechtigungsmodell (Admin, Guide, User, Trial). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide bzw. Zuschauer — der Client kann sie sich nicht selbst geben.
 
 ---
 
@@ -123,7 +123,7 @@ Ein Neustart von PHP-FPM oder Apache ist nach der Rotation nicht noetig.
 
 ## 🧪 Tests
 
-Zwei Pruefskripte fuer die Verbindungsstabilitaet der WebRTC-Funktion:
+Zwei Pruefskripte fuer die Verbindungsstabilitaet und das Steuerprotokoll der WebRTC-Funktion:
 
 ```bash
 node tests/client_test.js     # Client-Logik (assets/js)

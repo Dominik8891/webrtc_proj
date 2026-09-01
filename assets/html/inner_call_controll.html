@@ -33,6 +33,29 @@
               <span class="text-secondary fs-5">Kein Videobild verfügbar</span>
             </div>
           </div>
+          <!-- Guide: grosse Richtungsanzeige.
+               Zweite Spur neben dem Ton: Der Guide laeuft und schaut nicht
+               aufs Display - deshalb bildschirmfuellend, hoher Kontrast, ein
+               Pfeil und ein Wort. Gesetzt von control.showDirection(). -->
+          <div id="direction-indicator" class="direction-indicator" style="display:none;" aria-live="assertive">
+            <span id="direction-indicator-arrow" class="direction-indicator__arrow"></span>
+            <span id="direction-indicator-label" class="direction-indicator__label"></span>
+          </div>
+
+          <!-- Zuschauer: Anzeige, dass der Guide die Steuerung angehalten hat.
+               Gesetzt von control.updateLockUi(). -->
+          <div id="control-lock-notice" class="control-lock-notice" style="display:none;" role="status">
+            <span class="control-lock-notice__icon">&#9209;</span>
+            <span class="control-lock-notice__text">Steuerung gesperrt – der Guide hat sie angehalten.</span>
+          </div>
+
+          <!-- Guide: Sperrschalter, etwa beim Ueberqueren einer Strasse.
+               Liegt im Videobild statt im Kopfbereich, weil der Guide das
+               Geraet in der Hand haelt. Sichtbar nur in der Guide-Rolle. -->
+          <div id="control-lock-bar" class="control-lock-bar" style="display:none;">
+            <button id="control-lock-btn" type="button" class="btn btn-warning fw-bold control-lock-btn">Steuerung sperren</button>
+          </div>
+
           <!-- Eigenes Video als Overlay, nur auf Desktop sichtbar -->
           <video id="local-video"
                  autoplay muted playsinline
@@ -74,8 +97,8 @@
         </div>
         <div style="height:2vh;"></div>
       </div>
-      <!-- Pfeiltasten (rechts, 30%) -->
-      <div class="d-flex flex-column align-items-center justify-content-center" style="width:30%; min-width:150px;">
+      <!-- Pfeiltasten (rechts, 30%) - nur beim Zuschauer, siehe call.css -->
+      <div id="desktop-controls" class="d-flex flex-column align-items-center justify-content-center" style="width:30%; min-width:150px;">
         <div class="arrow-controls d-grid gap-2" style="grid-template-columns: 60px 60px 60px; grid-template-rows: 60px 60px 60px;">
           <button id="btn-forward" class="btn btn-outline-secondary fs-4" style="grid-column: 2; grid-row: 1;">↑</button>
           <button id="btn-left" class="btn btn-outline-secondary fs-4" style="grid-column: 1; grid-row: 2;">←</button>
@@ -87,7 +110,7 @@
   </div>
 
   <!-- --- MOBILE ELEMENTE --- -->
-  <!-- Steuerkreuz als Overlay im Video -->
+  <!-- Steuerkreuz als Overlay im Video - nur beim Zuschauer, siehe call.css -->
   <div id="mobile-controls" style="display:none;">
     <div class="arrow-controls d-grid justify-content-md-center"
          style="position:absolute; bottom:50px; z-index:12; opacity:0.95;">

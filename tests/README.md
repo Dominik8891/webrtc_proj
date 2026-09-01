@@ -1,7 +1,7 @@
 # Tests
 
-Zwei eigenständige Prüfskripte für die Verbindungsstabilität der
-WebRTC-Funktion. Bewusst **ohne Test-Framework**: keine Composer-Dev-Abhängigkeit,
+Zwei eigenständige Prüfskripte für die Verbindungsstabilität und das
+Steuerprotokoll der WebRTC-Funktion. Bewusst **ohne Test-Framework**: keine Composer-Dev-Abhängigkeit,
 kein npm-Paket, keine Konfigurationsdatei. Jedes Skript ist ein einzelner
 Aufruf, der entweder durchläuft oder mit Exit-Code 1 abbricht.
 
@@ -27,7 +27,7 @@ verändern nichts — sie sind gefahrlos jederzeit ausführbar.
 
 | Datei | Inhalt |
 |---|---|
-| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Lädt danach `app.js`, `rtc.js`, `signaling.js` und `chat.js` aus `assets/js`. Allein nicht ausführbar. |
+| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `signaling.js` und `chat.js` aus `assets/js`. Allein nicht ausführbar. |
 | `client_test.js` | Die eigentlichen Client-Prüfungen. |
 | `server_test.php` | Die Serverprüfungen. Ersetzt `PdoConnect::$connection` durch eine Attrappe, die abgesetzte SQL-Statements nur mitschreibt statt sie auszuführen. |
 
@@ -35,7 +35,9 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (22 Prüfungen)
+## Was `client_test.js` prüft (45 Prüfungen)
+
+### Verbindungsstabilität (1–14)
 
 1. **`disconnected` beendet den Call nicht sofort** — der Zustand tritt bei
    jedem Netzwechsel auf. Erholt sich die Verbindung innerhalb der Frist, wird
@@ -63,6 +65,37 @@ geändert, schlagen die Prüfungen an.
     landen nicht mehr als ICE-Konfiguration in der `RTCPeerConnection`;
     `turns:`-Einträge überleben die Kürzung (F-17); keine doppelten URLs.
 
+### Steuerprotokoll (15–22)
+
+Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
+
+15. **Chat und Steuerung sind getrennt** — ein in den Chat getippter
+    `__arrow_forward__` löst keinen Steuerbefehl mehr aus; eine Steuernachricht
+    auf dem Chatkanal wird verworfen und erscheint nicht als Chattext;
+    Binärdaten gelten nur auf dem Chatkanal als Datei.
+16. **Zehn ungültige Nachrichten werden verworfen** — kein JSON, JSON-Array,
+    fehlende und fremde Protokollversion, unbekannter Typ, geerbter Name als
+    Typ (`constructor`), fehlendes Pflichtfeld, unzulässige Richtung,
+    Sequenznummer als Zeichenkette, zu großer Frame. Jeder Fall mit dem
+    erwarteten Fehlercode, mitgezählt, nie im Chatfenster, nie ausgeführt.
+17. **Rollen halten die Richtung ein** — der Guide führt `move` aus und
+    bestätigt, kann selbst keines senden und lehnt ein `control_lock` der
+    Gegenseite ab; der Zuschauer lehnt `move` ab und kann nicht sperren; ohne
+    bekannte Rolle wird weder gesendet noch ausgeführt.
+18. **Steuerkreuz nur beim Zuschauer** — beim Guide gesperrt, dafür der
+    Sperrschalter sichtbar; das Call-Ende räumt die Rolle ab.
+19. **Bestätigung verhindert Mehrfachdrücken** — während eine Bestätigung
+    aussteht, geht kein zweiter Befehl raus; die Bestätigung gibt frei; eine
+    ausbleibende Bestätigung sperrt das Steuerkreuz nicht dauerhaft; eine
+    veraltete Bestätigung hebt keine neuere Sperre auf.
+20. **`control_lock` hält die Steuerung an** — der Guide sendet die Sperre und
+    führt währenddessen keinen Befehl aus, sondern lehnt mit Grund ab; der
+    Zuschauer sieht sie und sendet nicht; nach der Freigabe geht es weiter.
+21. **Wiederholte Sequenznummern** werden abgelehnt statt doppelt ausgeführt —
+    auch ein Rückschritt.
+22. **Die Rolle kommt vom Server** — sie hängt am ausgelieferten Offer, und die
+    Antwort auf das eigene Offer wird bis zum Aufrufer durchgereicht.
+
 ### Zeitkonstanten im Test
 
 `client_test.js` setzt die Fristen aus `rtc.js` zu Beginn auf kurze Werte
@@ -71,7 +104,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (14 Prüfungen)
+## Was `server_test.php` prüft (22 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -86,6 +119,16 @@ die Tests nicht an. Das ist Absicht.
    ausschließlich die gelesene Menge, gebunden an den Empfänger; nicht-numerische
    IDs werden aussortiert; eine leere Liste erzeugt keinen DB-Zugriff; das
    Aufräumen abgelaufener Signale löscht nie innerhalb des 15-Sekunden-Lesefensters.
+5. **Rollenvergabe für den Call** — der Zuschauer wird Zuschauer und der
+   angerufene Guide wird Guide; beim Rückruf bleibt der Guide der Guide; bei
+   zwei Guides und bei gar keinem Guide gilt der Angerufene als Guide; ein
+   Admin gilt nicht als Guide (Befunde F-7/F-8); ein unbekannter Benutzer führt
+   zu einer eindeutigen Rolle statt zu einem Fehler; beide Seiten bekommen
+   zueinander passende Rollen und Dritte gar keine; gestempelt wird
+   ausschließlich das Offer.
+
+   Die Prüfung ersetzt die Benutzertabelle durch eine Attrappe im Speicher —
+   auch hier ohne Datenbank.
 
 ## Grenzen
 
@@ -95,6 +138,9 @@ Nicht abgedeckt sind insbesondere:
 - der echte Wechsel zwischen WLAN und Mobilfunk auf zwei Geräten,
 - das tatsächliche Timing eines ICE-Restarts über einen TURN-Server,
 - Medienwiedergabe, Kamera- und Mikrofonwechsel,
-- alles außerhalb der Verbindungsstabilität (Login, Chat, Standorte).
+- das Aussehen der Richtungsanzeige und der Sperranzeige (geprüft wird nur,
+  dass sie ein- und ausgeblendet werden, nicht wie sie aussehen),
+- alles außerhalb von Verbindungsstabilität und Steuerprotokoll (Login, Chat,
+  Standorte).
 
 Ein grüner Durchlauf ersetzt daher keinen Test mit zwei echten Geräten.

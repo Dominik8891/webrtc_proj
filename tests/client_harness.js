@@ -13,15 +13,38 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..', 'assets', 'js');
 
 function makeEl(id) {
+    // Angehaengte Kinder werden mitgeschrieben: Die Protokolltests pruefen,
+    // dass eine verworfene Nachricht NICHT im Chatlog landet.
+    const classes = new Set();
     return {
         id, style: {}, className: '', textContent: '', src: '', title: '',
-        classList: { add() {}, remove() {}, contains() { return false; } },
-        appendChild() {}, scrollTop: 0, scrollHeight: 0,
+        disabled: false,
+        classList: {
+            add(...names) { names.forEach(n => classes.add(n)); },
+            remove(...names) { names.forEach(n => classes.delete(n)); },
+            contains(name) { return classes.has(name); }
+        },
+        children: [],
+        appendChild(child) { this.children.push(child); },
+        scrollTop: 0, scrollHeight: 0,
         addEventListener() {}, value: '', checked: true
     };
 }
 
 const els = {};
+
+/** Leert die mitgeschriebenen Chatlogs zwischen zwei Pruefungen. */
+global.__clearLogs = () => {
+    ['chat-log', 'chat-log-mobile'].forEach(id => {
+        if (els[id]) els[id].children.length = 0;
+    });
+};
+
+/** Inhalt eines Logs als Textzeilen. */
+global.__logLines = (id) =>
+    (els[id] ? els[id].children : []).map(c => c.textContent);
+
+global.__el = (id) => els[id];
 global.document = {
     body: { classList: { add() {}, remove() {} } },
     getElementById(id) {
@@ -54,7 +77,7 @@ class FakePeerConnection {
         this.iceRestarts = 0;
         FakePeerConnection.last = this;
     }
-    createDataChannel() { return makeChannel(); }
+    createDataChannel(label) { return makeChannel(label); }
     async createOffer(opts) {
         this.offersCreated++;
         if (opts && opts.iceRestart) this.iceRestarts++;
@@ -77,8 +100,9 @@ class FakePeerConnection {
 global.RTCPeerConnection = FakePeerConnection;
 global.FakePeerConnection = FakePeerConnection;
 
-function makeChannel() {
+function makeChannel(label) {
     return {
+        label: label || 'chat',
         readyState: 'open', bufferedAmount: 0, sent: [],
         send(d) { this.sent.push(d); },
         close() { this.readyState = 'closed'; }
@@ -115,12 +139,17 @@ global.window = global;
 global.updateCallIcons = () => {};
 global.isLoggedIn = true;
 
-for (const f of ['app.js', 'rtc.js', 'signaling.js', 'chat.js']) {
+global.Blob = global.Blob || function () {};
+global.URL = global.URL || { createObjectURL: () => 'blob:x' };
+
+for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'signaling.js', 'chat.js']) {
     eval(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 }
 
 // Module, die von rtc.js benutzt werden, aber hier nicht geladen sind
-window.webrtcApp.sound = { play() {}, stop() {} };
+// Abgespielte Signaltoene mitschreiben: Die Protokolltests pruefen, dass ein
+// ausgefuehrter Bewegungsbefehl beim Guide hoerbar wird.
+window.webrtcApp.sound = { plays: [], play(id) { this.plays.push(id); }, stop() {} };
 window.webrtcApp.uiRtc = { setEndCallButtonVisible() {}, getUsername: async () => 'Partner' };
 window.webrtcApp.uiChat = { updatePollingState() {} };
 

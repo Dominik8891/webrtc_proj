@@ -12,11 +12,14 @@ require_once $ROOT . '/class/Model/PdoConnect.php';
 require_once $ROOT . '/class/Model/IceServerConfig.php';
 require_once $ROOT . '/class/Model/WebRTCHandler.php';
 require_once $ROOT . '/class/Controller/TurnController.php';
+require_once $ROOT . '/class/Model/User.php';
+require_once $ROOT . '/class/Controller/WebRTCController.php';
 
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
 use App\Model\WebRTCHandler;
 use App\Controller\TurnController;
+use App\Controller\WebRTCController;
 
 $passed = 0;
 function ok($name) { global $passed; fwrite(STDERR, "  ok  $name\n"); $passed++; }
@@ -145,5 +148,104 @@ $fake->statements = [];
 $handler->deleteExpiredSignalsForReceiver(7);
 check(strpos($fake->statements[0]->sql, 'INTERVAL 60 SECOND') !== false, 'Vorgabe 60 s');
 ok('Aufraeumen loescht nie innerhalb des Lesefensters');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n5) Rollenvergabe fuer den Call (Steuerprotokoll)\n");
+
+/**
+ * Attrappe, die Benutzer aus einer Tabelle im Speicher liefert. Die
+ * Rollenvergabe ist die einzige Serverlogik des Steuerprotokolls; geprueft
+ * wird sie damit ohne Datenbank.
+ */
+class FakeUserStatement {
+    public $sql; public $params = []; private $users;
+    public function __construct($sql, $users) { $this->sql = $sql; $this->users = $users; }
+    public function bindParam($k, &$v) { $this->params[$k] = $v; }
+    public function execute() { return true; }
+    public function fetch($mode = null) {
+        $id = (int)($this->params[':user_id'] ?? 0);
+        return $this->users[$id] ?? false;
+    }
+    public function fetchAll($mode = null) { return []; }
+}
+class FakeUserConnection {
+    public $users = [];
+    public function prepare($sql) { return new FakeUserStatement($sql, $this->users); }
+}
+
+/** Baut eine Benutzerzeile, wie sie aus der Tabelle user kaeme. */
+function fakeUser($id, $typeId) {
+    return [
+        'id' => $id, 'username' => 'u' . $id, 'email' => 'u' . $id . '@example.org',
+        'pwd' => 'x', 'type_id' => $typeId, 'deleted' => 0
+    ];
+}
+
+$userDb = new FakeUserConnection();
+// usertype laut database.sql: 0=Admin, 1=Guide, 2=User, 3=Trial
+$userDb->users = [
+    1 => fakeUser(1, 0),   // Admin
+    2 => fakeUser(2, 1),   // Guide
+    3 => fakeUser(3, 1),   // Guide
+    4 => fakeUser(4, 2),   // User
+    5 => fakeUser(5, 3),   // Trial
+];
+PdoConnect::$connection = $userDb;
+
+// Regelfall: Der Zuschauer sucht einen Standort und ruft den Guide an.
+$r = WebRTCController::callRoles(5, 2);
+check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'Zuschauer ruft Guide an');
+ok('Anrufer wird Zuschauer, angerufener Guide wird Guide');
+
+// Umgekehrter Anruf: Der Guide meldet sich beim Zuschauer.
+$r = WebRTCController::callRoles(2, 5);
+check($r['caller'] === 'guide' && $r['callee'] === 'viewer', 'Guide ruft Zuschauer an');
+ok('auch beim Rueckruf bleibt der Guide der Guide');
+
+// Zwei Guides: Es gibt keinen Grund, einen davon zu bevorzugen - also gilt
+// die zweite Regel, der Angerufene ist vor Ort.
+$r = WebRTCController::callRoles(2, 3);
+check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'zwei Guides');
+ok('bei zwei Guides ist der Angerufene der Guide');
+
+// Kein Guide beteiligt: dieselbe zweite Regel, damit die Steuerung ueberhaupt
+// funktioniert statt auf beiden Seiten tot zu sein.
+$r = WebRTCController::callRoles(4, 5);
+check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'kein Guide beteiligt');
+ok('ohne Guide-Konto ist der Angerufene der Guide');
+
+// Admin ist kein Guide - der Kontotyp 0 darf nicht mit 1 verwechselt werden
+// (Befunde F-7/F-8 der Bestandsaufnahme).
+$r = WebRTCController::callRoles(1, 2);
+check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'Admin ruft Guide an');
+ok('Admin gilt nicht als Guide');
+
+// Unbekannter Benutzer darf die Vergabe nicht sprengen.
+$r = WebRTCController::callRoles(99, 5);
+check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'unbekannter Anrufer');
+ok('unbekannter Benutzer fuehrt zu einer eindeutigen Rolle statt zu einem Fehler');
+
+// Beide Seiten fragen unabhaengig - und muessen zusammenpassen.
+foreach ([[5, 2], [2, 5], [2, 3], [4, 5], [1, 2]] as [$caller, $callee]) {
+    $a = WebRTCController::roleForCall($caller, $callee, $caller);
+    $b = WebRTCController::roleForCall($caller, $callee, $callee);
+    check($a !== $b, "Rollen muessen sich unterscheiden ($caller -> $callee)");
+    check(in_array($a, ['guide', 'viewer'], true), 'gueltige Rolle fuer den Anrufer');
+    check(in_array($b, ['guide', 'viewer'], true), 'gueltige Rolle fuer den Angerufenen');
+}
+check(WebRTCController::roleForCall(5, 2, 4) === null, 'Unbeteiligter bekommt keine Rolle');
+ok('beide Seiten bekommen zueinander passende Rollen, Dritte gar keine');
+
+// Gestempelt wird ausschliesslich am Offer.
+$messages = [
+    ['type' => 'offer',        'sender_id' => 5, 'receiver_id' => 2],
+    ['type' => 'iceCandidate', 'sender_id' => 5, 'receiver_id' => 2],
+    ['type' => 'restart_offer','sender_id' => 5, 'receiver_id' => 2],
+];
+$stamped = WebRTCController::stampCallRoles($messages, 2);
+check($stamped[0]['role'] === 'guide', 'Angerufener ist der Guide');
+check(!isset($stamped[1]['role']), 'ICE-Kandidat bekommt keine Rolle');
+check(!isset($stamped[2]['role']), 'restart_offer bekommt keine Rolle - die Rolle steht seit dem Anruf fest');
+ok('nur das Offer traegt die Rolle');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");
