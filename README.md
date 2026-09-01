@@ -57,6 +57,12 @@ PEPPER=dein_geheimer_pepper_string
 METERED_API_KEY=dein_api_key
 METERED_APP_NAME=dein_api_name
 
+# WebRTC STUN-Server (optional, kommagetrennt)
+# Leer lassen fuer die eingebauten oeffentlichen Server. Diese Liste wird
+# immer zusaetzlich zu den TURN-Zugangsdaten ausgeliefert, damit der Ausfall
+# eines einzelnen Servers die Verbindung nicht verhindert.
+STUN_SERVERS=
+
 # E-Mail (SMTP)
 SMTP_SERVER=dein.smtp-server.com
 SMTP_PORT=587
@@ -112,6 +118,20 @@ Eine fertige Konfiguration liegt unter `deploy/logrotate/webrtc-app`. Sie wird
 
 Voreinstellung: woechentliche Rotation, acht Generationen, komprimiert.
 Ein Neustart von PHP-FPM oder Apache ist nach der Rotation nicht noetig.
+
+---
+
+## 🧪 Tests
+
+Zwei Pruefskripte fuer die Verbindungsstabilitaet der WebRTC-Funktion:
+
+```bash
+node tests/client_test.js     # Client-Logik (assets/js)
+php  tests/server_test.php    # Serverlogik (class/)
+```
+
+Ohne Test-Framework, ohne Datenbank, ohne Netzwerk - beide sind gefahrlos
+jederzeit ausfuehrbar. Details in [`tests/README.md`](tests/README.md).
 
 ---
 
