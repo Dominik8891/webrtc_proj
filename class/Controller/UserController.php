@@ -30,8 +30,12 @@ class UserController
 
         $out = file_get_contents("assets/html/manage_user.html");
 
-        $user_id  = Request::g('user_id');
-        $send     = Request::g('send');
+        // null als Default: die Zweigunterscheidung weiter unten unterscheidet
+        // "Parameter fehlt" (null) von "Parameter ist leer". Mit dem
+        // Standard-Leerstring waere $send immer !== null und der
+        // Speichern-Zweig liefe bei jedem Seitenaufruf.
+        $user_id  = Request::g('user_id', null);
+        $send     = Request::g('send',    null);
 
         $tmp_user = new User(intval($user_id));
         $role     = SystemController::generateHtmlOptions($tmp_user->getAllUsertypesAsArray(), $tmp_user->getRoleId());
@@ -43,12 +47,23 @@ class UserController
         }
         elseif ($send !== null) {
             $sel_user   = new User(Request::g('id'));
-            $role       = Request::g('role');
-            $username   = Request::g('username');
-            $email      = Request::g('email');
+            // null als Default fuer role, username und email: die Werte werden
+            // unten in die Datenbank geschrieben. Ein fehlendes Feld darf den
+            // vorhandenen Wert NICHT mit einem Leerstring ueberschreiben.
+            //   role:     '' wuerde als type_id gespeichert und von MySQL im
+            //             Non-Strict-Mode zu 0 gewandelt - das ist die Rolle
+            //             Admin. Ein fehlendes Feld darf keine Rechte vergeben.
+            //   username: '' wuerde den Benutzernamen leeren.
+            //   email:    '' wuerde die Adresse leeren und beim zweiten Fall
+            //             gegen den UNIQUE-Index auf user.email laufen.
+            // pwd braucht kein null - die Pruefung in Zeile 54 faengt den
+            // Leerstring bereits ab.
+            $role       = Request::g('role',     null);
+            $username   = Request::g('username', null);
+            $email      = Request::g('email',    null);
             $pwd        = Request::g('pwd');
 
-            $sel_user->setRoleId($role);
+            if ($role     !== null               ) $sel_user->setRoleId($role);
             if ($username !== null               ) $sel_user->setUsername($username);
             if ($email    !== null               ) $sel_user->setEmail($email);
             // pwdEncrypt() liegt in App\Model\User, nicht im SystemController -
