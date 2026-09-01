@@ -69,6 +69,13 @@ class SignupController
                          * Lokal läuft es aber
                          * 
                         */
+                        // Bestaetigungsseite laden. Genau das macht auch
+                        // EmailVerificationController::sendVerification() in der
+                        // auskommentierten Zeile darunter - nur zusaetzlich mit
+                        // Mailversand. Beim Deaktivieren des Mailversands ist diese
+                        // Zuweisung verlorengegangen, $out war dadurch undefiniert.
+                        $out = file_get_contents('assets/html/signup_complete.html');
+                        ViewHelper::checkTemplate($out, 'assets/html/signup_complete.html');
                         ViewHelper::output($out);
                         //(new EmailVerificationController)::sendVerification($user_id);
                         exit;

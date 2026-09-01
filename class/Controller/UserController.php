@@ -51,7 +51,10 @@ class UserController
             $sel_user->setRoleId($role);
             if ($username !== null               ) $sel_user->setUsername($username);
             if ($email    !== null               ) $sel_user->setEmail($email);
-            if ($pwd      !== null && $pwd !== '') $sel_user->setPwd(SystemController::pwdEncrypt($pwd));
+            // pwdEncrypt() liegt in App\Model\User, nicht im SystemController -
+            // dort hat die Methode nie existiert. Aufruf wie in
+            // PasswordController.php:132 und :212 ueber die User-Instanz.
+            if ($pwd      !== null && $pwd !== '') $sel_user->setPwd($sel_user->pwdEncrypt($pwd));
 
             $sel_user->save();
             $this->listUser();
