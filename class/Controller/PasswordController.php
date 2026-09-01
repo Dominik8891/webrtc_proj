@@ -190,7 +190,12 @@ class PasswordController
         }
         $pwd_peppered = hash_hmac("sha256", $pw_old, $pepper);
 
-        if (!password_verify($pwd_peppered, $result['pwd'])) {
+        // Kein Benutzer gefunden: $result ist dann false, und der Zugriff auf
+        // $result['pwd'] loeste bisher eine Warning und damit HTTP 500 aus.
+        // Die Pruefung steht bewusst VOR password_verify() und liefert
+        // dieselbe Meldung wie ein falsches Passwort - so ist von aussen
+        // nicht erkennbar, ob es den Benutzernamen ueberhaupt gibt.
+        if (!$result || !password_verify($pwd_peppered, $result['pwd'])) {
             $msg = "Das alte Passwort ist nicht korrekt!";
             $html = file_get_contents('assets/html/change_pw.html');
             $html = str_replace('###USERNAME###', $username, $html);

@@ -391,6 +391,9 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Lokation erfolgreich gespeichert!');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Speichern nicht erfolgreich. Stadt oder Beschreibung fehlt');
+    // success=2: die Koordinaten fehlten oder lagen ausserhalb des gueltigen
+    // Bereichs (siehe LocationController::setLocation).
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '2', 'Speichern nicht erfolgreich. Bitte den Standort auf der Karte auswaehlen.');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '5', 'Registrierung erfolgreich!');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('change', '1', 'Passwort erfolgreich geändert!');
     // Mobile Browser fix: reload nach Call-Ende

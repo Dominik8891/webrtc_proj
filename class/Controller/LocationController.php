@@ -44,6 +44,22 @@ class LocationController
                 exit;
             }
 
+            // Koordinaten pruefen. Sie duerfen NICHT als Leerstring in die
+            // Spalten location.latitude/longitude laufen: das sind
+            // decimal-Spalten, MySQL wandelt '' im Non-Strict-Mode zu
+            // 0.00000000 - und 0/0 ist ein gueltiger Punkt im Atlantik.
+            // Ein Standort ohne Koordinaten ist in dieser Anwendung zudem
+            // unbrauchbar, weil die Kartenansicht sie zwingend braucht
+            // (assets/js/locations_table.js:46-47). Deshalb Abbruch statt
+            // NULL-Speicherung.
+            // Der Bereich ist zusaetzlich begrenzt, weil latitude als
+            // decimal(10,8) nur Werte bis +/-99,99999999 aufnehmen kann.
+            if (!is_numeric($latitude)  || $latitude  < -90  || $latitude  > 90 ||
+                !is_numeric($longitude) || $longitude < -180 || $longitude > 180) {
+                header("Location: index.php?act=set_location_page&success=2");
+                exit;
+            }
+
             $user = new User($user_id);
             if ($user->getUsertype() === 'tourist') {
                 $user->setUsertype('guide');
