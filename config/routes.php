@@ -8,7 +8,6 @@ use App\Controller\UserController;
 use App\Controller\LocationController;
 use App\Controller\WebRTCController;
 use App\Controller\TurnController;
-use App\Controller\MessageController;
 use App\Controller\PasswordController;
 use App\Controller\EmailVerificationController;
 use App\Controller\TwoFactorController;
@@ -55,10 +54,6 @@ return [
 
     // TURN-Server-Zugang
     'get_turn_credentials'  => [TurnController::class               , 'getTurnCredentials'      ],
-
-    // Nachrichtenverarbeitung
-    'process_message'       => [MessageController::class            , 'processMessage'          ],
-    'goto_chat'             => [MessageController::class            , 'gotoChat'                ],
 
     // Passwort-Reset und -Änderung
     "forgot_pw"             => [PasswordController::class           , "handleForgotPassword"    ],
