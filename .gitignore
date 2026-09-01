@@ -10,7 +10,7 @@ upload_import_db.php
 *.env
 *.sql
 .txt
-*vendor
+vendor/
 
 # Ausnahme: die versionierten Migrationsskripte.
 # Die Regel *.sql weiter oben schliesst SQL-Dumps aus, hat aber auch die
