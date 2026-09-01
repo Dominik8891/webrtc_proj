@@ -3,6 +3,7 @@
 namespace App\Model;
 
 use PDOException;
+use App\Helper\LogHelper;
 
 /**
  * Klasse zur Verwaltung der Benutzerinformationen und Interaktionen mit der Datenbank.
@@ -159,7 +160,9 @@ class User
             return null;
         }
         if (!filter_var($in_email, FILTER_VALIDATE_EMAIL)) {
-            error_log("Ungültige E-Mail: $in_email");
+            // Eingabewert nur maskiert loggen. Er ist hier zwar ungueltig,
+            // kann aber trotzdem eine echte Adresse mit Tippfehler sein.
+            error_log("Ungültige E-Mail: " . LogHelper::maskEmail($in_email));
             return null;
         }
         if (strlen($in_pwd) < 3) {

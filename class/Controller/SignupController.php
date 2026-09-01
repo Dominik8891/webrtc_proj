@@ -6,6 +6,7 @@ use App\Model\Email;
 use App\Model\PdoConnect;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
+use App\Helper\LogHelper;
 use App\Controller\EmailVerificationController;
 
 /**
@@ -73,7 +74,9 @@ class SignupController
                         exit;
                     } else {
                         $error = "unknown";
-                        error_log("Fehler bei der Registrierung für User $username/$email");
+                        // Adresse nur maskiert loggen - der User wurde nicht angelegt,
+                        // eine UserID gibt es an dieser Stelle noch nicht.
+                        error_log("Fehler bei der Registrierung für User $username/" . LogHelper::maskEmail($email));
                     }
                 }
             }

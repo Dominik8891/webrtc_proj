@@ -32,6 +32,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 Installiere die benötigten Libraries:
 ```bash
 composer install
+```
 
 ### 1. Datenbank
 Importiere die mitgelieferte `database.sql` in deine MySQL-Instanz. Diese erstellt alle notwendigen Tabellen wie `user`, `location`, `rtc_signal` und `usertype`.
@@ -61,6 +62,7 @@ SMTP_SERVER=dein.smtp-server.com
 SMTP_PORT=587
 SMTP_USERNAME=dein_login
 SMTP_PASSWORD=dein_passwort
+```
 
 ### 3. Logging und Logrotation
 

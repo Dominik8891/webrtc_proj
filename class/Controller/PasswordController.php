@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Helper\ViewHelper;
 use App\Helper\Request;
+use App\Helper\LogHelper;
 use App\Model\User;
 use App\Model\Email;
 use App\Model\PdoConnect;
@@ -61,7 +62,8 @@ class PasswordController
             // E-Mail-Adresse NICHT loggen - die UserID identifiziert den Vorgang eindeutig.
             error_log("Passwort-Reset angefordert für UserID {$user['id']} von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
         } else {
-            error_log("Passwort-Reset-Versuch für NICHT vorhandene E-Mail {$email} von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
+            // Adresse nur maskiert loggen - hier existiert keine UserID.
+            error_log("Passwort-Reset-Versuch für NICHT vorhandene E-Mail " . LogHelper::maskEmail($email) . " von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
         }
 
         $html = file_get_contents('assets/html/forgot_pw.html');

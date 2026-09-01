@@ -4,6 +4,7 @@ namespace App\Model;
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
+use App\Helper\LogHelper;
 
 /**
  * Hilfsklasse für den E-Mail-Versand über SMTP mit PHPMailer.
@@ -47,7 +48,8 @@ class Email
             $mail->send();
             return true;
         } catch (\Exception $e) {
-            error_log('Fehler beim E-Mail-Versand an ' . $in_email . ': ' . $e->getMessage());
+            // Empfaengeradresse nur maskiert loggen.
+            error_log('Fehler beim E-Mail-Versand an ' . LogHelper::maskEmail($in_email) . ': ' . $e->getMessage());
             return false;
         }
     }
