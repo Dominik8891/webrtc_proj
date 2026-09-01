@@ -1,0 +1,211 @@
+# Bericht: Leere Länder- und Städteauswahl beim Standortanlegen
+
+Stand: 2026-09-01 · Branch `fix/lauffaehigkeit`
+
+Dieser Bericht dokumentiert die Fehlersuche und Behebung an der Seite
+„Neue Lokation hinzufügen" (`index.php?act=set_location_page`).
+
+---
+
+## 1. Symptom
+
+Zwei Meldungen, die sich als ein Problem herausstellten:
+
+1. Die Länderauswahl war leer — es ließ sich kein Land auswählen.
+2. Die Städtesuche fand nichts, auch bei vollständig eingetipptem Namen.
+   Im Netzwerk-Tab ging dabei **kein einziger Request** raus.
+
+## 2. Ursachen
+
+### 2.1 Fehlende Spalte `country.iso2`
+
+`assets/js/map.js` erwartet an drei Stellen ein Feld `iso2`, das im Schema
+nicht existierte:
+
+| Stelle | Verwendung |
+|---|---|
+| `map.js:78` | filtert die Länderliste gegen `allowedCountryCodes` |
+| `map.js:184` | Parameter `countrycodes=` der Nominatim-Städtesuche |
+| `map.js:115` | Flaggengrafik von `flagcdn.com/24x18/<iso2>.png` |
+
+Ohne die Spalte war die Filterbedingung `country.iso2 && …` für **jede**
+Zeile falsch. Der Länder-Dropdown blieb dadurch leer — und wäre es auch bei
+vollständig gefüllter Tabelle geblieben.
+
+Die Städtesuche hing daran: `map.js:182` bricht mit
+`if (!countryIso2) return success({ results: [] })` ab, bevor Nominatim
+gefragt wird. Ohne wählbares Land gibt es kein `iso2`, also keinen Request.
+**Ein fehlendes Feld hat beide Auswahlfelder lahmgelegt.**
+
+Warum das bei der Schema-Rekonstruktion durchgerutscht ist: **kein PHP-Code
+nennt die Spalte je beim Namen.** Sie fließt nur über `SELECT * FROM country`
+durch bis ins JavaScript. Ein Abgleich, der die PHP-Spaltenreferenzen gegen
+das Schema prüft, kann sie nicht finden.
+
+### 2.2 Fehlende Stammdaten in `country`
+
+Die Tabelle hat im Anwendungscode **keinen Schreibpfad** — weder `INSERT`
+noch `UPDATE`, nur lesende Zugriffe (`Location::selectAllCountries`,
+`Location.php:159`, sowie die Joins). Sie muss vorbefüllt sein.
+
+Die Git-Historie wurde geprüft: `database.sql` wurde in genau drei Commits
+angefasst (`ea37c97`, `467bbd7`, `41f07de`), und **jede** Fassung enthält
+exakt ein `INSERT` — für `usertype`. Es gab **nie** Stammdaten für `country`
+oder `city`. Bei früheren Änderungen ist also nichts verloren gegangen.
+
+### 2.3 Nicht die Ursache: leere Tabelle `city`
+
+Ein naheliegender Verdacht, der sich nicht bestätigt hat. Belege:
+
+* **Keine der Routen, die auf der Seite feuern, fasst `city` an.**
+  `get_country`, `getSignal`, `heartbeat` und die Chat-Routen enthalten kein
+  `city` im SQL. Die einzigen beiden Routen mit `LEFT JOIN city`
+  (`get_locations`, `get_my_locations`) laufen dort gar nicht — ihre Guards
+  in `locations_table.js:271` und `:280` prüfen auf Elemente, die es in
+  `set_location.html` nicht gibt.
+* **Die Suche fragt kein Backend.** Der einzige Request geht an
+  `nominatim.openstreetmap.org`. Es existiert keine Route für Städte, in
+  keiner Fassung der `routes.php`.
+* **Der Dropdown arbeitet mit Namen, nicht mit IDs.** Die echte Funktion
+  `formatCityResults` liefert `{ id: "Karlsruhe", text: "Karlsruhe", … }` —
+  der `<option>`-Wert ist der Stadtname als Freitext. Es gibt nichts,
+  wogegen ein Schlüssel aufgelöst werden müsste.
+
+`city` füllt sich beim Speichern selbst: `Location::setNewLocation()`
+(Z. 62-82) sucht die Stadt per Namen und legt sie über `insertCityName()`
+an, falls sie fehlt.
+
+**Der Gegensatz der beiden Tabellen:**
+
+| | `country` | `city` |
+|---|---|---|
+| Schreibpfad im Code | keiner | `insertCityName()` |
+| Quelle des Dropdowns | eigene Datenbank | Nominatim |
+| Übermittelter Wert | Datenbank-**ID** | Stadt**name** |
+| Muss vorbefüllt sein | **ja** | **nein** |
+
+### 2.4 Ebenfalls nicht die Ursache: DB-Suche wurde nie ersetzt
+
+Die Vermutung, die Städtesuche sei ursprünglich gegen die Datenbank gebaut
+und später ersetzt worden, ließ sich nicht bestätigen:
+
+* In **keiner** Fassung der `routes.php` gab es eine Route für Städte.
+* Die einzige `FROM city`-Abfrage der gesamten Historie ist durchgehend
+  `SELECT * FROM city WHERE city_name = :city` — ein Exact-Match-Lookup
+  beim Speichern, keine Suche.
+* Schon die früheste Autocomplete (`fetchCities` in Commit `e401678`) rief
+  Nominatim auf. `git log -S "nominatim"` zeigt die API bereits im ersten
+  Location-Commit `6ec8b32`.
+
+Was der Erinnerung am nächsten kommt: `selectCity()` fragt die Datenbank
+tatsächlich nach dem Stadtnamen ab — nur beim Speichern, nicht beim Suchen.
+
+## 3. Behebung
+
+| Was | Wo |
+|---|---|
+| Spalte `iso2 char(2) NOT NULL` mit UNIQUE-Index | `database.sql`, `migrations/003_country_iso2.sql` |
+| 248 Länder mit deutschen Namen als Stammdaten | `database.sql`, `migrations/004_country_seed.sql` |
+
+Der UNIQUE-Index ist Voraussetzung dafür, dass der Seed per `INSERT IGNORE`
+wiederholbar läuft. Beide Migrationen prüfen ihre Voraussetzungen und
+brechen ab, bevor sie etwas ändern: `003`, wenn `country` bereits Zeilen
+ohne `iso2` enthält; `004`, wenn die Spalte fehlt.
+
+Kein `emoji`-Feld: `map.js:88` übergibt es zwar an `code:`, wertet es aber
+nie aus — die Flagge kommt über `iso2` vom CDN.
+
+**Verifikation:** Die echte Filterlogik aus `map.js:78` wurde gegen die
+geparsten Seed-Daten ausgeführt — 248 von 248 Ländern passieren den Filter.
+Kein Code aus `allowedCountryCodes` ohne Datenbankeintrag, kein Eintrag ohne
+Code, keine doppelten Codes oder Namen. Vom Nutzer in der laufenden
+Anwendung bestätigt: Länderauswahl und Städtesuche funktionieren.
+
+## 4. Fehler im Ablauf: Migrationen waren nie im Repository
+
+Die vier Dateien unter `migrations/` lagen auf der Platte, waren aber nicht
+versioniert. Ursache: `.gitignore` Zeile 11 enthält `*.sql`, was auch
+`migrations/*.sql` erfasst hat — `git add -A` hat sie stillschweigend
+übersprungen. `database.sql` blieb nur deshalb versioniert, weil sie bereits
+vorher getrackt war; für getrackte Dateien greift `.gitignore` nicht.
+
+Die betroffenen Commits beschreiben die Migrationen in ihren Nachrichten,
+enthalten sie aber nicht. Aufgefallen ist es erst, als die Dateien im
+Arbeitsverzeichnis des Nutzers fehlten.
+
+Behoben in `8936fa0`: Dateien nachgetragen, `.gitignore` um eine Ausnahme
+für `migrations/` erweitert. SQL-Dumps im Wurzelverzeichnis bleiben
+ausgeschlossen — geprüft.
+
+**Lehre:** `git status` zeigt ignorierte Dateien nicht an. Ein sauberer
+Arbeitsbaum ist kein Beleg dafür, dass alles committet wurde. Bei neuen
+Dateien gehört `git ls-tree -r HEAD --name-only` oder
+`git check-ignore -v <datei>` zur Kontrolle.
+
+## 5. Offene Punkte
+
+### 5.1 Ohne ausgewähltes Land ist keine Städtesuche möglich
+
+Die Abhängigkeit ist technisch begründet: Nominatim wird mit
+`countrycodes=<iso2>` aufgerufen (`map.js:184`), der Ländercode ist also
+Pflichtparameter. Der Guard in `map.js:182` ist insofern korrektes
+Verhalten, kein Fehler.
+
+**Problematisch ist die Nutzerführung**, denn die Abhängigkeit wird
+nirgends kommuniziert:
+
+* Das Stadtfeld ist **nicht deaktiviert**, solange kein Land gewählt ist
+  (`set_location.html:19`). Es lässt sich öffnen und beschreiben.
+* Bei fehlendem Land liefert der Guard ein leeres Ergebnis. select2 zeigt
+  daraufhin seine Standardmeldung — und weil **keine deutsche Sprachdatei
+  geladen wird** (`index.html:22` bindet nur `select2.min.js`, kein
+  `i18n/de.js`), erscheint das englische **„No results found"**.
+* Diese Meldung ist inhaltlich **irreführend**: Sie legt nahe, die Stadt
+  existiere nicht, obwohl schlicht kein Land ausgewählt wurde.
+* `language` in `initCitySelect2` definiert nur `inputTooShort`
+  (`map.js:194-196`), nicht `noResults`.
+* Im Formular gibt es keinen Hinweis auf die nötige Reihenfolge; beide
+  Felder stehen gleichwertig untereinander.
+
+Mögliche Verbesserungen, **nicht umgesetzt**:
+
+1. `#citySelect` deaktivieren, solange `#countrySelect` leer ist, und beim
+   `change`-Event freischalten.
+2. `language.noResults` setzen — abhängig davon, ob ein Land gewählt ist:
+   „Bitte zuerst ein Land wählen." statt „No results found".
+3. Placeholder des Stadtfelds dynamisch anpassen
+   („Erst Land wählen…" / „Stadt wählen…").
+4. select2-Sprachdatei `i18n/de.js` einbinden, damit die restlichen
+   Standardmeldungen nicht englisch erscheinen.
+
+### 5.2 `loadCountries()` hat keine Fehlerbehandlung
+
+`map.js:72-110` enthält **kein** `.catch()`. Liefert `get_country` einen
+HTTP 500 mit HTML-Body — etwa bei nicht erreichbarer Datenbank —, wirft
+`response.json()`, die Promise-Kette bricht ab, und
+`$('#countrySelect').select2()` wird nie erreicht. Der Nutzer sieht ein
+nacktes `<select>` ohne Hinweis auf die Ursache.
+
+### 5.3 select2 wird ungeprüft aufgerufen
+
+`map.js` prüft nirgends, ob die Bibliothek geladen ist. Ist das CDN
+`cdn.jsdelivr.net` blockiert oder offline, wirft `initCitySelect2()` sofort
+einen TypeError, `bindEvents()` läuft nicht mehr, und beide Auswahlfelder
+bleiben funktionslos. Passend dazu: die CDN-Einbindungen haben kein
+`integrity`-Attribut (siehe BESTANDSAUFNAHME.md, S-15).
+
+### 5.4 Die Meldung „Stadt oder Beschreibung fehlt" prüft die Stadt nicht
+
+`LocationController::setLocation()` löst `success=0` ausschließlich bei
+`strlen($description) < 5` aus. `$city` wird **nirgends validiert**. Die
+Meldung nennt also einen Grund, den sie gar nicht prüft.
+
+## 6. Nicht verifiziert
+
+* Die Migrationen wurden in der Entwicklungsumgebung **nicht gegen einen
+  Server ausgeführt** — dort ist kein MySQL/MariaDB verfügbar. Geprüft sind
+  Struktur und Daten, nicht die SQL-Syntax. Der erfolgreiche Import beim
+  Nutzer bestätigt sie nachträglich.
+* Ob der Browser das Formular bei leerem `#citySelect` wegen `required`
+  überhaupt absendet, konnte nicht getestet werden: Das Playwright-Modul
+  ist nicht installiert und das select2-CDN vom Proxy blockiert (HTTP 403).
