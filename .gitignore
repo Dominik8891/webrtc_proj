@@ -11,3 +11,10 @@ upload_import_db.php
 *.sql
 .txt
 *vendor
+
+# Ausnahme: die versionierten Migrationsskripte.
+# Die Regel *.sql weiter oben schliesst SQL-Dumps aus, hat aber auch die
+# Dateien unter migrations/ erfasst - sie wurden dadurch beim Committen
+# stillschweigend uebersprungen. Sie gehoeren ins Repository.
+!migrations/
+!migrations/*.sql
