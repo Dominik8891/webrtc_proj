@@ -62,6 +62,57 @@ SMTP_PORT=587
 SMTP_USERNAME=dein_login
 SMTP_PASSWORD=dein_passwort
 
+### 3. Logging und Logrotation
+
+Das PHP-Fehlerlog liegt **ausserhalb des Document Root**, damit es nicht ueber
+HTTP abrufbar ist. Den Pfad bestimmt `config/log_path.php`:
+
+* Ist die Umgebungsvariable `LOG_PATH` gesetzt, gilt dieser Pfad.
+* Sonst greift der Fallback `../logs/php-error.log` — also eine Ebene
+  oberhalb des Webroots. Das Verzeichnis wird beim ersten Schreiben
+  automatisch mit den Rechten `0750` angelegt.
+
+`LOG_PATH` muss auf Server- oder Systemebene gesetzt werden, **nicht in der
+`.env`** — die wird erst nach dem Fehler-Handler geladen:
+
+```
+Apache : SetEnv LOG_PATH /var/log/webrtc/php-error.log
+nginx  : fastcgi_param LOG_PATH /var/log/webrtc/php-error.log;
+Docker : environment: LOG_PATH=/var/log/webrtc/php-error.log
+```
+
+**Altlast:** Frühere Versionen schrieben nach `<Webroot>/php-error.log`.
+Diese Datei kann noch existieren, ueber HTTP erreichbar sein und Secrets aus
+alten Versionen enthalten. Sie wird nicht automatisch geloescht — bitte
+manuell entfernen:
+
+```
+rm <Webroot>/php-error.log
+```
+
+#### Logrotation einrichten
+
+Eine fertige Konfiguration liegt unter `deploy/logrotate/webrtc-app`. Sie wird
+**nicht automatisch installiert**. Zur Einrichtung:
+
+1. Datei oeffnen und **zwei Werte anpassen**: den Logpfad in der ersten Zeile
+   und den Webserver-Benutzer (`www-data`, unter RHEL/CentOS `apache`).
+2. Nach `/etc/logrotate.d/` kopieren:
+   ```
+   sudo cp deploy/logrotate/webrtc-app /etc/logrotate.d/webrtc-app
+   sudo chown root:root /etc/logrotate.d/webrtc-app
+   sudo chmod 644 /etc/logrotate.d/webrtc-app
+   ```
+3. Konfiguration testen, ohne etwas zu rotieren:
+   ```
+   sudo logrotate -d /etc/logrotate.d/webrtc-app
+   ```
+
+Voreinstellung: woechentliche Rotation, acht Generationen, komprimiert.
+Ein Neustart von PHP-FPM oder Apache ist nach der Rotation nicht noetig.
+
+---
+
 ## 👤 Autor
 **Dominik Kusber** *Angehender Fachinformatiker für Anwendungsentwicklung* [GitHub Profile](https://github.com/dominik8891) | [Portfolio/Kontakt](mailto:deine@email.de)
 

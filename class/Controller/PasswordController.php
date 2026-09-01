@@ -58,7 +58,8 @@ class PasswordController
             $resetLink = "https://localhost/rctprojnew/index.php?act=reset_pw_page&token=$token";
             Email::sendMail($email, 
                 "Hallo,\n\nKlicke auf den folgenden Link, um dein Passwort zu ändern:\n\n$resetLink\n\nDieser Link ist 1 Stunde gültig.", "Passwort zurücksetzen");
-            error_log("Passwort-Reset angefordert für UserID {$user['id']} ({$email}) von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
+            // E-Mail-Adresse NICHT loggen - die UserID identifiziert den Vorgang eindeutig.
+            error_log("Passwort-Reset angefordert für UserID {$user['id']} von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
         } else {
             error_log("Passwort-Reset-Versuch für NICHT vorhandene E-Mail {$email} von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
         }

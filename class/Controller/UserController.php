@@ -177,7 +177,6 @@ class UserController
         $data = json_decode($raw, true);
         $lat = isset($data['lat']) ? $data['lat'] : null;
         $lon = isset($data['lon']) ? $data['lon'] : null;
-        error_log('kam was? ' . $lat . ' & ' . $lon);
 
         if ($lat !== null && $lon !== null && is_numeric($lat) && is_numeric($lon)) {
             $user = new User($_SESSION['user']['user_id']);

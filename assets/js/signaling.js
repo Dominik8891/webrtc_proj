@@ -8,7 +8,8 @@ window.webrtcApp.signaling = {
      * @param {Object} msg - Zu sendende Nachricht (JSON)
      */
     sendSignalMessage(msg) {
-        console.log("Sende Signal-Nachricht:", msg); // Debug-Log
+        // Nachrichteninhalt (SDP, ICE-Kandidaten) nur bei aktiviertem Debug-Flag ausgeben
+        if (window.webrtcApp.debug) console.log("Sende Signal-Nachricht:", msg);
         fetch('index.php?act=getSignal', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -29,7 +30,8 @@ window.webrtcApp.signaling = {
             fetch('index.php?act=getSignal')
                 .then(r => r.json())
                 .then(msgArr => {
-                    console.log("Signaling-Nachrichten erhalten:", msgArr);
+                    // Nur bei aktiviertem Debug-Flag, siehe app.js
+                    if (window.webrtcApp.debug) console.log("Signaling-Nachrichten erhalten:", msgArr);
                     if (Array.isArray(msgArr)) {
                         msgArr.forEach(msg => window.webrtcApp.signaling.handleSignalingData(msg));
                     }
@@ -52,7 +54,8 @@ window.webrtcApp.signaling = {
      * @param {Object} data - Die erhaltene Nachricht
      */
     handleSignalingData: async function(data) {
-        console.log("Empfange Signaling-Daten:", data);
+        // Nur bei aktiviertem Debug-Flag, siehe app.js
+        if (window.webrtcApp.debug) console.log("Empfange Signaling-Daten:", data);
 
         if (data.type === 'offer') {
             // Eingehender Anruf: UI vorbereiten

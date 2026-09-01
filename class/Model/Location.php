@@ -124,7 +124,6 @@ class Location
             $stmt ->bindParam(':description'   , $this->description   );
             $stmt ->bindParam(':id'            , $this->id            );
             $stmt->execute();
-            error_log('Lokation erfolgreich aktualisiert!');
             return true;
         } catch (\PDOException $e) {
             error_log('Fehler beim Aktualisieren der Lokation: ' . $e->getMessage());
@@ -143,7 +142,6 @@ class Location
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':id', $this->id, \PDO::PARAM_INT);
             $stmt->execute();
-            error_log('Lokation erfolgreich gelöscht!');
             return true;
         } catch (\PDOException $e) {
             error_log('Fehler beim Löschen der Lokation: ' . $e->getMessage());

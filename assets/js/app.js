@@ -1,5 +1,12 @@
 // Globales webrtcApp-Objekt für sämtliche WebRTC/Chat-Funktionalität
 window.webrtcApp = {
+    // ----- Debug-Ausgaben -----
+    // Standardmaessig AUS. Auf true setzen, um ausfuehrliche Signaling-Logs
+    // (SDP, ICE-Kandidaten) in der Browser-Konsole zu sehen. Diese Daten
+    // gehoeren nicht in eine produktive Konsole, deshalb der Schalter.
+    // Zum Debuggen zur Laufzeit: window.webrtcApp.debug = true
+    debug: false,
+
     // ----- Statusvariablen für die aktuelle Session -----
     state: {
         activeTargetUserId: null,          // User-ID des aktuell gewählten Chat-/Call-Partners

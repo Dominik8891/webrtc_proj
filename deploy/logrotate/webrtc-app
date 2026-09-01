@@ -1,0 +1,59 @@
+# ---------------------------------------------------------------------------
+# logrotate-Konfiguration fuer das PHP-Fehlerlog der WebRTC-Anwendung
+#
+# Diese Datei wird NICHT automatisch installiert. Zur Einrichtung siehe die
+# Anleitung im README (Abschnitt "Logging und Logrotation").
+#
+# PFAD ANPASSEN: Die erste Zeile muss auf das tatsaechliche Logverzeichnis
+# zeigen. Es ergibt sich aus config/log_path.php:
+#   - Ist die Umgebungsvariable LOG_PATH gesetzt, gilt deren Verzeichnis.
+#   - Sonst der Fallback: eine Ebene OBERHALB des Document Root, Ordner "logs".
+#     Liegt die Anwendung z.B. unter /var/www/webrtc_proj, dann ist das
+#     /var/www/logs
+#
+# BENUTZER ANPASSEN: "www-data" ist der uebliche Webserver-Benutzer unter
+# Debian/Ubuntu. Unter RHEL/CentOS/Fedora heisst er "apache", unter einigen
+# nginx-Setups "nginx". Der Wert muss zu dem Benutzer passen, unter dem PHP
+# laeuft - sonst kann PHP nach der Rotation nicht mehr schreiben.
+# ---------------------------------------------------------------------------
+
+/var/www/logs/*.log {
+    # Woechentlich rotieren. Bei hohem Fehleraufkommen auf "daily" umstellen.
+    weekly
+
+    # Acht Generationen aufheben (bei "weekly" also rund zwei Monate Historie).
+    rotate 8
+
+    # Rotierte Dateien komprimieren, um Plattenplatz zu sparen.
+    compress
+
+    # Die jeweils juengste rotierte Datei erst beim naechsten Lauf komprimieren.
+    # Das vermeidet Probleme, falls PHP noch einen Schreibvorgang offen hat.
+    delaycompress
+
+    # Kein Fehler, wenn (noch) keine Logdatei existiert - etwa direkt nach
+    # der Installation, bevor der erste Fehler aufgetreten ist.
+    missingok
+
+    # Leere Logdateien nicht rotieren.
+    notifempty
+
+    # Neue Logdatei nach der Rotation mit definierten Rechten anlegen:
+    # 0640 = Eigentuemer lesen/schreiben, Gruppe nur lesen, sonst nichts.
+    # Passend zu den Rechten 0750, mit denen config/log_path.php das
+    # Verzeichnis anlegt.
+    create 0640 www-data www-data
+
+    # Rotation unter diesem Benutzer/dieser Gruppe ausfuehren. Noetig, weil
+    # das Logverzeichnis dem Webserver-Benutzer gehoert und nicht root.
+    su www-data www-data
+
+    # Skripte nur einmal fuer alle passenden Dateien ausfuehren, nicht je Datei.
+    sharedscripts
+
+    # HINWEIS: Ein Neustart von PHP-FPM oder Apache ist nach der Rotation
+    # NICHT noetig. PHPs error_log() oeffnet die Datei bei jedem Schreibvorgang
+    # neu und haelt keinen dauerhaften Dateizeiger - anders als ein Daemon.
+    # Deshalb wird hier bewusst weder "copytruncate" noch ein postrotate-Block
+    # verwendet.
+}
