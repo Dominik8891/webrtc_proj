@@ -42,6 +42,21 @@ window.webrtcApp.locationMap = {
     init() {
         if (!$('#map').length || !$('#countrySelect').length) return;
 
+        // select2 kommt per CDN (assets/html/index.html). Ist es nicht
+        // geladen - CDN blockiert, offline, Tippfehler in der URL -, wuerde
+        // der erste .select2()-Aufruf einen TypeError werfen. Land- und
+        // Stadtfeld waeren dann funktionslos, ohne dass der Nutzer erfaehrt
+        // warum. Deshalb vorher pruefen und sauber abbrechen.
+        if (!$.fn || typeof $.fn.select2 !== 'function') {
+            this.zeigeHinweis(
+                'Die Auswahlfelder konnten nicht geladen werden, weil eine ' +
+                'benötigte Bibliothek (select2) fehlt. Bitte die Seite neu ' +
+                'laden. Besteht das Problem weiter, ist vermutlich die ' +
+                'Internetverbindung oder ein Werbeblocker die Ursache.'
+            );
+            return;
+        }
+
         this.initMap();
         this.loadCountries();
         this.initCitySelect2();
@@ -51,6 +66,24 @@ window.webrtcApp.locationMap = {
         const urlParams = new URLSearchParams(window.location.search);
         if(urlParams.get('success') === '1'){
             alert("Lokation erfolgreich gespeichert!");
+        }
+    },
+
+    /**
+     * Zeigt dem Nutzer eine Fehlermeldung im Formular an.
+     * Der Bereich #location-hinweis steckt in assets/html/set_location.html
+     * und ist normalerweise ausgeblendet.
+     *
+     * @param {string} text Die anzuzeigende Meldung (reiner Text)
+     */
+    zeigeHinweis(text) {
+        const $box = $('#location-hinweis');
+        if ($box.length) {
+            // .text() statt .html(), damit nichts als Markup interpretiert wird
+            $box.text(text).show();
+        } else {
+            // Notnagel, falls der Meldungsbereich fehlt - besser als schweigen
+            alert(text);
         }
     },
 
@@ -71,12 +104,36 @@ window.webrtcApp.locationMap = {
      */
     loadCountries() {
         fetch('index.php?act=get_country')
-            .then(response => response.json())
+            .then(response => {
+                // Bei HTTP 500 liefert der Server die Fehlerseite als HTML.
+                // response.json() wuerde daran scheitern und die Kette
+                // wortlos abbrechen - deshalb den Status vorher pruefen.
+                if (!response.ok) {
+                    throw new Error('Server antwortete mit Status ' + response.status);
+                }
+                return response.json();
+            })
             .then(data => {
+                if (!Array.isArray(data)) {
+                    throw new Error('Unerwartetes Antwortformat');
+                }
+
                 $('#countrySelect').empty().append('<option value="">Land wählen...</option>');
                 const filteredCountries = data
                     .filter(country => country.iso2 && this.allowedCountryCodes.includes(country.iso2.toUpperCase()))
                     .sort((a, b) => a.country_name.localeCompare(b.country_name));
+
+                // Der Server hat geantwortet, aber es blieb kein Land uebrig.
+                // Haeufigste Ursache: die Tabelle country ist leer oder die
+                // Spalte iso2 fehlt (siehe migrations/003 und 004). Ohne Land
+                // laesst sich auch keine Stadt suchen, deshalb hier melden.
+                if (filteredCountries.length === 0) {
+                    this.zeigeHinweis(
+                        'Es konnten keine Länder geladen werden. Ohne Land ist ' +
+                        'keine Städtesuche möglich. Bitte an den Administrator ' +
+                        'wenden - die Länderdaten fehlen in der Datenbank.'
+                    );
+                }
 
                 filteredCountries.forEach(country => {
                     $('#countrySelect').append(
@@ -101,6 +158,17 @@ window.webrtcApp.locationMap = {
                     templateResult: this.formatCountryOption,
                     templateSelection: this.formatCountryOption
                 });
+            })
+            .catch(fehler => {
+                // Ohne diesen Zweig blieb das Dropdown bei jedem Fehler
+                // wortlos leer: die Promise-Kette brach ab, select2 wurde nie
+                // initialisiert, und der Nutzer sah ein totes Feld.
+                console.error('Länder konnten nicht geladen werden:', fehler);
+                this.zeigeHinweis(
+                    'Die Länderliste konnte nicht geladen werden. Bitte die ' +
+                    'Seite neu laden. Besteht das Problem weiter, ist der ' +
+                    'Server nicht erreichbar oder die Datenbank nicht verfügbar.'
+                );
             });
     },
 
@@ -192,9 +260,23 @@ window.webrtcApp.locationMap = {
             templateResult: city => city.text,
             templateSelection: city => city.text,
             language: {
-                inputTooShort: () => 'Bitte mindestens 3 Buchstaben eingeben.'
+                inputTooShort: () => 'Bitte mindestens 3 Buchstaben eingeben.',
+                // Ohne diese Zeile zeigt select2 sein englisches
+                // "No results found" - irrefuehrend, weil die Suche ohne
+                // ausgewaehltes Land gar nicht erst losgeschickt wird
+                // (siehe transport weiter oben). Deshalb beide Faelle
+                // unterscheiden.
+                noResults: () => {
+                    const iso2 = $('#countrySelect option:selected').data('iso2');
+                    return iso2
+                        ? 'Keine Stadt gefunden.'
+                        : 'Bitte zuerst ein Land wählen.';
+                }
             }
         });
+
+        // Startzustand: ohne Land bleibt das Stadtfeld gesperrt
+        this.setzeStadtfeldZustand(false);
 
         // Fokus im Suchfeld, wenn Select2 geöffnet
         $('#citySelect').on('select2:open', function () {
@@ -207,6 +289,11 @@ window.webrtcApp.locationMap = {
         $('#countrySelect').on('change', () => {
             $('#citySelect').val('').trigger('change');
             $('#latitude, #longitude, #lat, #lon, #osm_place').val('').text('');
+            // Stadtfeld nur freigeben, wenn tatsaechlich ein Land mit
+            // Laendercode gewaehlt ist - der Code ist Pflichtparameter der
+            // Nominatim-Suche.
+            const iso2 = $('#countrySelect option:selected').data('iso2');
+            this.setzeStadtfeldZustand(!!iso2);
         });
 
         // Stadt gewählt → Felder & Marker setzen
@@ -236,6 +323,35 @@ window.webrtcApp.locationMap = {
                 self.marker = null;
             }
         });
+    },
+
+    /**
+     * Sperrt oder entsperrt das Stadtfeld und passt den Platzhalter an.
+     *
+     * Hintergrund: die Staedtesuche ruft Nominatim mit countrycodes=<iso2>
+     * auf. Ohne ausgewaehltes Land gibt es keinen Code, und die Suche liefert
+     * zwangslaeufig nichts. Bisher blieb das Feld trotzdem bedienbar, was den
+     * Eindruck erweckte, die gesuchte Stadt existiere nicht.
+     *
+     * @param {boolean} aktiv true = Land gewaehlt, Feld freigeben
+     */
+    setzeStadtfeldZustand(aktiv) {
+        const $stadt = $('#citySelect');
+        if (!$stadt.length) return;
+
+        const text = aktiv ? 'Stadt wählen...' : 'Bitte zuerst ein Land wählen';
+
+        // Erst den Sperrzustand setzen und select2 neu zeichnen lassen ...
+        $stadt.prop('disabled', !aktiv).trigger('change.select2');
+
+        // ... danach den Platzhalter setzen, sonst ueberschreibt ihn das
+        // Neuzeichnen wieder. Beide Varianten abdecken: den von select2
+        // gerenderten Platzhalter und die Option des nativen <select>,
+        // falls select2 (noch) nicht gerendert hat.
+        $stadt.next('.select2-container')
+              .find('.select2-selection__placeholder')
+              .text(text);
+        $stadt.find('option[value=""]').text(text);
     },
 
     /**

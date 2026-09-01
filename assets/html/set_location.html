@@ -1,6 +1,12 @@
 <div class="d-flex justify-content-center">
     <div class="card shadow-sm p-4" style="max-width: 500px; width: 100%;">
         <h3 class="mb-4 text-center">Lokation hinzufügen</h3>
+
+        <!-- Bereich für Fehlermeldungen der Länder-/Städteauswahl.
+             Wird von assets/js/map.js befüllt (zeigeHinweis) und bleibt
+             leer und unsichtbar, solange alles funktioniert. -->
+        <div id="location-hinweis" class="alert alert-danger" style="display:none;" role="alert"></div>
+
         <form action="index.php?act=set_location" method="post" autocomplete="off">
             <input type="hidden" name="type_id" value="1">
             <div class="mb-3">

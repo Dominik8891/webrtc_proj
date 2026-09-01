@@ -390,7 +390,10 @@ window.addEventListener('DOMContentLoaded', function() {
         }, 15000);
     }
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Lokation erfolgreich gespeichert!');
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Speichern nicht erfolgreich. Stadt oder Beschreibung fehlt');
+    // success=0 wird ausschliesslich von der Beschreibungspruefung ausgeloest
+    // (LocationController::setLocation, strlen < 5). Die Stadt wird dort gar
+    // nicht geprueft - der alte Text nannte einen Grund, den es nicht gab.
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Speichern nicht erfolgreich. Die Beschreibung muss mindestens 5 Zeichen lang sein.');
     // success=2: die Koordinaten fehlten oder lagen ausserhalb des gueltigen
     // Bereichs (siehe LocationController::setLocation).
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '2', 'Speichern nicht erfolgreich. Bitte den Standort auf der Karte auswaehlen.');
