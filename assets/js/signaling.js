@@ -3,6 +3,17 @@
  * (Offer, Answer, ICE-Candidate, Call-Events etc.)
  */
 window.webrtcApp.signaling = {
+    // Poll-Intervall außerhalb eines Calls.
+    POLL_INTERVAL_IDLE: 1500,
+
+    // Poll-Intervall während eines laufenden Calls.
+    // Früher wurde das Polling bei dc.onopen komplett abgeschaltet. Genau
+    // deshalb erreichte das Auflegen den Gegenüber nie (Befund F-3), und ein
+    // ICE-Restart wäre gar nicht aushandelbar gewesen - dafür braucht es einen
+    // Weg für Offer/Answer, der unabhängig von der gestörten Verbindung ist.
+    // Das Polling läuft jetzt durch, im Call mit halber Frequenz.
+    POLL_INTERVAL_IN_CALL: 3000,
+
     /**
      * Sendet eine Signalnachricht (z.B. offer/answer/candidate/hangup) per POST an das Backend.
      * @param {Object} msg - Zu sendende Nachricht (JSON)
@@ -22,21 +33,48 @@ window.webrtcApp.signaling = {
     /**
      * Startet das regelmäßige Polling für eingehende Signalisierungsnachrichten.
      * (Wird als Backup für WebSockets verwendet.)
+     * @param {number} [intervalMs] - Poll-Intervall; ohne Angabe das Ruhe-Intervall
      */
-    pollSignaling() {
-        if (window.webrtcApp.refs.pollingIntervalId !== null) return;
-        console.log("Starte Polling...");
+    pollSignaling(intervalMs) {
+        const interval = intervalMs || window.webrtcApp.signaling.POLL_INTERVAL_IDLE;
+        if (window.webrtcApp.refs.pollingIntervalId !== null) {
+            // Läuft bereits mit dem gewünschten Intervall - nichts zu tun.
+            if (window.webrtcApp.refs.pollingIntervalMs === interval) return;
+            window.webrtcApp.signaling.stopPolling();
+        }
+        console.log("Starte Polling (" + interval + " ms)...");
+        window.webrtcApp.refs.pollingIntervalMs = interval;
         window.webrtcApp.refs.pollingIntervalId = setInterval(() => {
             fetch('index.php?act=getSignal')
-                .then(r => r.json())
+                .then(r => {
+                    // Ohne diese Prüfung wirft r.json() bei jeder Fehlerseite
+                    // (z. B. HTML einer 500er-Antwort) im Sekundentakt.
+                    if (!r.ok) throw new Error('Signaling-Abruf fehlgeschlagen: HTTP ' + r.status);
+                    return r.json();
+                })
                 .then(msgArr => {
                     // Nur bei aktiviertem Debug-Flag, siehe app.js
                     if (window.webrtcApp.debug) console.log("Signaling-Nachrichten erhalten:", msgArr);
                     if (Array.isArray(msgArr)) {
                         msgArr.forEach(msg => window.webrtcApp.signaling.handleSignalingData(msg));
                     }
+                })
+                .catch(err => {
+                    // Ein einzelner fehlgeschlagener Poll ist kein Grund
+                    // abzubrechen - beim nächsten Durchlauf wird es erneut
+                    // versucht. Nur protokollieren.
+                    if (window.webrtcApp.debug) console.warn("Poll fehlgeschlagen:", err);
                 });
-        }, 1500);
+        }, interval);
+    },
+
+    /**
+     * Stellt das Poll-Intervall um (z. B. beim Call-Start auf das langsamere
+     * In-Call-Intervall). Läuft noch kein Polling, wird es gestartet.
+     * @param {number} intervalMs - Neues Intervall in Millisekunden
+     */
+    setPollInterval(intervalMs) {
+        window.webrtcApp.signaling.pollSignaling(intervalMs);
     },
 
     /**
@@ -46,6 +84,7 @@ window.webrtcApp.signaling = {
         if (window.webrtcApp.refs.pollingIntervalId !== null) {
             clearInterval(window.webrtcApp.refs.pollingIntervalId);
             window.webrtcApp.refs.pollingIntervalId = null;
+            window.webrtcApp.refs.pollingIntervalMs = null;
         }
     },
 
@@ -70,10 +109,25 @@ window.webrtcApp.signaling = {
             if (btn) btn.style.display = "none";
             window.webrtcApp.sound.play('incomming_call_ringtone');
 
+        } else if (data.type === 'restart_offer') {
+            // Neuaushandlung nach einem ICE-Restart des Gegenübers.
+            // Das ist KEIN neuer Anruf - der Annahme-Dialog darf nicht kommen.
+            await window.webrtcApp.rtc.handleRestartOffer(data);
+
+        } else if (data.type === 'restart_answer') {
+            // Antwort auf unseren ICE-Restart.
+            await window.webrtcApp.rtc.handleRestartAnswer(data);
+
+        } else if (data.type === 'restart_request') {
+            // Der Gegenüber merkt die Störung, darf aber nicht selbst neu
+            // aushandeln (Glare). Er bittet uns darum - wir sind der Initiator.
+            window.webrtcApp.rtc.handleRestartRequest(data);
+
         } else if (data.type === 'answer') {
             // Antwort auf unseren Offer: Verbindung aufbauen
             console.log('Stopped Timeout :' + window.webrtcApp.state.callTimeout);
             window.webrtcApp.rtc.stopTimeout();
+            if (!window.webrtcApp.refs.localPeerConnection) return;
             window.webrtcApp.refs.localPeerConnection.setRemoteDescription(new RTCSessionDescription({
                 type: data.type,
                 sdp: data.sdp
@@ -105,20 +159,10 @@ window.webrtcApp.signaling = {
             }
 
         } else if (data.type === 'hangup') {
-            // Gespräch wurde beendet (vom Partner)
-            window.webrtcApp.rtc.stopTimeout();
-            if (window.webrtcApp.state.isCallActive === true) {
-                window.webrtcApp.rtc.endCall(false);
-                window.webrtcApp.sound.stop('call_ringtone');
-                var acceptBtn = document.getElementById('accept-call-btn');
-                if (acceptBtn) acceptBtn.style.display = "none";
-                window.webrtcApp.uiRtc.setEndCallButtonVisible(false); 
-                alert("Der andere Teilnehmer hat die Verbindung beendet.");
-            } else if (window.webrtcApp.state.pendingOffer.sender_id === data.sender_id){
-                var dialog = document.getElementById('media-select-dialog');
-                if (dialog) dialog.style.display = 'none';
-                window.webrtcApp.sound.stop('incomming_call_ringtone');
-            }    
+            // Gespräch wurde beendet (vom Partner). Die Auswertung liegt
+            // zentral in rtc.handleRemoteHangup(), weil dasselbe Ereignis auch
+            // über den DataChannel ankommen kann - es darf nur einmal wirken.
+            window.webrtcApp.rtc.handleRemoteHangup(data.sender_id);
 
         } else if (data.type === 'call_failed') {
             // Call konnte nicht aufgebaut werden (Fehler, kein Media etc.)

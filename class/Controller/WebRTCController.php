@@ -54,15 +54,41 @@ class WebRTCController
                 $rtc_handler = new WebRTCHandler();
                 $messages = $rtc_handler->getAllSignalsForReceiver($receiver);
 
+                // Genau die IDs merken, die dieser SELECT gelesen hat. Nur die
+                // dürfen gelöscht werden - ein Signal, das zwischen SELECT und
+                // DELETE eintrifft, muss liegen bleiben und wird beim nächsten
+                // Poll ausgeliefert (Befund F-1).
+                $delivered_ids = [];
+                foreach ($messages as $msg) {
+                    if (isset($msg['id'])) {
+                        $delivered_ids[] = $msg['id'];
+                    }
+                }
+
                 $filtered_messages = self::signalMessageFilter($messages);
 
-                $rtc_handler->deleteSignalsForReceiver($receiver);
+                // Gelöscht wird die gesamte gelesene Menge, also auch die vom
+                // Filter verworfenen kaputten Kandidaten: Die sind ausgewertet
+                // und würden sonst bei jedem Poll erneut geliefert.
+                $rtc_handler->deleteSignalsByIds($receiver, $delivered_ids);
+
+                // Zeilen, die das 15-Sekunden-Lesefenster nie erreicht haben,
+                // separat aufräumen, damit die Tabelle nicht wächst.
+                $rtc_handler->deleteExpiredSignalsForReceiver($receiver);
 
                 echo json_encode($filtered_messages);
                 exit;
             }
+
+            // Weder gültiger POST noch angemeldeter Empfänger: Bisher endete die
+            // Methode hier ohne jede Ausgabe (HTTP 200, leerer Body) und der
+            // Client warf beim Parsen. Jetzt gibt es eine auswertbare Antwort.
+            echo json_encode(['status' => 'error', 'msg' => 'Ungültige Signaling-Anfrage.']);
+            exit;
         } catch (\Exception $e) {
-            echo json_encode(['status' => 'error', 'msg' => $e->getMessage()]);
+            // Interne Details nur ins Log, nicht in den Browser.
+            error_log('WebRTCController::getSignal: ' . $e->getMessage());
+            echo json_encode(['status' => 'error', 'msg' => 'Signaling-Fehler.']);
             exit;
         }
     }

@@ -2,39 +2,154 @@
  * WebRTC-Modul: Beinhaltet alle Funktionen rund um PeerConnection, Anrufsteuerung und Medienstrom.
  */
 window.webrtcApp.rtc = {
+    // ---------------------------------------------------------------------
+    // Zeitkonstanten der Wiederverbindung
+    // ---------------------------------------------------------------------
+
+    // "disconnected" ist ein vorübergehender Zustand: Er tritt bei jedem
+    // WLAN-/Mobilfunkwechsel und bei kurzen Paketverlusten auf und geht meist
+    // von selbst zurück auf "connected". Deshalb wird erst nach Ablauf dieser
+    // Frist neu ausgehandelt statt sofort aufzulegen.
+    RECONNECT_GRACE_MS: 5000,
+
+    // Gesamtfrist ab der ersten Störung. Ist die Verbindung bis dahin nicht
+    // zurück, wird der Call endgültig beendet.
+    RECONNECT_DEADLINE_MS: 30000,
+
+    // Höchstzahl an ICE-Restart-Versuchen je Störung.
+    MAX_ICE_RESTARTS: 3,
+
+    // Abstand zwischen zwei Restart-Versuchen. Ein ICE-Restart braucht ein
+    // paar Sekunden, bis die neuen Kandidaten ausgetauscht sind.
+    RESTART_RETRY_MS: 8000,
+
+    // Nach einer Wiederverbindung werden Steuerbefehle für diese Zeitspanne
+    // noch verworfen. Grund: Der DataChannel ist zuverlässig und geordnet -
+    // was während der Störung im SCTP-Puffer der Gegenseite lag, wird beim
+    // Wiederanlaufen auf einen Schlag zugestellt. Ein Schwall alter
+    // Richtungsbefehle ist für den Guide gefährlich; deshalb werden sie
+    // verworfen und nicht ausgeführt.
+    CONTROL_SETTLE_MS: 1000,
+
+    // Obergrenze für den Sendepuffer des DataChannels, ab der keine
+    // Steuerbefehle mehr angenommen werden. Staut sich etwas, ist der Kanal
+    // nicht mehr in Echtzeit - dann darf nichts nachgeschoben werden.
+    CONTROL_MAX_BUFFER: 4096,
+
     /**
      * Beendet einen aktiven Call und räumt alles auf (UI, Streams, PeerConnection, Chat etc.)
      * @param {boolean} sendSignal - Soll ein Hangup-Signal an den Partner gesendet werden?
      */
     endCall(sendSignal = true) {
+        // Auflegen ZUERST senden, solange DataChannel und Signaling noch
+        // stehen. Vorher wurde erst die PeerConnection geschlossen und danach
+        // gesendet - der DataChannel war zu diesem Zeitpunkt bereits tot.
+        if (sendSignal && !window.webrtcApp.state.hangupReceived
+            && window.webrtcApp.state.activeTargetUserId) {
+            this.sendHangup();
+        }
+        window.webrtcApp.state.hangupReceived = true;
+
+        // Ab hier läuft der Abbau. Das Flag muss VOR dem Schließen der
+        // PeerConnection fallen, sonst deutet handleConnectionStateChange()
+        // den selbst ausgelösten "closed"-Zustand als Störung und ruft endCall
+        // erneut auf.
+        window.webrtcApp.state.isCallActive = false;
+
+        this.stopReconnect();        // Alle Wiederverbindungs-Timer stoppen
         this.resetUI();              // Entfernt UI-Call-Status
         this.closePeerConnection();  // PeerConnection & DataChannel schließen
         this.clearMediaStreams();    // Lokalen & Remote MediaStream beenden
         this.hideChatAndArrow();     // Chat/Arrow-Bereich verstecken
 
-        // Hangup nur senden, wenn es nicht schon empfangen wurde
-        if (!window.webrtcApp.state.hangupReceived) {
-            window.webrtcApp.state.hangupReceived = true;
-            if (sendSignal && window.webrtcApp.state.activeTargetUserId) {
-                window.webrtcApp.signaling.sendSignalMessage({
-                    type: 'hangup',
-                    target: window.webrtcApp.state.activeTargetUserId
-                });
-                console.log("hangup");
-            }
-        }
         // State zurücksetzen
         window.webrtcApp.state.tracksAdded = false;
         window.webrtcApp.state.activeTargetUserId = null;
         window.webrtcApp.state.hangupReceived = false;
         window.webrtcApp.state.pendingOffer = null;
+        window.webrtcApp.state.isInitiator = false;
+        window.webrtcApp.state.connectedSince = null;
+        window.webrtcApp.refs.pendingCandidates = [];
         window.webrtcApp.uiRtc.setEndCallButtonVisible(false);
-        window.webrtcApp.state.isCallActive = false;
+        window.webrtcApp.rtc.setConnectionStatus('idle');
         window.webrtcApp.uiChat.updatePollingState();
+
+        // Polling zurück auf das schnellere Ruhe-Intervall: Wir warten wieder
+        // auf eingehende Anrufe.
+        window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IDLE);
 
         // Mobile Browser fix: reload nach Call-Ende
         if (/Android|iPhone|iPad|iPod|Mobile|Linux/i.test(navigator.userAgent)) {
             setTimeout(() => location.reload(), 1000);
+        }
+    },
+
+    /**
+     * Sendet das Auflegen auf beiden Wegen.
+     *
+     * Weg 1 ist der DataChannel: Er erreicht den Gegenüber sofort und ohne
+     * Umweg über den Server. Weg 2 ist das HTTP-Signaling als Rückfallebene
+     * für den Fall, dass der Kanal schon tot ist - genau der Fall, in dem das
+     * Auflegen bisher nie ankam (Befund F-2/F-3).
+     *
+     * Beide Wege dürfen gefahrlos gleichzeitig laufen: Der Empfänger wertet
+     * das Auflegen in handleRemoteHangup() nur einmal aus.
+     */
+    sendHangup() {
+        const dc = window.webrtcApp.refs.dataChannel;
+        if (dc && dc.readyState === "open") {
+            try {
+                dc.send("__hangup__");
+            } catch (e) {
+                console.warn("Hangup über DataChannel fehlgeschlagen:", e);
+            }
+        }
+        if (window.webrtcApp.state.activeTargetUserId) {
+            window.webrtcApp.signaling.sendSignalMessage({
+                type: 'hangup',
+                target: window.webrtcApp.state.activeTargetUserId
+            });
+        }
+    },
+
+    /**
+     * Verarbeitet ein Auflegen des Gegenübers - egal über welchen Weg es kam.
+     *
+     * Die Methode ist bewusst idempotent: Kommt dasselbe Auflegen erst über
+     * den DataChannel und Sekunden später noch einmal über das Polling, wird
+     * der zweite Aufruf verworfen (kein Call mehr aktiv, kein passendes
+     * pendingOffer) - der Nutzer sieht nur eine Meldung.
+     *
+     * @param {number|string} [senderId] - Absender laut Signal (nur beim Server-Weg gesetzt)
+     */
+    handleRemoteHangup(senderId) {
+        const state = window.webrtcApp.state;
+        this.stopTimeout();
+
+        if (state.isCallActive === true) {
+            state.hangupReceived = true;
+            this.setConnectionStatus('disconnected');
+            window.webrtcApp.sound.stop('call_ringtone');
+            const acceptBtn = document.getElementById('accept-call-btn');
+            if (acceptBtn) acceptBtn.style.display = "none";
+            window.webrtcApp.uiRtc.setEndCallButtonVisible(false);
+            // Erst melden, dann abbauen: Solange der Dialog steht, ist die
+            // Call-Ansicht mit dem roten Status noch sichtbar. endCall()
+            // blendet sie aus.
+            alert("Der andere Teilnehmer hat die Verbindung beendet.");
+            // sendSignal=false: Wir antworten nicht mit einem eigenen Hangup.
+            this.endCall(false);
+            return;
+        }
+
+        // Kein aktiver Call: Der Anrufer hat aufgelegt, bevor angenommen wurde.
+        // Null-Prüfung auf pendingOffer, sonst wirft der Zugriff (Befund F-11).
+        const pending = state.pendingOffer;
+        if (pending && (senderId === undefined || pending.sender_id == senderId)) {
+            const dialog = document.getElementById('media-select-dialog');
+            if (dialog) dialog.style.display = 'none';
+            window.webrtcApp.sound.stop('incomming_call_ringtone');
+            state.pendingOffer = null;
         }
     },
 
@@ -53,6 +168,14 @@ window.webrtcApp.rtc = {
     closePeerConnection() {
         const refs = window.webrtcApp.refs;
         if (refs.localPeerConnection) {
+            // Handler abhängen, damit der Abbau keine Zustandsauswertung mehr
+            // auslöst.
+            refs.localPeerConnection.onconnectionstatechange = null;
+            refs.localPeerConnection.oniceconnectionstatechange = null;
+            refs.localPeerConnection.onicecandidate = null;
+            refs.localPeerConnection.onicecandidateerror = null;
+            refs.localPeerConnection.ondatachannel = null;
+            refs.localPeerConnection.ontrack = null;
             refs.localPeerConnection.close();
             refs.localPeerConnection = null;
         }
@@ -94,8 +217,19 @@ window.webrtcApp.rtc = {
      * @param {number} targetUserId - Die ID des Gesprächspartners
      */
     startCall: async function(targetUserId) {
+        // Wir bauen den Call auf, also sind wir der Initiator und damit im
+        // Störungsfall für den ICE-Restart zuständig.
+        window.webrtcApp.state.isInitiator = true;
+        window.webrtcApp.rtc.setConnectionStatus('connecting');
+        // Während des Calls langsamer pollen, aber weiterpollen - der Weg wird
+        // für Auflegen und ICE-Restart gebraucht.
+        window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IN_CALL);
+
         // 1. ICE-Server laden (für PeerConnection)
-        if (!window.webrtcApp.refs.iceServersLoaded) {
+        //    Bei einer Notfallliste (kein TURN) wird erneut geladen, damit ein
+        //    vorübergehender Ausfall des TURN-Dienstes nicht dauerhaft
+        //    zwischengespeichert bleibt (Befund F-18).
+        if (!window.webrtcApp.refs.iceServersLoaded || window.webrtcApp.refs.iceServersDegraded) {
             await window.webrtcApp.rtc.loadIceServers();
         }
         // 2. PeerConnection-Init (Dummy/Selbstanruf für Chrome-Bugfix)
@@ -156,19 +290,20 @@ window.webrtcApp.rtc = {
         const config = { iceServers: window.webrtcApp.refs.meteredIceServers };
         window.webrtcApp.refs.localPeerConnection = new RTCPeerConnection(config);
 
-        // Verbindung verloren?
+        // Verbindungszustand überwachen. Beide Handler laufen in dieselbe
+        // Auswertung: connectionState und iceConnectionState erreichen bei
+        // einer Störung typischerweise beide einen kritischen Wert. Früher
+        // führte das zu zwei blockierenden Dialogen hintereinander (F-12).
         window.webrtcApp.refs.localPeerConnection.onconnectionstatechange = function() {
-            if (["disconnected", "failed", "closed"].includes(window.webrtcApp.refs.localPeerConnection.connectionState)) {
-                window.webrtcApp.rtc.endCall(false);
-                alert("Die Verbindung zum Gesprächspartner ist abgebrochen.");
-            }
+            window.webrtcApp.rtc.handleConnectionStateChange();
         };
-        // ICE-State verloren?
         window.webrtcApp.refs.localPeerConnection.oniceconnectionstatechange = function() {
-            if (["disconnected", "failed", "closed"].includes(window.webrtcApp.refs.localPeerConnection.iceConnectionState)) {
-                window.webrtcApp.rtc.endCall(false);
-                alert("Die Verbindung zum Gesprächspartner ist unterbrochen (ICE).");
-            }
+            window.webrtcApp.rtc.handleConnectionStateChange();
+        };
+        // Fehler bei der Kandidatensuche sind kein Abbruchgrund: Fällt ein
+        // STUN-/TURN-Server aus, wird über die übrigen weiter gesammelt.
+        window.webrtcApp.refs.localPeerConnection.onicecandidateerror = function(event) {
+            console.warn("ICE-Kandidatenfehler (" + event.errorCode + ") bei " + (event.url || 'unbekanntem Server'));
         };
 
         // DataChannel initialisieren (nur Initiator)
@@ -231,21 +366,27 @@ window.webrtcApp.rtc = {
     setupDataChannel(dc) {
         dc.onopen = () => {
             window.webrtcApp.sound.stop('call_ringtone');
-            document.getElementById('chat-area').style.display = "";
-            //document.getElementById('arrow-control').style.display = "";
-            window.webrtcApp.signaling.stopPolling();
+            const chatArea = document.getElementById('chat-area');
+            if (chatArea) chatArea.style.display = "";
+            // Das Polling wird hier NICHT mehr abgeschaltet. Es ist der einzige
+            // Weg, über den Auflegen und ICE-Restart den Gegenüber erreichen,
+            // wenn die Peer-Verbindung gestört ist (Befund F-3).
+            window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IN_CALL);
+            // Der Kanal steht - Verbindungszustand neu bewerten, damit der
+            // Status auch dann auf "Verbunden" springt, wenn das
+            // Zustandsereignis der PeerConnection schon durch war.
+            window.webrtcApp.rtc.handleConnectionStateChange();
         };
         dc.onclose = () => {
             window.webrtcApp.sound.stop('call_ringtone');
-            // document.getElementById('chat-area').style.display = "none";
-            // document.getElementById('arrow-control').style.display = "none";
-            window.webrtcApp.signaling.pollSignaling();
+            // Der Kanal ist weg: ab jetzt läuft alles über das Signaling.
+            // Schneller pollen, damit ein Auflegen des Partners ankommt.
+            window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IDLE);
         };
         dc.onmessage = (e) => {
             // Spezielle Steuerzeichen auswerten
-            if (e.data === "__hangup__" && window.webrtcApp.state.isCallActive === true) {
-                window.webrtcApp.rtc.endCall(false);
-                alert("Der andere Teilnehmer hat die Verbindung beendet");
+            if (e.data === "__hangup__") {
+                window.webrtcApp.rtc.handleRemoteHangup();
                 return;
             }
             if (e.data === "__video_off__") {
@@ -272,21 +413,25 @@ window.webrtcApp.rtc = {
                 }
                 return;
             }
-            // Steuerpfeile als Sound abspielen
-            if (e.data === "__arrow_forward__") {
-                window.webrtcApp.sound.play("move_forward_sound", false);
-                return;
-            }
-            if (e.data === "__arrow_backward__") {
-                window.webrtcApp.sound.play("move_back_sound", false);
-                return;
-            }
-            if (e.data === "__arrow_left__") {
-                window.webrtcApp.sound.play("turn_left_sound", false);
-                return;
-            }
-            if (e.data === "__arrow_right__") {
-                window.webrtcApp.sound.play("turn_right_sound", false);
+            // Steuerpfeile als Sound abspielen.
+            // Sie werden nur ausgeführt, wenn die Verbindung im Moment des
+            // Empfangs stabil ist. Ein Befehl, der aus der Zeit vor einer
+            // Unterbrechung stammt, ist keine gültige Anweisung mehr - er wird
+            // verworfen und nicht nachgeholt.
+            const arrowSounds = {
+                "__arrow_forward__":  "move_forward_sound",
+                "__arrow_backward__": "move_back_sound",
+                "__arrow_left__":     "turn_left_sound",
+                "__arrow_right__":    "turn_right_sound"
+            };
+            if (Object.prototype.hasOwnProperty.call(arrowSounds, e.data)) {
+                if (!window.webrtcApp.rtc.mayExecuteControlCommand()) {
+                    console.warn("Steuerbefehl verworfen (Verbindung nicht stabil):", e.data);
+                    window.webrtcApp.rtc.showSystemNotice("Steuerbefehl verworfen – Verbindung war unterbrochen.");
+                    return;
+                }
+                window.webrtcApp.sound.play(arrowSounds[e.data], false);
+                window.webrtcApp.chat.appendMsg("remote", e.data);
                 return;
             }
             // Normale Chatnachricht
@@ -329,27 +474,609 @@ window.webrtcApp.rtc = {
     },
 
     /**
-     * Lädt ICE-Server/Turn-Server vom Backend, kürzt auf max. 4 und speichert sie.
+     * Letzte Rückfallebene, falls der Server gar nicht antwortet.
+     *
+     * Der Server liefert normalerweise selbst schon STUN-Fallbacks mit
+     * (class/Model/IceServerConfig.php, über STUN_SERVERS konfigurierbar).
+     * Diese Liste greift nur, wenn die Route get_turn_credentials überhaupt
+     * nicht erreichbar ist - dann ist wenigstens ein Verbindungsaufbau in
+     * einfachen Netzen möglich, statt dass gar nichts geht.
+     */
+    FALLBACK_STUN_SERVERS: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' }
+    ],
+
+    /**
+     * Lädt die ICE-Server-Konfiguration vom Backend.
+     *
+     * Vorher gab es hier weder try/catch noch eine Prüfung der Antwort: Bei
+     * einem Ausfall des TURN-Dienstes wurde das Fehlerobjekt als
+     * ICE-Konfiguration an die RTCPeerConnection weitergereicht und dauerhaft
+     * zwischengespeichert (Befund F-18). Jetzt wird jeder Fehlerfall
+     * ausgewertet, es bleibt immer eine benutzbare Liste übrig, und ein
+     * Notbehelf wird über iceServersDegraded für den nächsten Anruf verworfen.
+     *
+     * @returns {Promise<void>}
      */
     loadIceServers: async function() {
-        const response = await fetch("index.php?act=get_turn_credentials");
-        let iceServers = await response.json();
+        let iceServers = [];
+        let turnAvailable = false;
+        let warning = null;
 
-        // Falls das Objekt ein "iceServers"-Feld hat, extrahiere es
-        if (!Array.isArray(iceServers) && iceServers.iceServers) {
-            iceServers = iceServers.iceServers;
+        try {
+            const response = await fetch("index.php?act=get_turn_credentials", { cache: 'no-store' });
+
+            let payload = null;
+            try {
+                payload = await response.json();
+            } catch (parseError) {
+                throw new Error("Antwort des Servers war kein gültiges JSON.");
+            }
+
+            if (!response.ok) {
+                throw new Error("Server antwortete mit HTTP " + response.status);
+            }
+
+            // Sowohl ein nacktes Array als auch { iceServers: [...] } annehmen.
+            const list = Array.isArray(payload)
+                ? payload
+                : (payload && Array.isArray(payload.iceServers) ? payload.iceServers : null);
+
+            if (!list) {
+                throw new Error("Antwort enthielt keine ICE-Server-Liste.");
+            }
+
+            iceServers = list.filter(window.webrtcApp.rtc.isValidIceServer);
+            if (payload && typeof payload.warning === 'string') {
+                warning = payload.warning;
+            }
+        } catch (e) {
+            console.error("ICE-Server konnten nicht geladen werden:", e.message);
+            warning = "Die Verbindungsdaten konnten nicht geladen werden.";
+            iceServers = [];
         }
-        // Auf max. 2 STUN und 2 TURN kürzen
-        if (Array.isArray(iceServers) && iceServers.length > 4) {
-            const stunServers = iceServers.filter(s => s.urls && s.urls.toString().startsWith('stun:')).slice(0,2);
-            const turnServers = iceServers.filter(s => s.urls && s.urls.toString().startsWith('turn:')).slice(0,2);
-            iceServers = stunServers.concat(turnServers);
-        }
+
+        // Eigene STUN-Fallbacks ergänzen, ohne Doppelungen.
+        iceServers = window.webrtcApp.rtc.mergeIceServers(
+            iceServers,
+            window.webrtcApp.rtc.FALLBACK_STUN_SERVERS
+        );
+
+        // Auf ein handhabbares Maß kürzen: zu viele Server verlängern die
+        // Kandidatensuche spürbar. turns: (TURN über TLS/443) wird jetzt
+        // mitgenommen - genau die Variante, die restriktive Netze am ehesten
+        // passieren lässt (Befund F-17).
+        const stunServers = iceServers.filter(s => window.webrtcApp.rtc.hasScheme(s, ['stun:', 'stuns:'])).slice(0, 4);
+        const turnServers = iceServers.filter(s => window.webrtcApp.rtc.hasScheme(s, ['turn:', 'turns:'])).slice(0, 3);
+        iceServers = stunServers.concat(turnServers);
+
+        turnAvailable = turnServers.length > 0;
 
         window.webrtcApp.refs.meteredIceServers = iceServers;
-        window.webrtcApp.refs.iceServersLoaded = true;
+        window.webrtcApp.refs.iceServersLoaded = iceServers.length > 0;
+        // Ohne TURN oder mit Warnung ist die Liste nur ein Notbehelf: beim
+        // nächsten Anruf erneut laden, damit ein vorübergehender Ausfall nicht
+        // für die ganze Sitzung hängen bleibt.
+        window.webrtcApp.refs.iceServersDegraded = (!turnAvailable || warning !== null);
+
         // TURN-Credentials (username/credential) NICHT ausgeben - nur die Anzahl.
-        console.log("ICE-Server geladen:", Array.isArray(iceServers) ? iceServers.length : 0);
+        console.log("ICE-Server geladen:", iceServers.length, "(TURN verfügbar:", turnAvailable + ")");
+
+        if (!turnAvailable) {
+            window.webrtcApp.rtc.showSystemNotice(
+                "Hinweis: Es ist kein TURN-Server verfügbar. Der Anruf klappt nur, wenn "
+                + "beide Seiten in einfachen Netzen sind." + (warning ? " (" + warning + ")" : "")
+            );
+        } else if (warning) {
+            window.webrtcApp.rtc.showSystemNotice("Hinweis: " + warning);
+        }
+    },
+
+    /**
+     * Prüft, ob ein Eintrag als RTCIceServer taugt.
+     * @param {*} server - Zu prüfender Eintrag
+     * @returns {boolean}
+     */
+    isValidIceServer(server) {
+        if (!server || typeof server !== 'object') return false;
+        const urls = server.urls;
+        if (typeof urls === 'string') return urls.length > 0;
+        return Array.isArray(urls) && urls.length > 0;
+    },
+
+    /**
+     * Prüft, ob die URLs eines Eintrags mit einem der Schemata beginnen.
+     * @param {Object} server - ICE-Server-Eintrag
+     * @param {string[]} schemes - z.B. ['turn:', 'turns:']
+     * @returns {boolean}
+     */
+    hasScheme(server, schemes) {
+        const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+        return urls.some(url =>
+            typeof url === 'string' && schemes.some(scheme => url.toLowerCase().startsWith(scheme))
+        );
+    },
+
+    /**
+     * Führt zwei ICE-Server-Listen zusammen und lässt keine URL doppelt zu.
+     * @param {Array} primary - Liste vom Server
+     * @param {Array} fallback - Eigene Rückfall-Liste
+     * @returns {Array} Zusammengeführte Liste
+     */
+    mergeIceServers(primary, fallback) {
+        const known = new Set();
+        const collect = (server) => {
+            const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+            return urls.filter(u => typeof u === 'string').map(u => u.toLowerCase());
+        };
+
+        const merged = [];
+        primary.forEach(server => {
+            collect(server).forEach(u => known.add(u));
+            merged.push(server);
+        });
+        fallback.forEach(server => {
+            const urls = collect(server);
+            if (urls.some(u => known.has(u))) return;
+            urls.forEach(u => known.add(u));
+            merged.push(server);
+        });
+        return merged;
+    },
+
+    // =====================================================================
+    // Verbindungsüberwachung und Wiederverbindung
+    // =====================================================================
+
+    /**
+     * Wertet connectionState und iceConnectionState gemeinsam aus.
+     *
+     * Wichtig ist die Reihenfolge der Prüfung: "failed" schlägt "disconnected",
+     * "disconnected" schlägt "connected". Sonst würde ein nachlaufender
+     * connectionState eine bereits erkannte Störung wieder überschreiben.
+     */
+    handleConnectionStateChange() {
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        if (!pc) return;
+        // Läuft der Abbau bereits, interessieren uns die Zustände nicht mehr.
+        if (!window.webrtcApp.state.isCallActive) return;
+
+        const cs  = pc.connectionState;
+        const ics = pc.iceConnectionState;
+        if (window.webrtcApp.debug) console.log("Verbindungszustand:", cs, "/", ics);
+
+        if (cs === 'failed' || ics === 'failed') {
+            window.webrtcApp.rtc.onConnectionFailed();
+        } else if (cs === 'disconnected' || ics === 'disconnected') {
+            window.webrtcApp.rtc.onConnectionUnstable();
+        } else if (cs === 'connected' || ics === 'connected' || ics === 'completed') {
+            window.webrtcApp.rtc.onConnectionRecovered();
+        } else if (cs === 'closed' || ics === 'closed') {
+            // Geschlossen wird nur von uns selbst oder endgültig durch den
+            // Browser - hier gibt es nichts mehr zu retten.
+            window.webrtcApp.rtc.giveUpReconnect("Die Verbindung zum Gesprächspartner wurde beendet.");
+        }
+    },
+
+    /**
+     * Verbindung steht (wieder). Alle Wiederverbindungs-Timer aufräumen.
+     */
+    onConnectionRecovered() {
+        const state = window.webrtcApp.state;
+        const wasDisturbed = (state.connectionStatus === 'unstable' || state.connectionStatus === 'reconnecting');
+
+        window.webrtcApp.rtc.stopReconnect();
+        state.connectedSince = Date.now();
+        window.webrtcApp.rtc.setConnectionStatus('connected');
+        // Verbindung steht wieder: zurück auf das schonendere In-Call-Intervall.
+        window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IN_CALL);
+
+        if (wasDisturbed) {
+            window.webrtcApp.rtc.showSystemNotice("Verbindung wiederhergestellt.");
+        }
+    },
+
+    /**
+     * "disconnected": vorübergehend. Nicht abbrechen, sondern eine Frist
+     * laufen lassen - meist erholt sich die Verbindung von selbst. Erst wenn
+     * sie das nicht tut, wird neu ausgehandelt.
+     */
+    onConnectionUnstable() {
+        const state = window.webrtcApp.state;
+
+        // Läuft bereits ein Wiederverbindungsversuch, bleibt es dabei.
+        if (state.reconnect.inProgress) return;
+        if (state.reconnect.graceTimer !== null) return;
+
+        window.webrtcApp.rtc.setConnectionStatus('unstable');
+        window.webrtcApp.rtc.startReconnectDeadline();
+
+        state.reconnect.graceTimer = setTimeout(function() {
+            state.reconnect.graceTimer = null;
+            if (!window.webrtcApp.state.isCallActive) return;
+            // Nach Ablauf der Frist prüfen, ob sich die Verbindung erholt hat.
+            if (window.webrtcApp.rtc.isConnectionUsable()) {
+                window.webrtcApp.rtc.onConnectionRecovered();
+                return;
+            }
+            window.webrtcApp.rtc.triggerReconnect();
+        }, window.webrtcApp.rtc.RECONNECT_GRACE_MS);
+    },
+
+    /**
+     * "failed": Der ICE-Transport ist endgültig gescheitert. Hier hilft keine
+     * Wartezeit mehr, es muss sofort neu ausgehandelt werden.
+     */
+    onConnectionFailed() {
+        const state = window.webrtcApp.state;
+        if (state.reconnect.graceTimer !== null) {
+            clearTimeout(state.reconnect.graceTimer);
+            state.reconnect.graceTimer = null;
+        }
+        window.webrtcApp.rtc.startReconnectDeadline();
+        window.webrtcApp.rtc.triggerReconnect();
+    },
+
+    /**
+     * Prüft, ob die Verbindung im Moment nutzbar ist.
+     * @returns {boolean}
+     */
+    isConnectionUsable() {
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        if (!pc) return false;
+        return pc.connectionState === 'connected'
+            || pc.iceConnectionState === 'connected'
+            || pc.iceConnectionState === 'completed';
+    },
+
+    /**
+     * Startet die Gesamtfrist, nach der endgültig aufgelegt wird.
+     * Mehrfachaufrufe verlängern sie nicht - sie zählt ab der ersten Störung.
+     */
+    startReconnectDeadline() {
+        const state = window.webrtcApp.state;
+        if (state.reconnect.deadlineTimer !== null) return;
+
+        state.reconnect.deadlineTimer = setTimeout(function() {
+            state.reconnect.deadlineTimer = null;
+            if (!window.webrtcApp.state.isCallActive) return;
+            if (window.webrtcApp.rtc.isConnectionUsable()) {
+                window.webrtcApp.rtc.onConnectionRecovered();
+                return;
+            }
+            window.webrtcApp.rtc.giveUpReconnect(
+                "Die Verbindung zum Gesprächspartner konnte nicht wiederhergestellt werden."
+            );
+        }, window.webrtcApp.rtc.RECONNECT_DEADLINE_MS);
+    },
+
+    /**
+     * Stößt einen Wiederverbindungsversuch an.
+     *
+     * Nur der Initiator (der Anrufer) handelt neu aus. Die Gegenseite bittet
+     * ihn stattdessen darum. Würden beide gleichzeitig einen Offer schicken,
+     * scheiterte die Aushandlung (Glare).
+     */
+    triggerReconnect() {
+        const state = window.webrtcApp.state;
+        if (!state.isCallActive) return;
+
+        // Doppelauslösung abfangen: connectionState und iceConnectionState
+        // melden dieselbe Störung kurz nacheinander. Läuft bereits ein Versuch
+        // mit vorgemerktem Folgeversuch, ist nichts weiter zu tun - sonst
+        // würden pro Störung zwei Restarts gezählt und gesendet.
+        if (state.reconnect.inProgress && state.reconnect.retryTimer !== null) return;
+
+        if (state.reconnect.attempts >= window.webrtcApp.rtc.MAX_ICE_RESTARTS) {
+            window.webrtcApp.rtc.giveUpReconnect(
+                "Die Verbindung zum Gesprächspartner konnte nicht wiederhergestellt werden."
+            );
+            return;
+        }
+
+        state.reconnect.attempts++;
+        state.reconnect.inProgress = true;
+        window.webrtcApp.rtc.setConnectionStatus('reconnecting');
+        // Während der Neuaushandlung schneller pollen: Offer, Answer und die
+        // neuen ICE-Kandidaten laufen jetzt alle über das Signaling, und das
+        // In-Call-Intervall würde den Wiederaufbau spürbar ausbremsen.
+        window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IDLE);
+
+        if (state.isInitiator) {
+            window.webrtcApp.rtc.performIceRestart();
+        } else if (state.activeTargetUserId) {
+            // Wir sind der Angerufene: Restart beim Initiator anfordern.
+            window.webrtcApp.signaling.sendSignalMessage({
+                type: 'restart_request',
+                target: state.activeTargetUserId
+            });
+        }
+
+        // Nächsten Versuch vormerken, falls dieser nichts bringt.
+        if (state.reconnect.retryTimer !== null) clearTimeout(state.reconnect.retryTimer);
+        state.reconnect.retryTimer = setTimeout(function() {
+            state.reconnect.retryTimer = null;
+            if (!window.webrtcApp.state.isCallActive) return;
+            if (window.webrtcApp.rtc.isConnectionUsable()) {
+                window.webrtcApp.rtc.onConnectionRecovered();
+                return;
+            }
+            window.webrtcApp.rtc.triggerReconnect();
+        }, window.webrtcApp.rtc.RESTART_RETRY_MS);
+    },
+
+    /**
+     * Führt den ICE-Restart aus: neuer Offer mit frischen Kandidaten, über das
+     * HTTP-Signaling verschickt. Medienspuren und DataChannel bleiben dabei
+     * erhalten - es wird nur der Transportweg neu gesucht.
+     */
+    performIceRestart: async function() {
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        const state = window.webrtcApp.state;
+        if (!pc || !state.activeTargetUserId) return;
+
+        // Nur aus einem stabilen Aushandlungszustand heraus starten, sonst
+        // kollidiert der neue Offer mit einer laufenden Aushandlung.
+        if (pc.signalingState !== 'stable') {
+            console.warn("ICE-Restart übersprungen, Aushandlung läuft noch (" + pc.signalingState + ").");
+            return;
+        }
+
+        try {
+            const offer = await pc.createOffer({ iceRestart: true });
+            await pc.setLocalDescription(offer);
+            window.webrtcApp.signaling.sendSignalMessage({
+                type: 'restart_offer',
+                sdp: offer.sdp,
+                target: state.activeTargetUserId
+            });
+            console.log("ICE-Restart gesendet (Versuch " + state.reconnect.attempts + ").");
+        } catch (e) {
+            console.error("ICE-Restart fehlgeschlagen:", e);
+        }
+    },
+
+    /**
+     * Gegenseite hat einen ICE-Restart eingeleitet: Offer übernehmen und
+     * beantworten. Das ist kein neuer Anruf, der Annahme-Dialog bleibt weg.
+     * @param {Object} data - Signalnachricht mit sdp
+     */
+    handleRestartOffer: async function(data) {
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        const state = window.webrtcApp.state;
+
+        if (!pc || !state.isCallActive) {
+            console.warn("restart_offer ohne aktiven Call verworfen.");
+            return;
+        }
+
+        state.reconnect.inProgress = true;
+        window.webrtcApp.rtc.startReconnectDeadline();
+        window.webrtcApp.rtc.setConnectionStatus('reconnecting');
+        // Siehe triggerReconnect(): während der Aushandlung schneller pollen.
+        window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IDLE);
+
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: data.sdp }));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            window.webrtcApp.signaling.sendSignalMessage({
+                type: 'restart_answer',
+                sdp: answer.sdp,
+                target: data.sender_id
+            });
+            window.webrtcApp.rtc.flushPendingCandidates();
+        } catch (e) {
+            console.error("Fehler beim Beantworten des ICE-Restarts:", e);
+        }
+    },
+
+    /**
+     * Antwort auf unseren ICE-Restart einarbeiten.
+     * @param {Object} data - Signalnachricht mit sdp
+     */
+    handleRestartAnswer: async function(data) {
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        if (!pc) return;
+
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: data.sdp }));
+            window.webrtcApp.rtc.flushPendingCandidates();
+        } catch (e) {
+            console.error("Fehler beim Übernehmen der Restart-Antwort:", e);
+        }
+    },
+
+    /**
+     * Der Angerufene bittet um einen ICE-Restart. Nur der Initiator reagiert.
+     * @param {Object} data - Signalnachricht
+     */
+    handleRestartRequest(data) {
+        const state = window.webrtcApp.state;
+        if (!state.isCallActive || !state.isInitiator) return;
+
+        // Bewusst über triggerReconnect: Damit gelten dieselbe Versuchszählung
+        // und dieselben Doppelauslösungs-Sperren wie bei einer selbst
+        // erkannten Störung. Eine wiederholte Anfrage der Gegenseite löst
+        // dadurch keinen zusätzlichen Restart aus.
+        window.webrtcApp.rtc.startReconnectDeadline();
+        window.webrtcApp.rtc.triggerReconnect();
+    },
+
+    /**
+     * Gepufferte ICE-Kandidaten nachträglich einspielen.
+     */
+    flushPendingCandidates() {
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        const pending = window.webrtcApp.refs.pendingCandidates;
+        if (!pc || !pending || !pending.length) return;
+
+        pending.forEach(candidate => {
+            pc.addIceCandidate(new RTCIceCandidate(candidate))
+              .catch(e => console.warn("ICE-Kandidat konnte nicht übernommen werden:", e));
+        });
+        window.webrtcApp.refs.pendingCandidates = [];
+    },
+
+    /**
+     * Stoppt alle Wiederverbindungs-Timer und setzt den Zähler zurück.
+     */
+    stopReconnect() {
+        const reconnect = window.webrtcApp.state.reconnect;
+        ['graceTimer', 'deadlineTimer', 'retryTimer'].forEach(key => {
+            if (reconnect[key] !== null) {
+                clearTimeout(reconnect[key]);
+                reconnect[key] = null;
+            }
+        });
+        reconnect.attempts = 0;
+        reconnect.inProgress = false;
+    },
+
+    /**
+     * Wiederverbindung endgültig aufgeben: Status anzeigen, den Partner
+     * informieren und auflegen. Genau eine Meldung für den Nutzer.
+     * @param {string} message - Meldung für den Nutzer
+     */
+    giveUpReconnect(message) {
+        if (!window.webrtcApp.state.isCallActive) return;
+
+        window.webrtcApp.rtc.stopReconnect();
+        window.webrtcApp.rtc.setConnectionStatus('disconnected');
+        // Erst melden, dann abbauen - so bleibt der Status "Verbindung
+        // getrennt" sichtbar, während die Meldung steht.
+        alert(message);
+        // sendSignal=true: Der Partner soll erfahren, dass hier Schluss ist -
+        // über das Signaling, denn die Peer-Verbindung ist ohnehin hin.
+        window.webrtcApp.rtc.endCall(true);
+    },
+
+    // =====================================================================
+    // Sichtbarer Verbindungsstatus
+    // =====================================================================
+
+    /**
+     * Textbausteine und CSS-Klasse je Zustand.
+     */
+    CONNECTION_STATUS_LABELS: {
+        idle:         { text: '',                       cssClass: '' },
+        connecting:   { text: 'Verbindung wird aufgebaut', cssClass: 'connection-status--connecting' },
+        connected:    { text: 'Verbunden',              cssClass: 'connection-status--connected' },
+        unstable:     { text: 'Verbindung instabil',    cssClass: 'connection-status--unstable' },
+        reconnecting: { text: 'Wiederverbindung …',     cssClass: 'connection-status--reconnecting' },
+        disconnected: { text: 'Verbindung getrennt',    cssClass: 'connection-status--disconnected' }
+    },
+
+    /**
+     * Setzt den sichtbaren Verbindungsstatus (Desktop und Mobile).
+     * @param {string} status - idle|connecting|connected|unstable|reconnecting|disconnected
+     */
+    setConnectionStatus(status) {
+        const label = window.webrtcApp.rtc.CONNECTION_STATUS_LABELS[status];
+        if (!label) return;
+
+        window.webrtcApp.state.connectionStatus = status;
+
+        ['connection-status', 'connection-status-mobile'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = label.text;
+            el.className = 'connection-status ' + label.cssClass;
+            el.style.display = (status === 'idle') ? 'none' : '';
+        });
+    },
+
+    /**
+     * Zeigt einen Hinweis im Chatverlauf an (Desktop und Mobile).
+     * Bewusst kein alert(): Hinweise dürfen den Guide nicht blockieren.
+     * @param {string} text - Hinweistext
+     */
+    showSystemNotice(text) {
+        ['chat-log', 'chat-log-mobile'].forEach(id => {
+            const log = document.getElementById(id);
+            if (!log) return;
+            const div = document.createElement('div');
+            div.className = 'chat-system-notice';
+            div.textContent = text;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        });
+        console.log("[Hinweis]", text);
+    },
+
+    // =====================================================================
+    // Steuerbefehle
+    // =====================================================================
+
+    /**
+     * Darf gerade ein Steuerbefehl gesendet werden?
+     *
+     * Nein, solange die Verbindung nicht stabil ist. Befehle, die während
+     * einer Unterbrechung entstehen, werden verworfen und ausdrücklich NICHT
+     * gepuffert: Der DataChannel ist zuverlässig und geordnet, alles was
+     * während der Störung im Puffer landet, würde beim Wiederanlaufen auf
+     * einen Schlag beim Guide ankommen.
+     *
+     * @returns {boolean}
+     */
+    canSendControlCommand() {
+        const state = window.webrtcApp.state;
+        const dc = window.webrtcApp.refs.dataChannel;
+
+        if (!state.isCallActive) return false;
+        if (state.connectionStatus !== 'connected') return false;
+        if (!window.webrtcApp.rtc.isConnectionUsable()) return false;
+        if (!dc || dc.readyState !== 'open') return false;
+        // Staut sich der Sendepuffer, ist der Kanal nicht mehr in Echtzeit.
+        if (dc.bufferedAmount > window.webrtcApp.rtc.CONTROL_MAX_BUFFER) return false;
+        return true;
+    },
+
+    /**
+     * Darf ein empfangener Steuerbefehl ausgeführt werden?
+     *
+     * Zusätzlich zur Stabilitätsprüfung gilt direkt nach einer
+     * Wiederverbindung eine kurze Sperre: Was in diesem Moment eintrifft, kann
+     * aus dem Puffer von vor der Störung stammen. Im Zweifel wird verworfen -
+     * ein nicht ausgeführter Befehl ist harmlos, ein verspäteter nicht.
+     *
+     * @returns {boolean}
+     */
+    mayExecuteControlCommand() {
+        const state = window.webrtcApp.state;
+        if (!state.isCallActive) return false;
+        if (state.connectionStatus !== 'connected') return false;
+        if (!state.connectedSince) return false;
+        return (Date.now() - state.connectedSince) >= window.webrtcApp.rtc.CONTROL_SETTLE_MS;
+    },
+
+    /**
+     * Sendet einen Richtungsbefehl über den DataChannel.
+     * @param {string} direction - forward|backward|left|right
+     * @returns {boolean} true, wenn der Befehl abgesetzt wurde
+     */
+    sendControlCommand(direction) {
+        const command = '__arrow_' + direction + '__';
+
+        if (!window.webrtcApp.rtc.canSendControlCommand()) {
+            // Verwerfen statt puffern - siehe canSendControlCommand().
+            window.webrtcApp.rtc.showSystemNotice(
+                "Steuerbefehl nicht gesendet – Verbindung ist gerade nicht stabil."
+            );
+            return false;
+        }
+
+        try {
+            window.webrtcApp.refs.dataChannel.send(command);
+            window.webrtcApp.chat.appendMsg("self", command);
+            return true;
+        } catch (e) {
+            console.warn("Steuerbefehl konnte nicht gesendet werden:", e);
+            window.webrtcApp.rtc.showSystemNotice("Steuerbefehl nicht gesendet – Übertragungsfehler.");
+            return false;
+        }
     },
 
     /**

@@ -364,3 +364,74 @@
     display: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Verbindungsstatus
+   Zeigt beiden Seiten, woran sie sind: verbunden, instabil, Wiederverbindung
+   oder getrennt. Gesetzt von window.webrtcApp.rtc.setConnectionStatus().
+   --------------------------------------------------------------------------- */
+.connection-status {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+/* Als Overlay über dem Videobild (mobil sichtbar, wenn der Kopfbereich
+   zu schmal wird). z-index über dem Platzhalter (der liegt auf 2). */
+.connection-status--overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.connection-status--connecting {
+  background: #e9ecef;
+  border-color: #ced4da;
+  color: #343a40;
+}
+
+.connection-status--connected {
+  background: #d1e7dd;
+  border-color: #a3cfbb;
+  color: #0f5132;
+}
+
+/* Instabil und Wiederverbindung bewusst deutlich unterschiedlich einfärben:
+   Bei "instabil" läuft nur die Frist, bei "Wiederverbindung" wird bereits neu
+   ausgehandelt und Steuerbefehle werden verworfen. */
+.connection-status--unstable {
+  background: #fff3cd;
+  border-color: #ffe69c;
+  color: #664d03;
+}
+
+.connection-status--reconnecting {
+  background: #ffe5d0;
+  border-color: #fecba1;
+  color: #8a3d00;
+}
+
+.connection-status--disconnected {
+  background: #f8d7da;
+  border-color: #f1aeb5;
+  color: #842029;
+}
+
+/* Systemhinweise im Chatverlauf (z. B. verworfener Steuerbefehl,
+   fehlender TURN-Server). Bewusst kein alert(): darf nicht blockieren. */
+.chat-system-notice {
+  color: #664d03;
+  background: #fff8e1;
+  border-left: 3px solid #ffc107;
+  padding: 3px 8px;
+  margin: 3px 0;
+  font-size: 0.85rem;
+  font-style: italic;
+}

@@ -59,6 +59,13 @@ window.webrtcApp.init = function() {
             if (dialog) dialog.style.display = 'none';
             window.webrtcApp.uiRtc.setEndCallButtonVisible(true);
             window.webrtcApp.state.isCallActive = true;
+            // Wir nehmen an, sind also nicht der Initiator: Bei einer Störung
+            // handelt die Gegenseite neu aus, wir bitten sie nur darum.
+            window.webrtcApp.state.isInitiator = false;
+            window.webrtcApp.rtc.setConnectionStatus('connecting');
+            // Im Call langsamer weiterpollen - der Weg wird für Auflegen und
+            // ICE-Restart gebraucht.
+            window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IN_CALL);
             window.webrtcApp.uiChat.updatePollingState();
             const data = window.webrtcApp.state.pendingOffer;
             window.webrtcApp.state.activeTargetUserId = data.sender_id;
@@ -133,7 +140,10 @@ window.webrtcApp.init = function() {
                 if (!lastClicked[id] || now - lastClicked[id] > throttleTime) {
                     lastClicked[id] = now;
                     const name = id.replace('btn-', '').replace('-mobile', '');
-                    window.webrtcApp.chat.send(`__arrow_${name}__`);
+                    // Steuerbefehle laufen über rtc.sendControlCommand: Bei
+                    // instabiler Verbindung werden sie verworfen statt
+                    // gepuffert (siehe rtc.canSendControlCommand).
+                    window.webrtcApp.rtc.sendControlCommand(name);
                     setTimeout(() => btn.blur(), 150);
                 }
             });

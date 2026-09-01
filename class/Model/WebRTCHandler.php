@@ -97,6 +97,13 @@ class WebRTCHandler {
 
     /**
      * Löscht alle Signale für einen bestimmten Empfänger.
+     *
+     * ACHTUNG: Diese Methode ist für den Auslieferungspfad NICHT geeignet.
+     * Sie löscht auch Signale, die zwischen SELECT und DELETE eingetroffen und
+     * damit nie ausgeliefert worden sind (Befund F-1). Für das Polling wird
+     * deshalb deleteSignalsByIds() verwendet. Die Methode bleibt für das
+     * vollständige Aufräumen eines Empfängers erhalten (z. B. Call-Abbruch).
+     *
      * @param int $in_receiver
      * @return bool Erfolg
      */
@@ -109,6 +116,83 @@ class WebRTCHandler {
             return true;
         } catch (\PDOException $e) {
             error_log("Fehler beim Löschen von RTC Signalen: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Löscht genau die angegebenen Signale eines Empfängers.
+     *
+     * Das ist die Gegenmaßnahme zur Race Condition aus Befund F-1: Gelöscht
+     * wird ausschließlich das, was der SELECT tatsächlich gelesen hat. Signale,
+     * die danach eintreffen (bei Trickle-ICE im 1500-ms-Fenster der Regelfall),
+     * bleiben liegen und werden beim nächsten Poll ausgeliefert.
+     *
+     * Die receiver_id bleibt in der WHERE-Klausel, damit eine fremde ID in der
+     * Liste keine fremden Signale löschen kann.
+     *
+     * @param int   $in_receiver Empfänger, dem die Signale gehören
+     * @param array $in_ids      IDs der gelesenen Signale
+     * @return bool Erfolg
+     */
+    public function deleteSignalsByIds($in_receiver, array $in_ids) {
+        // Nur echte Ganzzahlen zulassen; leere Liste = nichts zu tun.
+        $ids = [];
+        foreach ($in_ids as $id) {
+            if (is_numeric($id) && (int)$id > 0) {
+                $ids[] = (int)$id;
+            }
+        }
+        if (empty($ids)) {
+            return true;
+        }
+
+        try {
+            // IDs sind hier bereits auf int gecastet und damit sicher; ein
+            // IN-Platzhalter je ID wäre gleichwertig, aber unnötig umständlich.
+            $idList = implode(',', $ids);
+            $queryDel = "DELETE FROM rtc_signal
+                         WHERE receiver_id = :receiver
+                         AND id IN ($idList)";
+            $stmt = PdoConnect::$connection->prepare($queryDel);
+            $stmt ->bindParam(':receiver', $in_receiver);
+            $stmt ->execute();
+            return true;
+        } catch (\PDOException $e) {
+            error_log("Fehler beim Löschen ausgelieferter RTC Signale: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Räumt Signale weg, die zu alt sind, um noch ausgeliefert zu werden.
+     *
+     * getAllSignalsForReceiver() liest nur die letzten 15 Sekunden. Ohne diesen
+     * Aufruf würden ältere Zeilen nach der Umstellung auf deleteSignalsByIds()
+     * dauerhaft in der Tabelle liegen bleiben.
+     *
+     * @param int $in_receiver
+     * @param int $in_max_age_seconds Alter in Sekunden, ab dem gelöscht wird
+     * @return bool Erfolg
+     */
+    public function deleteExpiredSignalsForReceiver($in_receiver, $in_max_age_seconds = 60) {
+        $maxAge = (int)$in_max_age_seconds;
+        if ($maxAge < 15) {
+            // Nie unterhalb des Lesefensters löschen - sonst verschwinden
+            // Signale, die noch zugestellt werden müssten.
+            $maxAge = 15;
+        }
+
+        try {
+            $queryDel = "DELETE FROM rtc_signal
+                         WHERE receiver_id = :receiver
+                         AND created_at < NOW() - INTERVAL $maxAge SECOND";
+            $stmt = PdoConnect::$connection->prepare($queryDel);
+            $stmt ->bindParam(':receiver', $in_receiver);
+            $stmt ->execute();
+            return true;
+        } catch (\PDOException $e) {
+            error_log("Fehler beim Aufräumen abgelaufener RTC Signale: " . $e->getMessage());
             return false;
         }
     }
