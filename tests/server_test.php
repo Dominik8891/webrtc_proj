@@ -691,4 +691,70 @@ check(strpos($sql, 'location.blocked') !== false && strpos($sql, 'blocked_reason
 check(strpos($sql, 'location.blocked = 0') === false, 'die eigene Liste verbirgt nichts');
 ok('der betroffene Guide bekommt Sperre und Grund geliefert');
 
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n10) Standort-Tabellen: id und Spaltenzahl\n");
+
+/**
+ * Liest die Spaltenzahl (<th> im ersten <thead>) je Tabellen-id aus einem
+ * HTML-Baustein.
+ *
+ * Bewusst mit einem Muster statt mit einem HTML-Parser: Die Templates sind
+ * Fragmente, kein vollstaendiges Dokument, und geprueft wird genau eine
+ * einfache Zusage - so viele <th>, wie das JavaScript Zellen liefert.
+ *
+ * @param string $datei
+ * @return array<string,int> id => Anzahl der Kopfspalten
+ */
+function tabellenSpalten($datei) {
+    $html = file_get_contents($datei);
+    $ergebnis = [];
+    if (!preg_match_all('/<table\b[^>]*\bid=["\']([^"\']+)["\'][^>]*>(.*?)<\/table>/is', $html, $treffer, PREG_SET_ORDER)) {
+        return $ergebnis;
+    }
+    foreach ($treffer as $tabelle) {
+        if (preg_match('/<thead\b.*?<tr\b(.*?)<\/tr>/is', $tabelle[2], $kopf)) {
+            $ergebnis[$tabelle[1]] = preg_match_all('/<th\b/i', $kopf[1]);
+        }
+    }
+    return $ergebnis;
+}
+
+$uebersicht = tabellenSpalten($ROOT . '/assets/html/locations_table.html');
+$eigene     = tabellenSpalten($ROOT . '/assets/html/settings.html');
+
+// Beide Tabellen brauchen verschiedene ids. Hiessen sie gleich, entschied
+// nur die Reihenfolge im Initialisierungsblock, welche Tabelle mit welchen
+// Zeilen befuellt wird - die Uebersicht hat eine Spalte mehr, DataTables
+// brach dann mit "Incorrect column count" ab.
+check(isset($uebersicht['locationsTable']), 'Uebersicht heisst locationsTable');
+check(isset($eigene['myLocationsTable']),   'eigene Standorte heissen myLocationsTable');
+check(array_intersect(array_keys($uebersicht), array_keys($eigene)) === [],
+    'keine Tabellen-id kommt in beiden Templates vor');
+ok('jede Standort-Tabelle hat ihre eigene id');
+
+// Die Spaltenzahl im Template muss zu der Liste passen, aus der das
+// JavaScript die Zellen baut (locationsTable.columnKeys).
+$js = file_get_contents($ROOT . '/assets/js/locations_table.js');
+check(preg_match('/columnKeys\s*\(options\)\s*\{\s*return options\.onlyOwn\s*\?\s*\[(.*?)\]\s*:\s*\[(.*?)\]/s', $js, $spalten) === 1,
+    'columnKeys() ist in locations_table.js zu finden');
+$spaltenEigene     = preg_match_all("/'[a-z]+'/", $spalten[1]);
+$spaltenUebersicht = preg_match_all("/'[a-z]+'/", $spalten[2]);
+
+check($uebersicht['locationsTable'] === $spaltenUebersicht,
+    "Uebersicht: {$uebersicht['locationsTable']} Spalten im Template, $spaltenUebersicht im JavaScript");
+check($eigene['myLocationsTable'] === $spaltenEigene,
+    "eigene Standorte: {$eigene['myLocationsTable']} Spalten im Template, $spaltenEigene im JavaScript");
+check($spaltenUebersicht === $spaltenEigene + 1,
+    'die Uebersicht hat genau eine Spalte mehr (User)');
+ok('Kopfzeile und Zeilenaufbau haben ueberall dieselbe Spaltenzahl');
+
+// Die Tabellenkonfiguration steht an genau einer Stelle. Vorher war sie
+// dreimal ausgeschrieben (Initialisierung, Loeschen-Handler,
+// Beschreibung-aendern-Formular) und musste von Hand gleichgehalten werden.
+check(preg_match_all('/tableSelector\s*:\s*[\'"]#/', $js) === 0,
+    'kein fest verdrahteter tableSelector ausserhalb von TABLES');
+check(preg_match_all('/[\'"]#(?:my)?locationsTable[\'"]/i', $js) === 2,
+    'die beiden Selektoren stehen nur in TABLES');
+ok('jede Tabelle wird aus einer einzigen Konfiguration heraus geladen');
+
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

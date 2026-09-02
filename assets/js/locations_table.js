@@ -6,6 +6,37 @@
 window.webrtcApp.locationsTable = {
 
     /**
+     * Die beiden Standort-Tabellen der Anwendung.
+     *
+     * Jede hat eine EIGENE id. Vorher hiessen beide `locationsTable`, und weil
+     * die Uebersicht eine Spalte mehr hat ("User") als die Liste der eigenen
+     * Standorte, landeten die siebenspaltigen Zeilen der Uebersicht in der
+     * sechsspaltigen Tabelle der Einstellungsseite - DataTables brach mit
+     * "Incorrect column count" ab. Verhindert wurde das zuletzt nur noch durch
+     * eine Abfrage auf `#myLocationsSection` im Initialisierungsblock; das war
+     * eine Umgehung der doppelten id, keine Loesung.
+     *
+     * Ausserdem ist das hier die EINZIGE Stelle, an der steht, wie eine der
+     * beiden Tabellen zu laden ist. Die Angaben standen frueher dreimal im
+     * Code (Initialisierung, Loeschen-Handler, Beschreibung-aendern-Formular)
+     * und mussten von Hand gleichgehalten werden.
+     */
+    TABLES: {
+        // Alle fremden Standorte, Route show_locations_page
+        overview: {
+            selector   : '#locationsTable',
+            onlyOwn    : false,
+            showActions: ['call']
+        },
+        // Die eigenen Standorte auf der Einstellungsseite
+        own: {
+            selector   : '#myLocationsTable',
+            onlyOwn    : true,
+            showActions: ['edit', 'delete']
+        }
+    },
+
+    /**
      * Takt der Statusaktualisierung in der Standortuebersicht.
      *
      * Etwas laenger als der Heartbeat (config/presence.php, 10 s), damit die
@@ -19,6 +50,9 @@ window.webrtcApp.locationsTable = {
 
     /** Optionen der zuletzt geladenen Tabelle, je Tabellen-Selektor. */
     refreshOptions: {},
+
+    /** Tabellen, deren Klick- und Maus-Handler schon haengen. */
+    boundTables: {},
 
     /** Ist der Listener fuer den Tabwechsel schon gesetzt? */
     visibilityHooked: false,
@@ -157,19 +191,69 @@ window.webrtcApp.locationsTable = {
     },
 
     /**
+     * Die Spaltenfolge einer Tabelle - die einzige Stelle, an der sie steht.
+     *
+     * Frueher war die Spaltenzahl an drei Orten gleichzeitig hinterlegt: im
+     * <thead> des Templates, in rowHtml() und noch einmal als feste
+     * Zellennummern in statusColumns(). Liefen die auseinander, meldete
+     * DataTables nur "Incorrect column count", ohne zu sagen, wo.
+     *
+     * Die Reihenfolge muss zum <thead> der jeweiligen Tabelle passen;
+     * ensureColumnsMatch() prueft das vor der Initialisierung.
+     *
+     * @param {Object} options
+     * @returns {string[]}
+     */
+    columnKeys(options) {
+        return options.onlyOwn
+            ? ['nr', 'status',         'country', 'city', 'description', 'actions']
+            : ['nr', 'status', 'user', 'country', 'city', 'description', 'actions'];
+    },
+
+    /**
      * Spaltennummern der Zellen, die sich mit dem Status aendern.
-     * Die Uebersicht hat eine Spalte mehr ("User") als die Liste der eigenen
-     * Standorte, deshalb haengen die Nummern an den Optionen.
+     * Abgeleitet aus columnKeys(), damit sie nicht getrennt gepflegt werden.
      *
      * @param {Object} options
      * @returns {{status: number, user: number|null, actions: number}}
      */
     statusColumns(options) {
+        const keys = this.columnKeys(options);
+        const user = keys.indexOf('user');
         return {
-            status : 1,
-            user   : options.onlyOwn ? null : 2,
-            actions: options.onlyOwn ? 5 : 6
+            status : keys.indexOf('status'),
+            user   : user === -1 ? null : user,
+            actions: keys.indexOf('actions')
         };
+    },
+
+    /**
+     * Prueft, ob das Template so viele Spalten hat, wie die Zeilen liefern.
+     *
+     * Stimmt es nicht, wird gar nicht erst initialisiert: DataTables wuerde
+     * sonst mit "Incorrect column count" abbrechen und dabei weder die
+     * Tabelle noch die erwartete Spaltenzahl nennen. Statt dessen eine
+     * eindeutige Meldung in der Konsole und ein Hinweis in der Tabelle.
+     *
+     * @param {jQuery} $table
+     * @param {Object} options
+     * @returns {boolean} true, wenn geladen werden darf
+     */
+    ensureColumnsMatch($table, options) {
+        const erwartet = this.columnKeys(options).length;
+        const vorhanden = $table.find('thead tr').first().children('th').length;
+        if (erwartet === vorhanden) return true;
+
+        console.error(
+            `Standort-Tabelle ${options.tableSelector}: Das Template hat ${vorhanden} Spalten, `
+            + `die Zeilen liefern ${erwartet} (onlyOwn=${options.onlyOwn}). `
+            + 'Entweder passt der <thead> nicht zur Tabelle oder die Tabelle wird mit '
+            + 'den Einstellungen der anderen geladen.'
+        );
+        $table.find('tbody').html(
+            `<tr><td colspan="${vorhanden || 1}">Diese Tabelle ist falsch konfiguriert.</td></tr>`
+        );
+        return false;
     },
 
     /**
@@ -187,12 +271,34 @@ window.webrtcApp.locationsTable = {
      * @returns {Object}
      */
     withDefaults(options) {
+        // Die Vorgaben sind die der Uebersicht - sie kommen aus TABLES und
+        // nicht noch einmal als Literal hierher.
         return Object.assign({
-            onlyOwn: false,                               // Nur eigene Locations laden?
-            showActions: ["call"],                        // Mögliche Aktionen: ["call", "edit", "delete"]
-            tableSelector: "#locationsTable",             // Wo soll die Tabelle befüllt werden?
-            autoRefresh: null                             // null = automatisch (nur in der Uebersicht)
+            onlyOwn      : this.TABLES.overview.onlyOwn,
+            showActions  : this.TABLES.overview.showActions,
+            tableSelector: this.TABLES.overview.selector,
+            autoRefresh  : null                           // null = automatisch (nur in der Uebersicht)
         }, options || {});
+    },
+
+    /**
+     * Baut die Optionen einer der beiden Tabellen aus TABLES.
+     *
+     * @param {string} name - 'overview' oder 'own'
+     * @param {Object} [extra] - zusaetzliche Einstellungen, z.B. showActions
+     * @returns {Object}
+     */
+    optionsFor(name, extra) {
+        const tabelle = this.TABLES[name];
+        if (!tabelle) {
+            console.error(`Unbekannte Standort-Tabelle: ${name}`);
+            return this.withDefaults({});
+        }
+        return this.withDefaults(Object.assign({
+            onlyOwn      : tabelle.onlyOwn,
+            showActions  : tabelle.showActions.slice(),
+            tableSelector: tabelle.selector
+        }, extra || {}));
     },
 
     /**
@@ -203,6 +309,12 @@ window.webrtcApp.locationsTable = {
         options = this.withDefaults(options);
         const self = this;
         const $table = $(options.tableSelector);
+
+        if (!$table.length) return;
+
+        // Passt die Tabelle nicht zu den Einstellungen, wird gar nicht erst
+        // geladen - der Abruf waere umsonst und die Anzeige ohnehin kaputt.
+        if (!this.ensureColumnsMatch($table, options)) return;
 
         $.ajax({
             url: this.apiUrl(options),
@@ -236,6 +348,10 @@ window.webrtcApp.locationsTable = {
      * @param {Object} options
      */
     renderRows($table, data, options) {
+        // Auch hier pruefen: renderRows wird aus refreshStatuses heraus direkt
+        // aufgerufen, also nicht nur ueber loadLocationsTable.
+        if (!this.ensureColumnsMatch($table, options)) return;
+
         let rows = '';
         data.forEach((item, i) => {
             rows += this.rowHtml(item, i, options);
@@ -248,7 +364,9 @@ window.webrtcApp.locationsTable = {
             // Liste der eigenen Standorte. Wechselt eine Seite zwischen
             // beiden Varianten, passen die neuen Zeilen nicht in die
             // bestehende Instanz - dann hilft nur ein Neuaufbau.
-            const newCellCount = rows ? $(rows).first().children('td').length : dt.columns().count();
+            const newCellCount = rows
+                ? $(rows).first().children('td').length
+                : this.columnKeys(options).length;
             if (newCellCount === dt.columns().count()) {
                 dt.clear();
                 if (rows) dt.rows.add($(rows));
@@ -444,13 +562,29 @@ window.webrtcApp.locationsTable = {
 
     /**
      * Bindet sämtliche Events auf die Tabelle und initialisiert DataTables.
+     *
+     * Die Handler werden je Tabelle nur EINMAL gesetzt. Auf der
+     * Einstellungsseite ruft jeder Klick auf "Eigene Locations bearbeiten"
+     * diese Methode erneut auf; ohne die Sperre haetten sich die
+     * Maus-Handler der Kartenvorschau mit jedem Klick vervielfacht. Die
+     * Aktionsknoepfe schuetzten sich schon vorher mit einem .off(), die
+     * Karten-Handler nicht.
+     *
+     * Neu geladen wird dagegen bei jedem Aufruf.
+     *
      * @param {Object} options
      */
-    bindEvents(options = {onlyOwn: false, tableSelector: "#locationsTable"}) {
+    bindEvents(options) {
+        options = this.withDefaults(options);
         if (!$(options.tableSelector).length) return;
                 
         // Direkt laden
         this.loadLocationsTable(options);
+
+        // Die Optionen einer Tabelle aendern sich zur Laufzeit nicht - sie
+        // kommen aus TABLES. Die Handler duerfen sie deshalb festhalten.
+        if (this.boundTables[options.tableSelector]) return;
+        this.boundTables[options.tableSelector] = true;
 
         // Map Events (Mouseover, Klick etc.)
         $(options.tableSelector).on('mouseenter', '.desc-hover', (e) => {
@@ -520,12 +654,11 @@ window.webrtcApp.locationsTable = {
                         dataType: 'json',
                         success: function(response) {
                             if (response.success) {
-                                // Tabelle neu laden
-                                window.webrtcApp.locationsTable.loadLocationsTable({
-                                    onlyOwn: true,
-                                    showActions: ["edit", "delete"],
-                                    tableSelector: "#locationsTable"
-                                });
+                                // Tabelle neu laden - mit den Optionen, mit
+                                // denen sie geladen wurde. Hier stand vorher
+                                // eine zweite, von Hand gepflegte Kopie der
+                                // Tabellenkonfiguration.
+                                window.webrtcApp.locationsTable.loadLocationsTable(options);
                             } else {
                                 alert('Fehler: ' + (response.error || 'Unbekannter Fehler'));
                             }
@@ -603,37 +736,34 @@ window.webrtcApp.locationsTable = {
 };
 
 // Initialisierung bei DOM-Ready
+//
+// Jede der beiden Tabellen wird ueber ihre EIGENE id gefunden und mit ihren
+// eigenen Optionen geladen. Frueher hiessen beide `locationsTable`; welche
+// gemeint war, entschied eine Abfrage auf ein benachbartes Element
+// (`#myLocationsSection`). Ein zusaetzlicher Aufruf ohne Optionen traf
+// dadurch die Tabelle der Einstellungsseite mit den Einstellungen der
+// Uebersicht - eine Spalte zu viel, DataTables brach ab.
 $(document).ready(function () {
-    // Globale Tabelle auf der Übersichtsseite
-    //
-    // Der vorher hier stehende zusaetzliche Aufruf ohne Optionen ist entfallen:
-    // Er lud dieselbe Tabelle ein zweites Mal und griff auf settings.html mit
-    // den Optionen der Uebersicht (eine Spalte mehr) auf die Liste der eigenen
-    // Standorte zu.
-    if($('#locationsTable').length && !$('#myLocationsSection').length) {
+    const tabellen = window.webrtcApp.locationsTable;
+
+    // Uebersicht aller fremden Standorte
+    if ($(tabellen.TABLES.overview.selector).length) {
         // Wer moderieren darf, bekommt zusaetzlich Sperren/Freigeben. Die
         // Angabe kommt vom Server (ViewHelper::output) und steuert nur die
         // Anzeige; die Routen pruefen das Recht selbst.
-        const actions = (window.userCan && window.userCan.blockLocation)
-            ? ["call", "block"]
-            : ["call"];
-        window.webrtcApp.locationsTable.bindEvents({
-            onlyOwn: false,
-            showActions: actions,
-            tableSelector: "#locationsTable"
-        });
+        const extra = (window.userCan && window.userCan.blockLocation)
+            ? { showActions: ['call', 'block'] }
+            : {};
+        tabellen.bindEvents(tabellen.optionsFor('overview', extra));
     }
 
-    // Eigene Locations-Tabelle auf der settings.html
-    if($('#myLocationsSection').length) {
+    // Eigene Standorte auf der Einstellungsseite. Geladen wird erst beim
+    // Aufklappen - die Tabelle ist bis dahin ausgeblendet.
+    if ($(tabellen.TABLES.own.selector).length) {
         $('#showOwnLocationsBtn').show().on('click', function(e) {
             e.preventDefault();
             $('#myLocationsSection').toggle();
-            window.webrtcApp.locationsTable.bindEvents({
-                onlyOwn: true,
-                showActions: ["edit", "delete"],
-                tableSelector: "#locationsTable"
-            });
+            tabellen.bindEvents(tabellen.optionsFor('own'));
         });
     }
 
@@ -660,11 +790,11 @@ $(document).ready(function () {
             success: function(response) {
                 if (response.success) {
                     $('#editDescModal').modal('hide');
-                    window.webrtcApp.locationsTable.loadLocationsTable({
-                        onlyOwn: true,
-                        showActions: ["edit", "delete"],
-                        tableSelector: "#locationsTable"
-                    });
+                    // Dritte Kopie derselben Tabellenkonfiguration - jetzt aus
+                    // TABLES.
+                    window.webrtcApp.locationsTable.loadLocationsTable(
+                        window.webrtcApp.locationsTable.optionsFor('own')
+                    );
                 } else {
                     alert('Fehler: ' + (response.error || 'Unbekannter Fehler'));
                 }

@@ -17,7 +17,11 @@
         <div id="myLocationsSection" style="display:none;">
             <h3 class="mb-3 mt-4">Meine Locations</h3>
             <a href="index.php?act=set_location_page" class="btn btn-primary mb-3">Neue Lokation Hinzufügen</a>
-            <table class="table table-bordered table-striped" id="locationsTable">
+            <!-- Eigene Spalten, eigene id: Diese Tabelle hat eine Spalte weniger als
+                 die Uebersicht (keine Spalte "User"). Mit derselben id wie dort
+                 wurde sie mit den Zeilen der Uebersicht befuellt und DataTables
+                 brach mit "Incorrect column count" ab. -->
+            <table class="table table-bordered table-striped" id="myLocationsTable">
                 <thead>
                     <tr>
                         <th>#</th>

@@ -113,7 +113,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (50 Prüfungen)
+## Was `server_test.php` prüft (53 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -192,6 +192,22 @@ die Tests nicht an. Das ist Absicht.
    und löscht nichts. Die Übersicht filtert gesperrte Standorte in der
    Abfrage heraus, die Moderation sieht sie weiterhin, und die eigene Liste
    des Guides enthält Sperre und Grund.
+
+10. **Standort-Tabellen: id und Spaltenzahl** — die Übersicht
+    (`locations_table.html`) und die Liste der eigenen Standorte
+    (`settings.html`) haben verschiedene Tabellen-`id`s; keine `id` kommt in
+    beiden Templates vor. Die Zahl der `<th>` im Template stimmt je Tabelle
+    mit der Spaltenliste `columnKeys()` in `assets/js/locations_table.js`
+    überein, und die Übersicht hat genau eine Spalte mehr ("User"). Der
+    Selektor steht nur noch in `TABLES`, nirgends sonst als Literal.
+
+    Der Grund: Beide Tabellen hießen `locationsTable`. Wurde die Tabelle der
+    Einstellungsseite mit den Optionen der Übersicht geladen, kamen
+    siebenzellige Zeilen in eine sechsspaltige Tabelle und DataTables brach
+    mit „Incorrect column count" ab — ohne zu sagen, welche Tabelle gemeint
+    war. Die Spaltenzahl stand dabei an drei Stellen gleichzeitig
+    (`<thead>`, Zeilenaufbau, feste Zellennummern), die
+    Tabellenkonfiguration ebenfalls an drei.
 
 ## Grenzen
 
