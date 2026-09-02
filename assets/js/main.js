@@ -404,9 +404,27 @@ window.webrtcApp.init = function() {
 window.addEventListener('DOMContentLoaded', function() {
     window.webrtcApp.init();
     if (window.isLoggedIn) {
+        // Takt kommt vom Server (config/presence.php), damit er nicht gegen
+        // den Offline-Timeout des Cronjobs laeuft. Der Rueckfallwert greift
+        // nur, wenn die Seite ohne die Servervariable ausgeliefert wurde.
+        const heartbeatMs = window.heartbeatIntervalMs || 10000;
+
+        // Sofort einmal melden: Sonst gilt der Nutzer nach dem Anmelden bis
+        // zum ersten Intervall als das, was zuletzt in der Datenbank stand -
+        // nach einem Logout also als offline.
+        window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
         setInterval(function() {
             window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
-        }, 15000);
+        }, heartbeatMs);
+
+        // Browser bremsen Timer in ausgeblendeten Tabs auf etwa einen Aufruf
+        // pro Minute aus. Wer den Tab wieder nach vorn holt, soll nicht erst
+        // den naechsten Takt abwarten muessen, um wieder als erreichbar zu
+        // gelten.
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) return;
+            window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
+        });
     }
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Lokation erfolgreich gespeichert!');
     // success=0 wird ausschliesslich von der Beschreibungspruefung ausgeloest

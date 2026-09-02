@@ -567,6 +567,46 @@ function ackLastMove(status = 'executed', reason) {
         ok('sendSignalMessage reicht die Serverantwort durch');
     }
 
+    // -----------------------------------------------------------------
+    console.error('\n23) Standort-Button richtet sich nach der Rolle');
+    {
+        // window.userCan kommt vom Server (ViewHelper::output, abgeleitet aus
+        // App\\Helper\\Role). Frueher verglich ui.js selbst gegen 'admin',
+        // 'guide' und 'tourist' - Werte, die usertype.name nie liefert. Der
+        // Button war dadurch fuer jede Rolle unsichtbar (Befund F-5).
+        const btn = () => __el('location-button');
+        const show = (loggedIn, can) => {
+            window.isLoggedIn = loggedIn;
+            window.userCan = can;
+            app.ui.showLocationButton();
+            return btn().innerHTML;
+        };
+
+        assert.ok(show(true, { offerLocation: true, becomeGuide: false })
+            .includes('Neue Lokation hinzuf'), 'Guide sieht den Anlege-Button');
+        assert.strictEqual(btn().style.display, '');
+        ok('Guide und Admin sehen "Neue Lokation hinzufuegen"');
+
+        assert.ok(show(true, { offerLocation: false, becomeGuide: true })
+            .includes('Tour-Guide werden'), 'Zuschauer sieht den Aufstiegs-Button');
+        ok('Zuschauer sieht "Jetzt Tour-Guide werden!"');
+
+        assert.strictEqual(show(true, { offerLocation: false, becomeGuide: false }), '');
+        assert.strictEqual(btn().style.display, 'none');
+        ok('ohne Berechtigung bleibt der Button aus');
+
+        assert.strictEqual(show(false, { offerLocation: true, becomeGuide: true }), '');
+        assert.strictEqual(btn().style.display, 'none');
+        ok('abgemeldet bleibt der Button aus, auch mit Rechten im Speicher');
+
+        // Fehlt die Servervariable ganz, darf nichts angezeigt und nichts
+        // geworfen werden.
+        assert.strictEqual(show(true, undefined), '');
+        ok('fehlendes window.userCan blendet aus, statt zu scheitern');
+
+        window.isLoggedIn = true;
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

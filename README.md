@@ -119,6 +119,105 @@ Eine fertige Konfiguration liegt unter `deploy/logrotate/webrtc-app`. Sie wird
 Voreinstellung: woechentliche Rotation, acht Generationen, komprimiert.
 Ein Neustart von PHP-FPM oder Apache ist nach der Rotation nicht noetig.
 
+### 4. Cronjob fuer die Online-Erkennung (**Pflicht**)
+
+Ohne diesen Cronjob ist die Anwendung nicht sinnvoll benutzbar.
+
+Der Browser meldet alle 10 Sekunden `index.php?act=heartbeat` und setzt den
+Nutzer damit auf `online` bzw. `in_call`. Auf `offline` setzt ihn nur zweierlei:
+das ausdrueckliche Abmelden ueber den Logout-Button und der Cronjob
+`cron/check_online_status.php`. Ein geschlossener Tab, ein abgestuerzter Browser
+oder ein Netzausfall melden sich nicht ab.
+
+**Laeuft der Cronjob nicht, bleibt jeder jemals eingeloggte Nutzer dauerhaft
+`online`.** Die Standortuebersicht zeigt dann lauter gruene Punkte und
+anwaehlbare Call-Buttons fuer Guides, die niemand erreicht.
+
+Der Cronjob setzt alle Nutzer offline, deren letzter Heartbeat laenger als 45
+Sekunden zurueckliegt (`config/presence.php`). Er braucht dieselbe `.env` und
+dasselbe `vendor/`-Verzeichnis wie die Web-Anwendung, aber keinen Webserver.
+
+#### Linux / macOS
+
+`crontab -e` oeffnen und eine Zeile ergaenzen — Pfade anpassen, den PHP-Pfad
+liefert `which php`:
+
+```
+* * * * * /usr/bin/php /var/www/webrtc_proj/cron/check_online_status.php
+```
+
+Cron kennt als kleinsten Takt eine Minute. Ein verwaister Nutzer verschwindet
+damit fruehestens nach 45 und spaetestens nach rund 105 Sekunden aus der Liste.
+Wer das halbieren will, nimmt zwei Zeilen:
+
+```
+* * * * * /usr/bin/php /var/www/webrtc_proj/cron/check_online_status.php
+* * * * * sleep 30; /usr/bin/php /var/www/webrtc_proj/cron/check_online_status.php
+```
+
+#### Windows (lokales Testen)
+
+Variante A — Aufgabenplanung, laeuft dauerhaft im Hintergrund (Pfade an die
+eigene XAMPP-Installation anpassen):
+
+```
+schtasks /Create /TN "WebRTC Online-Status" /SC MINUTE /MO 1 ^
+  /TR "\"C:\xampp\php\php.exe\" \"C:\xampp\htdocs\webrtc_proj\cron\check_online_status.php\""
+```
+
+Wieder entfernen:
+
+```
+schtasks /Delete /TN "WebRTC Online-Status" /F
+```
+
+Variante B — PowerShell-Fenster, das nur waehrend der Entwicklung offen bleibt.
+Das ist der Weg mit dem kuerzesten Takt und ohne Rechte am System:
+
+```powershell
+while ($true) {
+    & "C:\xampp\php\php.exe" "C:\xampp\htdocs\webrtc_proj\cron\check_online_status.php"
+    Start-Sleep -Seconds 30
+}
+```
+
+#### Pruefen, ob es wirkt
+
+Das Skript einmal von Hand starten — es gibt im Erfolgsfall nichts aus, Fehler
+landen im Log aus Abschnitt 3:
+
+```
+php cron/check_online_status.php
+```
+
+Danach in der Datenbank nachsehen. Ein Nutzer, der laenger als 45 Sekunden
+keinen Heartbeat geschickt hat, muss `offline` stehen:
+
+```sql
+SELECT id, username, user_status, updated_at FROM user ORDER BY updated_at DESC;
+```
+
+#### Taktung anpassen
+
+Heartbeat-Takt und Offline-Timeout stehen zusammen in `config/presence.php`
+(Vorgabe: 10 s Takt, 45 s Timeout). Der Browser liest den Takt von dort ueber
+`window.heartbeatIntervalMs`, der Cronjob den Timeout — die beiden Werte koennen
+also nicht auseinanderlaufen.
+
+Das Verhaeltnis ist bewusst grosszuegig: Der Timeout vertraegt vier
+ausgefallene Heartbeats in Folge. Wird er zu knapp gewaehlt (frueher: 15 s Takt
+gegen 20 s Timeout), setzt schon eine einzelne verzoegerte Antwort einen
+aktiven Guide offline. Als Faustregel sollte der Timeout mindestens das
+Dreifache des Takts betragen.
+
+**Bekannte Grenze:** Browser bremsen Timer in ausgeblendeten Tabs auf etwa
+einen Aufruf pro Minute aus. Ein Guide, der die Seite nur im
+Hintergrund-Tab offen haelt, kann dadurch zwischenzeitlich als offline
+erscheinen; sobald der Tab wieder sichtbar wird, meldet sich der Client
+sofort zurueck. Waehrend eines laufenden Calls tritt das nicht auf. Wer
+Guides dauerhaft im Hintergrund erreichbar halten will, erhoeht den
+`offline_timeout` auf mindestens 90 Sekunden.
+
 ---
 
 ## 🧪 Tests

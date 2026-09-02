@@ -27,7 +27,7 @@ verändern nichts — sie sind gefahrlos jederzeit ausführbar.
 
 | Datei | Inhalt |
 |---|---|
-| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `signaling.js` und `chat.js` aus `assets/js`. Allein nicht ausführbar. |
+| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `signaling.js`, `chat.js` und `ui.js` aus `assets/js`. Allein nicht ausführbar. |
 | `client_test.js` | Die eigentlichen Client-Prüfungen. |
 | `server_test.php` | Die Serverprüfungen. Ersetzt `PdoConnect::$connection` durch eine Attrappe, die abgesetzte SQL-Statements nur mitschreibt statt sie auszuführen. |
 
@@ -35,7 +35,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (45 Prüfungen)
+## Was `client_test.js` prüft (50 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -96,6 +96,15 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
 22. **Die Rolle kommt vom Server** — sie hängt am ausgelieferten Offer, und die
     Antwort auf das eigene Offer wird bis zum Aufrufer durchgereicht.
 
+### Rolle und Standort-Button (23)
+
+23. **Der Standort-Button richtet sich nach der Rolle** (Befund F-5) — Guide und
+    Admin sehen „Neue Lokation hinzufügen", ein Zuschauer „Jetzt Tour-Guide
+    werden!", ein Konto ohne beides gar nichts. Abgemeldet bleibt der Button
+    aus, und eine fehlende Servervariable blendet aus, statt zu scheitern.
+    Entschieden wird über `window.userCan` aus `ViewHelper::output`; `ui.js`
+    kennt selbst keine Rollennamen mehr.
+
 ### Zeitkonstanten im Test
 
 `client_test.js` setzt die Fristen aus `rtc.js` zu Beginn auf kurze Werte
@@ -104,7 +113,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (22 Prüfungen)
+## Was `server_test.php` prüft (30 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -129,6 +138,16 @@ die Tests nicht an. Das ist Absicht.
 
    Die Prüfung ersetzt die Benutzertabelle durch eine Attrappe im Speicher —
    auch hier ohne Datenbank.
+
+6. **Rollen-Normalisierung** (`App\Helper\Role`, Befunde F-5/F-6) — Rollennamen
+   werden unabhängig von der Groß-/Kleinschreibung erkannt, Zahl und
+   Zahlenstring bedeuten dasselbe (PDO liefert je nach Einstellung `'1'` statt
+   `1`), und alles Unbekannte — `null`, Leerstring, das nie existierende
+   `'tourist'`, unbelegte IDs — ergibt `null` statt versehentlich einer gültigen
+   Rolle. Darauf setzen die beiden Rechte auf: `mayOfferLocation()` trifft genau
+   Admin und Guide, `mayBecomeGuide()` genau User und Trial, keine Rolle ist
+   beides zugleich, und das Signaling teilt sich mit dem Helfer dieselbe
+   Guide-ID.
 
 ## Grenzen
 

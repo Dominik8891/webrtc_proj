@@ -4,109 +4,354 @@
  * Beinhaltet das dynamische Laden, die Anzeige auf Karte und die Bearbeitungs-/Löschfunktionen.
  */
 window.webrtcApp.locationsTable = {
+
+    /**
+     * Takt der Statusaktualisierung in der Standortuebersicht.
+     *
+     * Etwas laenger als der Heartbeat (config/presence.php, 10 s), damit die
+     * Uebersicht nicht schneller fragt, als sich die Daten ueberhaupt aendern
+     * koennen.
+     */
+    STATUS_REFRESH_MS: 15000,
+
+    /** Laufende Aktualisierungs-Timer, je Tabellen-Selektor einer. */
+    refreshTimers: {},
+
+    /** Optionen der zuletzt geladenen Tabelle, je Tabellen-Selektor. */
+    refreshOptions: {},
+
+    /** Ist der Listener fuer den Tabwechsel schon gesetzt? */
+    visibilityHooked: false,
+
+    /**
+     * Icon und Text zu einem user_status.
+     * @param {string} status - Wert aus der Spalte user.user_status
+     * @returns {{icon: string, text: string, callable: boolean}}
+     */
+    statusView(status) {
+        if (status === "in_call") {
+            return {
+                icon: '<span class="badge rounded-pill bg-warning text-dark fs-4">&#x1F7E0;</span>',
+                text: "Befindet sich in Call",
+                callable: false
+            };
+        }
+        if (status === "online") {
+            return { icon: "\u{1F7E2}", text: "Online", callable: true };
+        }
+        return { icon: "\u{1F534}", text: "Offline", callable: false };
+    },
+
+    /**
+     * Baut den Call-Button einer Zeile. Nur ein erreichbarer Nutzer ist anrufbar.
+     * @param {Object} item - Datensatz aus der API
+     * @returns {string} HTML
+     */
+    callButtonHtml(item) {
+        const view = this.statusView(item.user_status);
+        return `
+            <button type="button"
+                class="btn btn-success btn-sm start-call-btn"
+                data-userid="${item.user_id}"
+                ${view.callable ? "" : "disabled aria-disabled='true'"}
+                style="${view.callable ? "" : "pointer-events:none;opacity:0.5;"}"
+            >
+                Call
+            </button>
+        `;
+    },
+
+    /**
+     * Baut die Aktionsspalte einer Zeile.
+     * @param {Object} item
+     * @param {Object} options
+     * @returns {string} HTML
+     */
+    actionCellHtml(item, options) {
+        let actionBtns = '';
+        if (options.showActions.includes("call")) {
+            actionBtns += this.callButtonHtml(item);
+        }
+        if (options.showActions.includes("edit")) {
+            actionBtns += `
+                <button type="button" class="btn btn-warning btn-sm edit-location-btn" data-locationid="${item.id}">Ändern</button>
+            `;
+        }
+        if (options.showActions.includes("delete")) {
+            actionBtns += `
+                <button class="btn btn-danger delete-location-btn" data-locationid="${item.id}">Löschen</button>
+            `;
+        }
+        return actionBtns;
+    },
+
+    /**
+     * Baut eine komplette Tabellenzeile.
+     *
+     * Die Zeile traegt ihre Location-ID und den zuletzt angezeigten Status als
+     * Attribut. Beides braucht die Aktualisierung, um Zeilen wiederzufinden,
+     * ohne die Tabelle neu aufzubauen.
+     *
+     * @param {Object} item
+     * @param {number} index - laufende Nummer fuer die erste Spalte
+     * @param {Object} options
+     * @returns {string} HTML einer <tr>
+     */
+    rowHtml(item, index, options) {
+        const view = this.statusView(item.user_status);
+
+        // Beschreibung als klickbaren Text (für Popup/Modal)
+        const descHtml = `
+            <span 
+                class="desc-hover fw-semibold text-primary text-decoration-underline"
+                data-lat="${item.latitude}" 
+                data-lng="${item.longitude}" 
+                data-country="${item.country_name ?? ''}" 
+                data-city="${item.city_name ?? ''}" 
+                style="cursor:pointer;">
+                ${item.description}
+            </span>
+        `;
+
+        return `<tr data-locationid="${item.id}" data-status="${item.user_status ?? ''}">
+            <td>${index + 1}</td>
+            <td>${view.text}</td>
+            ${options.onlyOwn ? "" : `<td>${view.icon} ${item.username}</td>`}
+            <td>${item.country_name ?? ''}</td>
+            <td>${item.city_name ?? ''}</td>
+            <td>${descHtml}</td>
+            <td>${this.actionCellHtml(item, options)}</td>
+        </tr>`;
+    },
+
+    /**
+     * Spaltennummern der Zellen, die sich mit dem Status aendern.
+     * Die Uebersicht hat eine Spalte mehr ("User") als die Liste der eigenen
+     * Standorte, deshalb haengen die Nummern an den Optionen.
+     *
+     * @param {Object} options
+     * @returns {{status: number, user: number|null, actions: number}}
+     */
+    statusColumns(options) {
+        return {
+            status : 1,
+            user   : options.onlyOwn ? null : 2,
+            actions: options.onlyOwn ? 5 : 6
+        };
+    },
+
+    /**
+     * Vollständiger Api-Url zu den gewuenschten Datensaetzen.
+     * @param {Object} options
+     * @returns {string}
+     */
+    apiUrl(options) {
+        return options.onlyOwn ? 'index.php?act=get_my_locations' : 'index.php?act=get_locations';
+    },
+
+    /**
+     * Ergaenzt fehlende Optionen um die Vorgabewerte.
+     * @param {Object} options
+     * @returns {Object}
+     */
+    withDefaults(options) {
+        return Object.assign({
+            onlyOwn: false,                               // Nur eigene Locations laden?
+            showActions: ["call"],                        // Mögliche Aktionen: ["call", "edit", "delete"]
+            tableSelector: "#locationsTable",             // Wo soll die Tabelle befüllt werden?
+            autoRefresh: null                             // null = automatisch (nur in der Uebersicht)
+        }, options || {});
+    },
+
     /**
      * Lädt Locations aus dem Backend und baut die Tabelle dynamisch auf.
      * @param {Object} options - Einstellungen, z.B. nur eigene Locations, welche Aktionen erlaubt sind etc.
      */
     loadLocationsTable(options) {
-        // Standardoptionen setzen & mit übergebenen überschreiben
-        options = Object.assign({
-            onlyOwn: false,                               // Nur eigene Locations laden?
-            showActions: ["call"],                        // Mögliche Aktionen: ["call", "edit", "delete"]
-            tableSelector: "#locationsTable"              // Wo soll die Tabelle befüllt werden?
-        }, options || {});
-
-        // Richtige API-URL wählen
-        let apiUrl = options.onlyOwn ? 'index.php?act=get_my_locations' : 'index.php?act=get_locations';
+        options = this.withDefaults(options);
+        const self = this;
         const $table = $(options.tableSelector);
 
         $.ajax({
-            url: apiUrl,
+            url: this.apiUrl(options),
             method: 'GET',
             dataType: 'json',
             success: function (data) {
-                let rows = '';
-                // Für jeden Datensatz eine Tabellenzeile erzeugen
-                data.forEach(function (item, i) {
-                    // Status-Icon & -Text je nach user_status bestimmen
-                    let icon = "🔴";
-                    let status = "Offline";
-                    if (item.user_status === "in_call") {
-                        icon = '<span class="badge rounded-pill bg-warning text-dark fs-4">&#x1F7E0;</span>';
-                        status = "Befindet sich in Call";
-                    } else if (item.user_status === "online") {
-                        icon = "🟢";
-                        status = "Online";
-                    }
-
-                    // Beschreibung als klickbaren Text (für Popup/Modal)
-                    let descHtml = `
-                        <span 
-                            class="desc-hover fw-semibold text-primary text-decoration-underline"
-                            data-lat="${item.latitude}" 
-                            data-lng="${item.longitude}" 
-                            data-country="${item.country_name ?? ''}" 
-                            data-city="${item.city_name ?? ''}" 
-                            style="cursor:pointer;">
-                            ${item.description}
-                        </span>
-                    `;
-
-                    // Aktions-Buttons je nach Option
-                    let actionBtns = '';
-                    if(options.showActions.includes("call")) {
-                        actionBtns +=  `
-                            <button type="button"
-                                class="btn btn-success btn-sm start-call-btn"
-                                data-userid="${item.user_id}"
-                                ${item.user_status !== "online" ? "disabled aria-disabled='true'" : ""}
-                                style="${item.user_status !== "online" ? "pointer-events:none;opacity:0.5;" : ""}"
-                            >
-                                Call
-                            </button>
-                        `;
-                    }
-                    if(options.showActions.includes("edit")) {
-                        actionBtns += `
-                            <button type="button" class="btn btn-warning btn-sm edit-location-btn" data-locationid="${item.id}">Ändern</button>
-                        `;
-                    }
-                    if(options.showActions.includes("delete")) {
-                        actionBtns += `
-                            <button class="btn btn-danger delete-location-btn" data-locationid="${item.id}">Löschen</button>
-                        `;
-                    }
-
-                    // Zusammenbauen der Tabellenzeile
-                    rows += `<tr>
-                        <td>${i + 1}</td>
-                        <td>${status}</td>
-                        ${options.onlyOwn ? "" : `<td>${icon} ${item.username}</td>`}
-                        <td>${item.country_name ?? ''}</td>
-                        <td>${item.city_name ?? ''}</td>
-                        <td>${descHtml}</td>
-                        <td>${actionBtns}</td>
-                    </tr>`;
-                });
-
-                // Vor Initialisierung der DataTable immer eine evtl. bestehende Instanz zerstören!
-                if ($.fn.DataTable.isDataTable($table)) {
-                    $table.DataTable().destroy();
-                }
-
-                // Neue Zeilen in das <tbody> einsetzen
-                $table.find('tbody').html(rows);
-
-                // DataTable mit Responsive-Plugin neu initialisieren
-                $table.DataTable({
-                    responsive: true
-                });
+                self.renderRows($table, data, options);
+                self.startAutoRefresh(options);
             },
             error: function () {
-                // Fehlerausgabe in der Tabelle anzeigen
-                $table.find('tbody').html('<tr><td colspan="7">Fehler beim Laden der Daten.</td></tr>');
+                // Steht schon eine Tabelle, bleibt der zuletzt bekannte Stand
+                // stehen - eine Fehlerzeile direkt ins tbody wuerde DataTables
+                // aus dem Tritt bringen.
+                if (!$.fn.DataTable.isDataTable($table)) {
+                    $table.find('tbody').html('<tr><td colspan="7">Fehler beim Laden der Daten.</td></tr>');
+                }
             }
         });
+    },
+
+    /**
+     * Setzt den kompletten Zeilenbestand einer Tabelle.
+     *
+     * Beim ersten Aufruf wird DataTables initialisiert. Danach werden die
+     * Zeilen ueber die DataTables-API ausgetauscht statt die Instanz zu
+     * zerstoeren: Sortierung, Suche, Seitenlaenge und aktuelle Seite des
+     * Nutzers bleiben so erhalten (`draw(false)` haelt die Seite).
+     *
+     * @param {jQuery} $table
+     * @param {Array} data - Datensaetze aus der API
+     * @param {Object} options
+     */
+    renderRows($table, data, options) {
+        let rows = '';
+        data.forEach((item, i) => {
+            rows += this.rowHtml(item, i, options);
+        });
+
+        if ($.fn.DataTable.isDataTable($table)) {
+            const dt = $table.DataTable();
+
+            // Sicherheitsnetz: Die Uebersicht hat eine Spalte mehr als die
+            // Liste der eigenen Standorte. Wechselt eine Seite zwischen
+            // beiden Varianten, passen die neuen Zeilen nicht in die
+            // bestehende Instanz - dann hilft nur ein Neuaufbau.
+            const newCellCount = rows ? $(rows).first().children('td').length : dt.columns().count();
+            if (newCellCount === dt.columns().count()) {
+                dt.clear();
+                if (rows) dt.rows.add($(rows));
+                dt.draw(false);
+                return;
+            }
+            dt.destroy();
+        }
+
+        $table.find('tbody').html(rows);
+        $table.DataTable({
+            responsive: true
+        });
+    },
+
+    /**
+     * Holt den aktuellen Verfuegbarkeitsstatus und schreibt ihn in die
+     * bestehende Tabelle.
+     *
+     * Angefasst werden nur die Zellen, die sich tatsaechlich geaendert haben -
+     * Statustext, Icon und der Call-Button. Die Tabelle wird dafuer nicht neu
+     * aufgebaut, sondern ueber die DataTables-API veraendert und mit
+     * `draw(false)` neu gezeichnet. Sortierung, Suchbegriff und Seite des
+     * Nutzers bleiben dadurch stehen.
+     *
+     * Sind Standorte dazugekommen oder weggefallen, wird der Zeilenbestand
+     * komplett ersetzt - ebenfalls ueber die API, also ebenfalls ohne die
+     * Sortierung zu verlieren.
+     *
+     * @param {Object} options
+     */
+    refreshStatuses(options) {
+        options = this.withDefaults(options);
+        const $table = $(options.tableSelector);
+        if (!$table.length || !$.fn.DataTable.isDataTable($table)) return;
+
+        const self = this;
+        $.ajax({
+            url: this.apiUrl(options),
+            method: 'GET',
+            dataType: 'json',
+            success: function (data) {
+                const dt = $table.DataTable();
+                const cols = self.statusColumns(options);
+
+                // Datensaetze nach Location-ID greifbar machen.
+                const byId = {};
+                data.forEach(item => { byId[String(item.id)] = item; });
+
+                // Stimmt der Zeilenbestand nicht mehr, hilft nur der
+                // vollstaendige Austausch.
+                let known = 0;
+                let sameSet = true;
+                dt.rows().every(function () {
+                    const id = this.node().getAttribute('data-locationid');
+                    if (!Object.prototype.hasOwnProperty.call(byId, String(id))) {
+                        sameSet = false;
+                        return;
+                    }
+                    known++;
+                });
+                if (!sameSet || known !== data.length) {
+                    self.renderRows($table, data, options);
+                    return;
+                }
+
+                // Gleicher Bestand: nur die Statuszellen nachziehen.
+                let changed = false;
+                dt.rows().every(function () {
+                    const node = this.node();
+                    const item = byId[String(node.getAttribute('data-locationid'))];
+                    const status = item.user_status ?? '';
+                    if (node.getAttribute('data-status') === status) return;
+
+                    node.setAttribute('data-status', status);
+                    const view = self.statusView(item.user_status);
+
+                    dt.cell(node, cols.status).data(view.text);
+                    if (cols.user !== null) {
+                        dt.cell(node, cols.user).data(`${view.icon} ${item.username}`);
+                    }
+                    if (options.showActions.includes("call")) {
+                        dt.cell(node, cols.actions).data(self.actionCellHtml(item, options));
+                    }
+                    changed = true;
+                });
+
+                if (changed) dt.draw(false);
+            }
+            // Kein error-Handler: Ein fehlgeschlagener Zwischenabruf laesst den
+            // zuletzt bekannten Stand stehen, der naechste Takt versucht es
+            // erneut.
+        });
+    },
+
+    /**
+     * Startet den Aktualisierungstakt fuer eine Tabelle.
+     *
+     * Je Tabelle laeuft hoechstens ein Timer; ein erneuter Aufruf ersetzt den
+     * vorherigen. Im ausgeblendeten Tab wird nichts abgefragt - beim
+     * Zurueckkehren dafuer sofort.
+     *
+     * @param {Object} options
+     */
+    startAutoRefresh(options) {
+        options = this.withDefaults(options);
+
+        // Vorgabe: Die Uebersicht fremder Standorte aktualisiert sich, die
+        // Liste der eigenen Standorte nicht - dort steht ohnehin nur der
+        // eigene Status.
+        const wanted = options.autoRefresh === null ? !options.onlyOwn : options.autoRefresh;
+
+        const key = options.tableSelector;
+        if (this.refreshTimers[key]) {
+            clearInterval(this.refreshTimers[key]);
+            delete this.refreshTimers[key];
+        }
+        this.refreshOptions[key] = options;
+        if (!wanted) return;
+
+        const self = this;
+        this.refreshTimers[key] = setInterval(function () {
+            if (document.hidden) return;
+            self.refreshStatuses(self.refreshOptions[key]);
+        }, this.STATUS_REFRESH_MS);
+
+        if (!this.visibilityHooked) {
+            this.visibilityHooked = true;
+            document.addEventListener('visibilitychange', function () {
+                if (document.hidden) return;
+                Object.keys(self.refreshTimers).forEach(function (selector) {
+                    self.refreshStatuses(self.refreshOptions[selector]);
+                });
+            });
+        }
     },
 
     /**
@@ -264,10 +509,12 @@ window.webrtcApp.locationsTable = {
 
 // Initialisierung bei DOM-Ready
 $(document).ready(function () {
-    // Standard-Tabelle initialisieren
-    window.webrtcApp.locationsTable.bindEvents();
-
     // Globale Tabelle auf der Übersichtsseite
+    //
+    // Der vorher hier stehende zusaetzliche Aufruf ohne Optionen ist entfallen:
+    // Er lud dieselbe Tabelle ein zweites Mal und griff auf settings.html mit
+    // den Optionen der Uebersicht (eine Spalte mehr) auf die Liste der eigenen
+    // Standorte zu.
     if($('#locationsTable').length && !$('#myLocationsSection').length) {
         window.webrtcApp.locationsTable.bindEvents({
             onlyOwn: false,

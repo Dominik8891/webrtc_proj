@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Model\User;
 use App\Model\Location;
 use App\Helper\Request;
+use App\Helper\Role;
 use App\Helper\ViewHelper;
 
 class LocationController
@@ -60,10 +61,20 @@ class LocationController
                 exit;
             }
 
+            // Aufstieg Zuschauer -> Guide. Hier stand vorher ein Vergleich
+            // gegen 'tourist' und ein setUsertype('guide'); beide Werte gibt
+            // es in usertype.name nicht ('Admin', 'Guide', 'User', 'Trial'),
+            // der Aufstieg fand deshalb nie statt (Befund F-6). Entschieden
+            // wird jetzt ueber die normalisierte Rollen-ID.
             $user = new User($user_id);
-            if ($user->getUsertype() === 'tourist') {
-                $user->setUsertype('guide');
+            if (Role::mayBecomeGuide($user->getRoleId())) {
+                $user->setRoleId(Role::GUIDE);
                 $user->save();
+
+                // Die Session traegt die Rolle mit; ohne Auffrischung wuerde
+                // der Nutzer bis zum naechsten Login weiter als Zuschauer
+                // gefuehrt.
+                $_SESSION['user']['role_id'] = Role::GUIDE;
             }
 
             $location = new Location();

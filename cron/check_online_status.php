@@ -20,10 +20,17 @@ try {
     // Datenbankverbindung herstellen
     $pdo = new App\Model\PdoConnect();
 
-    $timeout = 20; // Sekunden
+    // Timeout zentral aus config/presence.php, damit er nicht gegen den
+    // Heartbeat-Takt des Browsers auseinanderlaeuft (siehe Kommentar dort).
+    $presence = require __DIR__ . '/../config/presence.php';
+    $timeout  = (int)$presence['offline_timeout'];
 
-    // Setze Benutzer offline, wenn sie länger als $timeout Sekunden inaktiv waren
-    $sql_offline = "UPDATE user SET user_status = 'offline' WHERE updated_at < (NOW() - INTERVAL $timeout SECOND)";
+    // Setze Benutzer offline, wenn sie länger als $timeout Sekunden inaktiv
+    // waren. Bereits offline gemeldete Zeilen werden ausgelassen - sie muessen
+    // bei jedem Durchlauf nicht erneut geschrieben werden.
+    $sql_offline = "UPDATE user SET user_status = 'offline'
+                    WHERE user_status <> 'offline'
+                      AND updated_at < (NOW() - INTERVAL $timeout SECOND)";
     $affected = $pdo::$connection->exec($sql_offline);
 
     // Optional: Logging für Cronjobs (nur zur Überwachung/Debug)

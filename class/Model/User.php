@@ -407,7 +407,14 @@ class User
     }
 
     /**
-     * Holt die Bezeichnung des User-Typs (Rolle).
+     * Holt die Bezeichnung des User-Typs (Rolle) aus der Datenbank.
+     *
+     * Achtung: Der Rueckgabewert ist die Schreibweise aus usertype.name, also
+     * 'Admin', 'Guide', 'User' oder 'Trial'. Fuer Rollenpruefungen ist er
+     * nicht gedacht - genau solche Vergleiche gegen kleingeschriebene
+     * Literale waren die Befunde F-5/F-6. Wer eine Rolle pruefen will,
+     * benutzt getRoleId() zusammen mit App\Helper\Role.
+     *
      * @return string|false
      */
     public function getUsertype()

@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Model\User;
 use App\Helper\Request;
+use App\Helper\Role;
 use App\Helper\ViewHelper;
 
 /**
@@ -82,18 +83,29 @@ class LoginController
                 'user_id'       => $user->getId(),
                 'username'      => $user->getUsername(),
                 'email'         => $user->getEmail(),
-                'role_id'       => $user->getRoleId(),
+                'role_id'       => Role::id($user->getRoleId()),
             ];
 
-            if ($user->getRoleId() < 3 && !isset($_SESSION['location_prompt_shown'])) {
+            // Der Login war erfolgreich - der Fehlversuchszaehler gehoert
+            // weg, bevor irgendein Weg diese Methode verlaesst. Die
+            // Standortabfrage darunter beendet das Skript (ViewHelper::output
+            // ruft die()), die beiden Zeilen wurden hinter ihr sonst nie
+            // erreicht.
+            unset($_SESSION['login_attempts'][$username]);
+            unset($_SESSION['login_blocked_until'][$username]);
+
+            // Die Standortabfrage galt bisher nur fuer role_id < 3 und liess
+            // damit ausgerechnet das Trial-Konto aussen vor, obwohl es sonst
+            // wie ein Zuschauerkonto behandelt wird. Sie wird jetzt jedem
+            // eingeloggten Nutzer einmal je Session angeboten - beantworten
+            // laesst sie sich weiterhin mit "Nein".
+            if (!isset($_SESSION['location_prompt_shown'])) {
                 $_SESSION['location_prompt_shown'] = true;
                 $html = file_get_contents('assets/html/location_prompt.html');
                 ViewHelper::output($html);
                 exit;
             }
 
-            unset($_SESSION['login_attempts'][$username]);
-            unset($_SESSION['login_blocked_until'][$username]);
             header("Location: index.php?act=home");
             exit;
         } else {
@@ -134,6 +146,21 @@ class LoginController
      */
     public function handleLogout(): void
     {
+        // Vor dem Verwerfen der Session den Benutzer offline setzen. Ohne das
+        // blieb er bis zum naechsten Durchlauf des Cronjobs
+        // (cron/check_online_status.php) in der Standortuebersicht als online
+        // stehen - und ohne eingerichteten Cron dauerhaft.
+        $user_id = (int)($_SESSION['user']['user_id'] ?? 0);
+        if ($user_id > 0) {
+            try {
+                (new User())->updateUserStatus($user_id, 'offline');
+            } catch (\Exception $e) {
+                // Ein Fehler beim Statuswechsel darf das Abmelden nicht
+                // verhindern - die Session wird in jedem Fall verworfen.
+                error_log('Logout: Status konnte nicht auf offline gesetzt werden: ' . $e->getMessage());
+            }
+        }
+
         // Session löschen und Benutzer abmelden
         session_destroy();
         // Optional: Session-Daten löschen (z. B. Cookies)

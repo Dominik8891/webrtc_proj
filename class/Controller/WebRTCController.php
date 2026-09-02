@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Model\User;
 use App\Model\WebRTCHandler;
 use App\Helper\Request;
+use App\Helper\Role;
 
 /**
  * WebRTCController – Steuert das Signaling für WebRTC-Verbindungen.
@@ -12,14 +13,16 @@ use App\Helper\Request;
 class WebRTCController
 {
     /**
-     * usertype.id des Guides (database.sql: 0=Admin, 1=Guide, 2=User, 3=Trial).
+     * usertype.id des Guides.
      *
-     * Verglichen wird bewusst die ID und nicht der Name: Der Name kommt als
-     * 'Guide' aus der Datenbank, und genau dieser Vergleich gegen
-     * kleingeschriebene Literale ist an anderer Stelle schon schiefgegangen
-     * (Befunde F-5/F-6 der Bestandsaufnahme).
+     * Der Wert steht jetzt in App\Helper\Role, der zentralen Stelle fuer
+     * Rollen. Die Konstante bleibt als Name erhalten, damit die Aufrufe im
+     * Signaling lesbar bleiben. Verglichen wird weiterhin die ID und nicht
+     * der Name: Der Name kommt als 'Guide' aus der Datenbank, und genau
+     * dieser Vergleich gegen kleingeschriebene Literale ist an anderer Stelle
+     * schon schiefgegangen (Befunde F-5/F-6 der Bestandsaufnahme).
      */
-    public const USERTYPE_GUIDE = 1;
+    public const USERTYPE_GUIDE = Role::GUIDE;
 
     /**
      * Handhabt Signalisierung für WebRTC.
@@ -199,7 +202,7 @@ class WebRTCController
 
         try {
             $user = new User($id);
-            return (int)$user->getRoleId() === self::USERTYPE_GUIDE;
+            return Role::isGuide($user->getRoleId());
         } catch (\Exception $e) {
             error_log('WebRTCController::isGuideAccount: ' . $e->getMessage());
             return false;

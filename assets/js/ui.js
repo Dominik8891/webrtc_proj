@@ -6,17 +6,24 @@ window.webrtcApp = window.webrtcApp || {};
 window.webrtcApp.ui = {
     /**
      * Zeigt den "Neue Lokation hinzufügen"-Button (für Admin/Guide)
-     * oder "Jetzt Tour-Guide werden!" (für Touristen) je nach Rolle an.
+     * oder "Jetzt Tour-Guide werden!" (für Zuschauer) je nach Rolle an.
      * Blendet den Button bei fehlender Berechtigung oder wenn nicht eingeloggt aus.
+     *
+     * Entschieden wird über window.userCan, das der Server aus
+     * App\Helper\Role ableitet (ViewHelper::output). Hier stand früher ein
+     * Vergleich gegen 'admin'/'guide'/'tourist'; window.userRole trägt aber
+     * die Schreibweise aus usertype.name ('Admin', 'Guide', 'User', 'Trial'),
+     * und 'tourist' gibt es dort überhaupt nicht. Der Button war dadurch für
+     * jede Rolle unsichtbar (Befund F-5).
      */
     showLocationButton: function() {
         var locationButtonDiv = document.getElementById('location-button');
         locationButtonDiv.innerHTML = '';
         let text = '';
-        if (window.isLoggedIn && window.userRole) {
-            if (window.userRole === 'admin' || window.userRole === 'guide') {
+        if (window.isLoggedIn && window.userCan) {
+            if (window.userCan.offerLocation) {
                 text = 'Neue Lokation hinzufügen';
-            } else if (window.userRole === 'tourist') {
+            } else if (window.userCan.becomeGuide) {
                 text = 'Jetzt Tour-Guide werden!';
             }
             if (text) {

@@ -142,7 +142,7 @@ global.isLoggedIn = true;
 global.Blob = global.Blob || function () {};
 global.URL = global.URL || { createObjectURL: () => 'blob:x' };
 
-for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'signaling.js', 'chat.js']) {
+for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'signaling.js', 'chat.js', 'ui.js']) {
     eval(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 }
 

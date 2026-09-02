@@ -13,6 +13,7 @@ require_once $ROOT . '/class/Model/IceServerConfig.php';
 require_once $ROOT . '/class/Model/WebRTCHandler.php';
 require_once $ROOT . '/class/Controller/TurnController.php';
 require_once $ROOT . '/class/Model/User.php';
+require_once $ROOT . '/class/Helper/Role.php';
 require_once $ROOT . '/class/Controller/WebRTCController.php';
 
 use App\Model\IceServerConfig;
@@ -20,6 +21,7 @@ use App\Model\PdoConnect;
 use App\Model\WebRTCHandler;
 use App\Controller\TurnController;
 use App\Controller\WebRTCController;
+use App\Helper\Role;
 
 $passed = 0;
 function ok($name) { global $passed; fwrite(STDERR, "  ok  $name\n"); $passed++; }
@@ -247,5 +249,68 @@ check($stamped[0]['role'] === 'guide', 'Angerufener ist der Guide');
 check(!isset($stamped[1]['role']), 'ICE-Kandidat bekommt keine Rolle');
 check(!isset($stamped[2]['role']), 'restart_offer bekommt keine Rolle - die Rolle steht seit dem Anruf fest');
 ok('nur das Offer traegt die Rolle');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n6) Rollen-Normalisierung (Befunde F-5/F-6)\n");
+
+// Der Kern der beiden Befunde: usertype.name ist gross geschrieben, verglichen
+// wurde gegen kleingeschriebene Literale. Der Helfer macht die Schreibweise
+// egal.
+check(Role::id('Guide')   === Role::GUIDE, "'Guide' ist die Guide-Rolle");
+check(Role::id('guide')   === Role::GUIDE, "'guide' ebenso");
+check(Role::id('GUIDE')   === Role::GUIDE, "'GUIDE' ebenso");
+check(Role::id(' Guide ') === Role::GUIDE, 'Leerzeichen stoeren nicht');
+check(Role::id('Admin')   === Role::ADMIN, "'Admin' ist 0 - und 0 ist nicht falsy zu verwechseln");
+check(Role::id('Trial')   === Role::TRIAL, "'Trial' ist 3");
+ok('Rollennamen werden unabhaengig von der Schreibweise erkannt');
+
+// PDO liefert je nach Treibereinstellung '1' statt 1. Ein === 1 scheitert
+// daran still - der Helfer nicht.
+check(Role::id(1)   === Role::GUIDE, 'int 1');
+check(Role::id('1') === Role::GUIDE, "Zahlenstring '1'");
+check(Role::id('0') === Role::ADMIN, "Zahlenstring '0'");
+ok('Zahl und Zahlenstring bedeuten dasselbe');
+
+// Alles Unbekannte ist null und darf nirgends als Berechtigung durchgehen.
+foreach ([null, '', '   ', 'tourist', 'Tourist', 'viewer', 7, -1, '2.5', [], true] as $bad) {
+    check(Role::id($bad) === null, 'unbekannte Rolle: ' . var_export($bad, true));
+}
+check(Role::name('tourist') === null, "'tourist' gibt es in usertype nicht");
+ok('unbekannte Rollen ergeben null, nicht versehentlich eine gueltige');
+
+check(Role::name(Role::GUIDE) === 'Guide', 'kanonische Schreibweise Guide');
+check(Role::name('user')      === 'User',  'kanonische Schreibweise User');
+ok('name() liefert die Schreibweise aus usertype.name');
+
+// Wer den Button "Neue Lokation hinzufuegen" sieht (Befund F-5).
+check(Role::mayOfferLocation('Admin') === true,  'Admin darf Standorte anbieten');
+check(Role::mayOfferLocation('Guide') === true,  'Guide darf Standorte anbieten');
+check(Role::mayOfferLocation('User')  === false, 'User noch nicht');
+check(Role::mayOfferLocation('Trial') === false, 'Trial noch nicht');
+check(Role::mayOfferLocation(null)    === false, 'unbekannt heisst nein');
+check(Role::mayOfferLocation('tourist') === false, 'erfundene Rolle heisst nein');
+ok('mayOfferLocation trifft genau Admin und Guide');
+
+// Wer durch das Anlegen eines Standorts zum Guide aufsteigt (Befund F-6).
+check(Role::mayBecomeGuide('User')  === true,  'User steigt auf');
+check(Role::mayBecomeGuide('Trial') === true,  'Trial steigt auf');
+check(Role::mayBecomeGuide('Guide') === false, 'ein Guide ist schon Guide');
+check(Role::mayBecomeGuide('Admin') === false, 'ein Admin bleibt Admin');
+check(Role::mayBecomeGuide(null)    === false, 'unbekannt steigt nicht auf');
+ok('mayBecomeGuide trifft genau User und Trial');
+
+// Kein Konto ist gleichzeitig beides - sonst waere die Beschriftung des
+// Buttons in ui.js nicht eindeutig.
+foreach (['Admin', 'Guide', 'User', 'Trial'] as $role) {
+    check(!(Role::mayOfferLocation($role) && Role::mayBecomeGuide($role)),
+        "$role ist nicht beides zugleich");
+}
+ok('die beiden Rechte schliessen einander aus');
+
+// Das Signaling benutzt denselben Wert.
+check(WebRTCController::USERTYPE_GUIDE === Role::GUIDE, 'Signaling teilt die Guide-ID');
+check(Role::isGuide('Guide') === true && Role::isGuide('Admin') === false, 'isGuide');
+check(Role::isAdmin(0) === true && Role::isAdmin(1) === false, 'isAdmin');
+ok('Signaling und Rollenhelfer sind sich ueber die Guide-ID einig');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

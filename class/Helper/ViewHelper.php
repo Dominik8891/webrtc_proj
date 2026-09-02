@@ -49,6 +49,7 @@ class ViewHelper
 
         $logged_in     = 'false';
         $user_role     = null;
+        $user_role_id  = null;
         $user_id_script= null;
 
         // Prüfen, ob ein Nutzer eingeloggt ist
@@ -59,7 +60,14 @@ class ViewHelper
             $text      = "<a href='index.php?act=logout' class='btn btn-outline-primary btn-sm'>Logout</a>";
             $sign      = "<a href='index.php?act=list_user' class='btn btn-outline-primary btn-sm'>Benutzerliste</a>";
             $logged_in = 'true';
-            $user_role = $user->getUsertype();
+
+            // Die Rolle kommt als usertype.id aus dem geladenen Benutzer und
+            // wird ueber den zentralen Helfer normalisiert. Frueher stand hier
+            // getUsertype(), also der rohe Name aus der Datenbank - genau der
+            // ging in ui.js gegen kleingeschriebene Literale und traf nie zu
+            // (Befund F-5).
+            $user_role_id = Role::id($user->getRoleId());
+            $user_role    = Role::name($user_role_id);
 
             // Zusätzliche Steuerelemente für eingeloggte User laden
             $call        = file_get_contents('assets/html/call_controll.html');
@@ -73,11 +81,32 @@ class ViewHelper
 
             // User-ID als JS-Variable bereitstellen
             $user_id_script = '<script>window.userId = ' . $_SESSION['user']['user_id'] . ';</script>';
+
+            // Heartbeat-Takt aus derselben Konfiguration, aus der sich auch
+            // der Cronjob seinen Timeout holt (config/presence.php). Sonst
+            // waeren Takt und Timeout zwei unabhaengige Zahlen in zwei
+            // Dateien, die niemand zusammen pflegt.
+            $presence = require __DIR__ . '/../../config/presence.php';
+            $user_id_script .= '<script>window.heartbeatIntervalMs = '
+                . ((int)$presence['heartbeat_interval'] * 1000) . ';</script>';
         }
 
         // JavaScript-Variablen für Frontend bereitstellen (Login-Status, User-ID, Rolle)
+        //
+        // Neben Name und ID der Rolle gehen die daraus abgeleiteten Rechte
+        // mit ins Frontend. So gibt es fuer die Frage "darf dieser Nutzer
+        // Standorte anbieten?" weiterhin nur eine Quelle - App\Helper\Role -
+        // statt einer zweiten Rollentabelle in JavaScript, die wieder
+        // auseinanderlaufen koennte.
+        $can_offer  = Role::mayOfferLocation($user_role_id) ? 'true' : 'false';
+        $can_become = Role::mayBecomeGuide($user_role_id)   ? 'true' : 'false';
+
         $logged_in_script = '<script>window.isLoggedIn = ' . $logged_in . ';</script>' . $user_id_script;
-        $user_role_script = '<script>window.userRole = "' . $user_role . '";</script>' . $logged_in_script;
+        $user_role_script = '<script>'
+            . 'window.userRole = ' . json_encode($user_role) . ';'
+            . 'window.userRoleId = ' . ($user_role_id === null ? 'null' : (int)$user_role_id) . ';'
+            . 'window.userCan = {offerLocation: ' . $can_offer . ', becomeGuide: ' . $can_become . '};'
+            . '</script>' . $logged_in_script;
 
         // Platzhalter im Template ersetzen
         $out = str_replace("###CALL_CONTROLL###"       , $call             , $out);
