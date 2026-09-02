@@ -24,6 +24,48 @@ class ViewHelper
     }
 
     /**
+     * Baut das Benutzermenue der Kopfleiste.
+     *
+     * Enthaelt die Eintraege, die zum eigenen Konto gehoeren. Welche Route
+     * dahinter wirklich erlaubt ist, entscheidet weiterhin index.php - ein
+     * Eintrag hier ist Anzeige, keine Berechtigung.
+     *
+     * @param string $username Der anzuzeigende Name (wird maskiert)
+     * @return string HTML
+     */
+    private static function userMenu($username): string
+    {
+        $name = htmlspecialchars($username);
+
+        $eintraege = [
+            'index.php?act=settings'       => 'Mein Konto',
+            'index.php?act=get_all_chats'  => 'Alle Chats',
+            'index.php?act=list_user'      => 'Benutzerliste',
+        ];
+
+        $links = '';
+        foreach ($eintraege as $ziel => $titel) {
+            $links .= '<a class="app-menu__item" href="' . $ziel . '">' . $titel . '</a>';
+        }
+
+        return '<details class="app-menu" id="user-menu">'
+             .   '<summary class="app-menu__button">'
+             .     '<span class="app-menu__avatar" aria-hidden="true">'
+             .        htmlspecialchars(mb_strtoupper(mb_substr($username, 0, 1)))
+             .     '</span>'
+             .     '<span class="app-menu__name">' . $name . '</span>'
+             .     '<span class="app-menu__caret" aria-hidden="true"></span>'
+             .   '</summary>'
+             .   '<div class="app-menu__list" role="menu">'
+             .     '<div class="app-menu__head">Angemeldet als <strong>' . $name . '</strong></div>'
+             .     $links
+             .     '<div class="app-menu__sep"></div>'
+             .     '<a class="app-menu__item app-menu__item--danger" href="index.php?act=logout">Abmelden</a>'
+             .   '</div>'
+             . '</details>';
+    }
+
+    /**
      * Ersetzt die ###CONTENT###-Platzhalter im Hauptlayout mit dem übergebenen Content und gibt das HTML aus.
      * Ergänzt außerdem Benutzerstatus, Login/Logout-Links, Call- und Mediensteuerung sowie User-Infos.
      *
@@ -46,6 +88,7 @@ class ViewHelper
         $sign      = "<a href='index.php?act=signup_page' class='btn btn-primary btn-sm'>Registrieren</a>";
         $user_txt  = "";
         $text      = "<a href='index.php?act=login_page' class='btn btn-secondary btn-sm'>Anmelden</a>";
+        $menu_html = "";
         $call      = "";
         $inner_call= "";
         $media     = "";
@@ -58,14 +101,25 @@ class ViewHelper
         // Prüfen, ob ein Nutzer eingeloggt ist
         if (Auth::isLoggedIn()) {
             $user = new User(Auth::userId());
-            // Begrüßungstext mit Username (XSS-sicher)
-            // Steht in der Kopfleiste (assets/html/index.html), deshalb kurz
-            // und ohne eigene Farbe - der Name ist eine Auskunft, keine Aktion.
-            $user_txt  = '<span class="app-topbar__user">Angemeldet als <strong>'
-                       . htmlspecialchars($user->getUsername()) . '</strong></span>';
-            $text      = "<a href='index.php?act=logout' class='btn btn-secondary btn-sm'>Abmelden</a>";
-            $sign      = "<a href='index.php?act=list_user' class='btn btn-secondary btn-sm'>Benutzerliste</a>";
             $logged_in = 'true';
+
+            // Das Benutzermenue. Es ersetzt die frueheren Einzelknoepfe
+            // "Mein Account", "Benutzerliste" und "Abmelden" in der
+            // Kopfleiste - das sind seltene Aktionen, und nebeneinander
+            // gestellt sahen sie so wichtig aus wie das Anrufen.
+            //
+            // Gebaut aus <details>/<summary> und nicht mit JavaScript: So
+            // laesst es sich mit der Tastatur bedienen und geht auch dann
+            // auf, wenn ein Skript nicht geladen wurde. Das Abmelden darf
+            // nicht daran haengen, dass eine Bibliothek erreichbar war.
+            // assets/js/ui.js schliesst es nur zusaetzlich beim Klick
+            // daneben.
+            $menu_html = self::userMenu($user->getUsername());
+
+            // Fuer Gaeste bleiben die beiden Knoepfe; angemeldet sind sie im
+            // Menue aufgehoben.
+            $text = '';
+            $sign = '';
 
             // Die Rolle kommt als usertype.id aus dem geladenen Benutzer und
             // wird ueber den zentralen Helfer normalisiert. Frueher stand hier
@@ -132,7 +186,7 @@ class ViewHelper
         $out = str_replace("###MEDIA###"               , $media            , $out);
         $out = str_replace("###USERSTATUS###"          , $user_role_script , $out);
         $out = str_replace("###LOGOUT###"              , $text             , $out);
-        $out = str_replace("###USER###"                , $user_txt         , $out);
+        $out = str_replace("###USER###"                , $menu_html        , $out);
         $out = str_replace("###REGISTER###"            , $sign             , $out);
 
         // Ausgabe und Script-Beendigung

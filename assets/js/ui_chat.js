@@ -14,7 +14,7 @@ window.webrtcApp.uiChat = {
         // Container anlegen, falls noch nicht vorhanden
         let $container = $('#chat-popup-container');
         if (!$container.length) {
-            $('body').append('<div id="chat-popup-container" style="position:fixed;bottom:0;left:0;z-index:9999;width:370px;"></div>');
+            $('body').append('<div id="chat-popup-container"></div>');
             $container = $('#chat-popup-container');
         }
         // Chat vom Server holen/anlegen
@@ -61,7 +61,7 @@ window.webrtcApp.uiChat = {
     openInvitationTab: function(inviteData) {
         let $container = $('#chat-popup-container');
         if (!$container.length) {
-            $('body').append('<div id="chat-popup-container" style="position:fixed;bottom:0;left:0;z-index:9999;width:370px;"></div>');
+            $('body').append('<div id="chat-popup-container"></div>');
             $container = $('#chat-popup-container');
         }
         const tabId = 'chat-tab-' + inviteData.id;
@@ -91,23 +91,56 @@ window.webrtcApp.uiChat = {
      * Erstellt ein neues Tab-Element (jQuery) für einen Chat.
      */
     buildTab: function(tabId, partnerId, partnerName, minimized) {
-        // minimized (optional): true/false
+        // Die Gestaltung steht in assets/css/theme.css (.chat-pop). Hier
+        // standen frueher Inline-Styles - Farben, Radien und Schatten, die an
+        // keiner anderen Stelle der Anwendung vorkamen.
+        //
+        // WICHTIG: An .chat-popup-actions darf KEINE Bootstrap-Klasse wie
+        // d-flex haengen. Die setzt "display: flex !important" und schlaegt
+        // damit sowohl das inline "display:none" als auch jedes spaetere
+        // jQuery .hide(). Genau daran lag es, dass Eingabefeld und
+        // Senden-Knopf auch dann zu sehen waren, wenn die Anfrage noch gar
+        // nicht angenommen war - setTabUiByActiveState() rief .hide() auf und
+        // es passierte nichts.
+        //
+        // Reihenfolge im unteren Bereich: erst die Anfrage, dann die Eingabe.
+        // Sichtbar ist immer nur eines von beiden.
+        const nameEsc = this.esc(partnerName);
         return $(`
-                <div class="chat-popup-tab${minimized ? ' minimized attention' : ''}" id="${tabId}" data-partner-id="${partnerId}" data-partner-name="${partnerName}" style="background:#fff; border-radius:1rem 1rem 0 0; box-shadow:0 2px 10px #0002; margin-bottom:8px;">
-                    <div class="chat-tab-header d-flex align-items-center justify-content-between" style="background:#eee; padding:8px 12px; cursor:pointer; font-weight:bold; border-radius:1rem 1rem 0 0;">
-                        <span>Chat mit ${partnerName}</span>
-                        <button class="close-chat-tab btn btn-danger btn-sm ms-2" title="Schließen">×</button>
+                <div class="chat-pop chat-popup-tab${minimized ? ' minimized attention' : ''}"
+                     id="${tabId}" data-partner-id="${this.esc(partnerId)}" data-partner-name="${nameEsc}">
+                    <div class="chat-pop__head chat-tab-header">
+                        <span class="chat-pop__title">${nameEsc}</span>
+                        <button class="chat-pop__close close-chat-tab" title="Schließen" aria-label="Chat schließen">&times;</button>
                     </div>
                     <div class="chat-popup-content" style="display:none;">
-                        <div class="chat-popup-messages border-bottom" style="height:200px; overflow-y:auto; padding:8px;"></div>
-                        <div class="chat-popup-actions d-flex" style="display:none;">
-                            <input type="text" class="form-control chat-popup-input me-2" placeholder="Nachricht...">
-                            <button class="btn btn-primary chat-popup-send">Senden</button>
+                        <div class="chat-pop__body chat-popup-messages"></div>
+                        <div class="chat-pop__foot">
+                            <div class="chat-pop__ask chat-popup-accept" style="display:none;"></div>
+                            <div class="chat-pop__compose chat-popup-actions" style="display:none;">
+                                <input type="text" class="form-control chat-popup-input" placeholder="Nachricht">
+                                <button class="btn btn-primary chat-popup-send">Senden</button>
+                            </div>
                         </div>
-                        <div class="chat-popup-accept text-center py-3" style="display:none;"></div>
                     </div>
                 </div>
                 `);
+    },
+
+    /**
+     * Maskiert Text fuer die Ausgabe in HTML.
+     *
+     * Namen und Nachrichten kommen von anderen Nutzern. Sie wurden hier
+     * frueher unveraendert in Vorlagenzeichenketten eingesetzt - wer "<img
+     * onerror=...>" schrieb, bekam es beim Gegenueber ausgefuehrt.
+     *
+     * @param {*} wert
+     * @returns {string}
+     */
+    esc: function(wert) {
+        return String(wert ?? '').replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[c]);
     },
 
     /**
@@ -259,56 +292,67 @@ window.webrtcApp.uiChat = {
     addChatMessage: function($tab, msg) {
         const partnerUserId = $tab.data('partner-id');
         const isPartner = (msg.sender_id == partnerUserId);
-        const cleanMsg = String(msg.msg).replace(/\n/g, '<br>');
-        const msgAlign = isPartner ? 'start' : 'end';
-        const badgeClass = isPartner ? 'secondary' : 'primary';
-        const msgHtml = `
-                            <div class="my-1 text-${msgAlign}">
-                                <span class="badge bg-${badgeClass}">${isPartner ? 'Partner' : 'Du'}:</span><br>
-                                <span>${cleanMsg}</span>
-                                <br>
-                                <small class="text-muted">${msg.sent_at}</small>
-                            </div>
-                        `;
-        $tab.find('.chat-popup-messages').append(msgHtml);
+
+        // Erst maskieren, dann Zeilenumbrueche zu <br> machen - in dieser
+        // Reihenfolge. Umgekehrt waere das <br> gleich wieder maskiert, und
+        // ohne Maskierung landete fremdes Markup ungeprueft im Dokument.
+        const text = this.esc(msg.msg).replace(/\n/g, '<br>');
+        const wer  = isPartner ? 'partner' : 'self';
+
+        $tab.find('.chat-popup-messages').append(`
+            <div class="chat-msg chat-msg--${wer}">
+                <span class="chat-msg__text">${text}</span>
+                <span class="chat-msg__time">${this.esc(msg.sent_at)}</span>
+            </div>
+        `);
     },
 
     /**
      * Aktualisiert die UI eines Tabs je nach Chat-Status (offen, angenommen, wartend etc.).
      */
     setTabUiByActiveState: function($tab, isActive, isEmpfaenger, partnerName) {
-        $tab.find('.chat-popup-actions').hide();
-        $tab.find('.chat-popup-accept').hide();
+        // Der untere Bereich zeigt genau EINES von beiden: die Anfrage oder
+        // die Eingabe. Solange nicht angenommen ist, gibt es kein Feld zum
+        // Schreiben - erst annehmen, dann schreiben.
+        const $eingabe = $tab.find('.chat-popup-actions');
+        const $anfrage = $tab.find('.chat-popup-accept');
+        $eingabe.hide();
+        $anfrage.hide();
 
-        if(!isActive && !isEmpfaenger) {
-            $tab.find('.chat-popup-accept')
-                .html('<span>Warte auf Annahme...</span>')
-                .show();
-            if(window.webrtcApp.chatManager) {
-                const chatId = $tab.attr('id').split('-').pop();
-                window.webrtcApp.chatManager.setActive(chatId, false);
+        // Solange nicht angenommen ist, gibt es keinen Verlauf - der leere
+        // Nachrichtenbereich entfaellt dann (assets/css/theme.css).
+        $tab.toggleClass('chat-pop--pending', !isActive);
+
+        const chatId = $tab.attr('id').split('-').pop();
+        const merken = (aktiv) => {
+            if (window.webrtcApp.chatManager) {
+                window.webrtcApp.chatManager.setActive(chatId, aktiv);
             }
+        };
+
+        if (isActive) {
+            // Angenommen: schreiben.
+            $eingabe.show();
+            merken(true);
+            return;
         }
-        else if (!!isActive) {
-            $tab.find('.chat-popup-actions').show();
-            if(window.webrtcApp.chatManager) {
-                const chatId = $tab.attr('id').split('-').pop();
-                window.webrtcApp.chatManager.setActive(chatId, true);
-            }
-        } else if(isEmpfaenger) {
-            $tab.find('.chat-popup-accept')
-                .html(
-                `<span>${partnerName || 'Partner'} möchte mit dir chatten.</span>
-                <div class="mt-3 d-flex gap-2 justify-content-center">
-                    <button class="btn btn-success accept-chat-btn">Chat annehmen</button>
-                    <button class="btn btn-danger decline-chat-btn">Ablehnen</button>
-                </div>`
-                ).show();
-            if(window.webrtcApp.chatManager) {
-                const chatId = $tab.attr('id').split('-').pop();
-                window.webrtcApp.chatManager.setActive(chatId, false);
-            }
+
+        if (isEmpfaenger) {
+            // Wir sind gefragt.
+            $anfrage.html(
+                `<span><strong>${this.esc(partnerName || 'Partner')}</strong> möchte mit Ihnen chatten.</span>
+                 <div class="chat-pop__ask-actions">
+                     <button class="btn btn-success btn-sm accept-chat-btn">Annehmen</button>
+                     <button class="btn btn-secondary btn-sm decline-chat-btn">Ablehnen</button>
+                 </div>`
+            ).show();
+            merken(false);
+            return;
         }
+
+        // Wir haben gefragt und warten.
+        $anfrage.html('<span>Warten auf Antwort …</span>').show();
+        merken(false);
     },
 
     // === Polling/Sync für alle offenen Popups ===
@@ -337,7 +381,7 @@ window.webrtcApp.uiChat = {
 
                                 let $container = $('#chat-popup-container');
                                 if (!$container.length) {
-                                    $('body').append('<div id="chat-popup-container" class="position-fixed bottom-0 start-0" style="z-index:9999; width:370px;"></div>');
+                                    $('body').append('<div id="chat-popup-container"></div>');
                                     $container = $('#chat-popup-container');
                                 }
                                 $container.append($tab);
@@ -478,11 +522,11 @@ setInterval(function () {
                 } else if(!data.success && data.declined) {
                     $tab.find('.chat-popup-accept, .chat-popup-actions').hide();
                     $tab.find('.chat-popup-messages').html(
-                        `
-                        <div class="alert alert-danger text-center my-3" role="alert">
-                            ${data.error ? data.error : 'Chat wurde abgelehnt oder existiert nicht mehr.'}
-                        </div>
-                        `
+                        '<div class="alert alert-danger" role="alert">'
+                        + window.webrtcApp.uiChat.esc(
+                              data.error ? data.error : 'Chat wurde abgelehnt oder existiert nicht mehr.'
+                          )
+                        + '</div>'
                     );
                     setTimeout(() => {
                         $tab.remove();

@@ -61,13 +61,22 @@
     ###USERSTATUS###
 
     <!--
-        Kopfleiste. Eine Zeile fuer die ganze Anwendung: links, wo man ist,
-        rechts, was man tun kann. Die Platzhalter fuellt
-        App\Helper\ViewHelper::output().
+        Kopfleiste. Eine Zeile fuer die ganze Anwendung.
 
-        Die IDs location-button, browse-locations-button, settings und chats
-        werden von assets/js/ui.js und assets/js/main.js gefuellt bzw. ein-
-        und ausgeblendet - sie muessen erhalten bleiben.
+        In der Leiste stehen nur noch die Aktionen, die man haeufig braucht:
+        einen Standort anbieten und die Standortliste. Alles, was das eigene
+        Konto betrifft - Konto, Benutzerliste, Chats, Abmelden -, liegt im
+        Menue hinter dem Benutzernamen. Fuenf gleichrangige Knoepfe
+        nebeneinander waren Adminpanel-Optik.
+
+        Die IDs location-button und browse-locations-button werden von
+        assets/js/ui.js gefuellt - sie muessen erhalten bleiben. Das Menue
+        selbst baut App\Helper\ViewHelper::userMenu(), weil es den
+        Benutzernamen enthaelt.
+
+        In diesem Kommentar steht bewusst KEIN Platzhaltername ausgeschrieben:
+        ViewHelper ersetzt mit str_replace jedes Vorkommen im Dokument, auch
+        eines in einem Kommentar.
     -->
     <header class="app-topbar">
         <!-- Name und Zeichen der Anwendung stehen an genau dieser Stelle.
@@ -80,12 +89,17 @@
 
         <span class="app-topbar__spacer"></span>
 
+        <!-- Die Seitenaktionen. Auf schmalen Geraeten schiebbar. -->
         <div class="app-topbar__actions">
-            ###USER###
             <div id="location-button"></div>
             <div id="browse-locations-button"></div>
-            <a href="index.php?act=settings" id="settings" class="btn btn-secondary btn-sm" style="display: none;">Mein Account</a>
-            <a href="index.php?act=get_all_chats" id="chats" class="btn btn-secondary btn-sm" style="display: none;">Alle Chats</a>
+        </div>
+
+        <!-- Das Konto steht ausserhalb der schiebbaren Zeile: Es muss immer
+             erreichbar sein, auch auf einem schmalen Geraet - dahinter liegt
+             das Abmelden. -->
+        <div class="app-topbar__account">
+            ###USER###
             ###REGISTER###
             ###LOGOUT###
         </div>
@@ -96,6 +110,22 @@
             ###CONTENT###
         </div>
     </main>
+
+    <!--
+        Fusszeile. Auf jeder Seite dieselbe.
+
+        Die drei Verweise zeigen vorerst ins Leere - die Seiten gibt es noch
+        nicht. Wenn sie kommen, wird hier das href eingetragen und sonst
+        nirgends.
+    -->
+    <footer class="app-footer">
+        <span class="app-footer__mark">WebRTC-App</span>
+        <nav class="app-footer__links" aria-label="Rechtliches">
+            <a href="#">Impressum</a>
+            <a href="#">Datenschutz</a>
+            <a href="#">Kontakt</a>
+        </nav>
+    </footer>
 
     ###INNER_CALL_CONTROLL###
     ###CALL_CONTROLL###

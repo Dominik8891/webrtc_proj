@@ -267,18 +267,16 @@ a:hover {
     gap: var(--app-space-2);
     flex-wrap: wrap;
     justify-content: flex-end;
+    min-width: 0;
 }
 
-/* Der angemeldete Name gehoert in die Leiste, nicht in die Seitenmitte. */
-.app-topbar__user {
-    font-size: var(--app-text-sm);
-    color: var(--app-text-muted);
-    white-space: nowrap;
-}
-
-.app-topbar__user strong {
-    font-weight: var(--app-weight-medium);
-    color: var(--app-text);
+/* Konto und Anmeldung. Getrennt von den Seitenaktionen, damit sie auf
+   schmalen Geraeten nicht mit weggeschoben werden. */
+.app-topbar__account {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    flex: none;
 }
 
 @media (max-width: 700px) {
@@ -288,9 +286,6 @@ a:hover {
         padding: var(--app-space-2) var(--app-space-3);
         gap: var(--app-space-2);
     }
-    /* Der Name hat auf einem Telefon keinen Platz - er steht auch auf der
-       Kontoseite. */
-    .app-topbar__user { display: none; }
     /* Die Aktionen bleiben in EINER Zeile und werden bei Bedarf geschoben.
        Drei umgebrochene Knopfreihen haetten sonst die halbe Karte verdeckt.
        Der Fuellraum entfaellt: Sonst begaenne die Zeile am rechten Rand und
@@ -298,6 +293,7 @@ a:hover {
     .app-topbar__brand { flex: none; }
     .app-topbar__spacer { display: none; }
     .app-topbar__actions {
+        flex: 1 1 auto;
         flex-wrap: nowrap;
         justify-content: flex-start;
         min-width: 0;
@@ -307,6 +303,164 @@ a:hover {
     .app-topbar__actions::-webkit-scrollbar { display: none; }
     .app-topbar__actions > * { flex: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   Benutzermenue
+   ---------------------------------------------------------------------------
+   Ein <details>-Element: Es klappt ohne JavaScript auf und ist mit der
+   Tastatur bedienbar. Darin liegen die seltenen Aktionen - Konto, Chats,
+   Benutzerliste, Abmelden. In der Leiste selbst bleiben nur die haeufigen.
+   --------------------------------------------------------------------------- */
+
+.app-menu {
+    position: relative;
+    flex: none;
+}
+
+.app-menu__button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    padding: var(--app-space-1) var(--app-space-2);
+    border-radius: var(--app-radius-pill);
+    cursor: pointer;
+    list-style: none;                 /* das Dreieck von <summary> weg ... */
+    user-select: none;
+    color: var(--app-text);
+    font-size: var(--app-text-sm);
+    transition: background var(--app-transition);
+}
+
+.app-menu__button::-webkit-details-marker { display: none; }   /* ... auch in WebKit */
+
+.app-menu__button:hover { background: var(--app-surface-sunken); }
+
+.app-menu[open] > .app-menu__button { background: var(--app-surface-sunken); }
+
+.app-menu__avatar {
+    width: 28px;
+    height: 28px;
+    flex: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--app-accent-soft);
+    color: var(--app-accent-strong);
+    font-weight: var(--app-weight-bold);
+    font-size: var(--app-text-xs);
+}
+
+.app-menu__name {
+    font-weight: var(--app-weight-medium);
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Kleines Dreieck, gezeichnet statt als Zeichen - so faellt es nicht je nach
+   Systemschrift anders aus. */
+.app-menu__caret {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid var(--app-text-faint);
+    transition: transform var(--app-transition);
+}
+
+.app-menu[open] .app-menu__caret { transform: rotate(180deg); }
+
+.app-menu__list {
+    position: absolute;
+    top: calc(100% + var(--app-space-2));
+    right: 0;
+    z-index: var(--app-z-overlay);
+    min-width: 220px;
+    padding: var(--app-space-2);
+    background: var(--app-surface-raised);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+}
+
+.app-menu__head {
+    padding: var(--app-space-2) var(--app-space-3) var(--app-space-3);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-xs);
+    border-bottom: 1px solid var(--app-border);
+    margin-bottom: var(--app-space-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-menu__item {
+    display: block;
+    padding: var(--app-space-2) var(--app-space-3);
+    border-radius: var(--app-radius);
+    color: var(--app-text);
+    font-size: var(--app-text-sm);
+    white-space: nowrap;
+}
+
+.app-menu__item:hover {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
+    text-decoration: none;
+}
+
+.app-menu__item--danger { color: var(--app-danger); }
+
+.app-menu__item--danger:hover {
+    background: var(--app-danger-soft);
+    color: var(--app-danger-strong);
+}
+
+.app-menu__sep {
+    height: 1px;
+    margin: var(--app-space-2) 0;
+    background: var(--app-border);
+}
+
+/* Auf schmalen Geraeten steht der Name nicht in der Leiste - das Zeichen
+   allein genuegt, das Menue nennt ihn noch einmal. */
+@media (max-width: 700px) {
+    .app-menu__name { display: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Fusszeile
+   ---------------------------------------------------------------------------
+   Auf jeder Seite dieselbe. Sie traegt, was rechtlich hingehoert, und sonst
+   nichts - keine zweite Navigation.
+   --------------------------------------------------------------------------- */
+
+.app-footer {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-4);
+    flex-wrap: wrap;
+    padding: var(--app-space-4) var(--app-space-5);
+    border-top: 1px solid var(--app-border);
+    background: var(--app-surface);
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+}
+
+.app-footer__mark { font-weight: var(--app-weight-medium); }
+
+.app-footer__links {
+    display: flex;
+    gap: var(--app-space-4);
+    flex-wrap: wrap;
+}
+
+.app-footer__links a { color: var(--app-text-muted); }
+
+.app-footer__links a:hover { color: var(--app-accent-strong); }
 
 /* Inhaltsbereich. Seiten bringen ihre eigenen Karten mit; dieser Bereich
    sorgt nur fuer Breite und Aussenabstand. */
@@ -687,6 +841,198 @@ a:hover {
     .app-message { flex-wrap: wrap; gap: var(--app-space-1) var(--app-space-2); }
     .app-message__from { min-width: 0; }
     .app-message__text { flex-basis: 100%; }
+}
+
+/* ===========================================================================
+   Chatfenster (Popup)
+   ---------------------------------------------------------------------------
+   Gebaut von assets/js/ui_chat.js. Es liegt unten rechts als abgesetzte
+   Karte mit Abstand zum Rand.
+
+   Es lag frueher unten LINKS und ohne Abstand direkt in der Ecke - dort, wo
+   auf der Startseite die Kartenlegende steht. Beides zusammen ging nicht.
+
+   Reihenfolge im Fenster: Kopf, Nachrichten, unten die Eingabe. Solange eine
+   Anfrage offen ist, steht an der Stelle der Eingabe die Frage mit den beiden
+   Knoepfen - erst annehmen, dann schreiben.
+   =========================================================================== */
+
+#chat-popup-container {
+    position: fixed;
+    right: var(--app-space-4);
+    bottom: var(--app-space-4);
+    z-index: 1000;                 /* unter der Call-Ansicht (9999) */
+    width: 360px;
+    max-width: calc(100vw - 2 * var(--app-space-4));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: var(--app-space-3);
+    /* Mehrere Fenster stapeln sich nach oben. Ohne Grenze waere das oberste
+       irgendwann hinter der Kopfleiste und nicht mehr zu schliessen. */
+    max-height: calc(100vh - 2 * var(--app-space-4) - var(--app-topbar-height));
+    overflow-y: auto;
+}
+
+.chat-pop {
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+    overflow: hidden;
+}
+
+.chat-pop__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-2);
+    padding: var(--app-space-3) var(--app-space-3) var(--app-space-3) var(--app-space-4);
+    border-bottom: 1px solid var(--app-border);
+    background: var(--app-surface-sunken);
+    cursor: pointer;
+}
+
+.chat-pop.minimized .chat-pop__head { border-bottom: 0; }
+
+.chat-pop__title {
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-bold);
+    color: var(--app-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Ungelesene Nachricht in einem zugeklappten Fenster. Diese Regel stand
+   frueher in admin.css, einer Datei, die nie eingebunden war - die
+   Hervorhebung hat deshalb noch nie gewirkt. */
+.chat-pop.attention .chat-pop__head {
+    background: var(--app-accent-soft);
+}
+
+.chat-pop.attention .chat-pop__title::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: var(--app-space-2);
+    border-radius: 50%;
+    background: var(--app-accent);
+    vertical-align: middle;
+}
+
+.chat-pop__close {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: var(--app-radius);
+    background: none;
+    color: var(--app-text-faint);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.chat-pop__close:hover {
+    background: var(--app-danger-soft);
+    color: var(--app-danger);
+}
+
+.chat-pop__body {
+    height: 240px;
+    overflow-y: auto;
+    padding: var(--app-space-3) var(--app-space-4);
+    background: var(--app-surface);
+}
+
+/* Solange eine Anfrage offen ist, gibt es keine Nachrichten - dann steht dort
+   auch keine leere Flaeche. Die Klasse setzt uiChat.setTabUiByActiveState(). */
+.chat-pop--pending .chat-pop__body { display: none; }
+
+.chat-pop--pending .chat-pop__foot { border-top: 0; }
+
+/* Eine Nachricht als Blase. Eigene rechts in der Akzentfarbe, fremde links
+   auf heller Flaeche - das ersetzt die frueheren Absender-Etiketten. */
+.chat-msg {
+    display: flex;
+    flex-direction: column;
+    max-width: 82%;
+    margin-bottom: var(--app-space-3);
+}
+
+.chat-msg--self   { margin-left: auto;  align-items: flex-end; }
+.chat-msg--partner{ margin-right: auto; align-items: flex-start; }
+
+.chat-msg__text {
+    padding: var(--app-space-2) var(--app-space-3);
+    border-radius: var(--app-radius-lg);
+    font-size: var(--app-text-sm);
+    line-height: var(--app-leading);
+    overflow-wrap: anywhere;
+}
+
+.chat-msg--self .chat-msg__text {
+    background: var(--app-accent);
+    color: var(--app-text-on-accent);
+    border-bottom-right-radius: var(--app-radius-sm);
+}
+
+.chat-msg--partner .chat-msg__text {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
+    border: 1px solid var(--app-border);
+    border-bottom-left-radius: var(--app-radius-sm);
+}
+
+.chat-msg__time {
+    margin-top: 2px;
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+}
+
+/* Der untere Bereich traegt entweder die Anfrage oder die Eingabe - nie
+   beides. Welches, entscheidet uiChat.setTabUiByActiveState(). */
+.chat-pop__foot {
+    border-top: 1px solid var(--app-border);
+    background: var(--app-surface);
+}
+
+.chat-pop__compose {
+    display: flex;
+    gap: var(--app-space-2);
+    padding: var(--app-space-3);
+}
+
+.chat-pop__compose .form-control { flex: 1 1 auto; min-width: 0; }
+
+.chat-pop__ask {
+    padding: var(--app-space-4);
+    text-align: center;
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+}
+
+.chat-pop__ask strong { color: var(--app-text); }
+
+.chat-pop__ask-actions {
+    display: flex;
+    gap: var(--app-space-2);
+    justify-content: center;
+    margin-top: var(--app-space-3);
+}
+
+/* Auf schmalen Geraeten nimmt das Fenster die volle Breite. */
+@media (max-width: 480px) {
+    #chat-popup-container {
+        left: var(--app-space-3);
+        right: var(--app-space-3);
+        bottom: var(--app-space-3);
+        width: auto;
+        max-width: none;
+    }
+    .chat-pop__body { height: 200px; }
 }
 
 /* ===========================================================================

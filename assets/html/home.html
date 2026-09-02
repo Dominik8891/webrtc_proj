@@ -34,19 +34,27 @@
         </div>
 
         <div class="home-bar__right">
-            <!-- Zaehler. Wird von home_map.js gesetzt und bleibt bis dahin leer. -->
-            <div class="home-counts" id="home-counts" hidden>
-                <span class="app-tag app-tag--live" id="home-count-live">
-                    <span class="app-dot"></span><span data-count-text>—</span>
+            <!-- Zaehler. Wird von home_map.js gesetzt und bleibt bis dahin leer.
+
+                 Bewusst als Fliesstext mit einem farbigen Punkt und nicht als
+                 Pillen: Sie sahen aus wie Knoepfe neben den Umschaltern
+                 Karte/Liste, sind aber Auskunft und nicht anklickbar. -->
+            <p class="home-counts" id="home-counts" hidden>
+                <span class="home-count" id="home-count-live">
+                    <span class="home-count__dot" aria-hidden="true"></span><span data-count-text>—</span>
                 </span>
-                <span class="app-tag" id="home-count-idle">
+                <span class="home-count__sep" aria-hidden="true">·</span>
+                <span class="home-count" id="home-count-idle">
                     <span data-count-text>—</span>
                 </span>
-            </div>
+            </p>
 
             <!-- Nur fuer Gaeste: Die Karte zeigt das Angebot, dieser Verweis
                  erklaert es. Sichtbar gemacht von home_map.js. -->
             <a href="#" class="home-bar__explain" id="home-explain" hidden>Wie funktioniert das?</a>
+
+            <!-- Trennt die Auskunft links von der Bedienung rechts. -->
+            <span class="home-bar__rule" aria-hidden="true"></span>
 
             <!-- Die Tabellenansicht bleibt gleichrangig erreichbar. -->
             <div class="app-switch" role="group" aria-label="Ansicht">

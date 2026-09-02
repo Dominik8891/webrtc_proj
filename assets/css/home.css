@@ -69,19 +69,75 @@
 .home-bar__explain[hidden] { display: none; }
 
 /* Zaehler: wie viele Guides sind gerade da, wie viele Standorte gibt es
-   ueberhaupt. Das beantwortet die erste Frage vor jedem Klick. */
+   ueberhaupt. Das beantwortet die erste Frage vor jedem Klick.
+
+   Als Text und nicht als Pille: Sie standen vorher als zwei gefuellte Pillen
+   direkt neben dem Umschalter Karte/Liste und sahen dadurch aus wie zwei
+   weitere Knoepfe. Sie sind aber Auskunft - nichts daran laesst sich
+   druecken. */
 .home-counts {
     display: flex;
     align-items: center;
     gap: var(--app-space-2);
+    margin: 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+    white-space: nowrap;
 }
 
-/* --- Kartenflaeche -------------------------------------------------------- */
+.home-count {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+}
+
+/* Der Punkt traegt die Live-Farbe - dieselbe wie die Nadeln auf der Karte,
+   damit die Zahl und das, was man sieht, zusammengehoeren. */
+.home-count__dot {
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--app-live);
+    box-shadow: 0 0 0 3px var(--app-live-soft);
+}
+
+.home-count__sep { color: var(--app-border-strong); }
+
+/* Senkrechter Strich zwischen Auskunft und Bedienung. */
+.home-bar__rule {
+    width: 1px;
+    align-self: stretch;
+    min-height: 24px;
+    background: var(--app-border);
+}
+
+@media (max-width: 700px) {
+    .home-bar__rule { display: none; }
+}
+
+/* --- Kartenflaeche --------------------------------------------------------
+   Die Karte ist eine abgesetzte Flaeche, kein Hintergrundbild: umlaufender
+   Abstand, runde Ecken, feine Kante. Randlos ausgelaufen sah sie aus, als
+   laege sie hinter der Anwendung statt in ihr.
+
+   overflow: hidden haelt die Kacheln und die Overlays in den runden Ecken.
+   Leaflet schiebt seine Kartenfenster von selbst in den sichtbaren Bereich,
+   sie werden also nicht abgeschnitten. */
 .home-map-shell {
     position: relative;
     flex: 1 1 auto;
     min-height: 0;          /* sonst waechst die Karte aus dem Flexbereich */
+    margin: var(--app-space-5);
     background: var(--app-surface-sunken);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-sm);
+    overflow: hidden;
+}
+
+@media (max-width: 700px) {
+    .home-map-shell { margin: var(--app-space-3); }
 }
 
 .home-map {
@@ -150,31 +206,26 @@
     gap: var(--app-space-2);
 }
 
+/* Die Schluessel der Legende sind kleine Abbilder der Nadeln: gefuellte
+   Scheibe, weisser Kern, dunkle Kante - dieselben zwei Kontraste wie auf der
+   Karte. */
 .home-legend__key {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
+    width: 15px;
+    height: 15px;
     flex: none;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(19, 23, 30, 0.25), 0 1px 2px rgba(19, 23, 30, 0.3);
 }
 
-.home-legend__key--live {
-    background: var(--app-live);
-    box-shadow: 0 0 0 3px var(--app-live-soft);
-}
-
-.home-legend__key--busy {
-    background: var(--app-surface);
-    border: 3px solid var(--app-warn-solid);
-}
+.home-legend__key--live { background: var(--app-live); }
+.home-legend__key--busy { background: var(--app-warn-solid); }
+.home-legend__key--mine { background: var(--app-accent); }
 
 .home-legend__key--idle {
-    background: var(--app-surface);
-    border: 2px solid var(--app-idle);
-}
-
-.home-legend__key--mine {
-    background: var(--app-accent);
-    box-shadow: 0 0 0 3px var(--app-accent-soft);
+    width: 12px;
+    height: 12px;
+    background: var(--app-idle);
 }
 
 .home-legend__row[hidden] { display: none; }
@@ -215,94 +266,96 @@
     border: 0;
 }
 
+/* Die Nadel sitzt mit der Spitze unten in der Mitte des Kastens. So zeigt
+   jede Groesse auf denselben Punkt, ohne dass der Anker mitgerechnet werden
+   muesste. */
 .home-pin {
     position: relative;
-    display: block;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
     width: 100%;
     height: 100%;
     cursor: pointer;
 }
 
-.home-pin__dot {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
+.home-pin__shape {
+    display: block;
+    width: 28px;
+    height: 36px;
+    /* Der Schlagschatten trennt die Nadel von jedem Untergrund - hell wie
+       dunkel. Ohne ihn verschwand die gruene Nadel im Gruen der Karte. */
+    filter: drop-shadow(0 2px 3px rgba(19, 23, 30, 0.45));
     transition: transform var(--app-transition);
+    transform-origin: 50% 100%;
 }
 
-/* Verfuegbar. */
-.home-pin--live .home-pin__dot {
-    width: 18px;
-    height: 18px;
-    background: var(--app-live);
-    border: 3px solid var(--app-surface);
-    box-shadow: var(--app-shadow);
+/* Weisser Rand aussen, weisser Kern innen: zwei Kontrastkanten, die auch
+   dann greifen, wenn die Fuellfarbe der Umgebung aehnelt. */
+.home-pin__body {
+    stroke: #fff;
+    stroke-width: 2.4;
 }
 
-/* Der Ring atmet langsam. Er ist der einzige bewegte Teil der Oberflaeche und
-   sagt genau eine Sache: hier ist jemand wach. */
+.home-pin__eye { fill: #fff; }
+
+.home-pin:hover .home-pin__shape { transform: scale(1.12); }
+
+/* --- Die vier Arten ------------------------------------------------------ */
+
+/* Verfuegbar: volle Groesse, Live-Farbe. */
+.home-pin--live .home-pin__body { fill: var(--app-live); }
+
+/* Im Gespraech: da, aber nicht frei. */
+.home-pin--busy .home-pin__body { fill: var(--app-warn-solid); }
+
+/* Eigener Standort. */
+.home-pin--mine .home-pin__body { fill: var(--app-accent); }
+
+/* Angeboten, aber gerade niemand da: kleiner und leiser, damit die
+   verfuegbaren Guides die Karte fuehren. Erkennbar bleibt die Nadel
+   trotzdem - genau das ist der Zweck. */
+.home-pin--idle .home-pin__shape {
+    width: 21px;
+    height: 27px;
+    filter: drop-shadow(0 1px 2px rgba(19, 23, 30, 0.35));
+}
+
+.home-pin--idle .home-pin__body {
+    fill: var(--app-idle);
+    stroke-width: 2.8;
+}
+
+/* Der Ring atmet langsam um den Kopf der Nadel. Er ist der einzige bewegte
+   Teil der Oberflaeche und sagt genau eine Sache: hier ist jemand wach. */
 .home-pin--live .home-pin__pulse {
     position: absolute;
-    top: 50%;
     left: 50%;
+    bottom: 23px;                 /* Kopfmitte der 36px hohen Nadel */
     width: 18px;
     height: 18px;
-    margin: -9px 0 0 -9px;
+    margin: 0;
     border-radius: 50%;
     background: var(--app-live);
     opacity: 0.35;
+    transform: translate(-50%, 50%);
     animation: home-pin-pulse 2.4s ease-out infinite;
 }
 
 @keyframes home-pin-pulse {
-    0%   { transform: scale(1);   opacity: 0.35; }
-    70%  { transform: scale(2.6); opacity: 0; }
-    100% { transform: scale(2.6); opacity: 0; }
+    0%   { transform: translate(-50%, 50%) scale(1);   opacity: 0.35; }
+    70%  { transform: translate(-50%, 50%) scale(2.6); opacity: 0; }
+    100% { transform: translate(-50%, 50%) scale(2.6); opacity: 0; }
 }
 
 /* Wer Bewegtbild reduziert haben moechte, bekommt den Ring stehend - die
-   Nadel bleibt trotzdem als verfuegbar erkennbar (Farbe, Fuellung, Groesse). */
+   Nadel bleibt trotzdem als verfuegbar erkennbar (Form, Groesse, Farbe). */
 @media (prefers-reduced-motion: reduce) {
     .home-pin--live .home-pin__pulse {
         animation: none;
-        transform: scale(1.9);
+        transform: translate(-50%, 50%) scale(1.8);
         opacity: 0.18;
     }
-}
-
-/* Angeboten, aber gerade niemand da. */
-.home-pin--idle .home-pin__dot {
-    width: 12px;
-    height: 12px;
-    background: var(--app-surface);
-    border: 2px solid var(--app-idle);
-    opacity: 0.85;
-}
-
-/* Im Gespraech: derselbe leise Auftritt wie ein ruhender Standort, aber in
-   der Warnfarbe - der Guide ist da, nur eben nicht frei. */
-.home-pin--busy .home-pin__dot {
-    width: 14px;
-    height: 14px;
-    background: var(--app-surface);
-    border: 3px solid var(--app-warn-solid);
-}
-
-/* Der eigene Standort. In der Akzentfarbe statt in der Live-Farbe: Er sagt
-   nichts ueber Verfuegbarkeit aus, sondern "der gehoert Ihnen". Anrufen laesst
-   er sich nicht - deshalb auch kein Ring, der zum Klicken einlaedt. */
-.home-pin--mine .home-pin__dot {
-    width: 16px;
-    height: 16px;
-    background: var(--app-accent);
-    border: 3px solid var(--app-surface);
-    box-shadow: var(--app-shadow), 0 0 0 4px var(--app-accent-soft);
-}
-
-.home-pin:hover .home-pin__dot {
-    transform: translate(-50%, -50%) scale(1.25);
 }
 
 /* ===========================================================================

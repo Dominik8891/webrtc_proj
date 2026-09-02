@@ -23,6 +23,11 @@ window.webrtcApp.ui = {
      * war anschließend Guide, ohne je gefragt worden zu sein.
      */
     showLocationButton: function() {
+        // Beide Beschriftungen sitzen auf einem Sekundaerknopf. Der Akzent
+        // war hier falsch: Einen Standort anzulegen ist die SELTENSTE
+        // Handlung in dieser Anwendung - man tut es einmal und danach jahrelang
+        // nicht mehr. Hervorgehoben gehoert das, was oft passiert.
+
         var locationButtonDiv = document.getElementById('location-button');
         locationButtonDiv.innerHTML = '';
         let text = '';
@@ -36,7 +41,7 @@ window.webrtcApp.ui = {
                 target = 'index.php?act=guide_role_page';
             }
             if (text) {
-                locationButtonDiv.innerHTML = `<a href="${target}" class="btn btn-primary btn-sm">${text}</a>`;
+                locationButtonDiv.innerHTML = `<a href="${target}" class="btn btn-secondary btn-sm">${text}</a>`;
                 locationButtonDiv.style.display = '';
             } else {
                 locationButtonDiv.style.display = 'none';
@@ -71,6 +76,30 @@ window.webrtcApp.ui = {
         } else {
             alert("Löschen abgebrochen");
         }
+    },
+
+    /**
+     * Schliesst das Benutzermenue, wenn daneben geklickt oder Escape
+     * gedrueckt wird.
+     *
+     * Das Menue selbst ist ein <details>-Element und funktioniert ohne
+     * JavaScript (siehe App\Helper\ViewHelper::userMenu). Diese Funktion
+     * ergaenzt nur die Bequemlichkeit - faellt sie aus, laesst sich das Menue
+     * weiterhin ueber seinen eigenen Knopf schliessen.
+     */
+    bindUserMenu: function() {
+        const menu = document.getElementById('user-menu');
+        if (!menu) return;
+
+        document.addEventListener('click', function(e) {
+            if (!menu.open) return;
+            if (menu.contains(e.target)) return;
+            menu.open = false;
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && menu.open) menu.open = false;
+        });
     },
 
     /**

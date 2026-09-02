@@ -45,8 +45,6 @@ window.webrtcApp.init = function() {
     // ---------- Starte Polling für Signaling nach Login ----------
     if (window.isLoggedIn) {
         window.webrtcApp.signaling.pollSignaling();
-        const settings = document.getElementById('settings');
-        if (settings) settings.style.display = '';
         window.webrtcApp.uiChat.updatePollingState();
     }
 
@@ -343,16 +341,17 @@ window.webrtcApp.init = function() {
     window.updateCallIcons = updateCallIcons;
     updateCallIcons();
 
-    // Zeigen und verstecken der Buttons für Einstellungen, Locations usw.
-    const params = new URLSearchParams(window.location.search);
-    const act = params.get('act');
-    if (act === 'settings' || act === 'get_all_chats' || act === 'show_chat') {
-        window.webrtcApp.ui.setDisplay('chats', '');
-    } else {
-        window.webrtcApp.ui.showLocationButton();
-        window.webrtcApp.ui.showAllLocationsButton();
-    }
-    if (window.isLoggedIn) window.webrtcApp.ui.setDisplay('settings', '');
+    // ---------- Kopfleiste ----------
+    //
+    // In der Leiste stehen nur noch die beiden haeufigen Aktionen. Konto,
+    // Chats, Benutzerliste und Abmelden liegen im Benutzermenue, das der
+    // Server mitliefert (App\Helper\ViewHelper::userMenu) - hier ist dafuer
+    // nichts mehr ein- oder auszublenden. Frueher stand hier eine Abfrage auf
+    // den aktuellen 'act', die auf den Kontoseiten die Standortknoepfe gegen
+    // einen Chat-Knopf tauschte.
+    window.webrtcApp.ui.showLocationButton();
+    window.webrtcApp.ui.showAllLocationsButton();
+    window.webrtcApp.ui.bindUserMenu();
 
     // ---------- Overlays der Call-Ansicht: Chat und Geraeteauswahl -------
     //

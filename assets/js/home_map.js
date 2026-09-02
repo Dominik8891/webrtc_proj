@@ -351,6 +351,13 @@ window.webrtcApp.homeMap = {
         // alle 15 Sekunden zurueckgeworfen werden.
         if (!this.fitted) {
             this.fitted = true;
+            // Leaflet merkt sich die Groesse des Kartenfeldes beim Anlegen und
+            // rechnet den Ausschnitt daraus aus. Die Karte sitzt in einer
+            // Flexspalte zwischen Kopf- und Fusszeile; aendert sich deren
+            // Hoehe nach dem Anlegen noch - etwa weil eine Schrift nachlaedt -,
+            // waere der gespeicherte Wert veraltet. Einmal nachmessen kostet
+            // nichts und macht den Ausschnitt unabhaengig davon.
+            this.map.invalidateSize(false);
             this.map.fitBounds(
                 L.latLngBounds(items.map(item => [item.lat, item.lon])),
                 { padding: [60, 60], maxZoom: 12 }
@@ -427,12 +434,27 @@ window.webrtcApp.homeMap = {
      */
     icon(art) {
         const puls = art === 'live' ? '<span class="home-pin__pulse"></span>' : '';
+
+        // Eine Nadelform, keine Scheibe: Ein gruener Punkt auf einer Karte,
+        // die selbst aus Gruen- und Grautoenen besteht, verschwindet darin.
+        // Die Tropfenform mit weissem Rand, weissem Kern und Schlagschatten
+        // ist auch dann erkennbar, wenn die Farbe darunter dieselbe ist -
+        // sie hebt sich durch FORM und Kontrast ab, nicht nur durch Farbe.
+        //
+        // Die Spitze sitzt unten in der Mitte; iconAnchor zeigt genau dorthin,
+        // damit die Nadel auf ihren Punkt zeigt und nicht daneben.
+        const svg =
+            '<svg class="home-pin__shape" viewBox="0 0 28 36" aria-hidden="true">'
+          +   '<path class="home-pin__body" d="M14 1.6C7.7 1.6 2.6 6.7 2.6 13c0 8.3 11.4 21.4 11.4 21.4S25.4 21.3 25.4 13C25.4 6.7 20.3 1.6 14 1.6z"/>'
+          +   '<circle class="home-pin__eye" cx="14" cy="13" r="4.4"/>'
+          + '</svg>';
+
         return L.divIcon({
             className: 'home-pin-wrap',
-            html: `<span class="home-pin home-pin--${art}">${puls}<span class="home-pin__dot"></span></span>`,
-            iconSize: [34, 34],
-            iconAnchor: [17, 17],
-            popupAnchor: [0, -14]
+            html: `<span class="home-pin home-pin--${art}">${puls}${svg}</span>`,
+            iconSize: [32, 40],
+            iconAnchor: [16, 40],
+            popupAnchor: [0, -34]
         });
     },
 
