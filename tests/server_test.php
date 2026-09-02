@@ -19,6 +19,7 @@ require_once $ROOT . '/class/Controller/WebRTCController.php';
 require_once $ROOT . '/class/Controller/UserController.php';
 require_once $ROOT . '/class/Model/Location.php';
 require_once $ROOT . '/class/Model/GuideRole.php';
+require_once $ROOT . '/class/Helper/Theme.php';
 require_once $ROOT . '/class/Helper/ViewHelper.php';
 
 use App\Model\IceServerConfig;
@@ -31,6 +32,7 @@ use App\Model\Location;
 use App\Model\GuideRole;
 use App\Helper\Role;
 use App\Helper\Permission;
+use App\Helper\Theme;
 use App\Helper\ViewHelper;
 
 $passed = 0;
@@ -1165,5 +1167,132 @@ foreach (['class/Controller/UserController.php',
         "$datei zeichnet ein eigenes SVG statt die Klasse zu setzen");
 }
 ok('die Symbole stehen einmal in theme.css, nicht in jedem Tabellenbauer');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n16) Farbprofile lassen die Nadelfarben in Ruhe\n");
+
+// DIE REGEL
+// Gruen heisst auf der Karte "Guide jetzt verfuegbar", Gelb "im Gespraech",
+// Grau "Standort ohne Guide". Wuerde ein Farbprofil einen dieser Werte
+// verstellen, hiesse dieselbe Farbe je nach Einstellung etwas anderes - und
+// die Legende neben der Karte waere falsch. Geprueft wird deshalb die
+// CSS-Datei selbst und nicht die Absicht.
+$themeCss = file_get_contents($ROOT . '/assets/css/theme.css');
+
+/**
+ * Schneidet einen Regelblock aus der CSS-Datei und liest seine Variablen.
+ *
+ * @param string $css
+ * @param string $selektor
+ * @return array<string,string>
+ */
+function cssBlock(string $css, string $selektor): array {
+    $i = strpos($css, $selektor);
+    if ($i === false) return [];
+    $a = strpos($css, '{', $i);
+    $b = strpos($css, "\n}", $a);
+    $werte = [];
+    preg_match_all('/(--[a-z0-9-]+)\s*:\s*([^;]+);/', substr($css, $a, $b - $a), $m, PREG_SET_ORDER);
+    foreach ($m as $t) $werte[$t[1]] = trim($t[2]);
+    return $werte;
+}
+
+$NADELN = ['--app-live', '--app-warn-solid', '--app-idle'];
+
+$root = cssBlock($themeCss, ':root {');
+check($root !== [], 'der :root-Block wurde nicht gefunden');
+foreach ($NADELN as $v) {
+    check(isset($root[$v]), "$v steht nicht in :root");
+}
+ok('die drei Nadelfarben stehen in :root');
+
+// Jedes Profil aus Theme::PROFILE braucht einen CSS-Block - ausser der
+// Vorgabe, die IST :root.
+foreach (array_keys(Theme::PROFILE) as $schluessel) {
+    if ($schluessel === Theme::DEFAULT) continue;
+    $sel   = '[data-theme="' . $schluessel . '"]';
+    $block = cssBlock($themeCss, $sel);
+    check($block !== [], "zum Profil $schluessel fehlt der Block $sel in theme.css");
+
+    // Der Kern dieser Pruefung: kein Profil fasst eine Nadelfarbe an.
+    foreach ($NADELN as $v) {
+        check(!isset($block[$v]),
+            "das Profil $schluessel veraendert $v - diese Farbe gehoert der Karte");
+    }
+}
+ok('kein Profil schreibt eine Nadelfarbe neu');
+
+// Umgekehrt: Ein Profil, das gar nichts aendert, waere ein leerer Eintrag in
+// der Auswahl. Jedes Profil muss Grund, Flaeche und Akzent setzen.
+foreach (array_keys(Theme::PROFILE) as $schluessel) {
+    $block = ($schluessel === Theme::DEFAULT)
+        ? $root
+        : cssBlock($themeCss, '[data-theme="' . $schluessel . '"]');
+    foreach (['--app-bg', '--app-surface', '--app-accent'] as $v) {
+        check(isset($block[$v]), "dem Profil $schluessel fehlt $v");
+    }
+}
+ok('jedes Profil setzt Grundflaeche, Flaeche und Akzent');
+
+// Die Farbmuster auf der Kontoseite sind Kopien aus der CSS-Datei. Kopien
+// laufen auseinander - deshalb hier der Abgleich.
+foreach (Theme::PROFILE as $schluessel => $profil) {
+    $block = ($schluessel === Theme::DEFAULT)
+        ? $root
+        : cssBlock($themeCss, '[data-theme="' . $schluessel . '"]');
+    $erwartet = [$block['--app-bg'], $block['--app-surface'], $block['--app-accent']];
+    check($profil['muster'] === $erwartet,
+        "das Muster von $schluessel zeigt " . implode(' ', $profil['muster'])
+        . ', in theme.css steht aber ' . implode(' ', $erwartet));
+}
+ok('die Farbmuster der Auswahl stimmen mit theme.css ueberein');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n17) Das Farbprofil kommt nur aus der bekannten Liste\n");
+
+check(Theme::isValid('indigo')  === true,  'indigo sollte gueltig sein');
+check(Theme::isValid('dunkel')  === true,  'dunkel sollte gueltig sein');
+check(Theme::isValid('gibtsnicht') === false, 'ein unbekanntes Profil wurde durchgelassen');
+check(Theme::isValid(null)   === false, 'null wurde durchgelassen');
+check(Theme::isValid('')     === false, 'der Leerstring wurde durchgelassen');
+// Der Wert landet in einem HTML-Attribut. Was hier durchkaeme, stuende in
+// data-theme - deshalb die Pruefung gegen eine Liste und nicht gegen ein Muster.
+check(Theme::isValid('indigo" onload="x') === false, 'ein Wert mit Anfuehrungszeichen kam durch');
+ok('isValid laesst nur bekannte Profile durch');
+
+check(Theme::normalize(null)         === Theme::DEFAULT, 'null ergibt nicht die Vorgabe');
+check(Theme::normalize('')           === Theme::DEFAULT, 'Leerstring ergibt nicht die Vorgabe');
+check(Theme::normalize('entfallen')  === Theme::DEFAULT, 'ein entfallenes Profil ergibt nicht die Vorgabe');
+check(Theme::normalize('dunkel')     === 'dunkel',       'ein gueltiges Profil wurde veraendert');
+check(isset(Theme::PROFILE[Theme::DEFAULT]), 'die Vorgabe steht nicht in der Profilliste');
+ok('normalize faengt nie gewaehlt, leer und entfallen ab');
+
+// Die Route haengt am Recht der Kontoseite - nicht an einem eigenen, das
+// jemand vergessen koennte einzutragen.
+check(isset($routes['set_theme']), 'die Route set_theme fehlt');
+check($routes['set_theme'][2] === Permission::USER_SETTINGS,
+    'set_theme haengt nicht am Recht der Kontoseite');
+check($routes['set_theme'][3] === 'json', 'set_theme antwortet nicht als JSON');
+check(Permission::has(Permission::GUEST, Permission::USER_SETTINGS) === false,
+    'ein Gast kaeme an die Farbwahl');
+ok('set_theme haengt am Recht user.settings');
+
+// Gespeichert wird fuer den Angemeldeten. Stuende hier eine Benutzer-ID aus
+// der Anfrage, koennte jemand fremde Konten umfaerben.
+$sc = file_get_contents($ROOT . '/class/Controller/SettingsController.php');
+check(preg_match('/new User\(Auth::userId\(\)\)/', $sc) === 1,
+    'setTheme benutzt nicht die angemeldete Benutzer-ID');
+check(strpos($sc, "Request::g('user_id'") === false,
+    'setTheme liest eine Benutzer-ID aus der Anfrage');
+ok('das Profil wird nur am eigenen Konto gespeichert');
+
+// Und das Attribut steht im ausgelieferten HTML, nicht in einem Skript:
+// sonst blitzt bei jedem Seitenwechsel das helle Profil auf.
+$layout = file_get_contents($ROOT . '/assets/html/index.html');
+check(strpos($layout, 'data-theme="###THEME###"') !== false,
+    'das <html>-Element traegt keinen Platzhalter fuer das Farbprofil');
+$vh = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
+check(strpos($vh, '"###THEME###"') !== false, 'ViewHelper fuellt ###THEME### nicht');
+ok('das Profil steht vor dem ersten Zeichnen im HTML');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

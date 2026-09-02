@@ -78,18 +78,44 @@
     --app-accent-tint:     #f5f6fe;   /* sehr leise Toenung, z. B. Chatkopf */
     --app-accent-ring:     rgba(74, 84, 214, 0.30);
 
-    /* --- Zustandsfarben -------------------------------------------------
-       "live" ist die wichtigste Farbe der Anwendung: ein Guide ist gerade
-       erreichbar. Sie wird nur dafuer benutzt. */
+    /* === DIE DREI NADELFARBEN ===========================================
+       ACHTUNG - DIESE DREI WERTE GEHOEREN KEINEM FARBPROFIL.
+
+       Sie bedeuten auf der Karte:
+         --app-live       Gruen  - ein Guide ist jetzt verfuegbar
+         --app-warn-solid Gelb   - ein Guide ist im Gespraech
+         --app-idle       Grau   - Standort angeboten, gerade niemand da
+
+       Das ist die wichtigste Auskunft der ganzen Anwendung. Wuerde ein
+       Farbprofil sie verstellen, hiesse dieselbe Farbe je nach Einstellung
+       etwas anderes - und die Legende auf der Karte waere falsch.
+
+       Deshalb stehen sie hier und NUR hier. Kein [data-theme]-Block weiter
+       unten schreibt sie neu; ein Test in tests/server_test.php prueft das.
+
+       Sichtbar bleiben die Nadeln in jedem Profil ueber ihre FORM: weisser
+       Rand, weisser Kern und Schlagschatten (assets/css/home.css). Der Rand
+       traegt den Kontrast zum Untergrund, die Fuellung unterscheidet nur die
+       drei Zustaende voneinander. Deshalb darf die Fuellung dieselbe
+       bleiben, auch wenn die Karte dunkel wird.
+       ==================================================================== */
     --app-live:            #1c8552;
+    --app-warn-solid:      #f0b429;   /* gefuellte Warnflaeche, Nadel im Gespraech */
+    --app-idle:            #8b95a3;
+
+    /* --- Ableitungen der Zustandsfarben ---------------------------------
+       Diese DUERFEN ein Profil mitmachen: Es sind Flaechen und Textfarben
+       der Oberflaeche, keine Nadeln. Auf dunklem Grund braucht ein gruener
+       Text einen anderen Ton als auf weissem - sonst ist er nicht lesbar. */
     --app-live-strong:     #146640;
     --app-live-soft:       #e6f4ec;
 
     --app-warn:            #9a6400;   /* Text auf heller Warnflaeche */
-    --app-warn-solid:      #f0b429;   /* gefuellte Warnflaeche, Nadel im Gespraech */
     --app-warn-strong:     #dda31c;
     --app-warn-ink:        #3d2c00;   /* Text auf gefuellter Warnflaeche */
     --app-warn-soft:       #fdf3e0;
+
+    --app-idle-soft:       #eceff3;
 
     --app-danger:          #b3261e;
     --app-danger-strong:   #8f1d17;
@@ -105,11 +131,6 @@
     --icon-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E");
     --icon-unlock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 7.5-2'/%3E%3C/svg%3E");
     --icon-history: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3.5 2'/%3E%3C/svg%3E");
-
-    /* Ruhend: angebotener Standort ohne aktiven Guide. Bewusst grau und
-       nicht rot - "gerade niemand da" ist kein Fehler. */
-    --app-idle:            #8b95a3;
-    --app-idle-soft:       #eceff3;
 
     /* --- Schrift --------------------------------------------------------
        Systemschriften: kein Webfont, keine zusaetzliche Ladezeit, und auf
@@ -1906,3 +1927,253 @@ table.dataTable td.dataTables_empty {
    zieht der Tabellensatz sie auf ein Sechstel der Breite auf, und zwischen
    Spaltenkopf und Symbolen klafft eine leere Flaeche. */
 .app-actions-cell { width: max-content; }
+
+/* ===========================================================================
+   FARBPROFILE
+   ===========================================================================
+   Das gewaehlte Profil steht als data-theme am <html>-Element. Gesetzt wird
+   es serverseitig in App\Helper\ViewHelper::output() - also VOR dem ersten
+   Zeichnen. Wuerde ein Skript es nachtragen, saehe man im Dunkelprofil bei
+   jedem Seitenwechsel einen hellen Blitz.
+
+   Der Block oben (:root) IST das Profil "Indigo". Die drei Bloecke hier
+   ueberschreiben nur, was sich unterscheidet - Flaechen, Linien, Text,
+   Akzent, Schatten. Wer eine Regel weiter unten in dieser Datei schreibt,
+   benutzt Variablen und keine festen Farben; dann gilt sie in allen vier
+   Profilen ohne Zutun.
+
+   WAS HIER NICHT STEHT
+   --app-live, --app-warn-solid und --app-idle. Das sind die drei Farben der
+   Kartennadeln, und sie bedeuten in jedem Profil dasselbe. Sie stehen
+   einmal in :root. Ein Test prueft, dass kein Profilblock sie anfasst.
+
+   Die drei Ebenen bg < sunken < surface gelten auch hier - im Dunkelprofil
+   dreht sich die Reihenfolge der Helligkeit um, nicht die der Ebenen: Der
+   Grund ist am dunkelsten, die Karte darauf am hellsten.
+   =========================================================================== */
+
+/* --- Himmelblau -----------------------------------------------------------
+   Hell und freundlich. Der Grund traegt dieselbe Toenung wie der Akzent,
+   nur weit heruntergedreht - dadurch wirkt die Seite wie aus einem Stueck
+   und nicht wie ein blauer Knopf auf grauem Papier.
+
+   Der Akzent liegt bei 205 Grad auf dem Farbkreis, das Gruen der Nadeln bei
+   150. Genug Abstand, damit ein blauer Knopf keine verfuegbare Nadel
+   vortaeuscht - und zugleich weit weg vom Gelb. */
+[data-theme="himmelblau"] {
+    --app-bg:              #e2eef8;
+    --app-surface:         #ffffff;
+    --app-surface-sunken:  #f0f6fc;
+    --app-surface-raised:  #ffffff;
+    --app-overlay:         rgba(11, 34, 54, 0.55);
+
+    --app-border:          #cfe1f0;
+    --app-border-strong:   #a8c6de;
+
+    --app-text:            #16293a;
+    --app-text-muted:      #4e6579;
+    --app-text-faint:      #7d94a8;
+
+    --app-accent:          #0f6fc4;
+    --app-accent-strong:   #0b579b;
+    --app-accent-soft:     #dceafa;
+    --app-accent-tint:     #f1f7fd;
+    --app-accent-ring:     rgba(15, 111, 196, 0.32);
+
+    /* Die weichen Flaechen bekommen denselben kuehlen Einschlag wie der
+       Rest, sonst stehen warme Restfarben aus dem Indigoprofil darin. */
+    --app-live-soft:       #e2f3ea;
+    --app-warn-soft:       #fcf2df;
+    --app-danger-soft:     #fceceb;
+    --app-idle-soft:       #e8eef4;
+
+    --app-shadow-sm: 0 1px 2px rgba(11, 34, 54, 0.07);
+    --app-shadow:    0 2px 8px rgba(11, 34, 54, 0.09);
+    --app-shadow-lg: 0 8px 28px rgba(11, 34, 54, 0.18);
+}
+
+/* --- Dunkel ---------------------------------------------------------------
+   Kein umgedrehtes Hellprofil: Reines Schwarz und reines Weiss kommen nicht
+   vor. Der Grund ist ein sehr dunkles Blaugrau, die Flaechen darueber
+   werden HELLER - dieselbe Staffelung wie im Hellen, nur andersherum.
+   Weisser Text auf schwarzem Grund flimmert; deshalb ist die Schrift ein
+   gebrochenes Weiss.
+
+   Der Akzent muss hier heller sein als im Hellen: Ein Indigo, das auf Weiss
+   kraeftig wirkt, verschwindet auf dunklem Grund. #7f89ff steht auf
+   --app-surface bei rund 7:1 und traegt damit auch Text.
+
+   Zu den Nadeln: Ihre Fuellfarben bleiben unveraendert. Sichtbar sind sie
+   ueber den weissen Rand, der auf der dunklen Karte 11:1 und mehr erreicht.
+   Was hier nachgezogen wird, sind die weichen Flaechen - ein Badge mit
+   hellgruenem Grund waere im Dunkelprofil ein Leuchtfleck. */
+[data-theme="dunkel"] {
+    --app-bg:              #0d1116;
+    --app-surface:         #1e242d;
+    --app-surface-sunken:  #171c24;
+    --app-surface-raised:  #262e39;
+    --app-overlay:         rgba(0, 0, 0, 0.66);
+
+    --app-border:          #2c3540;
+    --app-border-strong:   #3f4a58;
+
+    --app-text:            #e4eaf2;
+    --app-text-muted:      #9aa7b6;
+    --app-text-faint:      #6d7b8b;
+    --app-text-on-accent:  #10131a;   /* dunkler Text auf hellem Akzent */
+
+    --app-accent:          #7f89ff;
+    --app-accent-strong:   #9aa2ff;   /* heller beim Ueberfahren, nicht
+                                         dunkler - auf dunklem Grund ist
+                                         "mehr Licht" die Hervorhebung */
+    --app-accent-soft:     #262d4d;
+    --app-accent-tint:     #1c2130;
+    --app-accent-ring:     rgba(127, 137, 255, 0.40);
+
+    /* Ableitungen: Flaechen dunkel, Schrift darauf hell. */
+    --app-live-strong:     #34a76c;
+    --app-live-soft:       #16301f;
+
+    --app-warn:            #f0c46a;   /* Warntext auf dunkler Flaeche */
+    --app-warn-strong:     #ffc94a;
+    --app-warn-soft:       #33280f;
+
+    --app-danger:          #ff7b70;
+    --app-danger-strong:   #ff9c93;
+    --app-danger-soft:     #3a1d1a;
+
+    --app-idle-soft:       #232a33;
+
+    /* Schatten trennen auf dunklem Grund kaum noch - die Ebenen kommen hier
+       aus der Helligkeit. Der Schatten bleibt, aber leiser und tiefer. */
+    --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+    --app-shadow:    0 2px 10px rgba(0, 0, 0, 0.48);
+    --app-shadow-lg: 0 10px 34px rgba(0, 0, 0, 0.62);
+}
+
+/* --- Neutral --------------------------------------------------------------
+   Fuer alle, denen jede Akzentfarbe zu viel ist. Der "Akzent" ist hier ein
+   dunkles Graphit: Hauptaktionen heben sich noch ab, aber ueber Helligkeit
+   statt ueber Farbe.
+
+   Das ist der Fall, in dem die Nadelfarben am staerksten hervortreten - und
+   genau so ist es gemeint. Wenn die Oberflaeche farblos ist, sind Gruen,
+   Gelb und Grau auf der Karte die einzigen Farben auf dem Schirm.
+
+   Aufpassen musste man beim Grau: --app-idle (#8b95a3) ist die Nadel ohne
+   Guide. Das Graphit des Akzents (#3f4a57) ist deutlich dunkler, damit ein
+   Knopf nicht wie ein ruhender Standort aussieht. */
+[data-theme="neutral"] {
+    --app-bg:              #e9ebee;
+    --app-surface:         #ffffff;
+    --app-surface-sunken:  #f4f5f7;
+    --app-surface-raised:  #ffffff;
+    --app-overlay:         rgba(24, 27, 31, 0.55);
+
+    --app-border:          #dcdfe4;
+    --app-border-strong:   #b6bcc4;
+
+    --app-text:            #1f242b;
+    --app-text-muted:      #59616b;
+    --app-text-faint:      #868e98;
+
+    --app-accent:          #38424e;
+    --app-accent-strong:   #262d36;
+    --app-accent-soft:     #e7e9ed;
+    --app-accent-tint:     #f4f5f7;
+    --app-accent-ring:     rgba(63, 74, 87, 0.30);
+
+    --app-live-soft:       #e8f1ec;
+    --app-warn-soft:       #f7f1e4;
+    --app-danger-soft:     #f8eceb;
+    --app-idle-soft:       #ebedf0;
+
+    --app-shadow-sm: 0 1px 2px rgba(24, 27, 31, 0.06);
+    --app-shadow:    0 2px 8px rgba(24, 27, 31, 0.08);
+    --app-shadow-lg: 0 8px 28px rgba(24, 27, 31, 0.16);
+}
+
+/* ---------------------------------------------------------------------------
+   Auswahl des Farbprofils (Kontoseite)
+   ---------------------------------------------------------------------------
+   Vier Karten nebeneinander, jede mit einem Muster aus drei Farben:
+   Grundflaeche, Karte, Akzent. Genau die drei Werte unterscheiden die
+   Profile - wer sie sieht, weiss, was er waehlt, ohne es auszuprobieren.
+
+   Der eigentliche Radioknopf bleibt im Dokument (Tastatur, Vorleseprogramm),
+   ist aber nicht zu sehen: Die Karte selbst ist die Auswahl.
+   --------------------------------------------------------------------------- */
+
+.app-swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--app-space-3);
+}
+
+.app-swatch {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    padding: var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface);
+    cursor: pointer;
+    transition: border-color var(--app-transition), background-color var(--app-transition);
+}
+
+.app-swatch:hover { border-color: var(--app-border-strong); }
+
+/* Nicht display:none - ein so verstecktes Feld ist fuer die Tastatur nicht
+   mehr erreichbar. Stattdessen unsichtbar an Ort und Stelle. */
+.app-swatch input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+
+/* Ausgewaehlt: Rahmen in der Akzentfarbe und eine leise Toenung. Kein
+   Haekchen - der Rahmen sagt es schon, und ein Haekchen ueber einem
+   Farbmuster verdeckt genau das, worum es geht. */
+.app-swatch:has(input:checked) {
+    border-color: var(--app-accent);
+    box-shadow: inset 0 0 0 1px var(--app-accent);
+    background: var(--app-accent-tint);
+}
+
+/* :has() kennen aeltere Browser nicht. Dann traegt der Fokusrahmen die
+   Rueckmeldung, und die Auswahl bleibt trotzdem bedienbar. */
+.app-swatch:focus-within {
+    outline: 2px solid var(--app-accent-ring);
+    outline-offset: 2px;
+}
+
+.app-swatch__preview {
+    display: flex;
+    flex: none;
+    border-radius: var(--app-radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--app-border-strong);
+}
+
+.app-swatch__chip {
+    display: block;
+    width: 14px;
+    height: 34px;
+}
+
+.app-swatch__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.app-swatch__name {
+    font-size: var(--app-text-base);
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text);
+}
+
+.app-swatch__desc {
+    font-size: var(--app-text-xs);
+    color: var(--app-text-muted);
+    line-height: var(--app-leading-tight);
+}

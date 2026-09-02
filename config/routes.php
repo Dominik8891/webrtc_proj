@@ -114,6 +114,9 @@ return [
 
     // Einstellungen
     "settings"              => [SettingsController::class           , "showSettingsPage"        , Permission::USER_SETTINGS          , 'html'],
+    // Farbprofil umstellen. Antwortet als JSON, weil die Seite nicht neu
+    // geladen wird - das Profil wirkt sofort ueber data-theme am <html>.
+    'set_theme'             => [SettingsController::class           , 'setTheme'                , Permission::USER_SETTINGS          , 'json'],
 
     // Guide-Rolle: die Frage stellen und beantworten.
     //

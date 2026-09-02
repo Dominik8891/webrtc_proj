@@ -2,6 +2,7 @@
 namespace App\Helper;
 
 use App\Model\User;
+use App\Helper\Theme;
 
 /**
  * Hilfsklasse für die View-Generierung.  
@@ -116,7 +117,7 @@ class ViewHelper
      * 
      * Platzhalter im Template:
      *   ###CONTENT###, ###CALL_CONTROLL###, ###INNER_CALL_CONTROLL###, ###MEDIA###,
-     *   ###USERSTATUS###, ###LOGOUT###, ###USER###, ###REGISTER###
+     *   ###USERSTATUS###, ###LOGOUT###, ###USER###, ###REGISTER###, ###THEME###
      */
     public static function output($in_content)
     {
@@ -136,6 +137,9 @@ class ViewHelper
         $inner_call= "";
         $media     = "";
 
+        // Das Farbprofil. Gaeste und Konten ohne Wahl bekommen die Vorgabe.
+        $theme = Theme::DEFAULT;
+
         $logged_in     = 'false';
         $user_role     = null;
         $user_role_id  = null;
@@ -145,6 +149,11 @@ class ViewHelper
         if (Auth::isLoggedIn()) {
             $user = new User(Auth::userId());
             $logged_in = 'true';
+
+            // Aus DEM Datensatz, der ohnehin geladen wird - keine zweite
+            // Abfrage. normalize() faengt "nie gewaehlt" und ein Profil ab,
+            // das es nicht mehr gibt.
+            $theme = Theme::normalize($user->getTheme());
 
             // Das Benutzermenue. Es ersetzt die frueheren Einzelknoepfe
             // "Mein Account", "Benutzerliste" und "Abmelden" in der
@@ -231,6 +240,10 @@ class ViewHelper
         $out = str_replace("###LOGOUT###"              , $text             , $out);
         $out = str_replace("###USER###"                , $menu_html        , $out);
         $out = str_replace("###REGISTER###"            , $sign             , $out);
+        // Das Farbprofil steht als Attribut am <html>-Element und damit VOR
+        // dem ersten Zeichnen. Wuerde es ein Skript nachtragen, sieht der
+        // Nutzer im Dunkelprofil bei jedem Seitenwechsel einen hellen Blitz.
+        $out = str_replace("###THEME###"               , $theme            , $out);
 
         // Ausgabe und Script-Beendigung
         die($out); 

@@ -668,6 +668,49 @@ function ackLastMove(status = 'executed', reason) {
         ok('ohne Aktion bleibt die Zelle leer');
     }
 
+    console.error('\n25) Das Farbprofil wirkt sofort und wird bestaetigt');
+    {
+        // Die Anzeige darf nicht auf das Netz warten: Erst umstellen, dann
+        // speichern. Geht das Speichern schief, wird zurueckgedreht - sonst
+        // sieht der Nutzer ein Profil, das beim naechsten Anmelden weg ist.
+        const schalter = app.themeSwitch;
+        const html = document.documentElement;
+
+        html.setAttribute('data-theme', 'indigo');
+        schalter.apply('dunkel');
+        assert.strictEqual(html.getAttribute('data-theme'), 'dunkel',
+            'apply() setzt das Attribut nicht');
+        ok('apply setzt data-theme am <html>-Element');
+
+        // Beim Zurueckdrehen wird auch die Auswahl mitgenommen, nicht nur die
+        // Farbe - sonst zeigt der Radioknopf etwas anderes an als der Schirm.
+        const feldIndigo = { value: 'indigo', checked: false };
+        const bereich = { querySelector: (sel) => sel.includes('indigo') ? feldIndigo : null };
+
+        global.__alerts = [];
+        schalter.revert(bereich, 'indigo', 'Ging nicht.');
+        assert.strictEqual(html.getAttribute('data-theme'), 'indigo',
+            'revert() dreht die Anzeige nicht zurueck');
+        assert.strictEqual(feldIndigo.checked, true, 'revert() setzt den Radioknopf nicht zurueck');
+        assert.strictEqual(global.__alerts.length, 1, 'genau eine Meldung erwartet');
+        assert.ok(global.__alerts[0].includes('Ging nicht'), 'die Meldung fehlt');
+        ok('revert dreht Anzeige, Auswahl und Meldung zusammen zurueck');
+
+        // Beim Laden wird NICHTS gesetzt - das Attribut kommt vom Server.
+        // Ein init() ohne Auswahlbereich darf nichts anfassen und nicht
+        // scheitern (jede Seite ausser der Kontoseite).
+        html.setAttribute('data-theme', 'neutral');
+        const vorher = global.__themeAjax.length;
+        assert.doesNotThrow(() => schalter.init(), 'init() ohne Auswahl wirft');
+        assert.strictEqual(html.getAttribute('data-theme'), 'neutral',
+            'init() hat das Profil veraendert');
+        assert.strictEqual(global.__themeAjax.length, vorher,
+            'init() hat ohne Auswahl eine Anfrage geschickt');
+        ok('ohne Auswahlbereich passiert nichts');
+
+        html.setAttribute('data-theme', 'indigo');
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

@@ -23,6 +23,7 @@ class User
     private $verified;
     private $totp_secret;
     private $totp_enabled;
+    private $theme;
 
     /**
      * Konstruktor: Lädt existierenden User oder legt neuen an.
@@ -49,6 +50,10 @@ class User
                     $this->status       = $result['user_status'] ?? null;
                     $this->totp_secret  = $result['totp_secret'] ?? null;
                     $this->totp_enabled = $result['totp_enabled'] ?? 0;
+                    // ?? null faengt die Installation ab, in der Migration
+                    // 008 noch nicht eingespielt ist: Dann fehlt die Spalte,
+                    // und das Konto bekommt einfach das Standardprofil.
+                    $this->theme        = $result['theme'] ?? null;
                 } else {
                     throw new \Exception("Benutzer mit ID {$in_id} nicht gefunden.");
                 }
@@ -155,6 +160,45 @@ class User
             return $this->update();
         }
         return $this->create() !== null;
+    }
+
+    /**
+     * Speichert das Farbprofil dieses Kontos.
+     *
+     * WARUM EIN EIGENES STATEMENT UND NICHT update()
+     * ----------------------------------------------
+     * update() schreibt alle Spalten des Benutzers in einem Zug. Stuende
+     * `theme` dort mit drin, wuerde in einer Installation ohne Migration 008
+     * JEDE Aenderung an einem Benutzer scheitern - Passwortwechsel,
+     * Rollenwechsel, Heartbeat. Ein fehlendes Farbprofil darf hoechstens die
+     * Farbwahl kosten und nicht die Anwendung.
+     *
+     * Der Wert wird vorher geprueft: In die Spalte kommt nur, was
+     * App\Helper\Theme kennt.
+     *
+     * @param string $profil Schluessel aus App\Helper\Theme::PROFILE
+     * @return bool true, wenn gespeichert wurde
+     */
+    public function saveTheme($profil)
+    {
+        if ($this->id < 1)                  return false;
+        if (!\App\Helper\Theme::isValid($profil)) return false;
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                "UPDATE user SET theme = :theme WHERE id = :user_id;"
+            );
+            $stmt->bindParam(':theme'  , $profil);
+            $stmt->bindParam(':user_id', $this->id);
+            $stmt->execute();
+            $this->theme = $profil;
+            return true;
+        } catch (PDOException $e) {
+            // Fehlt die Spalte, steht das hier im Log und sonst passiert
+            // nichts. Der Nutzer sieht sein Profil bis zum naechsten Laden.
+            error_log("Farbprofil konnte nicht gespeichert werden: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -587,4 +631,15 @@ class User
     public function getRoleId()         { return $this->type_id; }
     public function getTotpSecret()     { return $this->totp_secret; }
     public function getTotpEnabled()    { return $this->totp_enabled; }
+
+    /**
+     * Das gespeicherte Farbprofil, roh wie in der Datenbank.
+     *
+     * Kann null sein (nie gewaehlt) oder ein Profil nennen, das es nicht mehr
+     * gibt. Wer einen benutzbaren Wert braucht, schickt das Ergebnis durch
+     * App\Helper\Theme::normalize().
+     *
+     * @return string|null
+     */
+    public function getTheme()          { return $this->theme; }
 }

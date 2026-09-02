@@ -10,6 +10,7 @@
       ###GUIDEBTN###     Knopf zur Guide-Frage - fehlt beim Admin
       ###MAILCONFIRM###  Zeile zum Bestaetigungsstand der E-Mail (derzeit leer,
                          siehe Controller: kein SMTP-Server)
+      ###THEMES###       Die Auswahl der Farbprofile (SettingsController)
 
     Die Angaben stehen in einer Beschreibungsliste und nicht in einer Tabelle:
     Es sind keine Daten in Zeilen und Spalten, sondern Angaben zu genau einem
@@ -50,6 +51,24 @@
             <div class="app-actions">
                 <a href='index.php?act=change_pw_page&username=###USERNAME###' class="btn btn-secondary">Passwort ändern</a>
                 <button class="btn btn-secondary" id="showOwnLocationsBtn" style="display:none;">Eigene Standorte</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Farbprofil. Steht als eigener Bereich und nicht als Zeile in der
+         Beschreibungsliste oben: Das ist keine Angabe zum Konto, sondern
+         eine Einstellung, die man trifft. -->
+    <div class="app-panel" style="margin-top: var(--app-space-4);">
+        <div class="app-panel__head">
+            <h2 class="app-page-head__title">Farbprofil</h2>
+        </div>
+        <div class="app-panel__body">
+            <p class="app-page-head__sub" style="margin-top:0;">
+                Gilt für dieses Konto und ist beim nächsten Anmelden wieder da.
+                Die Farben der Kartennadeln bleiben in jedem Profil gleich.
+            </p>
+            <div class="app-swatches" id="theme-choices">
+                ###THEMES###
             </div>
         </div>
     </div>

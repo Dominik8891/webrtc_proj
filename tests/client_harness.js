@@ -45,6 +45,15 @@ global.__logLines = (id) =>
 global.__el = (id) => els[id];
 global.document = {
     body: { classList: { add() {}, remove() {} } },
+    // Das <html>-Element traegt das Farbprofil (data-theme). Mehr als
+    // Attribute setzen und lesen braucht theme_switch.js davon nicht.
+    documentElement: (() => {
+        const attr = {};
+        return {
+            setAttribute(n, w) { attr[n] = String(w); },
+            getAttribute(n)    { return n in attr ? attr[n] : null; }
+        };
+    })(),
     getElementById(id) {
         if (!(id in els)) els[id] = makeEl(id);
         return els[id];
@@ -164,6 +173,21 @@ for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'signaling.js'
     $.extend = Object.assign;
     global.$ = global.jQuery = $;
     eval(fs.readFileSync(path.join(ROOT, 'locations_table.js'), 'utf8'));
+
+    // Das Umschalten des Farbprofils. Braucht ein <html>-Element mit
+    // Attributen und einen Bereich mit den Radioknoepfen - beides steht hier
+    // gerade so weit nachgebaut, wie die Pruefungen es anfassen.
+    global.__themeAjax = [];
+    $.ajax = (opt) => {
+        global.__themeAjax.push(opt);
+        const kette = {
+            done(fn) { kette.__done = fn; return kette; },
+            fail(fn) { kette.__fail = fn; return kette; }
+        };
+        global.__letzteKette = kette;
+        return kette;
+    };
+    eval(fs.readFileSync(path.join(ROOT, 'theme_switch.js'), 'utf8'));
 }
 
 // Module, die von rtc.js benutzt werden, aber hier nicht geladen sind

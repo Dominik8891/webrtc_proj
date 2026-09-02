@@ -366,6 +366,13 @@ CREATE TABLE IF NOT EXISTS `user` (
 
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  -- Gewaehltes Farbprofil der Oberflaeche (Migration 008). NULL heisst
+  -- "noch nichts gewaehlt" - solche Konten bekommen die Vorgabe aus
+  -- App\Helper\Theme. Absichtlich varchar und kein ENUM: Welche Profile es
+  -- gibt, steht in Theme.php, damit ein weiteres Profil keine Migration
+  -- braucht.
+  `theme` varchar(20) DEFAULT NULL,
+
   `totp_secret` varchar(255) DEFAULT NULL,
   `totp_enabled` tinyint(4) DEFAULT 0,
   `deleted` tinyint(4) DEFAULT 0,

@@ -93,6 +93,10 @@
 
 /* Der Punkt traegt die Live-Farbe - dieselbe wie die Nadeln auf der Karte,
    damit die Zahl und das, was man sieht, zusammengehoeren. */
+/* Der Punkt traegt die Live-Farbe - unveraendert in jedem Profil. Was sich
+   mit dem Profil aendert, ist der Ring darum: Er hebt den Punkt von der
+   Flaeche ab, ohne die Farbe anzufassen. Im Dunkelprofil ist der Ring dunkel
+   und der Punkt dadurch die hellere Stelle. */
 .home-count__dot {
     width: 8px;
     height: 8px;
@@ -176,11 +180,16 @@
     overflow: hidden;
 }
 
+/* Die Herkunftsangabe muss stehen bleiben (Lizenz von OpenStreetMap), soll
+   aber nicht leuchten. Frueher stand hier ein festes Weiss - im Dunkelprofil
+   ein heller Fleck in der Ecke. Jetzt nimmt sie die Flaeche des Profils. */
 .home-map .leaflet-control-attribution {
-    background: rgba(255, 255, 255, 0.86);
+    background: var(--app-surface);
     color: var(--app-text-faint);
     font-size: var(--app-text-xs);
 }
+
+.home-map .leaflet-control-attribution a { color: var(--app-text-muted); }
 
 /* --- Legende -------------------------------------------------------------- */
 .home-legend {
@@ -367,6 +376,10 @@
     box-shadow: var(--app-shadow-lg);
     border: 1px solid var(--app-border);
     padding: 0;
+    /* Flaeche und Schriftfarbe aus dem Profil: Leaflet setzt hier sonst ein
+       festes Weiss mit dunkler Schrift, das im Dunkelprofil stehen bliebe. */
+    background: var(--app-surface-raised);
+    color: var(--app-text);
 }
 
 .home-map .leaflet-popup-content {
@@ -378,6 +391,7 @@
 
 .home-map .leaflet-popup-tip {
     border: 1px solid var(--app-border);
+    background: var(--app-surface-raised);
 }
 
 .home-map .leaflet-popup-close-button {

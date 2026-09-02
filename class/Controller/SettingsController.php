@@ -3,7 +3,9 @@ namespace App\Controller;
 
 use App\Helper\Auth;
 use App\Helper\Permission;
+use App\Helper\Request;
 use App\Helper\Role;
+use App\Helper\Theme;
 use App\Helper\ViewHelper;
 use App\Model\User;
 
@@ -72,7 +74,87 @@ class SettingsController
         $out = str_replace('###GUIDESTATUS###', $guideStatus, $out);
         $out = str_replace('###GUIDEBTN###', $guideBtn, $out);
         $out = str_replace('###MAILCONFIRM###', $mailConfirm, $out);
+        $out = str_replace('###THEMES###', self::themeChoices($user->getTheme()), $out);
 
         ViewHelper::output($out);
+    }
+
+    /**
+     * Baut die Auswahl der Farbprofile.
+     *
+     * Radioknoepfe und kein Aufklappmenue: Es sind vier Eintraege, sie haben
+     * je ein Farbmuster, und eine Auswahl, die man sieht, ohne sie zu
+     * oeffnen, ist schneller verstanden. Das Muster zeigt Grundflaeche,
+     * Karte und Akzent - genau die drei Werte, an denen sich die Profile
+     * unterscheiden.
+     *
+     * Die Liste kommt aus App\Helper\Theme, damit ein neues Profil nicht an
+     * drei Stellen nachgetragen werden muss.
+     *
+     * @param string|null $gewaehlt Roher Wert aus der Datenbank
+     * @return string HTML
+     */
+    private static function themeChoices($gewaehlt): string
+    {
+        $aktiv = Theme::normalize($gewaehlt);
+        $html  = '';
+
+        foreach (Theme::PROFILE as $schluessel => $profil) {
+            $id  = 'theme-' . $schluessel;
+            $an  = ($schluessel === $aktiv) ? ' checked' : '';
+
+            // Die Muster stehen als inline-style und nicht als Klasse: Es
+            // sind Daten aus Theme.php, keine Gestaltung. Eine Klasse je
+            // Profil waere eine zweite Liste, die mitgepflegt werden muesste.
+            $muster = '';
+            foreach ($profil['muster'] as $farbe) {
+                $muster .= '<span class="app-swatch__chip" style="background:'
+                         . htmlspecialchars($farbe) . '"></span>';
+            }
+
+            $html .= '<label class="app-swatch" for="' . $id . '">'
+                   .   '<input type="radio" name="theme" id="' . $id . '"'
+                   .          ' value="' . htmlspecialchars($schluessel) . '"' . $an . '>'
+                   .   '<span class="app-swatch__preview" aria-hidden="true">' . $muster . '</span>'
+                   .   '<span class="app-swatch__text">'
+                   .     '<span class="app-swatch__name">' . htmlspecialchars($profil['name']) . '</span>'
+                   .     '<span class="app-swatch__desc">' . htmlspecialchars($profil['text']) . '</span>'
+                   .   '</span>'
+                   . '</label>';
+        }
+        return $html;
+    }
+
+    /**
+     * Speichert das gewaehlte Farbprofil des angemeldeten Kontos.
+     *
+     * Zugang: Recht user.settings, geprueft in index.php. Gespeichert wird
+     * immer fuer den Angemeldeten - eine Benutzer-ID aus der Anfrage wird
+     * bewusst NICHT gelesen, sonst koennte jemand fremde Konten umfaerben.
+     *
+     * @return void
+     */
+    public function setTheme(): void
+    {
+        header('Content-Type: application/json');
+
+        $profil = Request::g('theme', '');
+
+        // Erst pruefen, dann speichern. Was Theme nicht kennt, kommt nicht in
+        // die Datenbank - und damit auch nie in das data-theme-Attribut.
+        if (!Theme::isValid($profil)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Unbekanntes Farbprofil.']);
+            return;
+        }
+
+        $user = new User(Auth::userId());
+        if (!$user->saveTheme($profil)) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Farbprofil konnte nicht gespeichert werden.']);
+            return;
+        }
+
+        echo json_encode(['success' => true, 'theme' => $profil]);
     }
 }
