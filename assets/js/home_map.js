@@ -194,7 +194,7 @@ window.webrtcApp.homeMap = {
     startCall(userId) {
         if (!userId) return;
         if (typeof window.webrtcApp?.rtc?.startCall !== 'function') {
-            alert('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
+            window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
             return;
         }
         this.map?.closePopup();

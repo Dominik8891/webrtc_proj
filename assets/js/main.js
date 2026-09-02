@@ -104,12 +104,18 @@ window.webrtcApp.init = function() {
                     type: data.type,
                     sdp: data.sdp
                 }));
-            } catch (e) { alert("Fehler bei setRemoteDescription: " + e.message); return; }
+            } catch (e) {
+                window.webrtcApp.notify.error('Die Verbindung konnte nicht aufgebaut werden: ' + e.message);
+                return;
+            }
             let answer;
             try {
                 answer = await window.webrtcApp.refs.localPeerConnection.createAnswer();
                 await window.webrtcApp.refs.localPeerConnection.setLocalDescription(answer);
-            } catch (e) { alert("Fehler bei create/setLocalDescription: " + e.message); return; }
+            } catch (e) {
+                window.webrtcApp.notify.error('Die Verbindung konnte nicht aufgebaut werden: ' + e.message);
+                return;
+            }
             window.webrtcApp.signaling.sendSignalMessage({
                 type: 'answer',
                 sdp: answer.sdp,
@@ -313,7 +319,7 @@ window.webrtcApp.init = function() {
                         newTrack = newStream.getVideoTracks()[0];
                         if (newTrack && stream) stream.addTrack(newTrack);
                     } catch (e) {
-                        alert("Konnte Kamera nicht aktivieren: " + e.message);
+                        window.webrtcApp.notify.error('Die Kamera ließ sich nicht einschalten: ' + e.message);
                         return;
                     }
                 }
@@ -439,16 +445,16 @@ window.addEventListener('DOMContentLoaded', function() {
             window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
         });
     }
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Lokation erfolgreich gespeichert!');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Standort gespeichert.');
     // success=0 wird ausschliesslich von der Beschreibungspruefung ausgeloest
     // (LocationController::setLocation, strlen < 5). Die Stadt wird dort gar
     // nicht geprueft - der alte Text nannte einen Grund, den es nicht gab.
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Speichern nicht erfolgreich. Die Beschreibung muss mindestens 5 Zeichen lang sein.');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Nicht gespeichert: Die Beschreibung muss mindestens 5 Zeichen lang sein.', 'error');
     // success=2: die Koordinaten fehlten oder lagen ausserhalb des gueltigen
     // Bereichs (siehe LocationController::setLocation).
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '2', 'Speichern nicht erfolgreich. Bitte den Standort auf der Karte auswaehlen.');
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '5', 'Registrierung erfolgreich!');
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('change', '1', 'Passwort erfolgreich geändert!');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '2', 'Nicht gespeichert: Bitte den Standort auf der Karte auswählen.', 'error');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '5', 'Registrierung erfolgreich.');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('change', '1', 'Passwort geändert.');
     // Hier stand ein Aufruf von ui.expandPanelForWideTableIfNeeded(): Er hat
     // auf breiten Seiten dem Inhaltsbereich und allen Karten darin ihre
     // Bootstrap-Klassen wieder abgenommen, weil zwei weisse Kaesten

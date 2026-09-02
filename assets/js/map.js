@@ -65,7 +65,7 @@ window.webrtcApp.locationMap = {
         // Erfolgsmeldung nach Save
         const urlParams = new URLSearchParams(window.location.search);
         if(urlParams.get('success') === '1'){
-            alert("Lokation erfolgreich gespeichert!");
+            window.webrtcApp.notify.success('Standort gespeichert.');
         }
     },
 
@@ -83,7 +83,7 @@ window.webrtcApp.locationMap = {
             $box.text(text).show();
         } else {
             // Notnagel, falls der Meldungsbereich fehlt - besser als schweigen
-            alert(text);
+            window.webrtcApp.notify.error(text);
         }
     },
 
@@ -225,7 +225,7 @@ window.webrtcApp.locationMap = {
                 if (data[0] && data[0].lat && data[0].lon) {
                     this.map.setView([data[0].lat, data[0].lon], 6);
                 } else {
-                    alert("Für dieses Land steht leider keine Kartenansicht zur Verfügung.");
+                    window.webrtcApp.notify.error('Für dieses Land steht keine Kartenansicht zur Verfügung.');
                     $('#countrySelect').val('').trigger('change');
                 }
             });
@@ -478,7 +478,7 @@ window.webrtcApp.locationMap = {
      */
     onCurrentLocation() {
         if (!navigator.geolocation) {
-            alert("Ihr Browser unterstützt keine Geolokalisierung.");
+            window.webrtcApp.notify.error('Ihr Browser unterstützt keine Standortbestimmung.');
             return;
         }
         navigator.geolocation.getCurrentPosition((pos) => {
@@ -522,7 +522,7 @@ window.webrtcApp.locationMap = {
                     }, 500);
                 });
         }, function (err) {
-            alert("Standort konnte nicht ermittelt werden: " + err.message);
+            window.webrtcApp.notify.error('Standort konnte nicht ermittelt werden: ' + err.message);
         });
     }
 };

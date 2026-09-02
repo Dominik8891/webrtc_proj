@@ -130,10 +130,12 @@ window.webrtcApp.rtc = {
             const acceptBtn = document.getElementById('accept-call-btn');
             if (acceptBtn) acceptBtn.style.display = "none";
             window.webrtcApp.uiRtc.setEndCallButtonVisible(false);
-            // Erst melden, dann abbauen: Solange der Dialog steht, ist die
-            // Call-Ansicht mit dem roten Status noch sichtbar. endCall()
-            // blendet sie aus.
-            alert("Der andere Teilnehmer hat die Verbindung beendet.");
+            // Der Hinweis blockiert nicht mehr, also wird die Call-Ansicht
+            // sofort abgebaut. Der Hinweis bleibt trotzdem stehen - er liegt
+            // ueber der Seite, die danach zu sehen ist, und verschwindet von
+            // selbst. Vorher hielt ein alert() die Ansicht mit dem roten
+            // Verbindungsstatus so lange offen, bis jemand klickte.
+            window.webrtcApp.notify.error('Der andere Teilnehmer hat die Verbindung beendet.');
             // sendSignal=false: Wir antworten nicht mit einem eigenen Hangup.
             this.endCall(false);
             return;
@@ -945,9 +947,9 @@ window.webrtcApp.rtc = {
 
         window.webrtcApp.rtc.stopReconnect();
         window.webrtcApp.rtc.setConnectionStatus('disconnected');
-        // Erst melden, dann abbauen - so bleibt der Status "Verbindung
-        // getrennt" sichtbar, während die Meldung steht.
-        alert(message);
+        // Genau eine Meldung, und sie blockiert nicht: Der Abbau laeuft
+        // sofort weiter, der Hinweis bleibt sichtbar.
+        window.webrtcApp.notify.error(message);
         // sendSignal=true: Der Partner soll erfahren, dass hier Schluss ist -
         // über das Signaling, denn die Peer-Verbindung ist ohnehin hin.
         window.webrtcApp.rtc.endCall(true);
@@ -1067,7 +1069,7 @@ window.webrtcApp.rtc = {
             });
             window.webrtcApp.sound.stop('call_ringtone');
             window.webrtcApp.rtc.endCall(false);
-            alert('Der Anruf wurde nicht angenommen.');
+            window.webrtcApp.notify.info('Der Anruf wurde nicht angenommen.');
         }, 25000);
         console.log('Start Timeout :' + window.webrtcApp.state.callTimeout);
     },
@@ -1094,6 +1096,6 @@ window.webrtcApp.rtc = {
             reason: 'media_error'
         });
         window.webrtcApp.rtc.endCall(false);
-        alert(msg);
+        window.webrtcApp.notify.error(msg);
     }
 };

@@ -933,6 +933,157 @@ a:hover {
 }
 
 /* ===========================================================================
+   Hinweise und Dialoge
+   ---------------------------------------------------------------------------
+   Der Ersatz fuer alert(), confirm() und prompt() des Browsers. Gebaut von
+   assets/js/notify.js.
+
+   Die Hinweise liegen oben in der Mitte: unten rechts stehen die
+   Chatfenster, unten links die Kartenlegende. Oben ist der einzige Platz,
+   der auf jeder Seite frei ist.
+   =========================================================================== */
+
+.app-toasts {
+    position: fixed;
+    top: calc(var(--app-topbar-height) + var(--app-space-3));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10500;              /* ueber der Call-Ansicht (9999) */
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-2);
+    width: min(440px, calc(100vw - 2 * var(--app-space-4)));
+    pointer-events: none;        /* der leere Bereich faengt nichts ab */
+}
+
+.app-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--app-space-3);
+    padding: var(--app-space-3) var(--app-space-3) var(--app-space-3) var(--app-space-4);
+    border-radius: var(--app-radius);
+    border: 1px solid var(--app-border);
+    border-left-width: 4px;
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow-lg);
+    font-size: var(--app-text-sm);
+    color: var(--app-text);
+    pointer-events: auto;
+    animation: app-toast-in 140ms ease-out;
+}
+
+@keyframes app-toast-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.app-toast--out {
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 200ms ease-in, transform 200ms ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-toast { animation: none; }
+    .app-toast--out { transition: none; }
+}
+
+.app-toast__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: pre-line;       /* Meldungen mit Zeilenumbruch */
+    overflow-wrap: anywhere;
+}
+
+.app-toast__close {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: var(--app-radius-sm);
+    background: none;
+    color: var(--app-text-faint);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.app-toast__close:hover {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
+}
+
+/* Die Art des Hinweises steht in der linken Kante - sie faerbt nicht die
+   ganze Flaeche ein. Gruen bleibt der Karte vorbehalten, deshalb traegt der
+   Erfolg den Akzent. */
+.app-toast--info    { border-left-color: var(--app-border-strong); }
+.app-toast--success { border-left-color: var(--app-accent); }
+.app-toast--error   { border-left-color: var(--app-danger); }
+
+/* --- Dialoge -------------------------------------------------------------- */
+
+.app-dialog {
+    width: min(440px, calc(100vw - 2 * var(--app-space-4)));
+    padding: 0;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+    background: var(--app-surface);
+    color: var(--app-text);
+    font-family: var(--app-font);
+    font-size: var(--app-text-base);
+}
+
+.app-dialog::backdrop {
+    background: rgba(19, 23, 30, 0.45);
+}
+
+.app-dialog__head {
+    padding: var(--app-space-5) var(--app-space-5) 0;
+}
+
+.app-dialog__title {
+    margin: 0;
+    font-size: var(--app-text-md);
+}
+
+.app-dialog--danger .app-dialog__title { color: var(--app-danger-strong); }
+
+.app-dialog__body {
+    padding: var(--app-space-3) var(--app-space-5) 0;
+}
+
+.app-dialog__text {
+    margin: 0;
+    color: var(--app-text-muted);
+    white-space: pre-line;
+}
+
+.app-dialog__text + .app-field { margin-top: var(--app-space-4); }
+
+/* Hinweis auf eine fehlende Pflichteingabe - er steht IM Dialog. Frueher kam
+   dafuer ein zweites alert() ueber dem ersten. */
+.app-dialog__hint {
+    margin: var(--app-space-2) 0 0;
+    color: var(--app-danger);
+    font-size: var(--app-text-sm);
+}
+
+.app-dialog__hint[hidden] { display: none; }
+
+.app-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--app-space-2);
+    padding: var(--app-space-5);
+}
+
+@media (max-width: 480px) {
+    .app-dialog__actions { flex-direction: column-reverse; }
+    .app-dialog__actions .btn { width: 100%; }
+}
+
+/* ===========================================================================
    Chatfenster (Popup)
    ---------------------------------------------------------------------------
    Gebaut von assets/js/ui_chat.js. Es liegt unten rechts als abgesetzte
@@ -1461,15 +1612,68 @@ a:hover {
 
 .modal-body { padding: var(--app-space-5); }
 
-/* DataTables benutzt eigene Bedienelemente. Sie sollen wie unsere aussehen. */
+/* ---------------------------------------------------------------------------
+   DataTables
+   ---------------------------------------------------------------------------
+   Die Bibliothek bringt Suchfeld, Laengenauswahl, Anzahlangabe und
+   Blaetterleiste mit eigenem Aussehen mit. Die Anordnung steuert die
+   dom-Angabe in assets/js/locations_table.js: Sie legt die Bedienelemente in
+   die Behaelter .app-dt-top und .app-dt-bottom, die hier gestaltet werden.
+
+   WO DIE GRENZE LIEGT: Das Markup INNERHALB der Elemente gibt DataTables 1.13
+   fest vor - das Suchfeld steckt in einem <label>, die Blaetterleiste besteht
+   aus <a>-Elementen. Farbe, Rahmen, Abstand und Groesse lassen sich damit
+   angleichen; die Elemente durch unsere eigenen Knopf- und Feldbauteile zu
+   ERSETZEN geht nicht, ohne die Bibliothek zu wechseln.
+   Deshalb stehen hier ein paar !important - sie ueberschreiben die Regeln aus
+   der CDN-Datei, die dieselbe Spezifitaet haben.
+   --------------------------------------------------------------------------- */
+
+.app-dt-top,
+.app-dt-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+    padding: var(--app-space-3) var(--app-space-4);
+}
+
+.app-dt-top {
+    border-bottom: 1px solid var(--app-border);
+    background: var(--app-surface-sunken);
+}
+
+.app-dt-bottom {
+    border-top: 1px solid var(--app-border);
+}
+
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_info {
+    margin: 0;
+    padding: 0;
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+}
+
+.dataTables_wrapper .dataTables_filter { float: none; text-align: left; }
+.dataTables_wrapper .dataTables_length { float: none; }
+.dataTables_wrapper .dataTables_info   { float: none; padding-top: 0 !important; }
+
 .dataTables_wrapper .dataTables_filter input,
 .dataTables_wrapper .dataTables_length select {
+    margin: 0 0 0 var(--app-space-2);
     border: 1px solid var(--app-border-strong);
     border-radius: var(--app-radius);
-    padding: var(--app-space-1) var(--app-space-2);
+    padding: var(--app-space-1) var(--app-space-3);
     font-size: var(--app-text-sm);
+    font-family: var(--app-font);
     color: var(--app-text);
+    background: var(--app-surface);
 }
+
+.dataTables_wrapper .dataTables_filter input { min-width: 220px; }
 
 .dataTables_wrapper .dataTables_filter input:focus,
 .dataTables_wrapper .dataTables_length select:focus {
@@ -1478,15 +1682,91 @@ a:hover {
     box-shadow: 0 0 0 3px var(--app-accent-ring);
 }
 
-.dataTables_wrapper .dataTables_info,
-.dataTables_wrapper .dataTables_length,
-.dataTables_wrapper .dataTables_filter {
+/* Blaetterleiste. Die Bibliothek setzt hier Verlaeufe und eigene Rahmen,
+   deshalb der Nachdruck. */
+.dataTables_wrapper .dataTables_paginate { float: none; padding: 0 !important; }
+
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+    min-width: 0 !important;
+    margin: 0 2px !important;
+    padding: var(--app-space-1) var(--app-space-3) !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--app-radius) !important;
+    background: none !important;
+    color: var(--app-text-muted) !important;
     font-size: var(--app-text-sm);
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+    background: var(--app-surface-sunken) !important;
+    border-color: var(--app-border) !important;
+    color: var(--app-text) !important;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current,
+.dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+    background: var(--app-accent-soft) !important;
+    border-color: var(--app-accent-soft) !important;
+    color: var(--app-accent-strong) !important;
+    font-weight: var(--app-weight-medium);
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
+.dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover {
+    background: none !important;
+    border-color: transparent !important;
+    color: var(--app-text-faint) !important;
+    cursor: default;
+}
+
+/* Sortierpfeile: DataTables setzt sie als Zeichen in ::before/::after. Sie
+   bleiben, werden aber leiser und nehmen die Akzentfarbe, wenn danach
+   sortiert ist. */
+table.dataTable thead th.sorting::before,
+table.dataTable thead th.sorting::after,
+table.dataTable thead th.sorting_asc::before,
+table.dataTable thead th.sorting_asc::after,
+table.dataTable thead th.sorting_desc::before,
+table.dataTable thead th.sorting_desc::after {
+    opacity: 0.35;
     color: var(--app-text-muted);
 }
 
-.dataTables_wrapper .dataTables_paginate .paginate_button.current {
-    background: var(--app-accent-soft) !important;
-    border-color: var(--app-border) !important;
-    color: var(--app-accent-strong) !important;
+table.dataTable thead th.sorting_asc::before,
+table.dataTable thead th.sorting_desc::after {
+    opacity: 1;
+    color: var(--app-accent);
 }
+
+/* Die Meldung "Nichts gefunden" steht in einer Zeile der Tabelle. */
+table.dataTable td.dataTables_empty {
+    padding: var(--app-space-6) var(--app-space-4) !important;
+    text-align: center;
+    color: var(--app-text-muted);
+}
+
+/* Sperrhinweis in einer Standortzeile. */
+.app-locked {
+    display: flex;
+    align-items: baseline;
+    gap: var(--app-space-2);
+    margin-top: var(--app-space-1);
+    flex-wrap: wrap;
+}
+
+.app-locked__reason {
+    color: var(--app-danger);
+    font-size: var(--app-text-xs);
+}
+
+/* Text, der sich wie ein Verweis verhaelt, aber keiner ist - die Beschreibung
+   eines Standorts oeffnet die Kartenvorschau. */
+.app-linklike {
+    color: var(--app-accent);
+    font-weight: var(--app-weight-medium);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.app-linklike:hover { color: var(--app-accent-strong); }

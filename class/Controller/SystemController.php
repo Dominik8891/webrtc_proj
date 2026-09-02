@@ -1,9 +1,6 @@
 <?php
 namespace App\Controller;
 
-use App\Model\User;
-use App\Helper\Auth;
-use App\Helper\Request;
 use App\Helper\ViewHelper;
 
 /**
@@ -65,18 +62,4 @@ class SystemController
         ViewHelper::output($out);
     }
 
-    /**
-     * Zeigt die Startseite oder das Chatfenster, abhängig vom Benutzerstatus.
-     * @return void
-     */
-    public function showStart(): void
-    {
-        $html = file_get_contents("assets/html/frontend/home.html");
-
-        if (Auth::isLoggedIn()) {
-            $html = file_get_contents("assets/html/frontend/goto_chat.html");
-        }
-
-        output_fe($html);
-    }
 }

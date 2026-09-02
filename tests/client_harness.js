@@ -148,6 +148,23 @@ for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'signaling.js'
 // Abgespielte Signaltoene mitschreiben: Die Protokolltests pruefen, dass ein
 // ausgefuehrter Bewegungsbefehl beim Guide hoerbar wird.
 window.webrtcApp.sound = { plays: [], play(id) { this.plays.push(id); }, stop() {} };
+
+// Meldungen laufen nicht mehr ueber alert(), sondern ueber webrtcApp.notify
+// (assets/js/notify.js). Das echte Modul baut Elemente im Dokument auf; hier
+// steht eine Attrappe, die die Texte in dieselbe Liste schreibt, die die
+// Pruefungen schon vorher gelesen haben. So bleibt die Aussage "genau EINE
+// Meldung" pruefbar, ohne dass ein DOM nachgebaut werden muss.
+//
+// Wer die Schnittstelle von notify erweitert, ergaenzt sie hier mit.
+window.webrtcApp.notify = {
+    toast(text)   { global.__alerts.push(String(text)); },
+    info(text)    { this.toast(text); },
+    success(text) { this.toast(text); },
+    error(text)   { this.toast(text); },
+    alert(opt)    { this.toast(typeof opt === 'string' ? opt : (opt && opt.text)); return Promise.resolve(); },
+    confirm()     { return Promise.resolve(true); },
+    prompt()      { return Promise.resolve(''); }
+};
 window.webrtcApp.uiRtc = { setEndCallButtonVisible() {}, getUsername: async () => 'Partner' };
 window.webrtcApp.uiChat = { updatePollingState() {} };
 

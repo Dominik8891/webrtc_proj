@@ -67,15 +67,23 @@ window.webrtcApp.ui = {
     },
 
     /**
-     * Zeigt einen Confirm-Dialog beim Löschen und leitet ggf. weiter.
+     * Fragt vor dem Löschen nach und leitet dann weiter.
+     *
+     * Der Abbruch wird nicht mehr gemeldet: Wer "Abbrechen" drueckt, weiss,
+     * dass er abgebrochen hat - das frühere zweite alert() dafuer war ein
+     * Klick, der nichts sagte.
+     *
      * @param {string} in_url - Ziel-URL für das Löschen
      */
     confirmDelete: function(in_url) {
-        if (window.confirm("Wollen Sie den Datensatz wirklich löschen?")) {
-            window.location.href = in_url;
-        } else {
-            alert("Löschen abgebrochen");
-        }
+        window.webrtcApp.notify.confirm({
+            title: 'Datensatz löschen?',
+            text: 'Das lässt sich nicht rückgängig machen.',
+            confirmText: 'Löschen',
+            danger: true
+        }).then(ja => {
+            if (ja) window.location.href = in_url;
+        });
     },
 
     /**

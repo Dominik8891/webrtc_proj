@@ -180,8 +180,10 @@ window.webrtcApp.signaling = {
             window.webrtcApp.sound.stop('call_ringtone');
             window.webrtcApp.rtc.endCall(false);
             window.webrtcApp.rtc.stopTimeout();
-            alert('Der Anruf konnte nicht gestartet werden.\nGrund: ' +
-                (data.reason === 'no_media_selected' ? 'Keine Medien ausgewählt.' : 'Fehler beim Aufbau der Verbindung.'));   
+            window.webrtcApp.notify.error('Der Anruf konnte nicht gestartet werden.\n'
+                + (data.reason === 'no_media_selected'
+                    ? 'Die Gegenseite hat weder Ton noch Bild ausgewählt.'
+                    : 'Die Verbindung ließ sich nicht aufbauen.'));
         }
     },
 

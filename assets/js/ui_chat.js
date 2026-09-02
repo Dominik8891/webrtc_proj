@@ -26,7 +26,7 @@ window.webrtcApp.uiChat = {
         .then(r => r.json())
         .then(data => {
             if (!data.success) {
-                alert(data.error || "Fehler beim Starten des Chats.");
+                window.webrtcApp.notify.error(data.error || 'Der Chat konnte nicht gestartet werden.');
                 return;
             }
             const chatId = data.chat.id;

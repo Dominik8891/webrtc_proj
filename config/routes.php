@@ -53,7 +53,12 @@ return [
     // Administrations- und Startseiten
     'admin'                 => [SystemController::class             , 'showAdmin'               , Permission::SYSTEM_ADMIN           , 'html'],
     'home'                  => [SystemController::class             , 'home'                    , Permission::SYSTEM_HOME            , 'html'],
-    'start'                 => [SystemController::class             , 'showStart'               , Permission::SYSTEM_HOME            , 'html'],
+    // Die Route 'start' ist entfallen. Sie las eine Vorlage aus einem
+    // Verzeichnis, das es nicht gibt (assets/html/frontend/), und rief danach
+    // output_fe() - eine Funktion, die im Projekt nirgends definiert ist. Der
+    // Aufruf endete also in jedem Fall mit einem Fehler. Verwiesen hat auf sie
+    // nichts.
+
 
     // Benutzerverwaltung
     'manage_user'           => [UserController::class               , 'manageUser'              , Permission::USER_MANAGE            , 'html'],

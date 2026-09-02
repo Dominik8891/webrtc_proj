@@ -25,13 +25,13 @@ function askLocation() {
             },
             function() {
                 // Fehlerfall: Standort konnte nicht ermittelt werden (z.B. abgelehnt)
-                alert("Standort konnte nicht ermittelt werden.");
+                window.webrtcApp.notify.error("Standort konnte nicht ermittelt werden.");
                 window.location.href = "index.php";
             }
         );
     } else {
         // Browser unterstützt kein Geolocation
-        alert("Geolocation wird von diesem Browser nicht unterstützt.");
+        window.webrtcApp.notify.error("Geolocation wird von diesem Browser nicht unterstützt.");
         window.location.href = "index.php";
     }
 }

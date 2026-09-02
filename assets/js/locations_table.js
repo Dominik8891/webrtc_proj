@@ -58,22 +58,60 @@ window.webrtcApp.locationsTable = {
     visibilityHooked: false,
 
     /**
-     * Icon und Text zu einem user_status.
+     * Anzeige und Anrufbarkeit zu einem user_status.
+     *
+     * KEINE EMOJI UND KEINE KARTENFARBEN MEHR.
+     *
+     * Hier standen 🟢, 🟠 und 🔴 - dieselben drei Farben, die auf der Karte
+     * "Guide verfuegbar", "im Gespraech" und "kein Guide vor Ort" bedeuten.
+     * In einer Tabelle daneben trugen sie dieselbe Farbe fuer etwas anderes.
+     * Ausserdem sieht ein Emoji auf jedem System anders aus und laesst sich
+     * nicht gestalten.
+     *
+     * Unterschieden wird jetzt ueber Form und Gewicht - gefuellt, geringelt,
+     * hohl - genau wie in der Benutzerliste (assets/css/theme.css,
+     * .app-state).
+     *
      * @param {string} status - Wert aus der Spalte user.user_status
      * @returns {{icon: string, text: string, callable: boolean}}
      */
     statusView(status) {
         if (status === "in_call") {
-            return {
-                icon: '<span class="badge rounded-pill bg-warning text-dark fs-4">&#x1F7E0;</span>',
-                text: "Befindet sich in Call",
-                callable: false
-            };
+            return { icon: this.stateHtml('busy', 'Im Gespräch'),
+                     text: "Im Gespräch", callable: false };
         }
         if (status === "online") {
-            return { icon: "\u{1F7E2}", text: "Online", callable: true };
+            return { icon: this.stateHtml('online', 'Online'),
+                     text: "Online", callable: true };
         }
-        return { icon: "\u{1F534}", text: "Offline", callable: false };
+        return { icon: this.stateHtml('offline', 'Offline'),
+                 text: "Offline", callable: false };
+    },
+
+    /**
+     * Baut die Zustandsanzeige.
+     *
+     * @param {string} art  'online', 'busy' oder 'offline'
+     * @param {string} text Beschriftung
+     * @returns {string} HTML
+     */
+    stateHtml(art, text) {
+        return '<span class="app-state app-state--' + art + '">'
+             + '<span class="app-state__dot" aria-hidden="true"></span>'
+             + this.esc(text)
+             + '</span>';
+    },
+
+    /**
+     * Maskiert Text fuer die Ausgabe in HTML.
+     *
+     * @param {*} wert
+     * @returns {string}
+     */
+    esc(wert) {
+        return String(wert ?? '').replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        })[c]);
     },
 
     /**
@@ -83,15 +121,15 @@ window.webrtcApp.locationsTable = {
      */
     callButtonHtml(item) {
         const view = this.statusView(item.user_status);
+        // Der Akzent statt Gruen, und gesperrt in Grau: Gruen heisst auf der
+        // Karte "Guide gerade verfuegbar". Die frueheren Inline-Styles fuer
+        // den gesperrten Zustand entfallen - das macht .btn:disabled selbst.
         return `
             <button type="button"
-                class="btn btn-success btn-sm start-call-btn"
-                data-userid="${item.user_id}"
+                class="btn btn-sm start-call-btn ${view.callable ? 'btn-primary' : 'btn-secondary'}"
+                data-userid="${this.esc(item.user_id)}"
                 ${view.callable ? "" : "disabled aria-disabled='true'"}
-                style="${view.callable ? "" : "pointer-events:none;opacity:0.5;"}"
-            >
-                Call
-            </button>
+            >Anrufen</button>
         `;
     },
 
@@ -107,13 +145,15 @@ window.webrtcApp.locationsTable = {
             actionBtns += this.callButtonHtml(item);
         }
         if (options.showActions.includes("edit")) {
+            // Gelb ist auf der Karte "Guide im Gespraech" - hier waere es
+            // dieselbe Farbe fuer eine Handlung.
             actionBtns += `
-                <button type="button" class="btn btn-warning btn-sm edit-location-btn" data-locationid="${item.id}">Ändern</button>
+                <button type="button" class="btn btn-secondary btn-sm edit-location-btn" data-locationid="${this.esc(item.id)}">Bearbeiten</button>
             `;
         }
         if (options.showActions.includes("delete")) {
             actionBtns += `
-                <button class="btn btn-danger delete-location-btn" data-locationid="${item.id}">Löschen</button>
+                <button type="button" class="btn btn-outline-danger btn-sm delete-location-btn" data-locationid="${this.esc(item.id)}">Löschen</button>
             `;
         }
         // Moderation: sperren statt löschen. Der Knopf erscheint nur, wenn der
@@ -122,8 +162,8 @@ window.webrtcApp.locationsTable = {
         // index.php, wenn die Route wirklich aufgerufen wird.
         if (options.showActions.includes("block")) {
             actionBtns += item.blocked == 1
-                ? `<button class="btn btn-secondary btn-sm unblock-location-btn" data-locationid="${item.id}">Freigeben</button>`
-                : `<button class="btn btn-outline-danger btn-sm block-location-btn" data-locationid="${item.id}">Sperren</button>`;
+                ? `<button type="button" class="btn btn-secondary btn-sm unblock-location-btn" data-locationid="${this.esc(item.id)}">Freigeben</button>`
+                : `<button type="button" class="btn btn-outline-danger btn-sm block-location-btn" data-locationid="${this.esc(item.id)}">Sperren</button>`;
         }
         return actionBtns;
     },
@@ -140,12 +180,13 @@ window.webrtcApp.locationsTable = {
      */
     blockedNoticeHtml(item) {
         if (item.blocked != 1) return '';
-        const reason = item.blocked_reason ? String(item.blocked_reason) : '';
-        const escaped = $('<div>').text(reason).html();
+        const grund = this.esc(item.blocked_reason || '');
+        // Eine Marke im Erscheinungsbild der Anwendung statt eines roten
+        // Bootstrap-Badges (assets/css/theme.css, .app-tag).
         return `
-            <div class="mt-1">
-                <span class="badge bg-danger">Gesperrt</span>
-                ${escaped ? `<span class="small text-danger ms-1">${escaped}</span>` : ''}
+            <div class="app-locked">
+                <span class="app-tag app-tag--danger">Gesperrt</span>
+                ${grund ? `<span class="app-locked__reason">${grund}</span>` : ''}
             </div>
         `;
     },
@@ -166,25 +207,23 @@ window.webrtcApp.locationsTable = {
         const view = this.statusView(item.user_status);
 
         // Beschreibung als klickbaren Text (für Popup/Modal)
+        // Die Beschreibung stammt von einem anderen Nutzer und ging hier
+        // frueher unmaskiert ins Dokument.
         const descHtml = `
-            <span 
-                class="desc-hover fw-semibold text-primary text-decoration-underline"
-                data-lat="${item.latitude}" 
-                data-lng="${item.longitude}" 
-                data-country="${item.country_name ?? ''}" 
-                data-city="${item.city_name ?? ''}" 
-                style="cursor:pointer;">
-                ${item.description}
-            </span>
+            <span class="desc-hover app-linklike"
+                data-lat="${this.esc(item.latitude)}"
+                data-lng="${this.esc(item.longitude)}"
+                data-country="${this.esc(item.country_name ?? '')}"
+                data-city="${this.esc(item.city_name ?? '')}">${this.esc(item.description)}</span>
             ${this.blockedNoticeHtml(item)}
         `;
 
         return `<tr data-locationid="${item.id}" data-status="${item.user_status ?? ''}">
             <td>${index + 1}</td>
-            <td>${view.text}</td>
-            ${options.onlyOwn ? "" : `<td>${view.icon} ${item.username}</td>`}
-            <td>${item.country_name ?? ''}</td>
-            <td>${item.city_name ?? ''}</td>
+            <td>${view.icon}</td>
+            ${options.onlyOwn ? "" : `<td>${this.esc(item.username ?? '')}</td>`}
+            <td>${this.esc(item.country_name ?? '')}</td>
+            <td>${this.esc(item.city_name ?? '')}</td>
             <td>${descHtml}</td>
             <td>${this.actionCellHtml(item, options)}</td>
         </tr>`;
@@ -377,9 +416,61 @@ window.webrtcApp.locationsTable = {
         }
 
         $table.find('tbody').html(rows);
-        $table.DataTable({
-            responsive: true
-        });
+        $table.DataTable(this.dataTablesOptions());
+    },
+
+    /**
+     * Die Einstellungen fuer DataTables.
+     *
+     * WAS SICH DAMIT ERREICHEN LAESST
+     * -------------------------------
+     * - language: DataTables spricht ab Werk englisch ("Search:", "Show 10
+     *   entries", "Showing 1 to 3 of 3 entries"). Die Texte lassen sich
+     *   vollstaendig ersetzen, und nur so werden sie deutsch.
+     * - dom: bestimmt, welche Bedienelemente in welcher Reihenfolge und in
+     *   welchen Behaeltern stehen. Damit liegen Suchfeld und Laengenauswahl
+     *   in einer eigenen Leiste ueber der Tabelle und Anzahl und Blaetterleiste
+     *   in einer darunter - beide mit unseren Klassen, sodass sie sich in
+     *   assets/css/theme.css gestalten lassen.
+     *
+     * WO DIE GRENZE LIEGT
+     * -------------------
+     * Das Markup INNERHALB der Bedienelemente gibt DataTables 1.13 fest vor:
+     * das Suchfeld steckt in einem <label>, die Blaetterleiste besteht aus
+     * <a>-Elementen mit eigenen Klassen. Beides laesst sich einfaerben und
+     * ausrichten, aber nicht durch unsere Knopf- und Feldbauteile ersetzen -
+     * dafuer braeuchte es eine andere Tabellenbibliothek oder eine eigene
+     * Bedienung mit abgeschalteten DataTables-Elementen.
+     *
+     * @returns {Object}
+     */
+    dataTablesOptions() {
+        return {
+            responsive: true,
+            // l = Laengenauswahl, f = Suchfeld, t = Tabelle,
+            // i = Anzahlangabe, p = Blaetterleiste
+            dom: '<"app-dt-top"lf>t<"app-dt-bottom"ip>',
+            language: {
+                search: '',
+                searchPlaceholder: 'Suchen',
+                lengthMenu: '_MENU_ Einträge',
+                info: '_START_–_END_ von _TOTAL_',
+                infoEmpty: 'Keine Einträge',
+                infoFiltered: '(gefiltert aus _MAX_)',
+                zeroRecords: 'Nichts gefunden.',
+                emptyTable: 'Keine Standorte vorhanden.',
+                paginate: {
+                    first: 'Erste',
+                    last: 'Letzte',
+                    next: 'Weiter',
+                    previous: 'Zurück'
+                },
+                aria: {
+                    sortAscending: ': aufsteigend sortieren',
+                    sortDescending: ': absteigend sortieren'
+                }
+            }
+        };
     },
 
     /**
@@ -444,10 +535,11 @@ window.webrtcApp.locationsTable = {
                     node.setAttribute('data-status', status);
                     const view = self.statusView(item.user_status);
 
-                    dt.cell(node, cols.status).data(view.text);
-                    if (cols.user !== null) {
-                        dt.cell(node, cols.user).data(`${view.icon} ${item.username}`);
-                    }
+                    dt.cell(node, cols.status).data(view.icon);
+                    // Die Benutzerspalte traegt keinen Zustand mehr - er steht
+                    // vollstaendig in der Statusspalte und wurde vorher an
+                    // beiden Stellen gefuehrt.
+
                     if (options.showActions.includes("call")) {
                         dt.cell(node, cols.actions).data(self.actionCellHtml(item, options));
                     }
@@ -621,7 +713,7 @@ window.webrtcApp.locationsTable = {
                 window.webrtcApp.rtc.startCall(userId);
                 setTimeout(updateCallIcons(), 1000);
             } else {
-                alert("Call-Funktion nicht verfügbar.");
+                window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
             }
         });
         // Edit-Button für eigene Locations
@@ -643,10 +735,16 @@ window.webrtcApp.locationsTable = {
             .on('click', '.delete-location-btn', function() {
                 const locationId = $(this).data('locationid');
                 if (!locationId) {
-                    alert("Fehler: Keine Location-ID gefunden!");
+                    window.webrtcApp.notify.error('Der Standort konnte nicht zugeordnet werden.');
                     return;
                 }
-                if (confirm("Willst du diese Location wirklich löschen?")) {
+                window.webrtcApp.notify.confirm({
+                    title: 'Standort löschen?',
+                    text: 'Der Standort verschwindet von der Karte und aus allen Listen. Das lässt sich nicht rückgängig machen.',
+                    confirmText: 'Löschen',
+                    danger: true
+                }).then(ja => {
+                    if (!ja) return;
                     $.ajax({
                         url: 'index.php?act=delete_location',
                         method: 'POST',
@@ -654,20 +752,21 @@ window.webrtcApp.locationsTable = {
                         dataType: 'json',
                         success: function(response) {
                             if (response.success) {
+                                window.webrtcApp.notify.success('Standort gelöscht.');
                                 // Tabelle neu laden - mit den Optionen, mit
                                 // denen sie geladen wurde. Hier stand vorher
                                 // eine zweite, von Hand gepflegte Kopie der
                                 // Tabellenkonfiguration.
                                 window.webrtcApp.locationsTable.loadLocationsTable(options);
                             } else {
-                                alert('Fehler: ' + (response.error || 'Unbekannter Fehler'));
+                                window.webrtcApp.notify.error(response.error || 'Der Standort konnte nicht gelöscht werden.');
                             }
                         },
                         error: function() {
-                            alert('Fehler beim Löschen!');
+                            window.webrtcApp.notify.error('Der Standort konnte nicht gelöscht werden.');
                         }
                     });
-                }
+                });
             });
 
         // Sperren (Moderation). Der Grund ist Pflicht - der Guide bekommt
@@ -678,17 +777,25 @@ window.webrtcApp.locationsTable = {
                 const locationId = $(this).data('locationid');
                 if (!locationId) return;
 
-                const reason = prompt("Warum soll dieser Standort gesperrt werden?\nDer Guide bekommt diesen Text zu sehen.");
-                if (reason === null) return;              // abgebrochen
-                if (!reason.trim()) {
-                    alert("Bitte einen Grund angeben.");
-                    return;
-                }
-
-                window.webrtcApp.locationsTable.moderate('index.php?act=block_location', {
-                    id: locationId,
-                    reason: reason.trim()
-                }, options);
+                // Der Grund wird im Dialog erfragt, nicht im Systemfeld des
+                // Browsers. Fehlt er, sagt das der Dialog selbst - frueher kam
+                // dafuer ein zweites alert() ueber dem ersten.
+                window.webrtcApp.notify.prompt({
+                    title: 'Standort sperren',
+                    text: 'Der Guide bekommt diesen Text in seiner Standortliste zu sehen.',
+                    label: 'Grund',
+                    placeholder: 'Warum wird gesperrt?',
+                    required: true,
+                    requiredText: 'Ohne Grund ist die Sperre für den Guide nicht nachvollziehbar.',
+                    confirmText: 'Sperren',
+                    multiline: true
+                }).then(grund => {
+                    if (grund === null) return;           // abgebrochen
+                    window.webrtcApp.locationsTable.moderate('index.php?act=block_location', {
+                        id: locationId,
+                        reason: grund
+                    }, options);
+                });
             });
 
         // Freigeben
@@ -697,11 +804,17 @@ window.webrtcApp.locationsTable = {
             .on('click', '.unblock-location-btn', function() {
                 const locationId = $(this).data('locationid');
                 if (!locationId) return;
-                if (!confirm("Sperre für diesen Standort aufheben?")) return;
 
-                window.webrtcApp.locationsTable.moderate('index.php?act=unblock_location', {
-                    id: locationId
-                }, options);
+                window.webrtcApp.notify.confirm({
+                    title: 'Sperre aufheben?',
+                    text: 'Der Standort erscheint danach wieder auf der Karte und in der Liste.',
+                    confirmText: 'Freigeben'
+                }).then(ja => {
+                    if (!ja) return;
+                    window.webrtcApp.locationsTable.moderate('index.php?act=unblock_location', {
+                        id: locationId
+                    }, options);
+                });
             });
     },
 
@@ -723,11 +836,11 @@ window.webrtcApp.locationsTable = {
                 if (response && response.success) {
                     self.loadLocationsTable(options);
                 } else {
-                    alert('Fehler: ' + ((response && response.error) || 'Unbekannter Fehler'));
+                    window.webrtcApp.notify.error((response && response.error) || 'Die Aktion ist fehlgeschlagen.');
                 }
             },
             error: function(xhr) {
-                alert(xhr.status === 403
+                window.webrtcApp.notify.error(xhr.status === 403
                     ? 'Dafür fehlt Ihnen die Berechtigung.'
                     : 'Die Aktion ist fehlgeschlagen.');
             }
@@ -775,7 +888,7 @@ $(document).ready(function () {
         const newDesc = $('#newDescription').val().trim();
 
         if (!newDesc) {
-            alert('Bitte eine neue Beschreibung eingeben!');
+            window.webrtcApp.notify.error('Bitte eine neue Beschreibung eingeben.');
             return;
         }
 
@@ -790,17 +903,18 @@ $(document).ready(function () {
             success: function(response) {
                 if (response.success) {
                     $('#editDescModal').modal('hide');
+                    window.webrtcApp.notify.success('Beschreibung geändert.');
                     // Dritte Kopie derselben Tabellenkonfiguration - jetzt aus
                     // TABLES.
                     window.webrtcApp.locationsTable.loadLocationsTable(
                         window.webrtcApp.locationsTable.optionsFor('own')
                     );
                 } else {
-                    alert('Fehler: ' + (response.error || 'Unbekannter Fehler'));
+                    window.webrtcApp.notify.error(response.error || 'Die Beschreibung konnte nicht geändert werden.');
                 }
             },
             error: function() {
-                alert('Fehler beim Ändern!');
+                window.webrtcApp.notify.error('Die Beschreibung konnte nicht geändert werden.');
             }
         });
     });
