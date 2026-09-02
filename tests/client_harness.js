@@ -33,11 +33,9 @@ function makeEl(id) {
 
 const els = {};
 
-/** Leert die mitgeschriebenen Chatlogs zwischen zwei Pruefungen. */
+/** Leert den mitgeschriebenen Chatlog zwischen zwei Pruefungen. */
 global.__clearLogs = () => {
-    ['chat-log', 'chat-log-mobile'].forEach(id => {
-        if (els[id]) els[id].children.length = 0;
-    });
+    if (els['chat-log']) els['chat-log'].children.length = 0;
 };
 
 /** Inhalt eines Logs als Textzeilen. */

@@ -137,22 +137,26 @@ window.webrtcApp.init = function() {
     const throttleTime = 100; // ms
     const lastClicked = {};
 
-    // ---------- Steuerungsbuttons (Desktop UND Mobile) ----------
-    ['btn-forward', 'btn-backward', 'btn-left', 'btn-right', 'btn-forward-mobile', 'btn-backward-mobile', 'btn-left-mobile', 'btn-right-mobile'].forEach(id => {
-        document.querySelectorAll(`#${id}`).forEach(btn => {
-            btn.addEventListener('click', function() {
-                const now = Date.now();
-                if (!lastClicked[id] || now - lastClicked[id] > throttleTime) {
-                    lastClicked[id] = now;
-                    const name = id.replace('btn-', '').replace('-mobile', '');
-                    // Steuerbefehle laufen über control.sendMove: Dort werden
-                    // Rolle, Sperre und ausstehende Bestätigung geprüft, und
-                    // bei instabiler Verbindung wird verworfen statt gepuffert
-                    // (siehe rtc.canSendControlCommand).
-                    window.webrtcApp.control.sendMove(name);
-                    setTimeout(() => btn.blur(), 150);
-                }
-            });
+    // ---------- Steuerungsbuttons ----------
+    // Es gibt sie nur noch einmal. Frueher lag daneben ein zweiter Satz mit
+    // der Endung "-mobile", weil die Call-Ansicht zwei getrennte Layouts
+    // hatte; jetzt liegt dasselbe Steuerkreuz als Overlay im Bild und die
+    // Anordnung entscheidet allein assets/css/call.css.
+    window.webrtcApp.control.ARROW_BUTTON_IDS.forEach(id => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.addEventListener('click', function() {
+            const now = Date.now();
+            if (!lastClicked[id] || now - lastClicked[id] > throttleTime) {
+                lastClicked[id] = now;
+                const name = id.replace('btn-', '');
+                // Steuerbefehle laufen über control.sendMove: Dort werden
+                // Rolle, Sperre und ausstehende Bestätigung geprüft, und
+                // bei instabiler Verbindung wird verworfen statt gepuffert
+                // (siehe rtc.canSendControlCommand).
+                window.webrtcApp.control.sendMove(name);
+                setTimeout(() => btn.blur(), 150);
+            }
         });
     });
 
@@ -166,9 +170,11 @@ window.webrtcApp.init = function() {
     // ---------- Geräteauswahl (Kamera/Mikro) füllen (Setup für beide) ----------
     async function populateMediaDeviceLists() {
         const devices = await navigator.mediaDevices.enumerateDevices();
+        // Je Geraeteart zwei Auswahlfelder: eines im Annahmedialog, eines in
+        // der Call-Ansicht.
         const selects = [
-            ['camera-select', 'camera-select-in-call', 'camera-select-in-call-mobile'],
-            ['mic-select', 'mic-select-in-call', 'mic-select-in-call-mobile']
+            ['camera-select', 'camera-select-in-call'],
+            ['mic-select', 'mic-select-in-call']
         ];
         // Kameras
         selects[0].forEach(id => {
@@ -209,22 +215,10 @@ window.webrtcApp.init = function() {
 
     // ---------- Kamera/Mikro im laufenden Call wechseln ----------
     window.webrtcApp.init.handleMediaDeviceChange = async function(type) {
-        // Hole alle passenden Selects
-        let selects = [];
-        if (type === 'video') {
-            selects = [
-                document.getElementById('camera-select-in-call'),
-                document.getElementById('camera-select-in-call-mobile')
-            ];
-        } else {
-            selects = [
-                document.getElementById('mic-select-in-call'),
-                document.getElementById('mic-select-in-call-mobile')
-            ];
-        }
-        // Hole ersten Select mit Value
-        let select = selects.find(sel => sel && sel.value);
-        if (!select) return;
+        const select = document.getElementById(
+            type === 'video' ? 'camera-select-in-call' : 'mic-select-in-call'
+        );
+        if (!select || !select.value) return;
         const constraints = {};
         constraints[type] = { deviceId: { exact: select.value } };
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -245,13 +239,11 @@ window.webrtcApp.init = function() {
         updateCallIcons();
     };
 
-    // Event-Handler für ALLE Kamera/Mikro-Selects
-    ['camera-select-in-call', 'camera-select-in-call-mobile'].forEach(id => {
-        document.getElementById(id)?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('video'));
-    });
-    ['mic-select-in-call', 'mic-select-in-call-mobile'].forEach(id => {
-        document.getElementById(id)?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('audio'));
-    });
+    // Geraetewechsel im laufenden Call
+    document.getElementById('camera-select-in-call')
+        ?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('video'));
+    document.getElementById('mic-select-in-call')
+        ?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('audio'));
 
     // ---------- ECHTER MUTE/UNMUTE & VIDEO ON/OFF für Desktop UND Mobile -----------
     function getSender(kind) {
@@ -262,17 +254,11 @@ window.webrtcApp.init = function() {
         return sender;
     }
 
-    // Helper: alle Buttons/Icons holen
-    function getBoth(desktopId, mobileId) {
-        return [
-            document.getElementById(desktopId),
-            document.getElementById(mobileId)
-        ].filter(Boolean);
-    }
-
-    // --- Mikro ---
-    const micBtns  = getBoth('switch-mic-btn', 'switch-mic-btn-mobile');
-    const micIcons = getBoth('mic-icon', 'mic-icon-mobile');
+    // Mikrofon und Kamera gibt es je einmal - die Bedienleiste der
+    // Call-Ansicht ist dieselbe auf jedem Geraet. Hier stand vorher ein
+    // Helfer, der Desktop- und Mobilknopf zu einem Paar zusammensuchte.
+    const micBtns  = [document.getElementById('switch-mic-btn')].filter(Boolean);
+    const micIcons = [document.getElementById('mic-icon')].filter(Boolean);
     function updateMicIcon() {
         const sender = getSender('audio');
         micIcons.forEach(icon => {
@@ -300,8 +286,8 @@ window.webrtcApp.init = function() {
     });
 
     // --- Kamera ---
-    const camBtns  = getBoth('switch-cam-btn', 'switch-cam-btn-mobile');
-    const camIcons = getBoth('cam-icon', 'cam-icon-mobile');
+    const camBtns  = [document.getElementById('switch-cam-btn')].filter(Boolean);
+    const camIcons = [document.getElementById('cam-icon')].filter(Boolean);
     function updateCamIcon() {
         const sender = getSender('video');
         camIcons.forEach(icon => {
@@ -368,34 +354,62 @@ window.webrtcApp.init = function() {
     }
     if (window.isLoggedIn) window.webrtcApp.ui.setDisplay('settings', '');
 
-    // Chat-FAB/Overlay für Mobile
-    const fab = document.getElementById('chat-fab');
-    const overlay = document.getElementById('mobile-chat-overlay'); // Overlay über dem ganzen Screen
-    if (fab && overlay) {
-        fab.onclick = function(e) {
-            overlay.classList.add('active');
-        };
-        // Klick außerhalb des Bottom-Sheets schließt den Chat
-        overlay.addEventListener('click', function(e) {
-            if (e.target === overlay) {
-                overlay.classList.remove('active');
-            }
-        });
+    // ---------- Overlays der Call-Ansicht: Chat und Geraeteauswahl -------
+    //
+    // Beide sind aufklappbar und nie gleichzeitig offen: Der Chat legt sich
+    // ueber das ganze Bild, die Geraeteauswahl sitzt ueber der Leiste. Zwei
+    // offene Blaetter uebereinander waeren nur im Weg.
+    //
+    // Frueher gab es dafuer einen runden Chatknopf, der nur auf Mobilgeraeten
+    // erschien, und einen zweiten Chat mit eigenen IDs. Jetzt ist es ein
+    // Chat, ein Knopf, auf jedem Geraet.
+    const chatOverlay  = document.getElementById('chat-overlay');
+    const chatToggle   = document.getElementById('chat-toggle-btn');
+    const deviceSheet  = document.getElementById('call-devices');
+    const deviceToggle = document.getElementById('call-devices-btn');
+
+    /**
+     * Blendet eines der beiden Blaetter ein oder aus und haelt den Zustand
+     * des zugehoerigen Knopfes (aria-expanded) nach.
+     *
+     * @param {HTMLElement|null} blatt
+     * @param {HTMLElement|null} knopf
+     * @param {boolean} offen
+     */
+    function setSheet(blatt, knopf, offen) {
+        if (!blatt) return;
+        blatt.hidden = !offen;
+        if (knopf) knopf.setAttribute('aria-expanded', offen ? 'true' : 'false');
+
+        // Das Chatblatt legt sich auf breiten Schirmen an die rechte Kante -
+        // genau dort, wo das Steuerkreuz liegt. Die Klasse verschiebt es
+        // (assets/css/call.css); auf schmalen Schirmen deckt das Blatt die
+        // untere Haelfte ab, dort weicht das Steuerkreuz ganz.
+        if (blatt === chatOverlay) {
+            document.getElementById('call-view')?.classList.toggle('chat-open', !!offen);
+        }
     }
 
-    // Nachrichten senden im mobilen Chat (setzt immer die .send()-Funktion des Chatmoduls ab)
-    document.getElementById('chat-send-btn-mobile')?.addEventListener('click', function() {
-        const input = document.getElementById('chat-input-mobile');
-        const value = input?.value?.trim();
-        if (value) {
-            window.webrtcApp.chat.send(value);
-            input.value = "";
-        }
+    chatToggle?.addEventListener('click', function() {
+        const offen = chatOverlay && chatOverlay.hidden;
+        setSheet(deviceSheet, deviceToggle, false);
+        setSheet(chatOverlay, chatToggle, !!offen);
+        if (offen) document.getElementById('chat-input')?.focus();
     });
 
-    document.getElementById('mobile-chat-close')?.addEventListener('click', function() {
-        const sheet = document.getElementById('mobile-chat-sheet');
-        if (sheet) sheet.classList.remove('active'), sheet.style.display = 'none';
+    deviceToggle?.addEventListener('click', function() {
+        const offen = deviceSheet && deviceSheet.hidden;
+        setSheet(chatOverlay, chatToggle, false);
+        setSheet(deviceSheet, deviceToggle, !!offen);
+    });
+
+    document.getElementById('chat-close')?.addEventListener('click', function() {
+        setSheet(chatOverlay, chatToggle, false);
+    });
+
+    // Klick neben das Chatblatt schliesst es.
+    chatOverlay?.addEventListener('click', function(e) {
+        if (e.target === chatOverlay) setSheet(chatOverlay, chatToggle, false);
     });
 
 };

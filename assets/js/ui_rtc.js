@@ -21,6 +21,14 @@ window.webrtcApp.uiRtc = {
      * Fügt Eventlistener für Send-Button, Enter-Taste und Datei-Upload hinzu.
      */
     initChatUI: function() {
+        // Nur einmal binden. Diese Methode wird an zwei Stellen aufgerufen:
+        // von window.webrtcApp.init() (assets/js/main.js) und noch einmal aus
+        // dem DOMContentLoaded-Handler am Ende dieser Datei. Beide laufen bei
+        // jedem Seitenaufruf - ohne diese Sperre haengen zwei Handler am
+        // Senden-Knopf und jede Nachricht ginge doppelt raus.
+        if (this.chatUiReady) return;
+        this.chatUiReady = true;
+
         const sendBtn = document.getElementById("chat-send-btn");
         const chatInput = document.getElementById("chat-input");
         if (sendBtn && chatInput) {

@@ -51,9 +51,17 @@ window.webrtcApp.control = {
     },
 
     // IDs aller Steuerkreuz-Schaltflächen (Desktop und Mobile).
+    /**
+     * Die Tasten des Steuerkreuzes.
+     *
+     * Vier Stueck - je Richtung eine. Hier standen frueher acht: Die
+     * Call-Ansicht hatte zwei getrennte Layouts (Desktop und Mobil) mit je
+     * einem eigenen Steuerkreuz. Beide mussten in Sperrzustand und
+     * Wartezustand gleichgehalten werden. Seit die Steuerung als Overlay im
+     * Bild liegt, gibt es sie nur noch einmal.
+     */
     ARROW_BUTTON_IDS: [
-        'btn-forward', 'btn-backward', 'btn-left', 'btn-right',
-        'btn-forward-mobile', 'btn-backward-mobile', 'btn-left-mobile', 'btn-right-mobile'
+        'btn-forward', 'btn-backward', 'btn-left', 'btn-right'
     ],
 
     // =====================================================================

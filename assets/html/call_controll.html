@@ -1,32 +1,43 @@
-<div id="media-select-dialog" class=" show" tabindex="-1" style="display:none; position:fixed; top:30%; left:50%; transform:translate(-50%, -30%); z-index:1000;">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="calling_user"></h5>
+<!--
+    Der Dialog fuer einen eingehenden Anruf.
+
+    Eingeblendet von assets/js/signaling.js, sobald ein Offer eintrifft; die
+    Knoepfe haengen in assets/js/main.js.
+
+    Die IDs calling_user, media-video-checkbox, media-audio-checkbox,
+    camera-select, mic-select, media-accept-btn und media-decline-btn werden
+    dort gebraucht - sie muessen erhalten bleiben.
+
+    Die Geraetewahl steht schon hier und nicht erst im Call: Wer annimmt,
+    entscheidet damit zugleich, womit er teilnimmt.
+-->
+<div id="media-select-dialog" style="display:none;" role="dialog" aria-modal="true">
+  <div class="call-invite">
+
+    <div class="call-invite__head">
+      <p class="call-invite__eyebrow">Eingehender Anruf</p>
+      <h2 class="call-invite__name" id="calling_user"></h2>
+    </div>
+
+    <div class="app-field">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="media-video-checkbox" checked>
+        <label class="form-check-label" for="media-video-checkbox">Video senden</label>
       </div>
-      <div class="modal-body">
-        <h6>Mit welchen Medien teilnehmen?</h6>
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" id="media-video-checkbox" checked>
-          <label class="form-check-label" for="media-video-checkbox">Video senden</label>
-        </div>
-        <div class="mb-2">
-          <label for="camera-select" class="form-label">Kamera auswählen:</label>
-          <select id="camera-select" class="form-select"></select>
-        </div>
-        <div class="form-check mb-2">
-          <input class="form-check-input" type="checkbox" id="media-audio-checkbox" checked>
-          <label class="form-check-label" for="media-audio-checkbox">Audio senden</label>
-        </div>
-        <div class="mb-3">
-          <label for="mic-select" class="form-label">Mikrofon:</label>
-          <select id="mic-select" class="form-select"></select>
-        </div>
+      <select id="camera-select" class="form-select form-select-sm" style="margin-top: var(--app-space-2);"></select>
+    </div>
+
+    <div class="app-field">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="media-audio-checkbox" checked>
+        <label class="form-check-label" for="media-audio-checkbox">Ton senden</label>
       </div>
-      <div class="modal-footer">
-        <button id="media-accept-btn" class="btn btn-success">Annehmen</button>
-        <button id="media-decline-btn" class="btn btn-outline-danger">Ablehnen</button>
-      </div>
+      <select id="mic-select" class="form-select form-select-sm" style="margin-top: var(--app-space-2);"></select>
+    </div>
+
+    <div class="app-actions app-actions--stretch">
+      <button id="media-accept-btn" type="button" class="btn btn-success">Annehmen</button>
+      <button id="media-decline-btn" type="button" class="btn btn-secondary">Ablehnen</button>
     </div>
   </div>
 </div>

@@ -12,7 +12,10 @@ window.webrtcApp.chat = {
      * @param {string} msg  - Der eigentliche Nachrichten-Text
      */
     appendMsg(who, msg) {
-        // Standardtext-Log (Desktop)
+        // Es gibt genau einen Chatverlauf. Frueher wurde jede Nachricht
+        // zusaetzlich in ein zweites Log fuer die mobile Ansicht geschrieben
+        // (chat-log-mobile); die Call-Ansicht hat seit dem Umbau nur noch ein
+        // Chatblatt, auf jedem Geraet dasselbe.
         const log = document.getElementById("chat-log");
         const div = document.createElement("div");
 
@@ -21,23 +24,6 @@ window.webrtcApp.chat = {
         div.textContent = (who === "remote" ? "Partner: " : "Du: ") + msg;
         log?.appendChild(div);
         log && (log.scrollTop = log.scrollHeight);
-
-        // Auch im mobilen Log anzeigen
-        this.appendToMobileChatLog(who, msg);
-    },
-
-    /**
-     * Fügt eine Nachricht dem mobilen Chatlog (Bottom-Sheet) hinzu, inklusive Absender.
-     * @param {string} who
-     * @param {string} msg
-     */
-    appendToMobileChatLog(who, msg) {
-        const log = document.getElementById('chat-log-mobile');
-        if (!log) return;
-        const div = document.createElement('div');
-        div.textContent = (who === "remote" ? "Partner: " : "Du: ") + msg;
-        log.appendChild(div);
-        log.scrollTop = log.scrollHeight;
     },
 
     /**

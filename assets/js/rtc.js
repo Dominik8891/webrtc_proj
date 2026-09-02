@@ -979,30 +979,32 @@ window.webrtcApp.rtc = {
 
         window.webrtcApp.state.connectionStatus = status;
 
-        ['connection-status', 'connection-status-mobile'].forEach(id => {
-            const el = document.getElementById(id);
-            if (!el) return;
+        // Ein Element. Es lag frueher zweimal im Markup - einmal im
+        // Kopfbereich und einmal als Overlay ueber dem Video, weil der
+        // Kopfbereich auf schmalen Geraeten zu schmal wurde. Der Kopfbereich
+        // IST jetzt das Overlay.
+        const el = document.getElementById('connection-status');
+        if (el) {
             el.textContent = label.text;
             el.className = 'connection-status ' + label.cssClass;
             el.style.display = (status === 'idle') ? 'none' : '';
-        });
+        }
     },
 
     /**
-     * Zeigt einen Hinweis im Chatverlauf an (Desktop und Mobile).
+     * Zeigt einen Hinweis im Chatverlauf an.
      * Bewusst kein alert(): Hinweise dürfen den Guide nicht blockieren.
      * @param {string} text - Hinweistext
      */
     showSystemNotice(text) {
-        ['chat-log', 'chat-log-mobile'].forEach(id => {
-            const log = document.getElementById(id);
-            if (!log) return;
+        const log = document.getElementById('chat-log');
+        if (log) {
             const div = document.createElement('div');
             div.className = 'chat-system-notice';
             div.textContent = text;
             log.appendChild(div);
             log.scrollTop = log.scrollHeight;
-        });
+        }
         console.log("[Hinweis]", text);
     },
 

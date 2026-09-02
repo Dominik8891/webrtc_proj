@@ -1,578 +1,655 @@
-#call-view {
-    position: fixed;
-    z-index: 9999;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: #f0f2f5;
+/* ===========================================================================
+   call.css - Die Call-Ansicht.
+   ===========================================================================
+
+   Im laufenden Call ist das Video die Anwendung: Es fuellt den Bildschirm,
+   die Bedienung liegt als Overlay darauf. Kein Rahmenwerk, keine Kopfzeile
+   der Anwendung, keine Kaesten.
+
+   Alle Werte kommen aus assets/css/theme.css. Farben stehen hier nur dort,
+   wo sie mit Durchsichtigkeit auf dem Videobild liegen - dafuer gibt es in
+   den Variablen keinen sinnvollen Wert, weil sie sich auf helle Flaechen
+   beziehen.
+
+   AUFBAU
+   ------
+   #call-view          bildschirmfuellend, schwarz
+     .call-stage       das Bild samt Platzhalter und Richtungsanzeige
+     .call-top         oben: Gegenueber, Verbindungsstatus, Auflegen
+     .control-lock-*   Sperrhinweis (Zuschauer) / Sperrschalter (Guide)
+     .call-self        das eigene Bild, klein
+     .call-pad         Steuerkreuz (nur Zuschauer)
+     .call-bar         unten: Mikrofon, Kamera, Geraete, Chat
+     .call-sheet       aufklappbare Geraeteauswahl
+     .call-chat*       Chat als Blatt ueber dem Bild
+
+   Es gibt jedes Bauteil GENAU EINMAL. Frueher lag hier ein zweiter,
+   vollstaendiger Satz fuer Mobilgeraete (btn-forward-mobile, chat-log-mobile,
+   mobile-device-controls ...), der ueber Medienabfragen ein- und ausgeblendet
+   wurde. Was sich zwischen breit und schmal aendert, ist jetzt nur noch die
+   Anordnung.
+   =========================================================================== */
+
+/* Waehrend eines Calls gibt es nichts zu scrollen - die Seite darunter darf
+   sich nicht bewegen, wenn jemand ueber dem Video wischt. Die Klasse setzt
+   rtc.startCall() bzw. der Annahmedialog. */
+body.call-active {
     overflow: hidden;
 }
 
-#media-select-dialog {
+#call-view {
     position: fixed;
-    z-index: 10000;
-    top: 30%;
-    left: 50%;
-    transform: translate(-50%, -30%);
-    background: #fff;
-    padding: 2em;
-    border-radius: 12px;
-    box-shadow: 0 2px 20px #0002;
-    min-width: 320px;
-    max-width: 95vw;
+    inset: 0;
+    z-index: 9999;
+    background: #000;
+    overflow: hidden;
+    color: #fff;
+    font-family: var(--app-font);
 }
 
-.arrow-controls.d-grid {
-  display: grid !important;
-  grid-template-columns: 60px 60px 60px;
-  grid-template-rows: 60px 60px 60px;
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
+/* --- Das Bild ------------------------------------------------------------ */
+
+.call-stage {
+    position: absolute;
+    inset: 0;
 }
 
-#mobile-device-controls { display: none; }
-
-/* Standard: Dot ist versteckt */
-.status-dot {
-  display: none !important;
+/* object-fit: contain und nicht cover: Der Guide waehlt den Ausschnitt, indem
+   er das Geraet haelt. Ein Zuschnitt durch den Browser wuerde ihm genau das
+   wegnehmen - und beim Fuehren zaehlt der Rand des Bildes. */
+.call-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+    display: block;
 }
-/* --- MOBILE PORTRAIT --- */
-@media (max-width: 800px) and (orientation: portrait) {
 
-  /* Desktop-Steuerelemente komplett verstecken */
-  #call-view .desktop-device-controls,
-  #call-view .chatbereich,
-  #call-view .d-flex.flex-row.align-items-stretch.justify-content-between,
-  #call-view .arrow-controls.d-grid:not(#mobile-controls .arrow-controls) {
-    display: none !important;
-  }
-  
+.call-novideo {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--app-space-4);
+    background: #0e1116;
+}
 
-  #call-view .d-flex.flex-row, 
-  #call-view .d-flex.flex-row.align-items-stretch, 
-  #call-view .d-flex.flex-column {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    width: 100vw !important;
-    padding: 0 !important;
-  }
-  #call-view > .d-flex.flex-column.h-100.w-100 {
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    background: #000 !important;
-  }
-  #call-view .d-flex.justify-content-between {
-    height: 40px !important;
-    min-height: 32px !important;
-    padding: 0 12px !important;
-    background: #f0f2f5;
-    z-index: 8;
-  }
-  #call-view .position-relative.w-100.h-100.mx-4 {
-    max-width: 100vw !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-  #call-view video#remote-video {
-    width: 100vw !important;
-    height: calc(100vh - 40px - 54px) !important; /* header + mobile controls */
-    object-fit: contain !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    background: #111 !important;
-    display: block !important;
-  }
-  #call-view #remote-video-placeholder {
-    border-radius: 0 !important;
-  }
-  #call-view video#local-video {
-    display: none !important;
-  }
-  /* Steuerkreuz sichtbar, absolut platziert im Video */
-  #mobile-controls {
-    display: block !important;
-    /*position: absolute !important;*/
-    margin-left: auto !important;
-    margin-right: auto !important;
-    bottom: 20px !important;
-    /*transform: translateX(-50%);*/
-    z-index: 30 !important;
-    width: 200px !important;
-    pointer-events: none;
-  }
-  #mobile-controls .arrow-controls {
-    width: 200px; /* Genaue Breite der Buttons */
-    margin: 0 auto !important;
-    pointer-events: all;
-  }
-  /* Kamera/Mikro-Auswahl ganz unten */
-  #mobile-device-controls {
-    display: flex !important;
-    position: fixed !important;
-    left: 0; right: 0; bottom: 0;
-    width: 100vw !important;
-    min-height: 50px;
-    background: #fff;
-    z-index: 20;
-    border-top: 1px solid #ddd;
-    box-shadow: 0 -2px 6px #0002;
-  }
-  /* Chat-Button sichtbar */
-  #chat-fab {
-    display: block !important;
-    position: fixed !important;
-    right: 22px;
-    bottom: 70px;
-    z-index: 1050;
-    background: rgba(40,40,50,0.93);
+.call-novideo__mark {
+    width: 96px;
+    height: 96px;
     border-radius: 50%;
-    box-shadow: 0 3px 14px #0004;
-    width: 58px; height: 58px;
-    padding: 0;
-    outline: none;
-    border: none;
-  }
-  #chat-fab img {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.4rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.call-novideo__text {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: var(--app-text-base);
+}
+
+/* --- Kopfbereich --------------------------------------------------------- */
+
+.call-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-3);
+    padding: var(--app-space-4) var(--app-space-4) var(--app-space-6);
+    /* Verlauf statt Balken: Das Bild bleibt bis oben sichtbar, die Schrift
+       darauf trotzdem lesbar. */
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0));
+    pointer-events: none;   /* der Verlauf faengt keine Klicks ab ... */
+}
+
+.call-top > * { pointer-events: auto; }   /* ... die Bedienteile darin schon */
+
+.call-top__who {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.call-top__name {
+    font-size: var(--app-text-md);
+    font-weight: var(--app-weight-bold);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.call-hangup {
+    flex: none;
+    border-radius: var(--app-radius-pill);
+    padding-left: var(--app-space-5);
+    padding-right: var(--app-space-5);
+}
+
+/* --- Eigenes Bild -------------------------------------------------------- */
+
+.call-self {
+    position: absolute;
+    left: var(--app-space-4);
+    bottom: 92px;
+    z-index: 9;
+    width: 148px;
+    height: 100px;
+    object-fit: cover;
+    background: #16191f;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: var(--app-radius);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.55);
+}
+
+/* --- Bedienleiste -------------------------------------------------------- */
+
+.call-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--app-space-2);
+    padding: var(--app-space-7) var(--app-space-4) var(--app-space-5);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.66), rgba(0, 0, 0, 0));
+    pointer-events: none;
+}
+
+.call-bar > * { pointer-events: auto; }
+
+.call-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--app-space-2);
+    min-width: 52px;
+    height: 52px;
+    padding: 0 var(--app-space-4);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: var(--app-radius-pill);
+    background: rgba(24, 27, 33, 0.72);
+    color: #fff;
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    cursor: pointer;
+    transition: background var(--app-transition);
+}
+
+.call-btn:hover { background: rgba(46, 51, 60, 0.86); }
+
+.call-btn[aria-expanded="true"] {
+    background: #fff;
+    color: var(--app-text);
+    border-color: #fff;
+}
+
+/* Die Symbole liegen als dunkle PNG vor (assets/img/mic.png und so weiter).
+   Auf dem dunklen Knopf waeren sie unsichtbar - deshalb umgekehrt eingefaerbt
+   statt neuer Bilddateien. */
+.call-btn img {
+    width: 22px;
+    height: 22px;
+    filter: invert(1) brightness(1.8);
+}
+
+/* Ein Symbolknopf bleibt rund. */
+.call-btn:not(.call-btn--text) { padding: 0; }
+
+/* --- Geraeteauswahl ------------------------------------------------------ */
+
+.call-sheet {
+    position: absolute;
+    left: 50%;
+    bottom: 88px;
+    transform: translateX(-50%);
+    z-index: 13;
+    width: min(320px, calc(100vw - 2 * var(--app-space-4)));
+    padding: var(--app-space-4);
+    background: var(--app-surface);
+    color: var(--app-text);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+}
+
+.call-sheet[hidden] { display: none; }
+
+.call-sheet__row + .call-sheet__row { margin-top: var(--app-space-3); }
+
+.call-sheet__label {
+    display: block;
+    margin-bottom: var(--app-space-1);
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text-muted);
+}
+
+/* --- Chat ---------------------------------------------------------------- */
+
+.call-chat-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(0, 0, 0, 0.32);
+}
+
+.call-chat-overlay[hidden] { display: none; }
+
+.call-chat {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(360px, 100vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--app-surface);
+    color: var(--app-text);
+    box-shadow: var(--app-shadow-lg);
+}
+
+.call-chat__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--app-space-3) var(--app-space-4);
+    border-bottom: 1px solid var(--app-border);
+    font-weight: var(--app-weight-bold);
+}
+
+.call-chat__close {
     width: 32px;
     height: 32px;
-    filter: invert(1) brightness(2);
-    pointer-events: none;
-  }
-  #mobile-chat-overlay {
-    display: none;
-  }
-  #mobile-chat-overlay.active {
-    display: block !important;
-  }
-  #mobile-chat-sheet {
-    height: 30vh !important;
-    min-height: 160px;
-    max-height: 60vh;
-  }
-  #mobile-chat-sheet.active {
-    display: block !important;
-  }
-  .desktop-device-controls { 
-    display: none !important; 
-  }
-  .status-dot {
-    display: inline-block !important;
-    vertical-align: middle;
-  }
-  .user_table_desktop {
-    display: none !important; 
-  }
+    border: 0;
+    border-radius: var(--app-radius);
+    background: none;
+    color: var(--app-text-faint);
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
 }
 
-@media (max-width: 1024px) and (orientation: landscape) {
-  #call-view > .d-flex.flex-column.h-100.w-100 {
-    display: grid !important;
-    grid-template-columns: 20vw 1fr 27vw;
-    grid-template-rows: 90px 1fr auto;
-    grid-template-areas:
-      "left video right"
-      "left video right"
-      ". device .";
-    height: 100vh !important;
-    width: 100vw !important;
-    background: #23262a !important;
-    padding: 0 !important;
-    position: relative !important;
-    overflow: hidden !important;
-  }
-
-  /* Linker Bereich: Call beenden, Username */
-  #call-view .d-flex.justify-content-between.align-items-center {
-    grid-area: left;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: flex-start !important;
-    justify-content: flex-start !important;
-    background: #23262a !important;
-    box-shadow: 1px 0 0 #1112;
-    padding: 34px 12px 0 26px !important;
-    z-index: 2;
-    height: 100%;
-  }
-  #end-call-btn {
-    margin-bottom: 28px !important;
-    width: 100% !important;
-    max-width: 160px !important;
-    font-size: 1em !important;
-    border-radius: 12px !important;
-  }
-  #remote-username {
-    font-size: 1.13em !important;
-    margin: 0 !important;
-    color: #fff !important;
-    text-align: left !important;
-    width: 100% !important;
-    word-break: break-word;
-    font-weight: bold !important;
-    letter-spacing: 0.01em;
-    opacity: 1 !important;
-  }
-
-  /* Mittlerer Bereich: Video */
-  #call-view .d-flex.align-items-center.justify-content-center.position-relative {
-    grid-area: video;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background: #17181a !important;
-    margin: 0 !important;
-    height: 90% !important;
-    width: 100% !important;
-    position: relative !important;
-    z-index: 1;
-  }
-  #call-view .position-relative.w-100.h-100.mx-4 {
-    width: 95% !important;
-    height: 83vh !important;
-    max-height: 83vh !important;
-    margin: 0 auto !important;
-    background: #111 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    border-radius: 14px !important;
-    box-shadow: 0 4px 16px #0003;
-  }
-  #call-view video#remote-video, #call-view #remote-video-placeholder {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: contain !important;
-    background: #111 !important;
-    border-radius: 14px !important;
-    display: block !important;
-    margin: 0 auto !important;
-    max-height: 100% !important;
-  }
-  #remote-video-placeholder {
-    color: #bbb !important;
-    font-size: 1.15em !important;
-  }
-
-  /* Rechter Bereich: Chatbereich und Steuerkreuz */
-  #call-view .d-flex.flex-row.align-items-stretch.justify-content-between {
-    grid-area: right;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: stretch !important;
-    justify-content: flex-start !important;
-    background: #23262a !important;
-    box-shadow: -1px 0 0 #1112;
-    width: 100% !important;
-    height: 100% !important;
-    padding: 38px 26px 0 18px !important;
-    z-index: 3;
-    gap: 0;
-  }
-  #call-view .d-flex.flex-column.justify-content-end {
-    width: 100% !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  #chat-area {
-    min-height: 98px !important;
-    max-height: 200px !important;
-    background: #fff !important;
-    border-radius: 10px !important;
-    margin-bottom: 14px !important;
-    font-size: 1em !important;
-    overflow-y: auto !important;
-    box-shadow: 0 1px 8px #0002;
-    padding: 14px 16px !important;
-  }
-  .input-group {
-    margin-bottom: 0 !important;
-    width: 100% !important;
-  }
-  #chat-input {
-    min-width: 0 !important;
-    font-size: 1em !important;
-  }
-  #chat-send-btn {
-    min-width: 70px !important;
-  }
-
-  /* Steuerkreuz unverzerrt, Abstand nach oben */
-  #call-view .d-flex.flex-column.align-items-center.justify-content-center {
-    width: 100% !important;
-    margin-top: 30px !important;
-    margin-bottom: 20px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-end !important;
-    padding: 0 !important;
-  }
-  .arrow-controls.d-grid.gap-2 {
-    width: 102px !important;
-    height: 102px !important;
-    grid-template-columns: 34px 34px 34px !important;
-    grid-template-rows: 34px 34px 34px !important;
-    gap: 4px !important;
-  }
-  .arrow-controls.d-grid.gap-2 button {
-    font-size: 1.3em !important;
-    border-radius: 8px !important;
-  }
-
-  /* NUR Mobile Controls: Sichtbar und zentriert unter dem Video */
-  #mobile-device-controls {
-    display: flex !important;
-    position: absolute !important;
-    height: 15px !important;
-    max-width: 900px !important;
-    min-width: 220px !important;
-    justify-content: center !important;
-    align-items: center !important;
-    gap: 18px !important;
-    background: #f5f6f8 !important;
-    border-radius: 8px 8px 0 0 !important;
-    box-shadow: 0 0 12px #0001;
-    border: 1px solid #d2d2d2 !important;
-    z-index: 99 !important;
-    padding: 12px 0 !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-  }
-  #mobile-device-controls select,
-  #mobile-device-controls button {
-    min-width: 48px !important;
-    max-width: 150px !important;
-    font-size: 1em !important;
-    border-radius: 7px !important;
-    color: #23262a !important;
-    background: #fff !important;
-    border: 1px solid #bbb !important;
-    box-shadow: 0 1px 4px #0001;
-    margin: 0 2px !important;
-    height: 38px !important;
-  }
-  .desktop-device-controls {
-    display: none !important;
-  }
-
-  /* Alle übrigen mobilen Controls/Overlays weiter verstecken */
-  #chat-fab, #mobile-chat-overlay, #mobile-chat-sheet, #local-video {
-    display: none !important;
-  }
+.call-chat__close:hover {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
 }
 
-/* ---------------------------------------------------------------------------
-   Verbindungsstatus
-   Zeigt beiden Seiten, woran sie sind: verbunden, instabil, Wiederverbindung
-   oder getrennt. Gesetzt von window.webrtcApp.rtc.setConnectionStatus().
-   --------------------------------------------------------------------------- */
-.connection-status {
-  display: inline-block;
-  padding: 3px 12px;
-  border-radius: 999px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  line-height: 1.5;
-  white-space: nowrap;
-  border: 1px solid transparent;
+.call-chat__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--app-space-4);
+    font-size: var(--app-text-sm);
+    line-height: var(--app-leading);
 }
 
-/* Als Overlay über dem Videobild (mobil sichtbar, wenn der Kopfbereich
-   zu schmal wird). z-index über dem Platzhalter (der liegt auf 2). */
-.connection-status--overlay {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 5;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+.call-chat__body > div > div { margin-bottom: var(--app-space-2); }
+
+.call-chat__foot {
+    display: flex;
+    gap: var(--app-space-2);
+    padding: var(--app-space-3) var(--app-space-4);
+    border-top: 1px solid var(--app-border);
 }
 
-.connection-status--connecting {
-  background: #e9ecef;
-  border-color: #ced4da;
-  color: #343a40;
+.call-chat__foot .form-control { flex: 1 1 auto; }
+
+/* Auf schmalen Schirmen schiebt sich der Chat von unten herein. */
+@media (max-width: 720px) {
+    .call-chat {
+        right: 0;
+        left: 0;
+        top: auto;
+        width: 100%;
+        height: 60vh;
+        border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
+    }
 }
 
-.connection-status--connected {
-  background: #d1e7dd;
-  border-color: #a3cfbb;
-  color: #0f5132;
+/* --- Steuerkreuz (Zuschauer) --------------------------------------------- */
+
+.call-pad {
+    position: absolute;
+    right: var(--app-space-5);
+    bottom: 96px;
+    z-index: 12;
+    display: flex;
 }
 
-/* Instabil und Wiederverbindung bewusst deutlich unterschiedlich einfärben:
-   Bei "instabil" läuft nur die Frist, bei "Wiederverbindung" wird bereits neu
-   ausgehandelt und Steuerbefehle werden verworfen. */
-.connection-status--unstable {
-  background: #fff3cd;
-  border-color: #ffe69c;
-  color: #664d03;
+/* Steht der Chat offen, ruecken die Pfeile aus seinem Weg. Sonst laege die
+   Hauptbedienung des Zuschauers unter einem Blatt, das er zum Steuern erst
+   wieder schliessen muesste. */
+#call-view.chat-open .call-pad {
+    right: calc(360px + var(--app-space-5));
 }
 
-.connection-status--reconnecting {
-  background: #ffe5d0;
-  border-color: #fecba1;
-  color: #8a3d00;
+.arrow-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 60px);
+    grid-template-rows: repeat(3, 60px);
+    gap: var(--app-space-2);
 }
 
-.connection-status--disconnected {
-  background: #f8d7da;
-  border-color: #f1aeb5;
-  color: #842029;
+.call-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: #fff;
+    background: rgba(24, 27, 33, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--app-radius);
+    cursor: pointer;
+    transition: background var(--app-transition);
 }
 
-/* Systemhinweise im Chatverlauf (z. B. verworfener Steuerbefehl,
-   fehlender TURN-Server). Bewusst kein alert(): darf nicht blockieren. */
-.chat-system-notice {
-  color: #664d03;
-  background: #fff8e1;
-  border-left: 3px solid #ffc107;
-  padding: 3px 8px;
-  margin: 3px 0;
-  font-size: 0.85rem;
-  font-style: italic;
-}
+.call-arrow:hover:not(:disabled) { background: rgba(46, 51, 60, 0.9); }
+.call-arrow:active:not(:disabled) { background: rgba(70, 78, 90, 0.95); }
 
-/* ---------------------------------------------------------------------------
-   Steuerprotokoll: Rollen, Richtungsanzeige, Sperre
-   Siehe PROTOKOLL.md. Die Rolle steht als Klasse "role-guide" bzw.
-   "role-viewer" auf #call-view; gesetzt von control.updateRoleUi().
-   --------------------------------------------------------------------------- */
-
-/* Das Steuerkreuz gibt es ausschliesslich beim Zuschauer. Ohne bekannte Rolle
-   ebenfalls nicht - im Zweifel steuert niemand. Die Regeln stehen bewusst
-   hoeher in der Spezifitaet als die "display: block !important" der
-   Mobil-Medienabfrage weiter oben, sonst kaeme das Steuerkreuz auf dem
-   Telefon des Guides doch wieder zum Vorschein. */
-#call-view:not(.role-viewer) #desktop-controls,
-#call-view:not(.role-viewer) #mobile-controls {
-  display: none !important;
-}
-
-/* Umgekehrt: Sperrschalter und Richtungsanzeige gehoeren nur zum Guide. */
-#call-view:not(.role-guide) #control-lock-bar,
-#call-view:not(.role-guide) #direction-indicator {
-  display: none !important;
-}
-#call-view:not(.role-viewer) #control-lock-notice {
-  display: none !important;
-}
+.call-arrow--up    { grid-column: 2; grid-row: 1; }
+.call-arrow--left  { grid-column: 1; grid-row: 2; }
+.call-arrow--right { grid-column: 3; grid-row: 2; }
+.call-arrow--down  { grid-column: 2; grid-row: 3; }
 
 /* Gesperrtes Steuerkreuz: waehrend einer Sperre oder solange die Bestaetigung
    des Guides aussteht. Sichtbar, aber erkennbar nicht bedienbar - ein
    verschwindender Knopf waere unter dem Daumen schlimmer als ein grauer. */
 .arrow-controls button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
-/* Wartet auf die Bestaetigung: dezent gepunkteter Rand, damit der Zuschauer
-   sieht, dass der Druck unterwegs ist, und nicht nachdrueckt. */
+/* Wartet auf die Bestaetigung: gestrichelter Rand, damit der Zuschauer sieht,
+   dass der Druck unterwegs ist, und nicht nachdrueckt. */
 .arrow-controls button.is-waiting {
-  border-style: dashed !important;
+    border-style: dashed;
 }
 
-/* --- Grosse Richtungsanzeige beim Guide ---------------------------------- */
-/* Bildschirmfuellend ueber dem Videobild, damit sie im Augenwinkel erfassbar
+/* Auf schmalen Schirmen liegt das Steuerkreuz mittig ueber der Leiste - dort
+   ist es mit dem Daumen erreichbar, egal in welcher Hand das Geraet liegt. */
+@media (max-width: 720px) {
+    .call-pad {
+        right: auto;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 88px;
+    }
+    /* Der Chat nimmt hier die untere Bildhaelfte ein. Ein halb verdecktes
+       Steuerkreuz waere schlimmer als keines. */
+    #call-view.chat-open .call-pad { display: none; }
+    .arrow-controls {
+        grid-template-columns: repeat(3, 56px);
+        grid-template-rows: repeat(3, 56px);
+    }
+    /* Das eigene Bild bleibt unten links: Oben rechts kaeme ihm der
+       Sperrhinweis in die Quere, und das Steuerkreuz steht mittig. */
+    .call-self {
+        width: 96px;
+        height: 66px;
+        left: var(--app-space-3);
+        /* Hoeher als auf breiten Schirmen: Darunter liegt hier der
+           Sperrschalter des Guides, der die volle Breite mittig einnimmt. */
+        bottom: 156px;
+    }
+}
+
+/* ===========================================================================
+   Rollen: wer was sieht
+   ---------------------------------------------------------------------------
+   Die Rolle steht als Klasse "role-guide" bzw. "role-viewer" auf #call-view;
+   gesetzt von control.updateRoleUi(). Ohne bekannte Rolle steuert niemand -
+   deshalb sind beide Faelle als "nicht die Rolle" formuliert.
+   =========================================================================== */
+
+/* Das Steuerkreuz gibt es ausschliesslich beim Zuschauer. */
+#call-view:not(.role-viewer) #control-pad {
+    display: none !important;
+}
+
+/* Sperrschalter und Richtungsanzeige gehoeren nur zum Guide. */
+#call-view:not(.role-guide) #control-lock-bar,
+#call-view:not(.role-guide) #direction-indicator {
+    display: none !important;
+}
+
+/* Der Sperrhinweis wiederum nur zum Zuschauer. */
+#call-view:not(.role-viewer) #control-lock-notice {
+    display: none !important;
+}
+
+/* ===========================================================================
+   Verbindungsstatus
+   Zeigt beiden Seiten, woran sie sind: verbunden, instabil, Wiederverbindung
+   oder getrennt. Gesetzt von window.webrtcApp.rtc.setConnectionStatus().
+   =========================================================================== */
+
+.connection-status {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: var(--app-radius-pill);
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-bold);
+    line-height: 1.5;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.connection-status--connecting {
+    background: #e9ecef;
+    border-color: #ced4da;
+    color: #343a40;
+}
+
+.connection-status--connected {
+    background: var(--app-live-soft);
+    border-color: #a3cfbb;
+    color: var(--app-live-strong);
+}
+
+/* Instabil und Wiederverbindung bewusst deutlich unterschiedlich einfaerben:
+   Bei "instabil" laeuft nur die Frist, bei "Wiederverbindung" wird bereits neu
+   ausgehandelt und Steuerbefehle werden verworfen. */
+.connection-status--unstable {
+    background: var(--app-warn-soft);
+    border-color: #ffe69c;
+    color: var(--app-warn);
+}
+
+.connection-status--reconnecting {
+    background: #ffe5d0;
+    border-color: #fecba1;
+    color: #8a3d00;
+}
+
+.connection-status--disconnected {
+    background: var(--app-danger-soft);
+    border-color: #f1aeb5;
+    color: var(--app-danger-strong);
+}
+
+/* Systemhinweise im Chatverlauf (z. B. verworfener Steuerbefehl,
+   fehlender TURN-Server). Bewusst kein alert(): darf nicht blockieren. */
+.chat-system-notice {
+    color: var(--app-warn);
+    background: var(--app-warn-soft);
+    border-left: 3px solid var(--app-warn-solid);
+    padding: var(--app-space-1) var(--app-space-2);
+    margin: var(--app-space-1) 0;
+    font-size: var(--app-text-xs);
+    font-style: italic;
+}
+
+/* ===========================================================================
+   Richtungsanzeige beim Guide
+   ---------------------------------------------------------------------------
+   Bildschirmfuellend ueber dem Videobild, damit sie im Augenwinkel erfassbar
    ist. Der Ton bleibt das Hauptsignal; das hier ist die zweite Spur fuer
-   laute Umgebungen. */
+   laute Umgebungen.
+   =========================================================================== */
+
 .direction-indicator {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 14;
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;             /* darf keinen Klick abfangen */
-  background: rgba(0, 0, 0, 0.45);
-  color: #ffe000;
-  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.95);
+    position: absolute;
+    inset: 0;
+    z-index: 14;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;             /* darf keinen Klick abfangen */
+    background: rgba(0, 0, 0, 0.45);
+    color: #ffe000;
+    text-shadow: 0 3px 14px rgba(0, 0, 0, 0.95);
 }
 
 .direction-indicator--visible {
-  display: flex;
-  animation: direction-indicator-in 120ms ease-out;
+    display: flex;
+    animation: direction-indicator-in 120ms ease-out;
 }
 
 .direction-indicator__arrow {
-  font-size: 42vmin;
-  line-height: 0.9;
-  font-weight: 700;
+    font-size: 42vmin;
+    line-height: 0.9;
+    font-weight: 700;
 }
 
 .direction-indicator__label {
-  font-size: 8vmin;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  margin-top: 0.2em;
+    font-size: 8vmin;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    margin-top: 0.2em;
 }
 
 @keyframes direction-indicator-in {
-  from { opacity: 0; transform: scale(0.82); }
-  to   { opacity: 1; transform: scale(1); }
+    from { opacity: 0; transform: scale(0.82); }
+    to   { opacity: 1; transform: scale(1); }
 }
 
-/* Wer Bewegtbild reduziert haben moechte, bekommt die Anzeige ohne
-   Aufziehen - sichtbar bleibt sie in jedem Fall, sie ist ein Sicherheitshinweis. */
+/* Wer Bewegtbild reduziert haben moechte, bekommt die Anzeige ohne Aufziehen -
+   sichtbar bleibt sie in jedem Fall, sie ist ein Sicherheitshinweis. */
 @media (prefers-reduced-motion: reduce) {
-  .direction-indicator--visible { animation: none; }
+    .direction-indicator--visible { animation: none; }
 }
 
-/* --- Sperrschalter des Guides -------------------------------------------- */
-/* Im Videobild statt im Kopfbereich: Der Guide haelt das Geraet in der Hand,
-   der Daumen liegt unten. */
+/* ===========================================================================
+   Sperre
+   =========================================================================== */
+
+/* Sperrschalter des Guides. Ueber der Bedienleiste statt im Kopfbereich: Der
+   Guide haelt das Geraet in der Hand, der Daumen liegt unten. */
 .control-lock-bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 16px;
-  z-index: 13;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 96px;
+    z-index: 13;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
 }
 
 .control-lock-btn {
-  pointer-events: auto;
-  min-width: 210px;
-  min-height: 54px;
-  font-size: 1.05rem;
-  border-radius: 999px;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
+    pointer-events: auto;
+    min-width: 210px;
+    min-height: 54px;
+    font-size: var(--app-text-md);
+    border-radius: var(--app-radius-pill);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
 }
 
-/* --- Sperranzeige beim Zuschauer ----------------------------------------- */
+/* Sperranzeige beim Zuschauer. Unter dem Kopfbereich, damit sie den
+   Verbindungsstatus nicht verdeckt - beide sind wichtig. */
 .control-lock-notice {
-  position: absolute;
-  left: 0;
-  right: 0;
-  /* Unterhalb der Statusanzeige (.connection-status--overlay, top 10px), damit
-     die Sperre den Verbindungsstatus nicht verdeckt - beide sind wichtig. */
-  top: 48px;
-  z-index: 13;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: rgba(132, 32, 41, 0.94);
-  color: #fff;
-  font-weight: 700;
-  text-align: center;
+    position: absolute;
+    left: 50%;
+    top: 76px;
+    transform: translateX(-50%);
+    z-index: 13;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: var(--app-space-2);
+    max-width: calc(100vw - 2 * var(--app-space-4));
+    padding: var(--app-space-2) var(--app-space-4);
+    border-radius: var(--app-radius-pill);
+    background: rgba(179, 38, 30, 0.94);
+    color: #fff;
+    font-weight: var(--app-weight-bold);
+    font-size: var(--app-text-sm);
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 
+/* Ein gezeichnetes Quadrat statt eines Sonderzeichens: Das frueher benutzte
+   Zeichen fehlt in vielen Systemschriften und erschien dort als leerer
+   Kasten. */
 .control-lock-notice__icon {
-  font-size: 1.4rem;
-  line-height: 1;
+    width: 10px;
+    height: 10px;
+    flex: none;
+    border-radius: 2px;
+    background: currentColor;
 }
 
-.control-lock-notice__text {
-  font-size: 1rem;
+/* ===========================================================================
+   Dialog "Anruf annehmen"
+   Steht in assets/html/call_controll.html und wird von signaling.js
+   eingeblendet.
+   =========================================================================== */
+
+#media-select-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--app-space-4);
+    background: rgba(12, 14, 18, 0.62);
+}
+
+.call-invite {
+    width: 100%;
+    max-width: 380px;
+    background: var(--app-surface);
+    color: var(--app-text);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+    padding: var(--app-space-5);
+}
+
+.call-invite__head {
+    text-align: center;
+    margin-bottom: var(--app-space-5);
+}
+
+.call-invite__eyebrow {
+    margin: 0 0 var(--app-space-1);
+    font-size: var(--app-text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--app-accent-strong);
+}
+
+.call-invite__name {
+    margin: 0;
+    font-size: var(--app-text-lg);
+    font-weight: var(--app-weight-bold);
 }
