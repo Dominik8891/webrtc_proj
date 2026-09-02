@@ -110,7 +110,11 @@ window.webrtcApp.uiChat = {
                 <div class="chat-pop chat-popup-tab${minimized ? ' minimized attention' : ''}"
                      id="${tabId}" data-partner-id="${this.esc(partnerId)}" data-partner-name="${nameEsc}">
                     <div class="chat-pop__head chat-tab-header">
-                        <span class="chat-pop__title">${nameEsc}</span>
+                        <span class="chat-pop__avatar" aria-hidden="true">${this.initials(partnerName)}</span>
+                        <span class="chat-pop__who">
+                            <span class="chat-pop__title">${nameEsc}</span>
+                            <span class="chat-pop__sub"></span>
+                        </span>
                         <button class="chat-pop__close close-chat-tab" title="Schließen" aria-label="Chat schließen">&times;</button>
                     </div>
                     <div class="chat-popup-content" style="display:none;">
@@ -119,12 +123,30 @@ window.webrtcApp.uiChat = {
                             <div class="chat-pop__ask chat-popup-accept" style="display:none;"></div>
                             <div class="chat-pop__compose chat-popup-actions" style="display:none;">
                                 <input type="text" class="form-control chat-popup-input" placeholder="Nachricht">
-                                <button class="btn btn-primary chat-popup-send">Senden</button>
+                                <button class="chat-pop__send chat-popup-send" type="button" title="Senden" aria-label="Senden">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 21.4 23 12 2.6 2.6l-.1 7.3L17 12 2.5 14.1z"/></svg>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
                 `);
+    },
+
+    /**
+     * Die Initialen fuer das Zeichen im Kopf des Chatfensters.
+     *
+     * Hoechstens zwei Buchstaben: bei "anna" das A, bei "Anna Mustermann" AM.
+     * Bleibt nichts uebrig - ein Name aus Sonderzeichen etwa -, steht dort
+     * ein Fragezeichen statt einer leeren Scheibe.
+     *
+     * @param {string} name
+     * @returns {string} maskierter Text
+     */
+    initials: function(name) {
+        const teile = String(name ?? '').trim().split(/\s+/).filter(Boolean);
+        const kurz = teile.slice(0, 2).map(t => t.charAt(0)).join('');
+        return this.esc(kurz || '?');
     },
 
     /**
@@ -322,6 +344,12 @@ window.webrtcApp.uiChat = {
         // Solange nicht angenommen ist, gibt es keinen Verlauf - der leere
         // Nachrichtenbereich entfaellt dann (assets/css/theme.css).
         $tab.toggleClass('chat-pop--pending', !isActive);
+
+        // Der Untertitel im Kopf sagt, woran der Chat gerade ist. Er steht
+        // dort, wo sonst nichts stuende - und beantwortet die Frage, warum
+        // kein Eingabefeld da ist, ohne dass man es suchen muss.
+        const $sub = $tab.find('.chat-pop__sub');
+        $sub.text(isActive ? 'Chat' : (isEmpfaenger ? 'Anfrage offen' : 'Warten auf Antwort'));
 
         const chatId = $tab.attr('id').split('-').pop();
         const merken = (aktiv) => {

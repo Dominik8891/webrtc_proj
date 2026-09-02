@@ -27,18 +27,31 @@
    =========================================================================== */
 
 :root {
-    /* --- Flaechen ------------------------------------------------------- */
-    /* Der Seitengrund ist leicht kuehl und nie reinweiss, damit sich weisse
-       Karten davon abheben, ohne dass es einen Rahmen dafuer braucht. */
-    --app-bg:              #f2f4f7;
+    /* --- Flaechen -------------------------------------------------------
+       DREI EBENEN, und sie muessen sich unterscheiden lassen:
+
+         bg      der Seitengrund. Getoent, nie weiss.
+         sunken  vertiefte Flaechen INNERHALB einer Karte: Eingaben,
+                 Tabellenkoepfe, der Nachrichtenbereich im Chat.
+         surface die Karte selbst - weiss, und dadurch als eigene Ebene
+                 erkennbar.
+
+       Der Grund war vorher fast weiss (#f2f4f7). Weisse Karten darauf hatten
+       keinen Kontrast, alles lag flach in einer Ebene. Die Toenung ist
+       bewusst kuehl-grau mit einem Hauch Blau statt einer eigenen Farbe: Sie
+       soll Tiefe geben, nicht auffallen.
+
+       Die Reihenfolge bg < sunken < surface ist die ganze Regel. Wer einen
+       Wert aendert, haelt sie ein. */
+    --app-bg:              #e9edf3;
     --app-surface:         #ffffff;
-    --app-surface-sunken:  #f7f8fa;   /* Eingaben, Tabellenkopf, Codeflaechen */
-    --app-surface-raised:  #ffffff;   /* Menues, Popups                       */
+    --app-surface-sunken:  #f3f5f9;   /* Eingaben, Tabellenkopf, Chatgrund */
+    --app-surface-raised:  #ffffff;   /* Menues, Popups                    */
     --app-overlay:         rgba(19, 23, 30, 0.55);
 
     /* --- Linien --------------------------------------------------------- */
-    --app-border:          #dfe3e8;
-    --app-border-strong:   #c4cbd4;
+    --app-border:          #dbe1ea;
+    --app-border-strong:   #bcc5d2;
 
     /* --- Text ----------------------------------------------------------- */
     --app-text:            #1e2430;
@@ -46,11 +59,24 @@
     --app-text-faint:      #8b95a3;
     --app-text-on-accent:  #ffffff;
 
-    /* --- Akzent (Aktionen, Auswahl, Verweise) --------------------------- */
-    --app-accent:          #3c5bb8;
-    --app-accent-strong:   #2f4a9c;   /* Hover / gedrueckt */
-    --app-accent-soft:     #eaeffb;   /* Hinterlegung, aktiver Reiter */
-    --app-accent-ring:     rgba(60, 91, 184, 0.28);
+    /* --- Akzent ---------------------------------------------------------
+       Die eine Farbe, an der die Anwendung wiedererkennbar ist. Sie traegt
+       Hauptaktionen, aktive Zustaende, Verweise, die Kopfzeile des Chats und
+       eigene Nachrichtenblasen - und sonst nichts.
+
+       WARUM EIN INDIGO UND KEIN TUERKIS ODER GRUEN:
+       Gruen, Gelb und Grau sind auf der Karte vergeben. Sie bedeuten dort
+       "Guide verfuegbar", "im Gespraech" und "kein Guide vor Ort" - das ist
+       die wichtigste Auskunft der ganzen Anwendung. Eine Akzentfarbe aus
+       derselben Ecke des Farbkreises wuerde sich damit mischen: Ein
+       tuerkisfarbener Knopf neben einer gruenen Nadel laesst beide unklar
+       werden. Indigo liegt weit genug davon entfernt und kollidiert mit
+       keinem der drei Zustaende. */
+    --app-accent:          #4a54d6;
+    --app-accent-strong:   #3a43b4;   /* Hover / gedrueckt */
+    --app-accent-soft:     #ecedfc;   /* Hinterlegung, aktiver Reiter */
+    --app-accent-tint:     #f5f6fe;   /* sehr leise Toenung, z. B. Chatkopf */
+    --app-accent-ring:     rgba(74, 84, 214, 0.30);
 
     /* --- Zustandsfarben -------------------------------------------------
        "live" ist die wichtigste Farbe der Anwendung: ein Guide ist gerade
@@ -518,9 +544,14 @@ a:hover {
 
 .app-panel__body { padding: var(--app-space-5); }
 
+/* Die Kopfzeile einer Karte liegt leicht vertieft - das ist die dritte Ebene
+   innerhalb der Karte und trennt Titel von Inhalt ohne einen weiteren
+   Strich. */
 .app-panel__head {
     padding: var(--app-space-4) var(--app-space-5);
     border-bottom: 1px solid var(--app-border);
+    background: var(--app-surface-sunken);
+    border-radius: var(--app-radius-lg) var(--app-radius-lg) 0 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -585,10 +616,12 @@ a:hover {
     text-decoration: none;
 }
 
+/* Der aktive Zustand traegt den Akzent - das ist einer der wenigen Orte, an
+   denen die Farbe etwas bedeutet: "hier sind Sie gerade". */
 .app-switch__item[aria-current="true"],
 .app-switch__item.is-active {
     background: var(--app-surface);
-    color: var(--app-text);
+    color: var(--app-accent-strong);
     box-shadow: var(--app-shadow-sm);
 }
 
@@ -882,23 +915,58 @@ a:hover {
     overflow: hidden;
 }
 
+/* Der Kopf traegt die Akzentfarbe - leise getoent, nicht gefuellt: Das
+   Fenster liegt ueber der Karte, ein satter Farbbalken waere dort laut. */
 .chat-pop__head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--app-space-2);
+    gap: var(--app-space-3);
     padding: var(--app-space-3) var(--app-space-3) var(--app-space-3) var(--app-space-4);
     border-bottom: 1px solid var(--app-border);
-    background: var(--app-surface-sunken);
+    background: var(--app-accent-tint);
     cursor: pointer;
 }
 
 .chat-pop.minimized .chat-pop__head { border-bottom: 0; }
 
+/* Zeichen aus den Initialen. Ein Bild gibt es nicht - der erste Buchstabe
+   des Namens reicht, um zwei offene Fenster auseinanderzuhalten. */
+.chat-pop__avatar {
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--app-accent);
+    color: var(--app-text-on-accent);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-bold);
+    text-transform: uppercase;
+}
+
+.chat-pop__who {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .chat-pop__title {
+    display: block;
     font-size: var(--app-text-sm);
     font-weight: var(--app-weight-bold);
     color: var(--app-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Untertitel: der Zustand des Chats, gesetzt von
+   uiChat.setTabUiByActiveState(). */
+.chat-pop__sub {
+    display: block;
+    font-size: var(--app-text-xs);
+    color: var(--app-text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -940,11 +1008,14 @@ a:hover {
     color: var(--app-danger);
 }
 
+/* Der Nachrichtenbereich bekommt die getoente Grundflaeche. Weisse Blasen
+   auf weissem Grund waren nicht als Blasen zu erkennen - erst der dunklere
+   Grund macht sie zu etwas, das darauf liegt. */
 .chat-pop__body {
     height: 240px;
     overflow-y: auto;
-    padding: var(--app-space-3) var(--app-space-4);
-    background: var(--app-surface);
+    padding: var(--app-space-4);
+    background: var(--app-bg);
 }
 
 /* Solange eine Anfrage offen ist, gibt es keine Nachrichten - dann steht dort
@@ -980,7 +1051,7 @@ a:hover {
 }
 
 .chat-msg--partner .chat-msg__text {
-    background: var(--app-surface-sunken);
+    background: var(--app-surface);
     color: var(--app-text);
     border: 1px solid var(--app-border);
     border-bottom-left-radius: var(--app-radius-sm);
@@ -1001,11 +1072,43 @@ a:hover {
 
 .chat-pop__compose {
     display: flex;
+    align-items: center;
     gap: var(--app-space-2);
     padding: var(--app-space-3);
 }
 
-.chat-pop__compose .form-control { flex: 1 1 auto; min-width: 0; }
+.chat-pop__compose .form-control {
+    flex: 1 1 auto;
+    min-width: 0;
+    border-radius: var(--app-radius-pill);
+}
+
+/* Senden als runder Symbolknopf. Das Wort "Senden" stand neben einem Feld,
+   in dem ohnehin nur gesendet werden kann - der Pfeil sagt dasselbe und
+   laesst dem Text mehr Platz. */
+.chat-pop__send {
+    flex: none;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--app-accent);
+    color: var(--app-text-on-accent);
+    cursor: pointer;
+    transition: background var(--app-transition);
+}
+
+.chat-pop__send:hover { background: var(--app-accent-strong); }
+
+.chat-pop__send svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
 
 .chat-pop__ask {
     padding: var(--app-space-4);

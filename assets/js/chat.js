@@ -19,6 +19,12 @@ window.webrtcApp.chat = {
         const log = document.getElementById("chat-log");
         const div = document.createElement("div");
 
+        // Eine Klasse je Absender, damit die Zeile in der Call-Ansicht als
+        // Blase links oder rechts erscheint (assets/css/call.css). Der Text
+        // bleibt derselbe - er steht weiterhin vollstaendig in EINEM Element,
+        // ohne Verschachtelung.
+        div.className = "chat-line chat-line--" + (who === "remote" ? "partner" : "self");
+
         // textContent, nicht innerHTML: Der Text kommt von der Gegenseite und
         // wird nie als Markup ausgewertet.
         div.textContent = (who === "remote" ? "Partner: " : "Du: ") + msg;
