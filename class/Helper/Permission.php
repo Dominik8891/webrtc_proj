@@ -100,6 +100,21 @@ class Permission
 
     /** Standortübersicht aufrufen. */
     public const LOCATION_PAGE = 'location.page';
+    /**
+     * Die oeffentliche Karte der Startseite abrufen.
+     *
+     * Das EINZIGE Standortrecht, das auch der Gast hat - und es steht
+     * bewusst neben location.list statt darin: Die beiden Routen liefern
+     * nicht dieselben Daten. location.list gibt die volle Zeile samt
+     * Benutzername und user_id heraus, location.map_public nur Ort,
+     * Beschreibung und einen von drei Verfuegbarkeitswerten
+     * (App\Model\Location::selectPublicMapLocations).
+     *
+     * Waere es dasselbe Recht, muesste der Controller entscheiden, wie viel
+     * er herausgibt - und diese Entscheidung waere beim naechsten Umbau als
+     * Erstes vergessen.
+     */
+    public const LOCATION_MAP_PUBLIC = 'location.map_public';
     /** Fremde Standorte auflisten. */
     public const LOCATION_LIST = 'location.list';
     /** Eigene Standorte auflisten. */
@@ -182,6 +197,10 @@ class Permission
         // -------------------------------------------------------------
         self::GUEST => [
             self::SYSTEM_HOME,
+            // Die Startseite ist eine Karte. Ohne dieses Recht waere sie
+            // fuer einen Gast leer - und das Angebot damit unsichtbar,
+            // bevor er sich ueberhaupt entscheiden kann.
+            self::LOCATION_MAP_PUBLIC,
             self::AUTH_LOGIN,
             self::AUTH_SIGNUP,
             self::AUTH_PASSWORD_RESET,
@@ -211,6 +230,7 @@ class Permission
             self::USER_READ_NAME,
             self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
+            self::LOCATION_MAP_PUBLIC,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
@@ -244,6 +264,7 @@ class Permission
             self::USER_READ_NAME,
             self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
+            self::LOCATION_MAP_PUBLIC,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
@@ -277,6 +298,7 @@ class Permission
             self::USER_POSITION,
             self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
+            self::LOCATION_MAP_PUBLIC,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
@@ -318,6 +340,7 @@ class Permission
             self::USER_READ_NAME,
             self::USER_POSITION,
             self::LOCATION_PAGE,
+            self::LOCATION_MAP_PUBLIC,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,

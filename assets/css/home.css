@@ -59,6 +59,15 @@
     flex-wrap: wrap;
 }
 
+/* Nur fuer Gaeste: der Weg zurueck zur Erklaerung. Bewusst ein Textverweis
+   und kein Knopf - er ist nicht die Hauptsache, die Karte ist es. */
+.home-bar__explain {
+    font-size: var(--app-text-sm);
+    white-space: nowrap;
+}
+
+.home-bar__explain[hidden] { display: none; }
+
 /* Zaehler: wie viele Guides sind gerade da, wie viele Standorte gibt es
    ueberhaupt. Das beantwortet die erste Frage vor jedem Klick. */
 .home-counts {
@@ -162,6 +171,13 @@
     background: var(--app-surface);
     border: 2px solid var(--app-idle);
 }
+
+.home-legend__key--mine {
+    background: var(--app-accent);
+    box-shadow: 0 0 0 3px var(--app-accent-soft);
+}
+
+.home-legend__row[hidden] { display: none; }
 
 /* Auf dem Telefon gehoert die Flaeche der Karte. Der erklaerende Untertitel
    steht bereits im Leerzustand und im Gastzustand - hier kann er weg. */
@@ -274,6 +290,17 @@
     border: 3px solid var(--app-warn-solid);
 }
 
+/* Der eigene Standort. In der Akzentfarbe statt in der Live-Farbe: Er sagt
+   nichts ueber Verfuegbarkeit aus, sondern "der gehoert Ihnen". Anrufen laesst
+   er sich nicht - deshalb auch kein Ring, der zum Klicken einlaedt. */
+.home-pin--mine .home-pin__dot {
+    width: 16px;
+    height: 16px;
+    background: var(--app-accent);
+    border: 3px solid var(--app-surface);
+    box-shadow: var(--app-shadow), 0 0 0 4px var(--app-accent-soft);
+}
+
 .home-pin:hover .home-pin__dot {
     transform: translate(-50%, -50%) scale(1.25);
 }
@@ -338,7 +365,34 @@
     color: var(--app-text-muted);
 }
 
+.home-popup__action {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-2);
+}
+
 .home-popup__action .btn { width: 100%; }
+
+/* Leaflet faerbt jeden Verweis im Kartenfenster blau ein
+   (.leaflet-container a). Ein Knopf, der als <a> gebaut ist - "Anmelden",
+   "Bearbeiten" -, bekaeme dadurch blaue Schrift auf blauem Grund. */
+.home-popup .btn { text-decoration: none; }
+
+.home-popup .btn-primary,
+.home-popup .btn-primary:hover {
+    color: var(--app-text-on-accent);
+}
+
+.home-popup .btn-secondary,
+.home-popup .btn-secondary:hover {
+    color: var(--app-text);
+}
+
+/* Mehrere Hinweise und ein Knopfblock untereinander brauchen Luft. */
+.home-popup__note + .home-popup__action,
+.home-popup__note + .home-popup__note {
+    margin-top: var(--app-space-2);
+}
 
 /* Hinweis unter einer gedaempften Nadel: warum hier gerade nichts geht. */
 .home-popup__note {
@@ -348,6 +402,11 @@
     border-radius: var(--app-radius);
     color: var(--app-text-muted);
     font-size: var(--app-text-xs);
+}
+
+.home-popup__note--danger {
+    background: var(--app-danger-soft);
+    color: var(--app-danger-strong);
 }
 
 /* ===========================================================================
@@ -376,6 +435,7 @@
 .home-state[hidden] { display: none; }
 
 .home-state__card {
+    position: relative;
     width: 100%;
     max-width: 560px;
     background: var(--app-surface);
@@ -384,6 +444,28 @@
     box-shadow: var(--app-shadow-lg);
     padding: var(--app-space-6);
 }
+
+.home-state__close {
+    position: absolute;
+    top: var(--app-space-3);
+    right: var(--app-space-3);
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: var(--app-radius);
+    background: none;
+    color: var(--app-text-faint);
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.home-state__close:hover {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
+}
+
+.home-state__close[hidden] { display: none; }
 
 .home-state__eyebrow {
     display: inline-flex;

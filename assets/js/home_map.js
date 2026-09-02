@@ -3,27 +3,39 @@
  *
  * WAS DIESES MODUL TUT
  * --------------------
- * Es holt die angebotenen Standorte (Route get_locations, dieselbe Quelle wie
- * die Tabellenansicht) und setzt sie als zwei Arten von Nadeln auf eine
- * Leaflet-Karte:
+ * Es holt die angebotenen Standorte und setzt sie als Nadeln auf eine
+ * Leaflet-Karte. Vier Arten:
  *
- *   - hervorgehoben: der Guide ist gerade erreichbar. Ein Klick fuehrt zum
- *     Anruf, ueber denselben Weg wie der Call-Knopf in der Tabelle
- *     (window.webrtcApp.rtc.startCall).
- *   - gedaempft: der Standort wird angeboten, es ist aber gerade niemand da.
- *     Er bleibt sichtbar - sonst waere die Karte nachts leer und der Eindruck
- *     entstuende, es gebe das Angebot gar nicht.
+ *   live  - ein Guide ist gerade erreichbar. Angemeldet fuehrt ein Klick zum
+ *           Anruf, als Gast zur Anmeldung.
+ *   busy  - ein Guide ist da, aber in einem anderen Gespraech.
+ *   idle  - der Standort wird angeboten, gerade ist niemand vor Ort. Er
+ *           bleibt sichtbar, sonst waere die Karte nachts leer und der
+ *           Eindruck entstuende, es gebe das Angebot gar nicht.
+ *   mine  - ein eigener Standort. Erkennbar als solcher und ohne Anrufknopf:
+ *           sich selbst ruft niemand an.
  *
- * Gibt es keinen einzigen Standort, tritt die Erklaerflaeche aus
- * assets/html/home.html an die Stelle der Karte. "Keine Einträge gefunden"
- * ist keine Startseite.
+ * ZWEI QUELLEN, JE NACH ANMELDUNG
+ * -------------------------------
+ * Nicht angemeldet:  get_map_locations
+ *     Die oeffentliche Karte. Sie enthaelt Ort, Beschreibung und einen von
+ *     drei Verfuegbarkeitswerten - keinen Benutzernamen, keine user_id.
+ *     Deshalb kann ein Gast von hier aus auch niemanden anrufen; der Klick
+ *     fuehrt zur Anmeldung.
+ *
+ * Angemeldet:  get_locations + get_my_locations
+ *     Die fremden Standorte (mit user_id, sonst liesse sich nicht anrufen)
+ *     und die eigenen. Die eigenen kommen aus einer zweiten Route, weil
+ *     get_locations sie ausdruecklich ausspart ("WHERE user.id != :user_id")
+ *     - fuer die Tabelle richtig, fuer eine Karte falsch: Wer seinen eigenen
+ *     Standort nicht sieht, kann nicht pruefen, ob er richtig liegt.
  *
  * WAS ES NICHT TUT
  * ----------------
- * Es entscheidet nichts ueber Berechtigungen. Wer die Standortliste abrufen
- * darf, steht in config/routes.php und wird in index.php geprueft. Ein Gast
- * hat das Recht location.list nicht; deshalb wird fuer ihn gar nicht erst
- * abgefragt, sondern gleich die Erklaerflaeche gezeigt.
+ * Es entscheidet nichts ueber Berechtigungen. Welche Route wer aufrufen darf,
+ * steht in config/routes.php und wird in index.php geprueft. Dass ein Gast
+ * die oeffentliche Karte bekommt und nicht die vollstaendige Liste, ist eine
+ * Entscheidung des Servers - hier wird sie nur beachtet, nicht getroffen.
  *
  * Bibliotheken: Leaflet und jQuery, beide sind bereits eingebunden. Es kommt
  * nichts Neues dazu.
@@ -49,14 +61,14 @@ window.webrtcApp.homeMap = {
     markers: {},               // Nadeln je Standort-ID
     refreshTimer: null,
     fitted: false,             // Wurde der Ausschnitt schon einmal gesetzt?
-    lastCount: null,           // Anzahl beim letzten Abruf, fuer die Zaehler
+    lastCount: null,           // Anzahl beim letzten Abruf; null = nie geladen
+    hasOwn: false,             // Ist ein eigener Standort dabei?
 
     /**
      * Einstiegspunkt. Tut nichts, wenn die Seite gar keine Startseite ist.
      */
     init() {
-        const shell = document.getElementById('home');
-        if (!shell) return;
+        if (!document.getElementById('home')) return;
 
         // Leaflet kommt per CDN (assets/html/index.html). Fehlt es - Werbe-
         // blocker, kein Netz -, bleibt die Karte aus und der Nutzer bekommt
@@ -73,12 +85,10 @@ window.webrtcApp.homeMap = {
         this.initMap();
         this.bindEvents();
 
-        // Ein Gast darf die Standortliste nicht abrufen (Recht location.list).
-        // Fuer ihn gaebe der Abruf eine 401 zurueck - also gar nicht erst
-        // fragen, sondern erklaeren, worum es hier geht.
+        // Fuer einen Gast ist die Karte die Auslage und der Verweis daneben
+        // die Erklaerung dazu.
         if (!window.isLoggedIn) {
-            this.showState('guest');
-            return;
+            document.getElementById('home-explain')?.removeAttribute('hidden');
         }
 
         this.load(true);
@@ -123,10 +133,22 @@ window.webrtcApp.homeMap = {
             this.load(true);
         });
 
+        // Gaeste koennen die Erklaerung jederzeit aufrufen, auch wenn die
+        // Karte voll ist - fuer sie ist sie die Antwort auf "was ist das
+        // ueberhaupt".
+        document.getElementById('home-explain')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.showState('guest', true);
+        });
+
+        document.getElementById('home-state-close')?.addEventListener('click', () => {
+            this.hideState();
+        });
+
         // Im ausgeblendeten Tab wird nicht abgefragt, beim Zurueckkehren
         // dafuer sofort - sonst stuende dort ein Stand von vor einer Stunde.
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden || !window.isLoggedIn) return;
+            if (document.hidden) return;
             this.load(false);
         });
     },
@@ -163,77 +185,165 @@ window.webrtcApp.homeMap = {
     load(showLoading) {
         if (showLoading) this.setLoading(true);
 
-        $.ajax({
-            url: 'index.php?act=get_locations',
-            method: 'GET',
-            dataType: 'json'
-        })
-        .done((data) => {
+        const fertig = (eintraege) => {
             this.setLoading(false);
-            if (!Array.isArray(data)) {
-                this.showState('error');
-                return;
-            }
-            this.render(data);
-        })
-        .fail(() => {
+            this.render(eintraege);
+        };
+        const gescheitert = () => {
             this.setLoading(false);
             // Steht schon eine Karte, bleibt der zuletzt bekannte Stand
             // stehen: ein einzelner fehlgeschlagener Zwischenabruf soll die
             // Nadeln nicht loeschen. Nur wenn noch nie etwas ankam, tritt die
             // Fehlerflaeche an ihre Stelle.
             if (this.lastCount === null) this.showState('error');
-        });
+        };
+
+        if (!window.isLoggedIn) {
+            $.ajax({ url: 'index.php?act=get_map_locations', method: 'GET', dataType: 'json' })
+                .done((data) => {
+                    if (!Array.isArray(data)) { gescheitert(); return; }
+                    fertig(data.map(item => this.fromPublic(item)));
+                })
+                .fail(gescheitert);
+            return;
+        }
+
+        // Angemeldet: fremde und eigene Standorte. $.when wartet auf beide.
+        // Scheitert nur der eigene Abruf, waere die Karte ohne den eigenen
+        // Standort immer noch brauchbar - deshalb wird er einzeln aufgefangen
+        // und im Fehlerfall als leere Liste behandelt.
+        //
+        // Der Ersatzwert wird mit DREI Argumenten aufgeloest, genau wie
+        // $.ajax es tut (Daten, Status, jqXHR). $.when reicht die Argumente
+        // eines Aufrufs als Array weiter; kaeme hier nur eines an, saehe die
+        // Antwort anders aus als im Erfolgsfall und der Zugriff unten waere
+        // je nach Ausgang ein anderer.
+        const fremde = $.ajax({ url: 'index.php?act=get_locations', method: 'GET', dataType: 'json' });
+        const eigene = $.ajax({ url: 'index.php?act=get_my_locations', method: 'GET', dataType: 'json' })
+            .then(null, () => $.Deferred().resolve([], 'error', null).promise());
+
+        $.when(fremde, eigene)
+            .done((a, b) => {
+                const fremdeDaten = Array.isArray(a[0]) ? a[0] : null;
+                if (fremdeDaten === null) { gescheitert(); return; }
+                const eigeneDaten = Array.isArray(b[0]) ? b[0] : [];
+                fertig(
+                    fremdeDaten.map(item => this.fromList(item, false))
+                        .concat(eigeneDaten.map(item => this.fromList(item, true)))
+                );
+            })
+            .fail(gescheitert);
     },
 
     /**
-     * Setzt den Zeilenbestand der Karte.
+     * Bringt einen Datensatz der oeffentlichen Karte in die interne Form.
+     *
+     * Die Verfuegbarkeit hat der Server schon uebersetzt; hier wird sie nur
+     * gegen die drei bekannten Werte geprueft, damit ein unerwarteter Wert
+     * nicht als "verfuegbar" durchrutscht.
+     *
+     * @param {Object} item
+     * @returns {Object}
+     */
+    fromPublic(item) {
+        const bekannt = (item.availability === 'live' || item.availability === 'busy');
+        return {
+            id         : String(item.id),
+            lat        : parseFloat(item.latitude),
+            lon        : parseFloat(item.longitude),
+            city       : item.city_name || '',
+            country    : item.country_name || '',
+            description: item.description || '',
+            status     : bekannt ? item.availability : 'idle',
+            mine       : false,
+            userId     : null,          // gibt es in der oeffentlichen Antwort nicht
+            blocked    : false,
+            blockedReason: ''
+        };
+    },
+
+    /**
+     * Bringt einen Datensatz aus get_locations bzw. get_my_locations in die
+     * interne Form.
+     *
+     * @param {Object} item
+     * @param {boolean} mine Stammt der Standort vom angemeldeten Benutzer?
+     * @returns {Object}
+     */
+    fromList(item, mine) {
+        const gesperrt = (item.blocked == 1);
+        let status;
+        if (gesperrt)                            status = 'idle';
+        else if (item.user_status === 'online')  status = 'live';
+        else if (item.user_status === 'in_call') status = 'busy';
+        else                                     status = 'idle';
+
+        return {
+            id         : String(item.id),
+            lat        : parseFloat(item.latitude),
+            lon        : parseFloat(item.longitude),
+            city       : item.city_name || '',
+            country    : item.country_name || '',
+            description: item.description || '',
+            status     : status,
+            mine       : !!mine,
+            userId     : item.user_id ?? null,
+            blocked    : gesperrt,
+            blockedReason: item.blocked_reason || ''
+        };
+    },
+
+    /**
+     * Setzt den Nadelbestand der Karte.
      *
      * Bestehende Nadeln werden geaendert statt neu gebaut. Sonst waere jede
      * Aktualisierung im 15-Sekunden-Takt ein sichtbares Flackern, und ein
      * gerade geoeffnetes Kartenfenster wuerde zuklappen.
      *
-     * @param {Array} data Datensaetze aus get_locations
+     * @param {Array} eintraege Datensaetze in der internen Form
      */
-    render(data) {
+    render(eintraege) {
         // Standorte ohne brauchbare Koordinaten koennen nicht auf die Karte.
         // Sie sind in der Listenansicht weiterhin zu sehen.
-        const items = data.filter(item => this.hasCoords(item));
+        const items = eintraege.filter(item => this.hasCoords(item));
 
         this.lastCount = items.length;
+        this.hasOwn = items.some(item => item.mine);
 
         if (items.length === 0) {
             // Kein "0 Guides verfuegbar" ueber einer Flaeche, die genau das
             // schon in ganzen Saetzen erklaert.
             this.clearMarkers();
             document.getElementById('home-counts')?.setAttribute('hidden', '');
-            this.showState('empty');
+            this.showState(window.isLoggedIn ? 'empty' : 'guest');
             return;
         }
 
-        this.hideState();
+        // Steht die Erklaerflaeche noch, weil beim letzten Mal nichts da war,
+        // verschwindet sie jetzt. Hat der Gast sie selbst geoeffnet, bleibt
+        // sie stehen - er liest gerade.
+        if (!this.stateDismissible) this.hideState();
 
-        const seen = {};
+        const gesehen = {};
         items.forEach(item => {
-            const id = String(item.id);
-            seen[id] = true;
-            const existing = this.markers[id];
-            if (existing) {
-                this.updateMarker(existing, item);
+            gesehen[item.id] = true;
+            const vorhanden = this.markers[item.id];
+            if (vorhanden) {
+                this.updateMarker(vorhanden, item);
             } else {
-                this.markers[id] = this.createMarker(item);
+                this.markers[item.id] = this.createMarker(item);
             }
         });
 
         // Weggefallene Standorte entfernen.
         Object.keys(this.markers).forEach(id => {
-            if (seen[id]) return;
+            if (gesehen[id]) return;
             this.layer.removeLayer(this.markers[id]);
             delete this.markers[id];
         });
 
         this.updateCounts(
-            items.filter(item => this.statusOf(item) === 'live').length,
+            items.filter(item => item.status === 'live' && !item.mine).length,
             items.length
         );
 
@@ -241,13 +351,13 @@ window.webrtcApp.homeMap = {
         // alle 15 Sekunden zurueckgeworfen werden.
         if (!this.fitted) {
             this.fitted = true;
-            const bounds = L.latLngBounds(items.map(item => [
-                parseFloat(item.latitude), parseFloat(item.longitude)
-            ]));
-            this.map.fitBounds(bounds, { padding: [60, 60], maxZoom: 12 });
+            this.map.fitBounds(
+                L.latLngBounds(items.map(item => [item.lat, item.lon])),
+                { padding: [60, 60], maxZoom: 12 }
+            );
         }
 
-        document.getElementById('home-legend')?.removeAttribute('hidden');
+        this.updateLegend();
     },
 
     /**
@@ -256,30 +366,20 @@ window.webrtcApp.homeMap = {
      * @returns {boolean}
      */
     hasCoords(item) {
-        const lat = parseFloat(item.latitude);
-        const lon = parseFloat(item.longitude);
-        return isFinite(lat) && isFinite(lon)
-            && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+        return isFinite(item.lat) && isFinite(item.lon)
+            && item.lat >= -90 && item.lat <= 90
+            && item.lon >= -180 && item.lon <= 180;
     },
 
     /**
-     * Uebersetzt den Nutzerstatus in einen der drei Kartenzustaende.
-     *
-     * 'live'  - erreichbar, anrufbar
-     * 'busy'  - da, aber in einem anderen Gespraech
-     * 'idle'  - angeboten, gerade niemand vor Ort
-     *
-     * Ein gesperrter Standort gilt nie als anrufbar. Sichtbar ist er ohnehin
-     * nur fuer die Moderation (LocationController::getLocations).
+     * Die Nadelart eines Eintrags. Ein eigener Standort ist immer "mine" -
+     * ob sein Eigentuemer gerade online ist, steht im Kartenfenster.
      *
      * @param {Object} item
-     * @returns {string}
+     * @returns {string} 'mine', 'live', 'busy' oder 'idle'
      */
-    statusOf(item) {
-        if (item.blocked == 1) return 'idle';
-        if (item.user_status === 'online') return 'live';
-        if (item.user_status === 'in_call') return 'busy';
-        return 'idle';
+    pinKind(item) {
+        return item.mine ? 'mine' : item.status;
     },
 
     /**
@@ -288,20 +388,17 @@ window.webrtcApp.homeMap = {
      * @returns {Object} Leaflet-Marker
      */
     createMarker(item) {
-        const status = this.statusOf(item);
-        const marker = L.marker(
-            [parseFloat(item.latitude), parseFloat(item.longitude)],
-            {
-                icon: this.icon(status),
-                title: this.plainTitle(item),
-                riseOnHover: true,
-                // Verfuegbare Guides liegen ueber den ruhenden, damit sie an
-                // dichten Stellen nicht verdeckt werden.
-                zIndexOffset: status === 'live' ? 1000 : 0
-            }
-        );
+        const art = this.pinKind(item);
+        const marker = L.marker([item.lat, item.lon], {
+            icon: this.icon(art),
+            title: [item.city, item.country].filter(Boolean).join(', ') || 'Standort',
+            riseOnHover: true,
+            // Verfuegbare Guides liegen ueber den ruhenden, damit sie an
+            // dichten Stellen nicht verdeckt werden.
+            zIndexOffset: art === 'live' ? 1000 : (art === 'mine' ? 500 : 0)
+        });
         marker.bindPopup(this.popupHtml(item), { className: 'home-popup-wrap', maxWidth: 280 });
-        marker.__status = status;
+        marker.__kind = art;
         marker.addTo(this.layer);
         return marker;
     },
@@ -312,11 +409,11 @@ window.webrtcApp.homeMap = {
      * @param {Object} item
      */
     updateMarker(marker, item) {
-        const status = this.statusOf(item);
-        if (marker.__status !== status) {
-            marker.__status = status;
-            marker.setIcon(this.icon(status));
-            marker.setZIndexOffset(status === 'live' ? 1000 : 0);
+        const art = this.pinKind(item);
+        if (marker.__kind !== art) {
+            marker.__kind = art;
+            marker.setIcon(this.icon(art));
+            marker.setZIndexOffset(art === 'live' ? 1000 : (art === 'mine' ? 500 : 0));
         }
         marker.setPopupContent(this.popupHtml(item));
     },
@@ -325,14 +422,14 @@ window.webrtcApp.homeMap = {
      * Das Aussehen einer Nadel. Die Gestaltung steckt vollstaendig in
      * assets/css/home.css - hier steht nur, welche Klasse gilt.
      *
-     * @param {string} status 'live', 'busy' oder 'idle'
+     * @param {string} art 'live', 'busy', 'idle' oder 'mine'
      * @returns {Object} L.divIcon
      */
-    icon(status) {
-        const pulse = status === 'live' ? '<span class="home-pin__pulse"></span>' : '';
+    icon(art) {
+        const puls = art === 'live' ? '<span class="home-pin__pulse"></span>' : '';
         return L.divIcon({
             className: 'home-pin-wrap',
-            html: `<span class="home-pin home-pin--${status}">${pulse}<span class="home-pin__dot"></span></span>`,
+            html: `<span class="home-pin home-pin--${art}">${puls}<span class="home-pin__dot"></span></span>`,
             iconSize: [34, 34],
             iconAnchor: [17, 17],
             popupAnchor: [0, -14]
@@ -340,62 +437,100 @@ window.webrtcApp.homeMap = {
     },
 
     /**
-     * Beschriftung fuer den Mauszeiger (title-Attribut, reiner Text).
-     * @param {Object} item
-     * @returns {string}
-     */
-    plainTitle(item) {
-        const ort = [item.city_name, item.country_name].filter(Boolean).join(', ');
-        return ort || 'Standort';
-    },
-
-    /**
      * Inhalt des Kartenfensters einer Nadel.
      *
-     * Alles, was aus der Datenbank kommt, wird maskiert: Beschreibung und
-     * Benutzername sind Eingaben anderer Nutzer.
+     * Alles, was aus der Datenbank kommt, wird maskiert: Beschreibungen sind
+     * Eingaben anderer Nutzer.
      *
      * @param {Object} item
      * @returns {string} HTML
      */
     popupHtml(item) {
-        const status = this.statusOf(item);
-        const ort    = this.esc(item.city_name || 'Standort');
-        const land   = this.esc(item.country_name || '');
-        const desc   = this.esc(item.description || '');
-        const name   = this.esc(item.username || '');
-
-        let tag, aktion;
-        if (status === 'live') {
-            tag = '<span class="app-tag app-tag--live"><span class="app-dot"></span>Jetzt verfügbar</span>';
-            aktion = `
-                <div class="home-popup__action">
-                    <button type="button" class="btn btn-success home-call-btn" data-userid="${this.esc(item.user_id)}">
-                        Führung starten
-                    </button>
-                </div>`;
-        } else if (status === 'busy') {
-            tag = '<span class="app-tag app-tag--warn"><span class="app-dot"></span>Im Gespräch</span>';
-            aktion = '<p class="home-popup__note">Der Guide ist gerade in einer anderen Führung. Versuchen Sie es in ein paar Minuten noch einmal.</p>';
-        } else if (item.blocked == 1) {
-            tag = '<span class="app-tag app-tag--danger">Gesperrt</span>';
-            aktion = '<p class="home-popup__note">Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.</p>';
-        } else {
-            tag = '<span class="app-tag">Kein Guide vor Ort</span>';
-            aktion = '<p class="home-popup__note">Dieser Ort wird angeboten, aber gerade ist niemand da. Sobald der Guide online ist, erscheint er hier hervorgehoben.</p>';
-        }
+        const ort  = this.esc(item.city || 'Standort');
+        const land = this.esc(item.country);
+        const desc = this.esc(item.description);
 
         return `
             <div class="home-popup">
                 <p class="home-popup__place">${ort}</p>
                 ${land ? `<p class="home-popup__country">${land}</p>` : ''}
-                <div class="home-popup__meta">
-                    ${tag}
-                    ${name ? `<span class="home-popup__guide">Guide: ${name}</span>` : ''}
-                </div>
+                <div class="home-popup__meta">${this.popupTag(item)}</div>
                 ${desc ? `<p class="home-popup__desc">${desc}</p>` : ''}
-                ${aktion}
+                ${this.popupAction(item)}
             </div>`;
+    },
+
+    /**
+     * Die Zustandsmarke im Kartenfenster.
+     * @param {Object} item
+     * @returns {string} HTML
+     */
+    popupTag(item) {
+        if (item.mine) {
+            return '<span class="app-tag app-tag--accent">Ihr Standort</span>';
+        }
+        if (item.status === 'live') {
+            return '<span class="app-tag app-tag--live"><span class="app-dot"></span>Jetzt verfügbar</span>';
+        }
+        if (item.status === 'busy') {
+            return '<span class="app-tag app-tag--warn"><span class="app-dot"></span>Im Gespräch</span>';
+        }
+        return '<span class="app-tag">Kein Guide vor Ort</span>';
+    },
+
+    /**
+     * Der untere Teil des Kartenfensters: Knopf oder Hinweis.
+     *
+     * Vier Faelle, und der wichtigste ist der Gast: Ihm fehlt die user_id
+     * (die oeffentliche Karte gibt keine heraus), also kann er von hier aus
+     * gar nicht anrufen. Statt eines Knopfes, der nichts tut, steht dort der
+     * Weg zur Anmeldung.
+     *
+     * @param {Object} item
+     * @returns {string} HTML
+     */
+    popupAction(item) {
+        if (item.mine) {
+            const gesperrt = item.blocked
+                ? `<p class="home-popup__note home-popup__note--danger">Gesperrt${item.blockedReason ? ': ' + this.esc(item.blockedReason) : ''}. Der Standort ist für andere nicht sichtbar.</p>`
+                : '';
+            const sichtbar = item.status === 'live'
+                ? 'Sie sind online – für andere ist dieser Standort gerade hervorgehoben.'
+                : 'Solange Sie offline sind, wird dieser Standort gedämpft angezeigt.';
+            return `
+                ${gesperrt}
+                <p class="home-popup__note">${sichtbar}</p>
+                <div class="home-popup__action">
+                    <a class="btn btn-secondary" href="index.php?act=settings">Eigene Standorte bearbeiten</a>
+                </div>`;
+        }
+
+        if (item.status === 'live') {
+            if (!window.isLoggedIn) {
+                return `
+                    <p class="home-popup__note">Für eine Führung brauchen Sie ein Konto – die Verbindung läuft direkt zwischen Ihnen und dem Guide.</p>
+                    <div class="home-popup__action">
+                        <a class="btn btn-primary" href="index.php?act=login_page">Anmelden und starten</a>
+                        <a class="btn btn-secondary" href="index.php?act=signup_page">Konto anlegen</a>
+                    </div>`;
+            }
+            return `
+                <div class="home-popup__action">
+                    <button type="button" class="btn btn-success home-call-btn" data-userid="${this.esc(item.userId)}">
+                        Führung starten
+                    </button>
+                </div>`;
+        }
+
+        if (item.status === 'busy') {
+            return '<p class="home-popup__note">Der Guide ist gerade in einer anderen Führung. Versuchen Sie es in ein paar Minuten noch einmal.</p>';
+        }
+
+        if (item.blocked) {
+            return '<p class="home-popup__note home-popup__note--danger">Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.</p>';
+        }
+
+        return '<p class="home-popup__note">Dieser Ort wird angeboten, aber gerade ist niemand da. Sobald der Guide online ist, erscheint er hier hervorgehoben.</p>';
     },
 
     /**
@@ -407,12 +542,23 @@ window.webrtcApp.homeMap = {
         const box = document.getElementById('home-counts');
         if (!box) return;
 
-        const liveText = live === 1 ? '1 Guide verfügbar' : `${live} Guides verfügbar`;
-        const alleText = alle === 1 ? '1 Standort' : `${alle} Standorte`;
-
-        box.querySelector('#home-count-live [data-count-text]').textContent = liveText;
-        box.querySelector('#home-count-idle [data-count-text]').textContent = alleText;
+        box.querySelector('#home-count-live [data-count-text]').textContent =
+            live === 1 ? '1 Guide verfügbar' : `${live} Guides verfügbar`;
+        box.querySelector('#home-count-idle [data-count-text]').textContent =
+            alle === 1 ? '1 Standort' : `${alle} Standorte`;
         box.removeAttribute('hidden');
+    },
+
+    /**
+     * Zeigt die Legende und darin die Zeile fuer den eigenen Standort nur
+     * dann, wenn es einen gibt.
+     */
+    updateLegend() {
+        const legende = document.getElementById('home-legend');
+        if (!legende) return;
+        const eigene = legende.querySelector('[data-legend="mine"]');
+        if (eigene) eigene.hidden = !this.hasOwn;
+        legende.removeAttribute('hidden');
     },
 
     /** Entfernt alle Nadeln. */
@@ -428,29 +574,32 @@ window.webrtcApp.homeMap = {
      * Die Texte stehen in assets/html/home.html; hier wird nur umgeschaltet.
      *
      * @param {string} name 'guest', 'empty' oder 'error'
+     * @param {boolean} [dismissible] true, wenn der Nutzer sie selbst
+     *        geoeffnet hat und wieder schliessen koennen muss
      */
-    showState(name) {
+    showState(name, dismissible) {
         const box = document.getElementById('home-state');
         if (!box) return;
 
         box.querySelectorAll('[data-state]').forEach(el => {
-            if (el.getAttribute('data-state') === name) {
-                el.removeAttribute('hidden');
-            } else {
-                el.setAttribute('hidden', '');
-            }
+            el.hidden = (el.getAttribute('data-state') !== name);
         });
 
         // Beim Ladefehler haben die drei Schritte nichts zu suchen - dort
         // geht es nicht um das Produkt, sondern um einen Abruf.
-        const steps = document.getElementById('home-steps');
-        if (steps) steps.hidden = (name === 'error');
+        const schritte = document.getElementById('home-steps');
+        if (schritte) schritte.hidden = (name === 'error');
+
+        this.stateDismissible = !!dismissible;
+        const schliessen = document.getElementById('home-state-close');
+        if (schliessen) schliessen.hidden = !dismissible;
 
         box.removeAttribute('hidden');
     },
 
     /** Blendet die Erklaerflaeche aus. */
     hideState() {
+        this.stateDismissible = false;
         document.getElementById('home-state')?.setAttribute('hidden', '');
     },
 

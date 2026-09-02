@@ -68,6 +68,9 @@ return [
     'set_location'          => [LocationController::class           , 'setLocation'             , Permission::LOCATION_CREATE        , 'html'],
     'get_country'           => [LocationController::class           , 'getCountry'              , Permission::LOCATION_COUNTRY_LIST  , 'json'],
     'get_locations'         => [LocationController::class           , 'getLocations'            , Permission::LOCATION_LIST          , 'json'],
+    // Die Karte der Startseite. Einzige Standortroute, die ein Gast
+    // aufrufen darf - sie gibt weder Benutzernamen noch IDs heraus.
+    'get_map_locations'     => [LocationController::class           , 'getMapLocations'         , Permission::LOCATION_MAP_PUBLIC    , 'json'],
     'get_my_locations'      => [LocationController::class           , 'getMyLocations'          , Permission::LOCATION_LIST_OWN      , 'json'],
     'show_locations_page'   => [LocationController::class           , 'showLocationsPage'       , Permission::LOCATION_PAGE          , 'html'],
     'edit_location_desc'    => [LocationController::class           , 'editLocationDesc'        , Permission::LOCATION_EDIT_OWN      , 'json'],

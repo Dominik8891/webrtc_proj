@@ -44,6 +44,10 @@
                 </span>
             </div>
 
+            <!-- Nur fuer Gaeste: Die Karte zeigt das Angebot, dieser Verweis
+                 erklaert es. Sichtbar gemacht von home_map.js. -->
+            <a href="#" class="home-bar__explain" id="home-explain" hidden>Wie funktioniert das?</a>
+
             <!-- Die Tabellenansicht bleibt gleichrangig erreichbar. -->
             <div class="app-switch" role="group" aria-label="Ansicht">
                 <span class="app-switch__item" aria-current="true">Karte</span>
@@ -70,6 +74,11 @@
                 <span class="home-legend__key home-legend__key--idle"></span>
                 <span>Standort ohne Guide</span>
             </div>
+            <!-- Nur vorhanden, wenn der Angemeldete selbst Standorte anbietet. -->
+            <div class="home-legend__row" data-legend="mine" hidden>
+                <span class="home-legend__key home-legend__key--mine"></span>
+                <span>Ihr Standort</span>
+            </div>
         </div>
 
         <!--
@@ -78,6 +87,12 @@
         -->
         <div class="home-state" id="home-state" hidden>
             <div class="home-state__card">
+
+                <!-- Nur sichtbar, wenn die Flaeche vom Nutzer selbst geoeffnet
+                     wurde. Steht sie, weil es nichts zu zeigen gibt, waere ein
+                     Schliessknopf eine Luege: dahinter ist nichts. -->
+                <button type="button" class="home-state__close" id="home-state-close"
+                        aria-label="Schließen" hidden>&times;</button>
 
                 <!-- Zustand: nicht angemeldet -->
                 <div data-state="guest" hidden>

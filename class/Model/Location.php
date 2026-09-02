@@ -337,6 +337,68 @@ class Location
     }
 
     /**
+     * Die Standorte fuer die oeffentliche Karte der Startseite.
+     *
+     * WARUM EINE EIGENE ABFRAGE
+     * -------------------------
+     * Diese Liste bekommt auch, wer nicht angemeldet ist. Sie enthaelt
+     * deshalb NUR, was auf der Karte zu sehen sein muss:
+     *
+     *   id            - damit der Browser eine Nadel wiederfindet
+     *   country_name  - Ort
+     *   city_name     - Ort
+     *   latitude,
+     *   longitude     - der angebotene Standort, nicht die Position eines
+     *                   Menschen: Er wurde vom Guide selbst als Treffpunkt
+     *                   eingetragen (LocationController::setLocation)
+     *   description   - die Beschreibung des Angebots
+     *   availability  - 'live', 'busy' oder 'idle'
+     *
+     * Kein Benutzername, keine user_id, kein roher user_status, keine
+     * Sperrangaben. Die Verfuegbarkeit wird schon hier in einen der drei
+     * Werte uebersetzt, damit ueber diese Route keine Anwesenheitsdaten
+     * einzelner Konten abfliessen koennen: Wer die Antwort mitschneidet,
+     * sieht "an diesem Ort ist jemand erreichbar" und nicht "Benutzer X ist
+     * online".
+     *
+     * Ohne user_id laesst sich ueber diese Antwort auch niemand anrufen -
+     * genau so ist es gemeint. Ein Gast, der auf eine verfuegbare Nadel
+     * klickt, wird zur Anmeldung geschickt (assets/js/home_map.js).
+     *
+     * Gesperrte Standorte sind nie dabei. Sie sind fuer die Moderation
+     * gesperrt worden, und die arbeitet angemeldet in der Uebersicht.
+     *
+     * @return array
+     */
+    public function selectPublicMapLocations()
+    {
+        try {
+            $query = "SELECT location.id,
+                             country.country_name,
+                             city.city_name,
+                             location.latitude,
+                             location.longitude,
+                             location.description,
+                             CASE
+                                 WHEN user.user_status = 'online'  THEN 'live'
+                                 WHEN user.user_status = 'in_call' THEN 'busy'
+                                 ELSE 'idle'
+                             END AS availability
+                      FROM location
+                      JOIN user    ON location.user_id = user.id
+                      LEFT JOIN city    ON location.city_id = city.id
+                      LEFT JOIN country ON city.country_id = country.id
+                      WHERE location.blocked = 0";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->execute();
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Laden der oeffentlichen Karte: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Gibt alle gespeicherten Locations eines Users als Array zurück.
      * @param int $in_user_id
      * @return array

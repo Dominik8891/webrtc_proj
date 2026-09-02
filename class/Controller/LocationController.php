@@ -135,6 +135,30 @@ class LocationController
     }
 
     /**
+     * Gibt die Standorte fuer die Karte der Startseite als JSON zurueck.
+     *
+     * Zugang: Recht location.map_public - das hat auch der Gast. Deshalb
+     * enthaelt die Antwort keine Personendaten: kein Benutzername, keine
+     * user_id, kein roher Anwesenheitsstatus, sondern Ort, Beschreibung und
+     * einen von drei Verfuegbarkeitswerten
+     * (App\Model\Location::selectPublicMapLocations).
+     *
+     * Der Zuschnitt der Daten steht im Modell und nicht hier: Eine zweite
+     * Stelle, an der entschieden wird, was oeffentlich ist, waere eine
+     * Stelle zu viel.
+     *
+     * @return void
+     */
+    public function getMapLocations()
+    {
+        $location = new Location();
+        $data = $location->selectPublicMapLocations();
+        header('Content-Type: application/json');
+        echo json_encode($data);
+        exit();
+    }
+
+    /**
      * Gibt alle eigenen Locations des aktuellen Benutzers als JSON zurück.
      *
      * Die Antwort enthält auch gesperrte Standorte samt Grund - der Guide

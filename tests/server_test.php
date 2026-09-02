@@ -371,9 +371,14 @@ check($routes['chat_get_messages'][3]  === 'json', 'chat_get_messages antwortet 
 ok('die drei ungeschuetzten Endpunkte haengen jetzt an einem Recht');
 
 // Wer nicht angemeldet ist, kommt nur an die oeffentlichen Routen.
+//
+// location.map_public steht bewusst in dieser Liste: Die Startseite ist eine
+// Karte, und ein Gast soll das Angebot sehen koennen, bevor er sich
+// entscheidet. Die Route gibt dafuer nur Ort, Beschreibung und einen von drei
+// Verfuegbarkeitswerten heraus - siehe Abschnitt 13.
 $oeffentlich = [Permission::SYSTEM_HOME, Permission::AUTH_LOGIN, Permission::AUTH_SIGNUP,
                 Permission::AUTH_PASSWORD_RESET, Permission::AUTH_EMAIL_VERIFY,
-                Permission::AUTH_TWOFACTOR_VERIFY];
+                Permission::AUTH_TWOFACTOR_VERIFY, Permission::LOCATION_MAP_PUBLIC];
 sort($oeffentlich);
 $gast = Permission::rightsOf(Permission::GUEST);
 sort($gast);
@@ -982,5 +987,67 @@ foreach ($vorlagen as $vorlage => $controller) {
     }
 }
 ok('guide_role.html und settings.html haben keinen unbesetzten Platzhalter');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n13) Die oeffentliche Karte gibt keine Personendaten heraus\n");
+
+// Diese Abfrage beantwortet auch Anfragen ohne Anmeldung. Was sie
+// zurueckgibt, ist damit oeffentlich - deshalb wird hier nicht die Absicht
+// geprueft, sondern das Statement selbst.
+$mapDb = new FakeConnection();
+PdoConnect::$connection = $mapDb;
+(new Location())->selectPublicMapLocations();
+check(count($mapDb->statements) === 1, 'genau eine Abfrage');
+$sql = $mapDb->statements[0]->sql;
+
+// Geprueft werden die SPALTEN DER ANTWORT, nicht Textstellen im Statement:
+// Was der Server herausgibt, sind die Ausgabenamen der Auswahlliste. Die
+// JOIN-Bedingung darf user.id nennen, sonst gaebe es keine Verknuepfung, und
+// der Anwesenheitsstatus darf in einem CASE vorkommen - dort wird er ja
+// gerade uebersetzt, damit er die Antwort NICHT erreicht.
+check(preg_match('/SELECT(.*?)\bFROM\b/is', $sql, $t) === 1, "kein SELECT gefunden:\n$sql");
+$spalten = [];
+foreach (explode(',', $t[1]) as $stueck) {
+    // Ausgabename ist der letzte Bezeichner des Ausdrucks - mit AS oder ohne.
+    if (preg_match('/([A-Za-z_][A-Za-z0-9_]*)\s*$/s', trim($stueck), $n)) {
+        $spalten[] = strtolower($n[1]);
+    }
+}
+sort($spalten);
+$erlaubt = ['availability', 'city_name', 'country_name', 'description', 'id',
+            'latitude', 'longitude'];
+sort($erlaubt);
+check($spalten === $erlaubt,
+    "die oeffentliche Karte liefert andere Spalten als erlaubt:\n  ist:      "
+    . implode(',', $spalten) . "\n  erlaubt:  " . implode(',', $erlaubt));
+
+// Und nirgends im Statement ein Benutzername.
+check(stripos($sql, 'username') === false, "Benutzername im Statement:\n$sql");
+
+// Der Anwesenheitsstatus wird uebersetzt und nicht durchgereicht: Aus der
+// Antwort geht hervor, dass an einem Ort jemand erreichbar ist, nicht wer.
+check(stripos($sql, 'AS availability') !== false, "kein uebersetzter Zustand:\n$sql");
+foreach (['live', 'busy', 'idle'] as $wert) {
+    check(strpos($sql, "'$wert'") !== false, "Verfuegbarkeitswert '$wert' fehlt");
+}
+
+// Gesperrte Standorte sind fuer niemanden sichtbar, der sie nicht moderiert.
+check(preg_match('/WHERE\s+location\.blocked\s*=\s*0/i', $sql) === 1,
+    "gesperrte Standorte werden nicht ausgeschlossen:\n$sql");
+ok('selectPublicMapLocations liefert Ort, Beschreibung und Verfuegbarkeit - sonst nichts');
+
+// Die Route dazu haengt am oeffentlichen Recht, die vollstaendige Liste
+// weiterhin am angemeldeten. Ein Vertauschen der beiden waere der Fehler,
+// der hier auffallen soll.
+check($routes['get_map_locations'][2] === Permission::LOCATION_MAP_PUBLIC,
+    'get_map_locations haengt am oeffentlichen Recht');
+check($routes['get_map_locations'][3] === 'json', 'get_map_locations antwortet als JSON');
+check($routes['get_locations'][2] === Permission::LOCATION_LIST,
+    'die vollstaendige Liste bleibt am angemeldeten Recht');
+check(Permission::has(Permission::GUEST, Permission::LOCATION_LIST) === false,
+    'ein Gast kommt nicht an die vollstaendige Liste');
+check(Permission::has(Permission::GUEST, Permission::LOCATION_MAP_PUBLIC) === true,
+    'ein Gast kommt an die Karte');
+ok('die beiden Standortrouten haengen an verschiedenen Rechten');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");
