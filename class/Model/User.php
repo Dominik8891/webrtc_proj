@@ -4,6 +4,7 @@ namespace App\Model;
 
 use PDOException;
 use App\Helper\LogHelper;
+use App\Helper\Role;
 
 /**
  * Klasse zur Verwaltung der Benutzerinformationen und Interaktionen mit der Datenbank.
@@ -63,6 +64,18 @@ class User
 
     /**
      * Erstellt einen neuen Benutzer in der DB.
+     *
+     * Die Rolle ist fest die Einstiegsrolle Trial und kommt aus
+     * App\Helper\Role - vorher stand die nackte 3 im SQL-Text. Mit der
+     * Neuvergabe der Rollennummern (Migration 005) waere daraus stillschweigend
+     * eine unbelegte Nummer geworden und der Fremdschluessel auf usertype
+     * haette jede Registrierung abgewiesen.
+     *
+     * Aus einem Formularfeld kommt die Rolle bewusst NICHT: signup.html
+     * schickte einmal ein verstecktes type_id mit. Ausgewertet wurde es nie,
+     * aber ein selbstvergebener Rang beim Registrieren darf gar nicht erst
+     * moeglich aussehen - das Feld ist deshalb entfernt.
+     *
      * @return int|null Neue User-ID oder null bei Fehler
      */
     private function create()
@@ -70,12 +83,14 @@ class User
         if ($this->id > 0) return;
         try {
             $stmt = PdoConnect::$connection->prepare(
-                "INSERT INTO user ( username,  email,  pwd, type_id) 
-                          VALUES  (:username, :email, :pwd,    3   )"
+                "INSERT INTO user ( username,  email,  pwd,  type_id) 
+                          VALUES  (:username, :email, :pwd, :type_id)"
             );
+            $default_role = Role::TRIAL;
             $stmt->bindParam(":username", $this->username);
             $stmt->bindParam(":email", $this->email);
             $stmt->bindParam(":pwd", $this->pwd);
+            $stmt->bindParam(":type_id", $default_role, \PDO::PARAM_INT);
             $stmt->execute();
             $this->id = PdoConnect::$connection->lastInsertId();
             return $this->id;
@@ -458,35 +473,28 @@ class User
 
     /**
      * Setzt die Userrolle anhand Name oder ID.
-     * @param mixed $in_usertype
+     *
+     * Aufgeloest wird ueber App\Helper\Role statt ueber eine eigene Abfrage.
+     * Das ersetzt zwei Fehler auf einmal:
+     *   - Die alte Fassung nahm jede Zahl an, auch eine, die es in usertype
+     *     gar nicht gibt; gespeichert wurde sie trotzdem und erst der
+     *     Fremdschluessel schlug beim save() fehl.
+     *   - Sie verlangte `$id > 0` und lehnte damit die Rolle mit der Nummer 0
+     *     ab - frueher Admin, heute Trial. Genau die Einstiegsrolle war so
+     *     nicht setzbar.
+     *
+     * @param mixed $in_usertype Rollenname oder Rollen-ID
      * @return bool Erfolg
      */
     public function setUsertype($in_usertype)
     {
-        $id = 0;
-        try {
-            if (!is_numeric($in_usertype)) {
-                $stmt = PdoConnect::$connection->prepare(
-                    "SELECT id FROM usertype WHERE `name` = :usertype"
-                );
-                $stmt->bindParam(":usertype", $in_usertype);
-                $stmt->execute();
-                $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-                if ($result) $id = $result['id'];
-            } else {
-                $id = $in_usertype;
-            }
-            if ($id > 0) {
-                $this->type_id = $id;
-                return true;
-            }
-            else {
-                return false;
-            }
-        } catch (PDOException $e) {
-            error_log("Fehler beim Setzen des Usertypes: " . $e->getMessage());
+        $id = Role::id($in_usertype);
+        if ($id === null) {
+            error_log('setUsertype: unbekannte Rolle ' . var_export($in_usertype, true));
             return false;
         }
+        $this->type_id = $id;
+        return true;
     }
 
     /**
@@ -537,7 +545,9 @@ class User
             'user_id'        => $this->id,
             'username'       => $this->username,
             'email'          => $this->email,
-            'role_id'        => $this->type_id,
+            // Normalisiert, damit ueberall dieselbe Darstellung ankommt: PDO
+            // liefert die Nummer je nach Einstellung als '2' statt 2.
+            'role_id'        => Role::id($this->type_id),
             'email_verified' => $this->verified
             // ggf. weitere Werte
         ];      
@@ -549,7 +559,16 @@ class User
     public function setUsername($in_username)   { $this->username = $in_username; }
     public function setEmail($in_email)         { $this->email = $in_email; }
     public function setPwd($in_pwd)             { $this->pwd = $in_pwd; }
-    public function setRoleId($in_role_id)      { $this->type_id = $in_role_id; }
+    /**
+     * Setzt die Rolle. Gleichbedeutend mit setUsertype() - beide Namen sind
+     * im Code in Gebrauch, und beide muessen dieselbe Pruefung durchlaufen:
+     * eine ungueltige Rolle wird abgelehnt, statt bis zum Fremdschluessel
+     * durchzurutschen.
+     *
+     * @param mixed $in_role_id
+     * @return bool Erfolg
+     */
+    public function setRoleId($in_role_id)      { return $this->setUsertype($in_role_id); }
     public function setTotpSecret($secret)      { $this->totp_secret = $secret; }
     public function setTotpEnabled($enabled)    { $this->totp_enabled = $enabled ? 1 : 0; }
 

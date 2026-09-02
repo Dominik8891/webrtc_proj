@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Model\User;
+use App\Helper\Auth;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 
@@ -59,7 +60,7 @@ class SystemController
     {
         $html = file_get_contents("assets/html/frontend/home.html");
 
-        if (isset($_SESSION['user']['user_id'])) {
+        if (Auth::isLoggedIn()) {
             $html = file_get_contents("assets/html/frontend/goto_chat.html");
         }
 

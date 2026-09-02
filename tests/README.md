@@ -113,7 +113,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (30 Prüfungen)
+## Was `server_test.php` prüft (50 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -141,13 +141,57 @@ die Tests nicht an. Das ist Absicht.
 
 6. **Rollen-Normalisierung** (`App\Helper\Role`, Befunde F-5/F-6) — Rollennamen
    werden unabhängig von der Groß-/Kleinschreibung erkannt, Zahl und
-   Zahlenstring bedeuten dasselbe (PDO liefert je nach Einstellung `'1'` statt
-   `1`), und alles Unbekannte — `null`, Leerstring, das nie existierende
-   `'tourist'`, unbelegte IDs — ergibt `null` statt versehentlich einer gültigen
-   Rolle. Darauf setzen die beiden Rechte auf: `mayOfferLocation()` trifft genau
-   Admin und Guide, `mayBecomeGuide()` genau User und Trial, keine Rolle ist
-   beides zugleich, und das Signaling teilt sich mit dem Helfer dieselbe
-   Guide-ID.
+   Zahlenstring bedeuten dasselbe (PDO liefert je nach Einstellung `'2'` statt
+   `2`), und alles Unbekannte — `null`, Leerstring, das nie existierende
+   `'tourist'`, unbelegte IDs wie die frühere 3 — ergibt `null` statt
+   versehentlich einer gültigen Rolle. Die Nummernvergabe selbst wird
+   mitgeprüft (Trial 0, User 1, Guide 2, Admin 10), damit ein versehentliches
+   Verschieben auffällt: An den Nummern hängen die Daten in `usertype`. Die
+   `0` darf dabei nicht mit "keine Rolle" verwechselt werden. Darauf setzen
+   die Rechte auf: `mayOfferLocation()` trifft genau Admin und Guide,
+   `mayBecomeGuide()` genau Trial und User, keine Rolle ist beides zugleich,
+   und das Signaling teilt sich mit dem Helfer dieselbe Guide-ID.
+
+7. **Berechtigungstabelle und Routen** — jede Route in `config/routes.php`
+   hat ein bekanntes Recht und eine Antwortart; die Prüfung schlägt bei einer
+   Route ohne Recht, mit leerem Recht, mit erfundenem Recht und mit
+   unbekannter Antwortart auch wirklich an. Die drei früher völlig
+   ungeschützten Endpunkte (`delete_user`, `delete_location`,
+   `chat_get_messages`) hängen an ihrem Recht. Ein Gast hat genau die
+   öffentlichen Rechte und keines darüber hinaus; `user.manage`,
+   `user.delete`, `location.block` und `system.admin` hat ausschließlich der
+   Admin. Unbekannte Rolle, unbelegte Rollennummer und unbekanntes Recht
+   heißen immer nein — auch nicht ersatzweise "die Gastrechte".
+
+8. **Vergleichsoperatoren auf Rollenwerten sind verboten.** Ein Suchlauf über
+   `class/`, `config/`, `cron/`, `index.php` und `assets/js` meldet jeden
+   Vergleich (`<`, `>`, `<=`, `>=`, `==`, `===`, `!=`, `!==`), der auf einem
+   Rollenwert steht — `role_id`, `type_id`, `getRoleId()`, `getUsertype()`,
+   `Role::ADMIN` und die übrigen Schreibweisen. Erlaubt bleibt der Vergleich
+   gegen `null` ("Rolle unbekannt"); ausgenommen sind nur `Role.php` und
+   `Permission.php`, die das Rollenmodell selbst bilden.
+
+   Der Grund: Genau solche Vergleiche waren die Befunde F-5/F-6 und die drei
+   Fehler im `UserController` — `role_id > 1` unterstellte eine Rangfolge, die
+   es nicht gibt, und `=== 1` traf den Guide statt den Admin. Wer eine
+   Berechtigung braucht, fragt ein benanntes Recht ab (`Auth::can()`,
+   `Permission::has()`).
+
+   Kommentare werden vorher entfernt, Zeichenketten **nicht**: Der häufigste
+   Rollenausdruck überhaupt steht in einer (`$_SESSION['user']['role_id']`).
+   Die Regel prüft sich zuerst selbst an sechs verbotenen und sechs erlaubten
+   Beispielzeilen — schlägt sie dort nicht an, ist der Suchlauf wertlos und
+   der Test bricht ab.
+
+9. **Eigentum steht in der WHERE-Klausel** — `updateLocation()` und
+   `deleteLocation()` setzen `AND user_id = :user_id` ab und binden den
+   Eigentümer; ohne Standort-ID oder ohne Benutzer erreicht gar kein Statement
+   die Datenbank; trifft die Bedingung keine Zeile, meldet `deleteLocation()`
+   Misserfolg statt wie früher pauschal Erfolg. Die Sperre fragt bewusst
+   *nicht* nach dem Eigentümer (sie richtet sich gerade an fremde Standorte)
+   und löscht nichts. Die Übersicht filtert gesperrte Standorte in der
+   Abfrage heraus, die Moderation sieht sie weiterhin, und die eigene Liste
+   des Guides enthält Sperre und Grund.
 
 ## Grenzen
 
@@ -159,7 +203,9 @@ Nicht abgedeckt sind insbesondere:
 - Medienwiedergabe, Kamera- und Mikrofonwechsel,
 - das Aussehen der Richtungsanzeige und der Sperranzeige (geprüft wird nur,
   dass sie ein- und ausgeblendet werden, nicht wie sie aussehen),
-- alles außerhalb von Verbindungsstabilität und Steuerprotokoll (Login, Chat,
-  Standorte).
+- alles außerhalb von Verbindungsstabilität, Steuerprotokoll und
+  Berechtigungen (Login-Ablauf, Chatinhalte, Kartendarstellung),
+- das Zusammenspiel mit einer echten Datenbank: Geprüft wird, welches SQL
+  abgesetzt wird, nicht was MySQL daraus macht.
 
 Ein grüner Durchlauf ersetzt daher keinen Test mit zwei echten Geräten.

@@ -2,32 +2,35 @@
 namespace App\Controller;
 
 use App\Model\User;
+use App\Helper\Auth;
+use App\Helper\Permission;
 use App\Helper\Request;
 use \App\Helper\ViewHelper;
 
 /**
  * UserController – Verwaltung und Anzeige von Benutzern im Adminbereich.
+ *
+ * Der Zugang zu den Routen dieses Controllers wird in index.php anhand der
+ * Rechte aus config/routes.php entschieden. Hier steht nur noch, was eine
+ * Rechtetabelle nicht wissen kann: welche Spalten und Schaltflächen der
+ * Aufrufer in der Benutzerliste sehen darf.
  */
 class UserController
 {
     /**
      * Verwaltung eines Benutzers (Anlegen/Bearbeiten).
      * Zeigt das User-Formular an, übernimmt Speichern bei "send".
-     * Zugang nur für eingeloggte Admins (RoleId <= 1).
+     *
+     * Zugang: Recht user.manage, geprüft in index.php. Hier stand vorher ein
+     * Größenvergleich auf der Rollennummer der Sitzung, der eine Rangfolge
+     * unterstellte, die es nicht gibt. Er liess ausser dem Admin auch den
+     * Guide herein und wäre mit der neuen Nummernvergabe (Admin = 10)
+     * vollends falsch geworden.
      *
      * @return void
      */
     public function manageUser()
     {
-        if (!isset($_SESSION['user']['user_id'])) {
-            SystemController::home();
-            exit;
-        }
-        if ($_SESSION['user']['role_id'] > 1) {
-            SystemController::home();
-            exit;
-        }
-
         $out = file_get_contents("assets/html/manage_user.html");
 
         // null als Default: die Zweigunterscheidung weiter unten unterscheidet
@@ -63,7 +66,14 @@ class UserController
             $email      = Request::g('email',    null);
             $pwd        = Request::g('pwd');
 
-            if ($role     !== null               ) $sel_user->setRoleId($role);
+            // setRoleId() weist eine unbekannte Rolle ab. Ohne diese
+            // Rueckmeldung liefe ein verstellter Formularwert stumm ins Leere
+            // und der Benutzer behielte die alte Rolle, ohne dass es jemand
+            // merkt.
+            if ($role !== null && !$sel_user->setRoleId($role)) {
+                error_log('manageUser: ungueltige Rolle ' . var_export($role, true)
+                    . ' fuer Benutzer #' . $sel_user->getId() . ' abgewiesen');
+            }
             if ($username !== null               ) $sel_user->setUsername($username);
             if ($email    !== null               ) $sel_user->setEmail($email);
             // pwdEncrypt() liegt in App\Model\User, nicht im SystemController -
@@ -90,23 +100,26 @@ class UserController
 
     /**
      * Zeigt eine Liste aller Benutzer im System an.
-     * Nur sichtbar für eingeloggte Nutzer.
+     *
+     * Zugang: Recht user.list, geprüft in index.php.
+     *
+     * Ob die Verwaltungsspalten erscheinen, entscheidet das Recht
+     * user.manage. Vorher wurde die Rollennummer direkt mit der 1 verglichen
+     * - das ist die Guide-Rolle und nicht der Admin, und der strikte
+     * Vergleich scheiterte zusätzlich, sobald PDO die Nummer als Zeichenkette
+     * lieferte. Die Spalten waren dadurch für niemanden sichtbar.
      *
      * @return void
      */
     public function listUser()
     {
-        if (!isset($_SESSION['user']['user_id'])) 
-        {
-            SystemController::home();
-        }
         $table_html = file_get_contents("assets/html/list_user.html");
-        $user = new User($_SESSION['user']['user_id']);
+        $user = new User(Auth::userId());
 
         $action = "";
         $email  = "";
         $new    = "";
-        if ($user->getRoleId() === 1) {
+        if (Auth::can(Permission::USER_MANAGE)) {
             $action = "<th>Aktion</th>";
             $email  = '<th class="user_table_desktop">Email</th>';
             $new    = '<a href="index.php?act=manage_user" class="btn btn-success btn-sm">Neuen Benutzer anlegen</a>';
@@ -125,11 +138,37 @@ class UserController
     /**
      * Löscht einen Benutzer aus dem System (setzt gelöscht-Flag).
      *
+     * Zugang: Recht user.delete, geprüft in index.php. Vorher hatte diese
+     * Methode überhaupt keine Prüfung - weder auf eine Rolle noch auf eine
+     * Anmeldung. Ein einziger Aufruf von index.php?act=delete_user&user_id=N
+     * genügte, um ein beliebiges Konto zu löschen.
+     *
+     * Zusätzlich zwei fachliche Prüfungen, die kein Recht abbilden kann:
+     * die ID muss zu einem Konto gehören, und das eigene Konto lässt sich
+     * hier nicht löschen - der Admin würde sich sonst mit noch gültiger
+     * Sitzung selbst entfernen.
+     *
      * @return void
      */
     public function deleteUser()
     {
-        $tmp_user = new User(Request::g('user_id'));
+        $user_id = (int)Request::g('user_id');
+
+        if ($user_id < 1 || $user_id === Auth::userId()) {
+            error_log('deleteUser: unzulaessige Ziel-ID ' . $user_id
+                . ' (Aufrufer ' . Auth::userId() . ')');
+            $this->listUser();
+            return;
+        }
+
+        try {
+            $tmp_user = new User($user_id);
+        } catch (\Exception $e) {
+            error_log('deleteUser: ' . $e->getMessage());
+            $this->listUser();
+            return;
+        }
+
         $tmp_user->del_it();
         $this->listUser();
     }
@@ -143,7 +182,7 @@ class UserController
     public function heartbeat()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $user_id = (int)($_SESSION['user']['user_id'] ?? null);
+            $user_id = Auth::userId();
             if (!$user_id) exit;
 
             $data = json_decode(file_get_contents("php://input"), true);
@@ -186,18 +225,13 @@ class UserController
      */
     public function saveLocation()
     {
-        if (!isset($_SESSION['user']['user_id'])) {
-            http_response_code(401);
-            exit('Nicht eingeloggt!');
-        }
-
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true);
         $lat = isset($data['lat']) ? $data['lat'] : null;
         $lon = isset($data['lon']) ? $data['lon'] : null;
 
         if ($lat !== null && $lon !== null && is_numeric($lat) && is_numeric($lon)) {
-            $user = new User($_SESSION['user']['user_id']);
+            $user = new User(Auth::userId());
             $result = $user->saveLocation($lat, $lon);
             if ($result) {
                 http_response_code(200);
@@ -233,7 +267,9 @@ class UserController
             $email   = "";
             $message = "<button class='btn btn-primary start-chat-btn' data-userid='{$one_user_id}'>Chat</button>";
 
-            if ($in_user->getRoleId() === 1) {
+            // Auch hier entscheidet das Recht und nicht die Rollennummer:
+            // der Vergleich mit der 1 traf den Guide statt den Admin.
+            if (Auth::can(Permission::USER_MANAGE)) {
                 $action = $this->getAction($tmp_user);
                 $email  = htmlspecialchars($tmp_user->getEmail());
             }

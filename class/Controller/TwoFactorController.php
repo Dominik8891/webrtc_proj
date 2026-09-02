@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Helper\ViewHelper;
+use App\Helper\Auth;
 use App\Helper\Request;
 use App\Model\User;
 use OTPHP\TOTP;
@@ -17,7 +18,7 @@ class TwoFactorController
      */
     public function show2FASetup(): void
     {
-        $userId = $_SESSION['user']['user_id'] ?? null;
+        $userId = Auth::userId();
         if (!$userId) {
             header("Location: index.php?act=login_page");
             exit;
@@ -78,7 +79,7 @@ class TwoFactorController
      */
     public function handle2FAActivate(): void
     {
-        $userId = $_SESSION['user']['user_id'] ?? null;
+        $userId = Auth::userId();
         if (!$userId) {
             header("Location: index.php?act=login_page");
             exit;
@@ -185,7 +186,12 @@ class TwoFactorController
         error_log("2FA-Login: Code-Pruefung " . ($isValid ? 'OK' : 'FAIL') . " (UserID {$userId})");
 
         if ($isValid) {
-            $_SESSION['user'] = $user->getUserDetails();
+            // Ueber Auth::establish() statt ueber getUserDetails(): Nur so
+            // traegt die Sitzung die normalisierte Rolle und die Kennung des
+            // Sitzungsaufbaus - sonst haetten mit 2FA angemeldete Nutzer eine
+            // andere Sitzungsstruktur als alle anderen.
+            session_regenerate_id(true);
+            Auth::establish($user);
             unset($_SESSION['2fa_userid']);
             header("Location: index.php?act=home");
             exit;
@@ -200,7 +206,7 @@ class TwoFactorController
      */
     public function disable2FA(): void
     {
-        $userId = $_SESSION['user']['user_id'] ?? null;
+        $userId = Auth::userId();
         if (!$userId) {
             header("Location: index.php?act=login_page");
             exit;

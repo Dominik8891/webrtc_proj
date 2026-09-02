@@ -2,8 +2,8 @@
 namespace App\Controller;
 
 use App\Model\User;
+use App\Helper\Auth;
 use App\Helper\Request;
-use App\Helper\Role;
 use App\Helper\ViewHelper;
 
 /**
@@ -79,12 +79,9 @@ class LoginController
                 exit;
             }
             session_regenerate_id(true); // Session-Fixation verhindern!
-            $_SESSION['user'] = [
-                'user_id'       => $user->getId(),
-                'username'      => $user->getUsername(),
-                'email'         => $user->getEmail(),
-                'role_id'       => Role::id($user->getRoleId()),
-            ];
+            // Einzige Stelle fuer den Aufbau der Sitzungsdaten - inklusive
+            // normalisierter Rolle und Kennzeichnung des Aufbaus.
+            Auth::establish($user);
 
             // Der Login war erfolgreich - der Fehlversuchszaehler gehoert
             // weg, bevor irgendein Weg diese Methode verlaesst. Die

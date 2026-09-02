@@ -14,14 +14,20 @@ require_once $ROOT . '/class/Model/WebRTCHandler.php';
 require_once $ROOT . '/class/Controller/TurnController.php';
 require_once $ROOT . '/class/Model/User.php';
 require_once $ROOT . '/class/Helper/Role.php';
+require_once $ROOT . '/class/Helper/Permission.php';
 require_once $ROOT . '/class/Controller/WebRTCController.php';
+require_once $ROOT . '/class/Controller/UserController.php';
+require_once $ROOT . '/class/Model/Location.php';
 
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
 use App\Model\WebRTCHandler;
 use App\Controller\TurnController;
 use App\Controller\WebRTCController;
+use App\Controller\UserController;
+use App\Model\Location;
 use App\Helper\Role;
+use App\Helper\Permission;
 
 $passed = 0;
 function ok($name) { global $passed; fwrite(STDERR, "  ok  $name\n"); $passed++; }
@@ -104,9 +110,13 @@ fwrite(STDERR, "\n4) Loeschen nur der ausgelieferten Signale (F-1)\n");
 /** Fängt die abgesetzten Statements ab, statt sie auszuführen. */
 class FakeStatement {
     public $sql; public $params = [];
+    /** Zeilen, die das naechste execute() angeblich getroffen hat. */
+    public static $affected = 1;
     public function __construct($sql) { $this->sql = $sql; }
-    public function bindParam($k, &$v) { $this->params[$k] = $v; }
+    public function bindParam($k, &$v, $type = null) { $this->params[$k] = $v; }
     public function execute() { return true; }
+    public function rowCount() { return self::$affected; }
+    public function fetch($mode = null) { return false; }
     public function fetchAll($mode = null) { return []; }
 }
 class FakeConnection {
@@ -184,13 +194,13 @@ function fakeUser($id, $typeId) {
 }
 
 $userDb = new FakeUserConnection();
-// usertype laut database.sql: 0=Admin, 1=Guide, 2=User, 3=Trial
+// usertype laut database.sql: 0=Trial, 1=User, 2=Guide, 10=Admin
 $userDb->users = [
-    1 => fakeUser(1, 0),   // Admin
-    2 => fakeUser(2, 1),   // Guide
-    3 => fakeUser(3, 1),   // Guide
-    4 => fakeUser(4, 2),   // User
-    5 => fakeUser(5, 3),   // Trial
+    1 => fakeUser(1, 10),  // Admin
+    2 => fakeUser(2,  2),  // Guide
+    3 => fakeUser(3,  2),  // Guide
+    4 => fakeUser(4,  1),  // User
+    5 => fakeUser(5,  0),  // Trial
 ];
 PdoConnect::$connection = $userDb;
 
@@ -216,8 +226,8 @@ $r = WebRTCController::callRoles(4, 5);
 check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'kein Guide beteiligt');
 ok('ohne Guide-Konto ist der Angerufene der Guide');
 
-// Admin ist kein Guide - der Kontotyp 0 darf nicht mit 1 verwechselt werden
-// (Befunde F-7/F-8 der Bestandsaufnahme).
+// Admin ist kein Guide - die beiden Kontotypen duerfen nicht verwechselt
+// werden (Befunde F-7/F-8 der Bestandsaufnahme).
 $r = WebRTCController::callRoles(1, 2);
 check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'Admin ruft Guide an');
 ok('Admin gilt nicht als Guide');
@@ -260,19 +270,30 @@ check(Role::id('Guide')   === Role::GUIDE, "'Guide' ist die Guide-Rolle");
 check(Role::id('guide')   === Role::GUIDE, "'guide' ebenso");
 check(Role::id('GUIDE')   === Role::GUIDE, "'GUIDE' ebenso");
 check(Role::id(' Guide ') === Role::GUIDE, 'Leerzeichen stoeren nicht');
-check(Role::id('Admin')   === Role::ADMIN, "'Admin' ist 0 - und 0 ist nicht falsy zu verwechseln");
-check(Role::id('Trial')   === Role::TRIAL, "'Trial' ist 3");
+check(Role::id('Admin')   === Role::ADMIN, "'Admin' wird erkannt");
+check(Role::id('Trial')   === Role::TRIAL, "'Trial' wird erkannt");
 ok('Rollennamen werden unabhaengig von der Schreibweise erkannt');
+
+// Die Nummernvergabe selbst. Sie steht hier, damit ein versehentliches
+// Verschieben auffaellt: An den Nummern haengen die Daten in usertype.
+check(Role::TRIAL ===  0, 'Trial ist 0');
+check(Role::USER  ===  1, 'User ist 1');
+check(Role::GUIDE ===  2, 'Guide ist 2');
+check(Role::ADMIN === 10, 'Admin ist 10');
+check(Role::id(0) === Role::TRIAL, '0 ist nicht falsy mit "keine Rolle" zu verwechseln');
+check(count(Role::all()) === 4, 'genau vier Rollen');
+ok('die Rollennummern sind die aus database.sql');
 
 // PDO liefert je nach Treibereinstellung '1' statt 1. Ein === 1 scheitert
 // daran still - der Helfer nicht.
-check(Role::id(1)   === Role::GUIDE, 'int 1');
-check(Role::id('1') === Role::GUIDE, "Zahlenstring '1'");
-check(Role::id('0') === Role::ADMIN, "Zahlenstring '0'");
+check(Role::id(2)    === Role::GUIDE, 'int 2');
+check(Role::id('2')  === Role::GUIDE, "Zahlenstring '2'");
+check(Role::id('0')  === Role::TRIAL, "Zahlenstring '0'");
+check(Role::id('10') === Role::ADMIN, "Zahlenstring '10'");
 ok('Zahl und Zahlenstring bedeuten dasselbe');
 
 // Alles Unbekannte ist null und darf nirgends als Berechtigung durchgehen.
-foreach ([null, '', '   ', 'tourist', 'Tourist', 'viewer', 7, -1, '2.5', [], true] as $bad) {
+foreach ([null, '', '   ', 'tourist', 'Tourist', 'viewer', 7, 3, -1, '2.5', [], true] as $bad) {
     check(Role::id($bad) === null, 'unbekannte Rolle: ' . var_export($bad, true));
 }
 check(Role::name('tourist') === null, "'tourist' gibt es in usertype nicht");
@@ -310,7 +331,364 @@ ok('die beiden Rechte schliessen einander aus');
 // Das Signaling benutzt denselben Wert.
 check(WebRTCController::USERTYPE_GUIDE === Role::GUIDE, 'Signaling teilt die Guide-ID');
 check(Role::isGuide('Guide') === true && Role::isGuide('Admin') === false, 'isGuide');
-check(Role::isAdmin(0) === true && Role::isAdmin(1) === false, 'isAdmin');
+check(Role::isAdmin(Role::ADMIN) === true && Role::isAdmin(Role::GUIDE) === false, 'isAdmin');
 ok('Signaling und Rollenhelfer sind sich ueber die Guide-ID einig');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n7) Berechtigungstabelle und Routen\n");
+
+// Jede Route braucht ein Recht. Das ist keine Empfehlung, sondern die
+// Bedingung, unter der index.php ueberhaupt etwas ausliefert.
+$routes = require $ROOT . '/config/routes.php';
+$fehler = Permission::routeErrors($routes);
+check($fehler === [], "Routing-Tabelle fehlerhaft: " . implode(' | ', $fehler));
+check(count($routes) > 40, 'die Tabelle ist vollstaendig geladen');
+ok('jede Route in config/routes.php hat ein bekanntes Recht und eine Antwortart');
+
+// Die Pruefung muss auch anschlagen. Sonst waere sie nur Zierde.
+check(Permission::routeErrors([]) !== [], 'leere Tabelle ist ein Fehler');
+check(Permission::routeErrors(['x' => [UserController::class, 'listUser']]) !== [],
+    'Route ohne Recht ist ein Fehler');
+check(Permission::routeErrors(['x' => [UserController::class, 'listUser', '', 'html']]) !== [],
+    'leeres Recht ist ein Fehler');
+check(Permission::routeErrors(['x' => [UserController::class, 'listUser', 'gibt.es.nicht', 'html']]) !== [],
+    'erfundenes Recht ist ein Fehler');
+check(Permission::routeErrors(['x' => [UserController::class, 'listUser', Permission::USER_LIST, 'xml']]) !== [],
+    'unbekannte Antwortart ist ein Fehler');
+check(Permission::routeErrors(['x' => [UserController::class, 'listUser', Permission::USER_LIST, 'html']]) === [],
+    'vollstaendiger Eintrag ist in Ordnung');
+ok('eine Route ohne definiertes Recht wird als Konfigurationsfehler erkannt');
+
+// Die drei Endpunkte ohne jede Pruefung (Befund: nicht einmal ein Login).
+check($routes['delete_user'][2]        === Permission::USER_DELETE      , 'delete_user braucht user.delete');
+check($routes['delete_location'][2]    === Permission::LOCATION_DELETE_OWN, 'delete_location braucht location.delete_own');
+check($routes['chat_get_messages'][2]  === Permission::CHAT_READ        , 'chat_get_messages braucht chat.read');
+check($routes['delete_user'][3]        === 'html', 'delete_user antwortet als Seite');
+check($routes['delete_location'][3]    === 'json', 'delete_location antwortet als JSON');
+check($routes['chat_get_messages'][3]  === 'json', 'chat_get_messages antwortet als JSON');
+ok('die drei ungeschuetzten Endpunkte haengen jetzt an einem Recht');
+
+// Wer nicht angemeldet ist, kommt nur an die oeffentlichen Routen.
+$oeffentlich = [Permission::SYSTEM_HOME, Permission::AUTH_LOGIN, Permission::AUTH_SIGNUP,
+                Permission::AUTH_PASSWORD_RESET, Permission::AUTH_EMAIL_VERIFY,
+                Permission::AUTH_TWOFACTOR_VERIFY];
+sort($oeffentlich);
+$gast = Permission::rightsOf(Permission::GUEST);
+sort($gast);
+check($gast === $oeffentlich, 'Gastrechte: ' . implode(',', $gast));
+foreach ([Permission::USER_LIST, Permission::USER_DELETE, Permission::RTC_SIGNAL,
+          Permission::LOCATION_CREATE, Permission::CHAT_READ, Permission::AUTH_LOGOUT] as $recht) {
+    check(Permission::has(Permission::GUEST, $recht) === false, "Gast darf $recht nicht");
+}
+ok('ohne Anmeldung gibt es nur die oeffentlichen Rechte');
+
+// Benutzerverwaltung und Moderation sind Adminsache - und zwar genau eine
+// Rolle, nicht "alles ab einer bestimmten Nummer".
+foreach ([Permission::USER_MANAGE, Permission::USER_DELETE, Permission::LOCATION_BLOCK,
+          Permission::SYSTEM_ADMIN] as $recht) {
+    check(Permission::has(Role::ADMIN, $recht) === true, "Admin darf $recht");
+    foreach ([Role::GUIDE, Role::USER, Role::TRIAL, Permission::GUEST] as $andere) {
+        check(Permission::has($andere, $recht) === false,
+            'Rolle ' . var_export($andere, true) . " darf $recht nicht");
+    }
+}
+ok('user.manage, user.delete, location.block und system.admin hat nur der Admin');
+
+// Der Admin loescht keine fremden Standorte - er sperrt sie.
+check(Permission::has(Role::ADMIN, Permission::LOCATION_BLOCK) === true, 'Admin sperrt');
+check(Permission::has(Role::GUIDE, Permission::LOCATION_BLOCK) === false, 'Guide sperrt nicht');
+ok('Moderation heisst sperren, nicht loeschen');
+
+// Standorte anbieten darf, wer schon Guide ist; anlegen darf sie jeder
+// Angemeldete - genau dieser Schritt macht aus einem Zuschauer einen Guide.
+check(Role::mayOfferLocation(Role::GUIDE) === true , 'Guide bietet an');
+check(Role::mayOfferLocation(Role::ADMIN) === true , 'Admin bietet an');
+check(Role::mayOfferLocation(Role::USER)  === false, 'User noch nicht');
+check(Role::mayOfferLocation(Role::TRIAL) === false, 'Trial noch nicht');
+foreach ([Role::TRIAL, Role::USER, Role::GUIDE, Role::ADMIN] as $rolle) {
+    check(Permission::has($rolle, Permission::LOCATION_CREATE) === true,
+        'jede angemeldete Rolle darf einen Standort anlegen');
+}
+ok('anbieten und anlegen sind zwei verschiedene Rechte');
+
+// Unbekannte Rollen bekommen nichts - auch nicht die Gastrechte.
+foreach (Permission::allRights() as $recht) {
+    check(Permission::has(null, $recht)      === false, "null darf $recht nicht");
+    check(Permission::has('tourist', $recht) === false, "'tourist' darf $recht nicht");
+    check(Permission::has(3, $recht)         === false, "unbelegte Nummer darf $recht nicht");
+}
+check(Permission::rightsOf('tourist') === [], 'unbekannte Rolle hat keine Rechte');
+check(Permission::has(Role::ADMIN, 'gibt.es.nicht') === false, 'unbekanntes Recht gilt nie');
+check(Permission::has(Role::ADMIN, '') === false, 'leeres Recht gilt nie');
+ok('unbekannte Rolle und unbekanntes Recht heissen nein');
+
+// Keine Vererbung: Jede Rolle fuehrt ihre Rechte selbst. Der Nachweis ist,
+// dass keine Rolle die Rechte einer anderen vollstaendig mitbringt, ohne dass
+// sie dort auch stehen - anders gesagt: Die Listen sind unabhaengig
+// voneinander lesbar. Geprueft wird die sichtbare Folge: Es gibt Rechte, die
+// eine "hoehere" Rolle NICHT hat.
+check(Permission::has(Role::ADMIN, Permission::AUTH_LOGIN) === false,
+    'auch der Admin darf sich nicht doppelt anmelden');
+check(Permission::has(Role::ADMIN, Permission::AUTH_SIGNUP) === false,
+    'auch der Admin registriert sich nicht neu');
+ok('es gibt keine Rolle, die einfach alles darf');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n8) Vergleichsoperatoren auf Rollenwerten sind verboten\n");
+
+/**
+ * Entfernt Kommentare aus PHP-Quelltext, behaelt aber die Zeilennummern bei.
+ *
+ * Kommentare muessen raus, weil in ihnen der falsche Vergleich als
+ * abschreckendes Beispiel stehen darf - so wie in UserController::manageUser().
+ *
+ * Zeichenketten bleiben ausdruecklich STEHEN. Der haeufigste Rollenausdruck
+ * ueberhaupt steht naemlich in einer: $_SESSION['user']['role_id']. Wer die
+ * Zeichenketten mit entfernt, uebersieht genau den Vergleich, um den es hier
+ * geht. Der Preis ist, dass auch ein SQL-Text mit einem Vergleich auf type_id
+ * anschlaegt - was richtig ist: Auch dort waere die Rangfolge falsch.
+ *
+ * @param string $code
+ * @return string
+ */
+function stripPhpNoise($code) {
+    $out = '';
+    foreach (token_get_all($code) as $token) {
+        if (is_array($token)) {
+            if ($token[0] === T_COMMENT || $token[0] === T_DOC_COMMENT) {
+                // Nur die Zeilenumbrueche behalten, damit die Zeilennummern
+                // stimmen.
+                $out .= str_repeat("\n", substr_count($token[1], "\n"));
+                continue;
+            }
+            $out .= $token[1];
+        } else {
+            $out .= $token;
+        }
+    }
+    return $out;
+}
+
+/**
+ * Entfernt ganze Kommentarzeilen aus JavaScript. Eine vollstaendige Analyse
+ * waere hier unangemessen - es geht darum, dass die erlaeuternden Kommentare
+ * ueber die frueheren Rollenvergleiche nicht selbst anschlagen.
+ *
+ * @param string $code
+ * @return string
+ */
+function stripJsCommentLines($code) {
+    $zeilen = explode("\n", $code);
+    foreach ($zeilen as $i => $zeile) {
+        $t = ltrim($zeile);
+        if ($t === '' || strpos($t, '//') === 0 || strpos($t, '*') === 0 || strpos($t, '/*') === 0) {
+            $zeilen[$i] = '';
+        }
+    }
+    return implode("\n", $zeilen);
+}
+
+// Ausdruecke, die einen Rollenwert bezeichnen.
+$rollen_ausdruck = '(?:getRoleId\s*\(\s*\)|getUsertype\s*\(\s*\)'
+                 . '|(?:Role|self)::(?:ADMIN|GUIDE|USER|TRIAL)'
+                 . '|\brole_id\b|\broleId\b|\btype_id\b|\btypeId\b'
+                 . '|\buser_role_id\b|\buserRoleId\b|\buserRole\b)';
+
+// Vergleichsoperatoren. Die Ausschluesse verhindern Treffer auf "=>" (Pfeil
+// im Array) und "->" (Objektzugriff).
+// Der Nachlauf (?!=) verhindert, dass "==" als Teiltreffer von "===" gilt:
+// sonst wuerde der Ausschluss fuer Vergleiche gegen null nie greifen.
+$vergleich = '(?<![=<>!+*\/.\-])(?:===|!==|==|!=|<=|>=|<|>)(?!=)';
+
+// Zwischen dem Rollenwert und dem Operator duerfen schliessende Anfuehrungs-
+// und Klammerzeichen stehen: $_SESSION['user']['role_id'] > 1.
+$nachlauf = '[\s\'"\]\)]*';
+// Zwischen dem Operator und dem Rollenwert steht der Anfang eines Ausdrucks,
+// etwa "$_SESSION['user'][". Die Laenge ist begrenzt, und Zeichen wie ? & ; ,
+// beenden die Suche - sonst wuerde das Muster ueber eine ganze Zeile hinweg
+// zwei unabhaengige Ausdruecke zusammenziehen.
+$vorlauf = '[\s\$\w\'"\[\(:>\-]{0,40}?';
+
+// Verboten: Rollenwert VOR einem Vergleich - ausser gegen null. "Rolle
+// unbekannt" muss abfragbar bleiben.
+// Der Ausschluss steht direkt hinter dem Operator und nicht hinter einem
+// \s* - sonst wuerde die Suche das Leerzeichen einfach nicht mitnehmen und
+// der Ausschluss liefe ins Leere.
+$muster_links  = '/' . $rollen_ausdruck . $nachlauf . $vergleich . '(?!\s*null\b)/i';
+// Verboten: Rollenwert NACH einem Vergleich, ausnahmslos.
+$muster_rechts = '/' . $vergleich . $vorlauf . $rollen_ausdruck . '/i';
+
+// Die Regel muss zuschlagen. Wenn dieser Selbsttest nicht anschlaegt, ist das
+// Muster kaputt und die ganze Pruefung wertlos.
+$boese = [
+    '$x = $_SESSION["user"]["role_id"] > 1;',
+    'if ($user->getRoleId() === 1) {}',
+    'if ($role_id <= 1) {}',
+    'if (Role::GUIDE == $x) {}',
+    'if (window.userRoleId >= 2) {}',
+    'if ($tmp->getUsertype() != "Admin") {}',
+];
+foreach ($boese as $zeile) {
+    check(preg_match($muster_links, $zeile) || preg_match($muster_rechts, $zeile),
+        'Muster erkennt den verbotenen Vergleich nicht: ' . $zeile);
+}
+$erlaubt = [
+    '$user_role_id === null ? "null" : (int)$user_role_id',
+    'if (Auth::can(Permission::USER_MANAGE)) {}',
+    '$user->setRoleId(Role::GUIDE);',
+    "'right' => Permission::USER_DELETE,",
+    '$this->type_id = $id;',
+    'if (Role::mayBecomeGuide($user->getRoleId())) {}',
+];
+foreach ($erlaubt as $zeile) {
+    check(!preg_match($muster_links, $zeile) && !preg_match($muster_rechts, $zeile),
+        'Muster schlaegt faelschlich an: ' . $zeile);
+}
+ok('die Regel erkennt verbotene Vergleiche und laesst erlaubten Code in Ruhe');
+
+/**
+ * Sammelt alle zu pruefenden Quelldateien.
+ *
+ * @param string $verzeichnis
+ * @param string $endung
+ * @return string[]
+ */
+function quellDateien($verzeichnis, $endung) {
+    if (!is_dir($verzeichnis)) return [];
+    $gefunden = [];
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($verzeichnis));
+    foreach ($iterator as $datei) {
+        if ($datei->isFile() && strtolower($datei->getExtension()) === $endung) {
+            $gefunden[] = $datei->getPathname();
+        }
+    }
+    sort($gefunden);
+    return $gefunden;
+}
+
+// Ausgenommen sind genau die beiden Dateien, die das Rollenmodell selbst
+// bilden: Role normalisiert, Permission ordnet zu. Irgendwo MUSS eine Rolle
+// mit einer Rolle verglichen werden - aber nur dort.
+$ausnahmen = ['class/Helper/Role.php', 'class/Helper/Permission.php'];
+
+$dateien = array_merge(
+    quellDateien($ROOT . '/class', 'php'),
+    quellDateien($ROOT . '/config', 'php'),
+    quellDateien($ROOT . '/cron', 'php'),
+    [$ROOT . '/index.php'],
+    quellDateien($ROOT . '/assets/js', 'js')
+);
+
+$treffer = [];
+$geprueft = 0;
+foreach ($dateien as $datei) {
+    $relativ = ltrim(str_replace(realpath($ROOT), '', realpath($datei)), '/\\');
+    $relativ = str_replace('\\', '/', $relativ);
+    if (in_array($relativ, $ausnahmen, true)) continue;
+
+    $inhalt = file_get_contents($datei);
+    $inhalt = substr($datei, -3) === '.js' ? stripJsCommentLines($inhalt) : stripPhpNoise($inhalt);
+    $geprueft++;
+
+    foreach (explode("\n", $inhalt) as $nr => $zeile) {
+        if (preg_match($muster_links, $zeile) || preg_match($muster_rechts, $zeile)) {
+            $treffer[] = $relativ . ':' . ($nr + 1) . '  ' . trim($zeile);
+        }
+    }
+}
+check($geprueft > 25, "es wurden nur $geprueft Dateien geprueft - stimmt der Pfad?");
+check($treffer === [],
+    "Vergleichsoperator auf einem Rollenwert gefunden. Statt dessen ein "
+    . "benanntes Recht (Permission::has / Auth::can) benutzen:\n    "
+    . implode("\n    ", $treffer));
+ok("$geprueft Dateien enthalten keinen Vergleich auf einem Rollenwert");
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n9) Eigentum steht in der WHERE-Klausel\n");
+
+$fake = new FakeConnection();
+PdoConnect::$connection = $fake;
+FakeStatement::$affected = 1;
+
+// Aendern: Der Eigentuemer gehoert ins Statement, nicht nur in den Controller.
+$loc = new Location();
+$refl = new ReflectionObject($loc);
+$feld = $refl->getProperty('id');
+$feld->setAccessible(true);
+$feld->setValue($loc, 42);
+
+$loc->setDescription('neue Beschreibung');
+check($loc->updateLocation(7) === true, 'Aenderung des eigenen Standorts');
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'UPDATE location') !== false, 'es ist ein UPDATE');
+check(preg_match('/WHERE\s+id\s*=\s*:id\s+AND\s+user_id\s*=\s*:user_id/i', $sql) === 1,
+    "Eigentuemer fehlt in der Bedingung: $sql");
+check($fake->statements[0]->params[':user_id'] === 7, 'Eigentuemer gebunden');
+check($fake->statements[0]->params[':id'] === 42, 'Standort gebunden');
+ok('updateLocation traegt user_id in der WHERE-Klausel');
+
+// Loeschen: dasselbe, und der Rueckgabewert sagt die Wahrheit.
+$fake->statements = [];
+$loc2 = new Location();
+check($loc2->deleteLocation(42, 7) === true, 'Loeschen des eigenen Standorts');
+$sql = $fake->statements[0]->sql;
+check(preg_match('/DELETE\s+FROM\s+location\s+WHERE\s+id\s*=\s*:id\s+AND\s+user_id\s*=\s*:user_id/i', $sql) === 1,
+    "Eigentuemer fehlt in der Bedingung: $sql");
+check($fake->statements[0]->params[':user_id'] === 7, 'Eigentuemer gebunden');
+ok('deleteLocation traegt user_id in der WHERE-Klausel');
+
+// Trifft die Bedingung nichts, ist es kein Erfolg. Vorher meldete die
+// Methode auch dann "erledigt", wenn gar nichts geloescht wurde.
+FakeStatement::$affected = 0;
+$fake->statements = [];
+check((new Location())->deleteLocation(42, 999) === false, 'fremder Standort wird nicht als geloescht gemeldet');
+ok('kein Treffer heisst kein Erfolg');
+FakeStatement::$affected = 1;
+
+// Ohne Benutzer wird gar kein Statement abgesetzt.
+$fake->statements = [];
+check((new Location())->deleteLocation(42, 0) === false, 'ohne Benutzer kein Loeschen');
+check((new Location())->deleteLocation(0, 7)  === false, 'ohne Standort kein Loeschen');
+$loc3 = new Location();
+$feld->setValue($loc3, 42);
+check($loc3->updateLocation(0) === false, 'ohne Benutzer keine Aenderung');
+check(count($fake->statements) === 0, 'kein Statement ohne vollstaendige Angaben');
+ok('unvollstaendige Angaben erreichen die Datenbank nicht');
+
+// Die Sperre ist bewusst nicht an das Eigentum gebunden: Gesperrt werden
+// gerade fremde Standorte. Wer das darf, entscheidet das Recht location.block.
+$fake->statements = [];
+check((new Location())->block(42, 1, 'Spam') === true, 'Sperren');
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'blocked        = 1') !== false, 'Sperrkennzeichen wird gesetzt');
+check(strpos($sql, 'user_id') === false, 'die Sperre fragt bewusst nicht nach dem Eigentuemer');
+check(strpos($sql, 'DELETE') === false, 'gesperrt wird, nicht geloescht');
+check($fake->statements[0]->params[':reason'] === 'Spam', 'Grund wird gespeichert');
+ok('block() sperrt fremde Standorte, ohne sie zu loeschen');
+
+$fake->statements = [];
+check((new Location())->unblock(42) === true, 'Freigeben');
+check(strpos($fake->statements[0]->sql, 'blocked        = 0') !== false, 'Sperre wird aufgehoben');
+ok('unblock() gibt wieder frei');
+
+// Die Uebersicht zeigt gesperrte Standorte nicht - ausser der Moderation.
+$fake->statements = [];
+(new Location())->selectAllLocations(7);
+check(strpos($fake->statements[0]->sql, 'location.blocked = 0') !== false,
+    'gesperrte Standorte fehlen in der Uebersicht');
+$fake->statements = [];
+(new Location())->selectAllLocations(7, true);
+check(strpos($fake->statements[0]->sql, 'location.blocked = 0') === false,
+    'die Moderation sieht auch gesperrte Standorte');
+ok('die Sperre wirkt in der Abfrage, nicht erst in der Anzeige');
+
+// Der Guide sieht seinen gesperrten Standort samt Grund.
+$fake->statements = [];
+(new Location())->selectAllLocationsOfOneUser(7);
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'location.blocked') !== false && strpos($sql, 'blocked_reason') !== false,
+    'eigene Liste enthaelt Sperre und Grund');
+check(strpos($sql, 'location.blocked = 0') === false, 'die eigene Liste verbirgt nichts');
+ok('der betroffene Guide bekommt Sperre und Grund geliefert');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

@@ -53,8 +53,8 @@ class ViewHelper
         $user_id_script= null;
 
         // Prüfen, ob ein Nutzer eingeloggt ist
-        if (isset($_SESSION['user'])) {
-            $user = new User($_SESSION['user']['user_id']);
+        if (Auth::isLoggedIn()) {
+            $user = new User(Auth::userId());
             // Begrüßungstext mit Username (XSS-sicher)
             $user_txt  = '<span class="fw-bold ms-2">Sie sind angemeldet als: <span class="text-primary">' . htmlspecialchars($user->getUsername()) . '</span></span>';
             $text      = "<a href='index.php?act=logout' class='btn btn-outline-primary btn-sm'>Logout</a>";
@@ -66,7 +66,12 @@ class ViewHelper
             // getUsertype(), also der rohe Name aus der Datenbank - genau der
             // ging in ui.js gegen kleingeschriebene Literale und traf nie zu
             // (Befund F-5).
-            $user_role_id = Role::id($user->getRoleId());
+            //
+            // Gelesen wird die Rolle aus der Sitzung und nicht aus dem eben
+            // geladenen Datensatz: Beides ist derselbe Wert, aber die Sitzung
+            // ist die Quelle, gegen die auch index.php prueft. Zwei Quellen
+            // koennten auseinanderlaufen.
+            $user_role_id = Auth::roleId();
             $user_role    = Role::name($user_role_id);
 
             // Zusätzliche Steuerelemente für eingeloggte User laden
@@ -80,7 +85,7 @@ class ViewHelper
             self::checkTemplate($media, 'assets/html/media.html');
 
             // User-ID als JS-Variable bereitstellen
-            $user_id_script = '<script>window.userId = ' . $_SESSION['user']['user_id'] . ';</script>';
+            $user_id_script = '<script>window.userId = ' . Auth::userId() . ';</script>';
 
             // Heartbeat-Takt aus derselben Konfiguration, aus der sich auch
             // der Cronjob seinen Timeout holt (config/presence.php). Sonst
@@ -93,19 +98,26 @@ class ViewHelper
 
         // JavaScript-Variablen für Frontend bereitstellen (Login-Status, User-ID, Rolle)
         //
-        // Neben Name und ID der Rolle gehen die daraus abgeleiteten Rechte
-        // mit ins Frontend. So gibt es fuer die Frage "darf dieser Nutzer
-        // Standorte anbieten?" weiterhin nur eine Quelle - App\Helper\Role -
-        // statt einer zweiten Rollentabelle in JavaScript, die wieder
-        // auseinanderlaufen koennte.
-        $can_offer  = Role::mayOfferLocation($user_role_id) ? 'true' : 'false';
-        $can_become = Role::mayBecomeGuide($user_role_id)   ? 'true' : 'false';
+        // Neben Name und ID der Rolle gehen die Rechte mit ins Frontend. Sie
+        // kommen aus derselben Rechtetabelle, gegen die index.php prueft -
+        // eine zweite Rollentabelle in JavaScript koennte auseinanderlaufen.
+        //
+        // window.userCan entscheidet nur ueber die ANZEIGE. Ein Knopf, der
+        // hier nicht erscheint, ist keine Absicherung: Die verbindliche
+        // Pruefung steht in index.php und passiert erneut, wenn die Route
+        // wirklich aufgerufen wird.
+        $can = [
+            'offerLocation' => Auth::can(Permission::LOCATION_OFFER),
+            'becomeGuide'   => Role::mayBecomeGuide($user_role_id),
+            'blockLocation' => Auth::can(Permission::LOCATION_BLOCK),
+            'manageUsers'   => Auth::can(Permission::USER_MANAGE),
+        ];
 
         $logged_in_script = '<script>window.isLoggedIn = ' . $logged_in . ';</script>' . $user_id_script;
         $user_role_script = '<script>'
             . 'window.userRole = ' . json_encode($user_role) . ';'
             . 'window.userRoleId = ' . ($user_role_id === null ? 'null' : (int)$user_role_id) . ';'
-            . 'window.userCan = {offerLocation: ' . $can_offer . ', becomeGuide: ' . $can_become . '};'
+            . 'window.userCan = ' . json_encode($can) . ';'
             . '</script>' . $logged_in_script;
 
         // Platzhalter im Template ersetzen

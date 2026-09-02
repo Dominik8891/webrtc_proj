@@ -1,6 +1,7 @@
 <?php
 namespace App\Controller;
 
+use App\Helper\Auth;
 use App\Helper\ViewHelper;
 use App\Model\User;
 
@@ -15,12 +16,8 @@ class SettingsController
      */
     public function showSettingsPage(): void
     {
-        $userId = $_SESSION['user']['user_id'] ?? null;
-        if (!$userId) {
-            header("Location: index.php?act=login_page");
-            exit;
-        }
-        $user = new User($userId);
+        // Anmeldung und Recht user.settings sind in index.php geprueft.
+        $user = new User(Auth::userId());
 
         // Status für 2FA
         $is2fa = $user->getTotpEnabled();

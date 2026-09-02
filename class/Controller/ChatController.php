@@ -5,6 +5,7 @@ use App\Model\User;
 use App\Model\Chat;
 use App\Model\ChatMessage;
 use App\Model\PdoConnect;
+use App\Helper\Auth;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 
@@ -20,7 +21,7 @@ class ChatController
      */
     public function startChat(): void
     {
-        $currentUserId = $_SESSION['user']['user_id'] ?? null;
+        $currentUserId = Auth::userId();
         $targetId = (int)Request::g('target_id');
         if (!$currentUserId || !$targetId) {
             echo json_encode(['success' => false, 'error' => 'Invalid user']);
@@ -76,7 +77,7 @@ class ChatController
      */
     public function getChats(): void
     {
-        $currentUserId = $_SESSION['user']['user_id'] ?? null;
+        $currentUserId = Auth::userId();
         if (!$currentUserId) {
             echo json_encode(['success' => false, 'error' => 'Not logged in']);
             return;
@@ -106,18 +107,40 @@ class ChatController
 
     /**
      * Gibt alle Nachrichten eines Chats zurück.
+     *
+     * Zugang: Recht chat.read, geprueft in index.php. Zusaetzlich muss der
+     * Aufrufer an diesem Chat beteiligt sein - das kann keine Rechtetabelle
+     * wissen.
+     *
+     * Vorher fand hier ueberhaupt keine Pruefung statt: weder auf eine
+     * Anmeldung noch auf eine Beteiligung. Ein Aufruf mit einer beliebigen
+     * chat_id gab den kompletten Nachrichtenverlauf zweier fremder Nutzer
+     * heraus; die IDs sind fortlaufend, ein Durchzaehlen genuegte.
+     * ChatController::showChat() prueft die Beteiligung seit jeher - diese
+     * Methode liefert dieselben Daten und tut es jetzt auch.
+     *
      * @return void
      */
     public function getMessages(): void
     {
-        $chatId = (int)Request::g('chat_id');
-        if (!$chatId) {
+        $chatId        = (int)Request::g('chat_id');
+        $currentUserId = Auth::userId();
+        if (!$chatId || !$currentUserId) {
             echo json_encode(['success' => false, 'error' => 'Invalid chat']);
             return;
         }
         $chat = Chat::findById($chatId);
         if (!$chat) {
             echo json_encode(['success'=>false, 'declined'=>true]);
+            return;
+        }
+
+        // Beteiligung pruefen. Die Antwort unterscheidet nicht zwischen
+        // "gibt es nicht" und "geht dich nichts an", damit sich ueber diese
+        // Route keine fremden Chat-IDs abklopfen lassen.
+        if ($chat->getUser1Id() != $currentUserId && $chat->getUser2Id() != $currentUserId) {
+            error_log("getMessages: Benutzer #$currentUserId ist nicht an Chat #$chatId beteiligt");
+            echo json_encode(['success' => false, 'error' => 'Kein Zugriff']);
             return;
         }
 
@@ -154,7 +177,7 @@ class ChatController
      */
     public function sendMessage(): void
     {
-        $currentUserId = $_SESSION['user']['user_id'] ?? null;
+        $currentUserId = Auth::userId();
         $chatId = (int)Request::g('chat_id');
         $msg = trim(Request::g('msg'));
         if (!$chatId || !$currentUserId || $msg === '') {
@@ -195,7 +218,7 @@ class ChatController
      */
     public function declineChat(): void
     {
-        $currentUserId = $_SESSION['user']['user_id'] ?? null;
+        $currentUserId = Auth::userId();
         $chatId = (int)Request::g('chat_id');
         $chat = Chat::findById($chatId);
 
@@ -229,7 +252,7 @@ class ChatController
 
     public function getAllChats(): void
     {
-        $currentUserId = $_SESSION['user']['user_id'] ?? null;
+        $currentUserId = Auth::userId();
         if (!$currentUserId) {
             echo json_encode(['success' => false, 'error' => 'Not logged in']);
             return;
@@ -269,7 +292,7 @@ class ChatController
     public function showChat(): void
     {
         $chatId = (int)Request::g('chat_id');
-        $currentUserId = $_SESSION['user']['user_id'] ?? null;
+        $currentUserId = Auth::userId();
         $chat = Chat::findById($chatId, true); // Methode ohne deleted=0-Filter!
 
         if (!$chat) {

@@ -4,15 +4,36 @@ namespace App\Model;
 
 /**
  * Klasse zur Verwaltung von Locations (Orte) in der Datenbank.
+ *
+ * EIGENTUM GEHOERT IN DIE WHERE-KLAUSEL
+ * -------------------------------------
+ * Jedes Statement, das einen vorhandenen Standort aendert oder loescht,
+ * traegt die Bedingung `user_id = :user_id`. Vorher stand dort nur
+ * `WHERE id = :id`; ob der Standort dem Aufrufer gehoert, entschied allein
+ * der Controller. Das ist eine Prueflogik, die man beim Ergaenzen einer
+ * zweiten Aufrufstelle vergessen kann - und im Fall von
+ * LocationController::deleteLocation() war sie ueberhaupt nicht vorhanden.
+ * Steht die Bedingung im Statement, trifft ein fremder Standort schlicht
+ * keine Zeile.
+ *
+ * SPERRE STATT LOESCHUNG
+ * ----------------------
+ * Ein Standort kann von der Moderation (Recht location.block) gesperrt
+ * werden. Er verschwindet damit aus der Uebersicht der anderen Nutzer,
+ * bleibt aber beim Guide bestehen, der den Grund in seiner eigenen Liste
+ * sieht. Loeschen darf weiterhin nur der Eigentuemer.
  */
 class Location
 {
     private $id;
+    private $user_id;
     private $country;
     private $city;
     private $latitude;
     private $longitude;
     private $description;
+    private $blocked;
+    private $blocked_reason;
 
     /**
      * Lädt eine Location aus der Datenbank (falls ID > 0), sonst leeres Objekt.
@@ -34,12 +55,17 @@ class Location
                 $result = $stmt->fetch(\PDO::FETCH_ASSOC);
 
                 if ($result) {
-                    $this->id          = $result['id'];
-                    $this->country     = $result['country_name'];
-                    $this->city        = $result['city_name'];
-                    $this->latitude    = $result['latitude'];
-                    $this->longitude   = $result['longitude'];
-                    $this->description = $result['description'];
+                    $this->id             = $result['id'];
+                    // Eigentuemer mitladen: Ohne ihn liesse sich hier gar
+                    // nicht pruefen, wem der Standort gehoert.
+                    $this->user_id        = $result['user_id'] ?? null;
+                    $this->country        = $result['country_name'];
+                    $this->city           = $result['city_name'];
+                    $this->latitude       = $result['latitude'];
+                    $this->longitude      = $result['longitude'];
+                    $this->description    = $result['description'];
+                    $this->blocked        = (int)($result['blocked'] ?? 0);
+                    $this->blocked_reason = $result['blocked_reason'] ?? null;
                 } else {
                     throw new \Exception("Location mit ID {$in_id} nicht gefunden.");
                 }
@@ -107,22 +133,49 @@ class Location
     }
 
     /**
+     * Gehoert dieser Standort dem angegebenen Benutzer?
+     *
+     * @param int $in_user_id
+     * @return bool false auch dann, wenn der Standort gar nicht geladen ist
+     */
+    public function belongsToUser($in_user_id)
+    {
+        $owner = (int)$this->user_id;
+        $user  = (int)$in_user_id;
+        return $owner > 0 && $user > 0 && $owner === $user;
+    }
+
+    /**
      * Aktualisiert eine Location in der Datenbank.
+     *
+     * Der Eigentuemer ist Pflichtparameter und steht in der WHERE-Klausel.
+     * Ein fremder Standort trifft damit keine Zeile, auch wenn die Pruefung
+     * im Controller einmal ausbleibt.
+     *
+     * @param int $in_user_id Eigentuemer, in dessen Namen geaendert wird
      * @return bool
      */
-    public function updateLocation()
+    public function updateLocation($in_user_id)
     {
+        $user_id = (int)$in_user_id;
+        if ($user_id < 1 || (int)$this->id < 1) {
+            error_log('updateLocation: ohne Standort-ID oder ohne Benutzer aufgerufen.');
+            return false;
+        }
+
         try {
             $query = "UPDATE location SET
                         longitude   = :longitude,
                         latitude    = :latitude,
                         description = :description
-                           WHERE id = :id";
+                           WHERE id = :id
+                             AND user_id = :user_id";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt ->bindParam(':longitude'     , $this->longitude     );
             $stmt ->bindParam(':latitude'      , $this->latitude      );
             $stmt ->bindParam(':description'   , $this->description   );
             $stmt ->bindParam(':id'            , $this->id            );
+            $stmt ->bindParam(':user_id'       , $user_id             );
             $stmt->execute();
             return true;
         } catch (\PDOException $e) {
@@ -132,21 +185,101 @@ class Location
     }
 
     /**
-     * Löscht die Location aus der Datenbank.
-     * @return bool
+     * Loescht eine eigene Location aus der Datenbank.
+     *
+     * Beide Angaben sind Pflicht und stehen in der WHERE-Klausel. Der
+     * Rueckgabewert sagt, ob wirklich eine Zeile getroffen wurde - vorher
+     * meldete die Methode auch dann Erfolg, wenn gar nichts geloescht wurde,
+     * und der Aufrufer bekam ein "erledigt" fuer einen fremden Standort.
+     *
+     * @param int $in_id      Standort
+     * @param int $in_user_id Eigentuemer
+     * @return bool true, wenn genau dieser Standort dieses Benutzers geloescht wurde
      */
-    public function deleteLocation()
+    public function deleteLocation($in_id, $in_user_id)
     {
+        $id      = (int)$in_id;
+        $user_id = (int)$in_user_id;
+        if ($id < 1 || $user_id < 1) {
+            error_log('deleteLocation: ohne Standort-ID oder ohne Benutzer aufgerufen.');
+            return false;
+        }
+
         try {
-            $query = "DELETE FROM location WHERE id = :id";
+            $query = "DELETE FROM location WHERE id = :id AND user_id = :user_id";
             $stmt = PdoConnect::$connection->prepare($query);
-            $stmt->bindParam(':id', $this->id, \PDO::PARAM_INT);
+            $stmt->bindParam(':id'      , $id     , \PDO::PARAM_INT);
+            $stmt->bindParam(':user_id' , $user_id, \PDO::PARAM_INT);
             $stmt->execute();
-            return true;
+            return $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
             error_log('Fehler beim Löschen der Lokation: ' . $e->getMessage());
             return false;
         } 
+    }
+
+    /**
+     * Sperrt einen Standort (Moderation).
+     *
+     * Kein user_id in der Bedingung: Gesperrt werden gerade FREMDE Standorte.
+     * Wer das darf, entscheidet das Recht location.block in index.php.
+     *
+     * @param int    $in_id       Standort
+     * @param int    $in_admin_id Wer gesperrt hat (fuer die Nachvollziehbarkeit)
+     * @param string $in_reason   Grund, den der Guide zu sehen bekommt
+     * @return bool true, wenn ein Standort getroffen wurde
+     */
+    public function block($in_id, $in_admin_id, $in_reason)
+    {
+        $id       = (int)$in_id;
+        $admin_id = (int)$in_admin_id;
+        if ($id < 1 || $admin_id < 1) return false;
+
+        try {
+            $query = "UPDATE location SET
+                        blocked        = 1,
+                        blocked_reason = :reason,
+                        blocked_by     = :admin_id,
+                        blocked_at     = CURRENT_TIMESTAMP
+                      WHERE id = :id";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':reason'  , $in_reason);
+            $stmt->bindParam(':admin_id', $admin_id , \PDO::PARAM_INT);
+            $stmt->bindParam(':id'      , $id       , \PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Sperren der Lokation: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Hebt die Sperre eines Standorts auf.
+     *
+     * @param int $in_id
+     * @return bool true, wenn ein gesperrter Standort getroffen wurde
+     */
+    public function unblock($in_id)
+    {
+        $id = (int)$in_id;
+        if ($id < 1) return false;
+
+        try {
+            $query = "UPDATE location SET
+                        blocked        = 0,
+                        blocked_reason = NULL,
+                        blocked_by     = NULL,
+                        blocked_at     = NULL
+                      WHERE id = :id";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Freigeben der Lokation: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -166,21 +299,33 @@ class Location
     }
 
     /**
-     * Gibt alle gespeicherten Locations als Array zurück.
-     * @param int $in_user_id
+     * Gibt alle fremden Locations als Array zurück.
+     *
+     * Gesperrte Standorte bleiben aussen vor - das ist der Sinn der Sperre.
+     * Nur wer moderieren darf, bekommt sie mitgeliefert, sonst koennte er
+     * sie nicht wieder freigeben.
+     *
+     * @param int  $in_user_id      Eigene ID (die eigenen Standorte fehlen in dieser Liste)
+     * @param bool $in_with_blocked Gesperrte Standorte mitliefern (Recht location.block)
      * @return array
      */
-    public function selectAllLocations($in_user_id)
+    public function selectAllLocations($in_user_id, $in_with_blocked = false)
     {
+        // Die Bedingung wird nicht aus einem Parameter zusammengesetzt,
+        // sondern aus einem festen Textbaustein: In die Abfrage kommt nichts,
+        // was ein Aufrufer beeinflussen koennte.
+        $blocked_filter = $in_with_blocked ? '' : ' AND location.blocked = 0';
+
         try {
             $query = "SELECT user.id AS user_id, user.username, user.user_status, 
-                             country.country_name, city.city_name, 
-                             location.latitude, location.longitude, location.description
+                             country.country_name, city.city_name, location.id,
+                             location.latitude, location.longitude, location.description,
+                             location.blocked, location.blocked_reason
                       FROM location
                       LEFT JOIN user    ON location.user_id = user.id
                       LEFT JOIN city    ON location.city_id = city.id
                       LEFT JOIN country ON city.country_id = country.id
-                      WHERE user.id != :user_id";
+                      WHERE user.id != :user_id" . $blocked_filter;
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt ->bindParam(":user_id", $in_user_id);
             $stmt->execute();
@@ -201,7 +346,8 @@ class Location
         try {
             $query = "SELECT user.id AS user_id, user.username, user.user_status, 
                              country.country_name, city.city_name, location.id,
-                             location.latitude, location.longitude, location.description
+                             location.latitude, location.longitude, location.description,
+                             location.blocked, location.blocked_reason
                       FROM location
                       LEFT JOIN user    ON location.user_id = user.id
                       LEFT JOIN city    ON location.city_id = city.id
@@ -266,7 +412,10 @@ class Location
     public function setDescription($in_desc)    { $this->description = $in_desc; }
 
     // Getter 
-    public function getId()          { return $this->id; }
+    public function getId()            { return $this->id; }
+    public function getUserId()        { return $this->user_id; }
+    public function isBlocked()        { return (int)$this->blocked === 1; }
+    public function getBlockedReason() { return $this->blocked_reason; }
     public function getCountry()     { return $this->country; }
     public function getCity()        { return $this->city; }
     public function getLatitude()    { return $this->latitude; }

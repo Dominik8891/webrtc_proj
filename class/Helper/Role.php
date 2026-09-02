@@ -4,41 +4,70 @@ namespace App\Helper;
 /**
  * Zentrale Stelle für alles, was mit Benutzerrollen zu tun hat.
  *
- * Hintergrund (Befunde F-5/F-6 der Bestandsaufnahme): Die Tabelle `usertype`
- * kennt genau vier Namen - 'Admin', 'Guide', 'User', 'Trial' (database.sql).
- * An mehreren Stellen wurde stattdessen gegen kleingeschriebene Literale und
- * gegen ein nie existierendes 'tourist' verglichen. Diese Vergleiche konnten
- * nie zutreffen: Der Button "Neue Lokation hinzufügen" blieb für jede Rolle
- * unsichtbar und der Aufstieg Zuschauer -> Guide fand nie statt.
+ * ROLLEN UND IHRE NUMMERN
+ * -----------------------
+ * Die Nummern sind mit dem Umbau auf das Berechtigungssystem neu vergeben
+ * worden (Migration 005). Sie stehen so in `usertype.id`:
  *
- * Deshalb wird ab hier ausschließlich über die numerische `usertype.id`
- * entschieden. Namen aus der Datenbank oder aus Formularen werden von
- * self::id() vorher auf diese ID normalisiert - unabhängig von Groß- und
- * Kleinschreibung und unabhängig davon, ob die Rolle als int, als
- * Zahlenstring oder als Name ankommt (PDO liefert je nach Treiber-Einstellung
- * '1' statt 1, ein `=== 1` scheitert daran still).
+ *      0  Trial   frisch registriert, noch nichts weiter
+ *      1  User    Zuschauer
+ *      2  Guide   bietet Standorte an
+ *     10  Admin   Benutzerverwaltung und Moderation
  *
- * Wer eine Rollenprüfung braucht, benutzt eine der Prädikatsfunktionen. Neue
- * Vergleiche gegen Rollen-Strings gehören nicht mehr in den übrigen Code.
+ * Die Lücke zwischen 2 und 10 ist Absicht: Dort ist Platz für weitere
+ * Rollen, die nicht gleich Admin sein sollen (etwa eine reine
+ * Moderationsrolle). Weil die Nummern KEINE Rangfolge bilden, kostet das
+ * Einfügen einer neuen Rolle nichts weiter als einen Eintrag in dieser Liste
+ * und eine Zeile in App\Helper\Permission.
+ *
+ * KEINE RANGFOLGE, KEINE VERERBUNG
+ * --------------------------------
+ * Eine höhere Nummer bedeutet nicht "darf mehr". Ein Vergleich wie
+ * `$role_id <= 1` oder `$role_id > 2` ist deshalb immer falsch, auch wenn er
+ * für die heutige Nummernvergabe zufällig das Richtige täte. Genau solche
+ * Vergleiche waren die Befunde F-5/F-6 und die Fehler in UserController.
+ * tests/server_test.php verbietet sie dauerhaft: Vergleichsoperatoren auf
+ * Rollenwerten lassen die Prüfung fehlschlagen.
+ *
+ * Wer wissen will, ob jemand etwas darf, fragt App\Helper\Permission nach
+ * einem benannten Recht - nicht nach der Rolle.
+ *
+ * WARUM ÜBER DIE ID UND NICHT ÜBER DEN NAMEN ENTSCHIEDEN WIRD
+ * ----------------------------------------------------------
+ * Namen aus der Datenbank oder aus Formularen werden von self::id() vorher
+ * auf die ID normalisiert - unabhängig von Groß- und Kleinschreibung und
+ * unabhängig davon, ob die Rolle als int, als Zahlenstring oder als Name
+ * ankommt (PDO liefert je nach Treiber-Einstellung '1' statt 1, ein `=== 1`
+ * scheitert daran still).
  */
 class Role
 {
-    /** usertype.id laut database.sql */
-    public const ADMIN = 0;
-    public const GUIDE = 1;
-    public const USER  = 2;
-    public const TRIAL = 3;
+    /** usertype.id laut database.sql / Migration 005 */
+    public const TRIAL = 0;
+    public const USER  = 1;
+    public const GUIDE = 2;
+    public const ADMIN = 10;
 
     /**
      * Kanonische Schreibweise je ID, exakt wie in `usertype.name`.
-     * Reihenfolge = ID, damit die Liste beim Lesen mit der Tabelle abgleichbar bleibt.
+     * Diese Liste ist die einzige Aufzählung aller Rollen im PHP-Code.
      */
     private const NAMES = [
-        self::ADMIN => 'Admin',
-        self::GUIDE => 'Guide',
-        self::USER  => 'User',
         self::TRIAL => 'Trial',
+        self::USER  => 'User',
+        self::GUIDE => 'Guide',
+        self::ADMIN => 'Admin',
     ];
+
+    /**
+     * Alle bekannten Rollen-IDs.
+     *
+     * @return int[]
+     */
+    public static function all(): array
+    {
+        return array_keys(self::NAMES);
+    }
 
     /**
      * Normalisiert eine Rollenangabe auf die usertype.id.
@@ -87,6 +116,10 @@ class Role
 
     /**
      * Ist das die Guide-Rolle?
+     *
+     * Wird vom Signaling gebraucht, um die Rolle im Call zu vergeben - das
+     * ist keine Berechtigung, sondern die Frage "ist dieses Konto vor Ort".
+     *
      * @param mixed $role
      * @return bool
      */
@@ -97,6 +130,11 @@ class Role
 
     /**
      * Ist das die Admin-Rolle?
+     *
+     * Nur für Anzeigezwecke und Protokolleinträge gedacht. Für die Frage
+     * "darf dieser Nutzer X" ist Permission::has() zuständig, sonst wandert
+     * die Rechtevergabe wieder aus der Tabelle in den übrigen Code zurück.
+     *
      * @param mixed $role
      * @return bool
      */
@@ -109,19 +147,25 @@ class Role
      * Darf diese Rolle Standorte anbieten, also den Button
      * "Neue Lokation hinzufügen" sehen?
      *
+     * Die Antwort kommt aus der Rechtetabelle, damit es für die Frage nur
+     * eine Quelle gibt.
+     *
      * @param mixed $role
      * @return bool
      */
     public static function mayOfferLocation($role)
     {
-        $id = self::id($role);
-        return $id === self::ADMIN || $id === self::GUIDE;
+        return Permission::has($role, Permission::LOCATION_OFFER);
     }
 
     /**
-     * Ist das ein Zuschauerkonto, das durch das Anlegen eines Standorts zum
-     * Guide aufsteigt? Das betrifft 'User' und 'Trial' - beide bieten bislang
-     * keine Standorte an, und ein Standort ohne Guide-Rolle wäre nutzlos.
+     * Ist das ein Konto, das durch das Anlegen eines Standorts zum Guide
+     * aufsteigt? Das betrifft Trial und User - beide bieten bislang keine
+     * Standorte an, und ein Standort ohne Guide-Rolle wäre nutzlos.
+     *
+     * Das ist bewusst KEIN Recht, sondern ein Rollenwechsel: Die Frage
+     * lautet nicht "darf er etwas", sondern "welche Rolle bekommt er
+     * danach".
      *
      * @param mixed $role
      * @return bool
@@ -129,6 +173,6 @@ class Role
     public static function mayBecomeGuide($role)
     {
         $id = self::id($role);
-        return $id === self::USER || $id === self::TRIAL;
+        return $id === self::TRIAL || $id === self::USER;
     }
 }

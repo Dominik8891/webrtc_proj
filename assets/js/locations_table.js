@@ -82,7 +82,38 @@ window.webrtcApp.locationsTable = {
                 <button class="btn btn-danger delete-location-btn" data-locationid="${item.id}">Löschen</button>
             `;
         }
+        // Moderation: sperren statt löschen. Der Knopf erscheint nur, wenn der
+        // Server das Recht location.block mitgeschickt hat (window.userCan).
+        // Das ist reine Anzeige - entschieden wird die Berechtigung erneut in
+        // index.php, wenn die Route wirklich aufgerufen wird.
+        if (options.showActions.includes("block")) {
+            actionBtns += item.blocked == 1
+                ? `<button class="btn btn-secondary btn-sm unblock-location-btn" data-locationid="${item.id}">Freigeben</button>`
+                : `<button class="btn btn-outline-danger btn-sm block-location-btn" data-locationid="${item.id}">Sperren</button>`;
+        }
         return actionBtns;
+    },
+
+    /**
+     * Hinweis auf eine bestehende Sperre.
+     *
+     * Wird an die Beschreibung gehaengt, nicht in eine eigene Spalte: Die
+     * Spaltennummern in statusColumns() haengen an der Tabellenform, eine
+     * zusaetzliche Spalte muesste dort mitgepflegt werden.
+     *
+     * @param {Object} item
+     * @returns {string} HTML oder Leerstring
+     */
+    blockedNoticeHtml(item) {
+        if (item.blocked != 1) return '';
+        const reason = item.blocked_reason ? String(item.blocked_reason) : '';
+        const escaped = $('<div>').text(reason).html();
+        return `
+            <div class="mt-1">
+                <span class="badge bg-danger">Gesperrt</span>
+                ${escaped ? `<span class="small text-danger ms-1">${escaped}</span>` : ''}
+            </div>
+        `;
     },
 
     /**
@@ -111,6 +142,7 @@ window.webrtcApp.locationsTable = {
                 style="cursor:pointer;">
                 ${item.description}
             </span>
+            ${this.blockedNoticeHtml(item)}
         `;
 
         return `<tr data-locationid="${item.id}" data-status="${item.user_status ?? ''}">
@@ -504,6 +536,69 @@ window.webrtcApp.locationsTable = {
                     });
                 }
             });
+
+        // Sperren (Moderation). Der Grund ist Pflicht - der Guide bekommt
+        // genau diesen Text in seiner Standortliste angezeigt.
+        $(options.tableSelector)
+            .off('click', '.block-location-btn')
+            .on('click', '.block-location-btn', function() {
+                const locationId = $(this).data('locationid');
+                if (!locationId) return;
+
+                const reason = prompt("Warum soll dieser Standort gesperrt werden?\nDer Guide bekommt diesen Text zu sehen.");
+                if (reason === null) return;              // abgebrochen
+                if (!reason.trim()) {
+                    alert("Bitte einen Grund angeben.");
+                    return;
+                }
+
+                window.webrtcApp.locationsTable.moderate('index.php?act=block_location', {
+                    id: locationId,
+                    reason: reason.trim()
+                }, options);
+            });
+
+        // Freigeben
+        $(options.tableSelector)
+            .off('click', '.unblock-location-btn')
+            .on('click', '.unblock-location-btn', function() {
+                const locationId = $(this).data('locationid');
+                if (!locationId) return;
+                if (!confirm("Sperre für diesen Standort aufheben?")) return;
+
+                window.webrtcApp.locationsTable.moderate('index.php?act=unblock_location', {
+                    id: locationId
+                }, options);
+            });
+    },
+
+    /**
+     * Schickt eine Moderationsanfrage und laedt die Tabelle danach neu.
+     *
+     * @param {string} url - Ziel-Route
+     * @param {Object} data - Nutzdaten
+     * @param {Object} options - Optionen der aufrufenden Tabelle
+     */
+    moderate(url, data, options) {
+        const self = this;
+        $.ajax({
+            url: url,
+            method: 'POST',
+            data: data,
+            dataType: 'json',
+            success: function(response) {
+                if (response && response.success) {
+                    self.loadLocationsTable(options);
+                } else {
+                    alert('Fehler: ' + ((response && response.error) || 'Unbekannter Fehler'));
+                }
+            },
+            error: function(xhr) {
+                alert(xhr.status === 403
+                    ? 'Dafür fehlt Ihnen die Berechtigung.'
+                    : 'Die Aktion ist fehlgeschlagen.');
+            }
+        });
     },
 };
 
@@ -516,9 +611,15 @@ $(document).ready(function () {
     // den Optionen der Uebersicht (eine Spalte mehr) auf die Liste der eigenen
     // Standorte zu.
     if($('#locationsTable').length && !$('#myLocationsSection').length) {
+        // Wer moderieren darf, bekommt zusaetzlich Sperren/Freigeben. Die
+        // Angabe kommt vom Server (ViewHelper::output) und steuert nur die
+        // Anzeige; die Routen pruefen das Recht selbst.
+        const actions = (window.userCan && window.userCan.blockLocation)
+            ? ["call", "block"]
+            : ["call"];
         window.webrtcApp.locationsTable.bindEvents({
             onlyOwn: false,
-            showActions: ["call"],
+            showActions: actions,
             tableSelector: "#locationsTable"
         });
     }

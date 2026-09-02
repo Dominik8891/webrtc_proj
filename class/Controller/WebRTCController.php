@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Model\User;
 use App\Model\WebRTCHandler;
+use App\Helper\Auth;
 use App\Helper\Request;
 use App\Helper\Role;
 
@@ -40,7 +41,7 @@ class WebRTCController
                 $data = json_decode($input, true);
 
                 if (isset($data['type']) && isset($data['target'])) {
-                    $sender    = $_SESSION['user']['user_id'];
+                    $sender    = Auth::userId();
                     $type      = $data['type'];
                     $target    = $data['target'];
                     $sdp       = $data['sdp'] ?? null;
@@ -72,8 +73,8 @@ class WebRTCController
             }
 
             // GET oder sonst: Nachrichten abrufen (alle für diesen Empfänger)
-            if (isset($_SESSION['user']['user_id'])) {
-                $receiver = $_SESSION['user']['user_id'];
+            if (Auth::isLoggedIn()) {
+                $receiver = Auth::userId();
                 $rtc_handler = new WebRTCHandler();
                 $messages = $rtc_handler->getAllSignalsForReceiver($receiver);
 

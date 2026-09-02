@@ -17,7 +17,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 * **High-Security:** * Passwort-Hashing mit individuellem **Pepper**.
     * **Zwei-Faktor-Authentifizierung (2FA/TOTP)** inklusive QR-Code-Generierung.
     * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP.
-* **Rollen-System:** Berechtigungsmodell (Admin, Guide, User, Trial). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide bzw. Zuschauer — der Client kann sie sich nicht selbst geben.
+* **Rollen- und Rechtesystem:** Vier Rollen (Trial, User, Guide, Admin) mit **benannten Rechten ohne Vererbung und ohne Rangfolge**. Jede Route in `config/routes.php` trägt ihr Recht als Pflichtfeld; `index.php` prüft es, bevor der Controller läuft. Details unten unter [Berechtigungen](#-berechtigungen). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide bzw. Zuschauer — der Client kann sie sich nicht selbst geben.
 
 ---
 
@@ -36,6 +36,15 @@ composer install
 
 ### 1. Datenbank
 Importiere die mitgelieferte `database.sql` in deine MySQL-Instanz. Diese erstellt alle notwendigen Tabellen wie `user`, `location`, `rtc_signal` und `usertype`.
+
+**Bestehende Installationen** brauchen zusätzlich die Migrationen aus `migrations/`, der Reihe nach:
+
+```bash
+mariadb -u <user> -p <datenbank> < migrations/005_rollen_neu_nummeriert.sql
+mariadb -u <user> -p <datenbank> < migrations/006_location_sperre.sql
+```
+
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre. Beide sind idempotent und löschen nichts. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
 
 ### 2. Umgebungsvariablen (`.env`)
 Erstelle eine `.env`-Datei im Root-Verzeichnis und hinterlege deine Zugangsdaten:
@@ -217,6 +226,41 @@ erscheinen; sobald der Tab wieder sichtbar wird, meldet sich der Client
 sofort zurueck. Waehrend eines laufenden Calls tritt das nicht auf. Wer
 Guides dauerhaft im Hintergrund erreichbar halten will, erhoeht den
 `offline_timeout` auf mindestens 90 Sekunden.
+
+---
+
+## 🔐 Berechtigungen
+
+### Rollen
+
+| `usertype.id` | Rolle | Bedeutung |
+|---|---|---|
+| 0 | Trial | frisch registriert |
+| 1 | User | Zuschauer |
+| 2 | Guide | bietet Standorte an |
+| 10 | Admin | Benutzerverwaltung und Moderation |
+
+Die Nummern sind **Etiketten, keine Rangfolge**: Eine höhere Nummer bedeutet nicht "darf mehr". Die Lücke zwischen 2 und 10 ist Platz für weitere Rollen, die nicht gleich Admin sein sollen. Eine neue Rolle braucht genau zwei Einträge — einen in `usertype` und einen in `class/Helper/Permission.php`.
+
+### Rechte
+
+Geprüft wird nie eine Rolle, sondern immer ein **benanntes Recht** (`user.delete`, `location.block`, `chat.read`, …). Die vollständige Zuordnung steht in `class/Helper/Permission.php`; jede Rolle führt ihre Rechte selbst auf, es gibt **keine Vererbung**. Auch "nicht angemeldet" ist dort eine Rolle (`Permission::GUEST`) mit einer ausgeschriebenen Liste.
+
+### Durchsetzung
+
+Jeder Eintrag in `config/routes.php` hat vier Pflichtangaben:
+
+```php
+'delete_user' => [UserController::class, 'deleteUser', Permission::USER_DELETE, 'html'],
+```
+
+`index.php` prüft **die gesamte Tabelle** bei jedem Aufruf. Fehlt bei einer Route das Recht oder ist es unbekannt, antwortet die Anwendung gar nicht mehr, bis der Eintrag stimmt — eine Route ohne definiertes Recht ist ein Konfigurationsfehler, kein offener Zugang. Erst danach wird das Recht des Aufrufers geprüft: Seiten leiten zur Anmeldung, Schnittstellen antworten mit 401 bzw. 403 als JSON.
+
+Was eine Rechtetabelle nicht wissen kann, prüfen weiterhin die Controller **und die Datenbankabfrage**: Standorte ändern und löschen tragen `AND user_id = :user_id` in der WHERE-Klausel, Chatnachrichten setzen die Beteiligung am Chat voraus.
+
+### Moderation
+
+Ein Admin **löscht keine fremden Standorte, er sperrt sie** (Recht `location.block`). Der gesperrte Standort verschwindet aus der Übersicht der anderen Nutzer, bleibt aber beim Guide bestehen — in seiner eigenen Standortliste sieht er die Sperre samt Grund. Gelöscht wird nur vom Eigentümer.
 
 ---
 

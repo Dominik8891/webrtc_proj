@@ -12,6 +12,22 @@ SET time_zone = "+00:00";
 
 -- --------------------------------------------------------
 -- Tabelle: usertype
+--
+-- Die Nummern bilden KEINE Rangfolge. Sie sind Etiketten, mit denen die
+-- Rechtetabelle in class/Helper/Permission.php arbeitet; eine hoehere Nummer
+-- bedeutet nicht "darf mehr". Vergleiche wie type_id <= 1 sind deshalb immer
+-- falsch - tests/server_test.php verbietet sie im PHP-Code dauerhaft.
+--
+-- Die Luecke zwischen 2 und 10 ist Absicht: Dort ist Platz fuer weitere
+-- Rollen, die nicht gleich Admin sein sollen (etwa eine reine
+-- Moderationsrolle). Eine neue Rolle braucht einen Eintrag hier und einen in
+-- Permission.php - sonst nichts.
+--
+-- Bestehende Installationen bringt migrations/005_rollen_neu_nummeriert.sql
+-- auf diese Nummern. Die Reihenfolge der INSERTs ist nicht beliebig: Bei
+-- einer neuen Installation ist die Tabelle leer, INSERT IGNORE legt alle vier
+-- an; bei einer alten haelt IGNORE die vorhandenen Zeilen fest, und erst die
+-- Migration verschiebt sie.
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `usertype` (
   `id` int(11) NOT NULL,
@@ -20,10 +36,10 @@ CREATE TABLE IF NOT EXISTS `usertype` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT IGNORE INTO `usertype` (`id`, `name`) VALUES
-(0, 'Admin'),
-(1, 'Guide'),
-(2, 'User'),
-(3, 'Trial');
+( 0, 'Trial'),
+( 1, 'User'),
+( 2, 'Guide'),
+(10, 'Admin');
 
 -- --------------------------------------------------------
 -- Tabelle: country
@@ -331,7 +347,10 @@ CREATE TABLE IF NOT EXISTS `user` (
   -- `user_status` weiter unten.
   `status` tinyint(4) DEFAULT 1,
 
-  `type_id` int(11) DEFAULT 2,
+  -- Rolle des Kontos, siehe Tabelle usertype. Vorgabe ist Trial (0), die
+  -- Rolle direkt nach der Registrierung - denselben Wert setzt
+  -- User::create() ueber App\Helper\Role::TRIAL.
+  `type_id` int(11) DEFAULT 0,
   `email_verified` tinyint(1) DEFAULT 0,
 
   -- ACHTUNG: `last_aktive` wird vom Anwendungscode weder gelesen noch
@@ -393,8 +412,24 @@ CREATE TABLE IF NOT EXISTS `location` (
   `latitude` decimal(10,8) DEFAULT NULL,
   `longitude` decimal(11,8) DEFAULT NULL,
   `description` text DEFAULT NULL,
+
+  -- Moderation: Ein gesperrter Standort verschwindet aus der Uebersicht der
+  -- anderen Nutzer (Location::selectAllLocations filtert blocked = 0), bleibt
+  -- aber beim Guide stehen, der in seiner eigenen Liste den Grund sieht.
+  -- Geloescht wird nichts - das bleibt dem Eigentuemer vorbehalten.
+  -- Gesetzt von Location::block() / unblock(), Recht location.block.
+  `blocked` tinyint(1) NOT NULL DEFAULT 0,
+  `blocked_reason` varchar(255) DEFAULT NULL,
+
+  -- Wer gesperrt hat. Kein Fremdschluessel auf user(id): Wird das Konto des
+  -- Moderators geloescht, soll die Sperre bestehen bleiben.
+  `blocked_by` int(11) DEFAULT NULL,
+  `blocked_at` datetime DEFAULT NULL,
+
   PRIMARY KEY (`id`),
   KEY `city_id` (`city_id`),
+  -- Index auf blocked: Die Uebersicht filtert bei jedem Aufruf darueber.
+  KEY `blocked` (`blocked`),
   -- Index auf user_id: beide Abfragen in Location.php filtern darüber.
   KEY `user_id` (`user_id`),
   CONSTRAINT `location_ibfk_1` FOREIGN KEY (`city_id`) REFERENCES `city` (`id`) ON DELETE CASCADE,
