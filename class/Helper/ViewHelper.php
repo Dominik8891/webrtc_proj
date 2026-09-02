@@ -40,9 +40,12 @@ class ViewHelper
         $out = str_replace("###CONTENT###", $in_content, $out);
 
         // Standardlinks (nicht angemeldet)
-        $sign      = "<a href='index.php?act=signup_page' class='btn btn-success btn-sm'>Sign Up</a>";
+        // Gruen ist in dieser Anwendung das Zeichen fuer "ein Guide ist jetzt
+        // erreichbar" (siehe assets/css/theme.css). Deshalb traegt die
+        // Registrierung den Akzent und nicht die Live-Farbe.
+        $sign      = "<a href='index.php?act=signup_page' class='btn btn-primary btn-sm'>Registrieren</a>";
         $user_txt  = "";
-        $text      = "<a href='index.php?act=login_page' class='btn btn-outline-primary btn-sm'>Login</a>";
+        $text      = "<a href='index.php?act=login_page' class='btn btn-secondary btn-sm'>Anmelden</a>";
         $call      = "";
         $inner_call= "";
         $media     = "";
@@ -56,9 +59,12 @@ class ViewHelper
         if (Auth::isLoggedIn()) {
             $user = new User(Auth::userId());
             // Begrüßungstext mit Username (XSS-sicher)
-            $user_txt  = '<span class="fw-bold ms-2">Sie sind angemeldet als: <span class="text-primary">' . htmlspecialchars($user->getUsername()) . '</span></span>';
-            $text      = "<a href='index.php?act=logout' class='btn btn-outline-primary btn-sm'>Logout</a>";
-            $sign      = "<a href='index.php?act=list_user' class='btn btn-outline-primary btn-sm'>Benutzerliste</a>";
+            // Steht in der Kopfleiste (assets/html/index.html), deshalb kurz
+            // und ohne eigene Farbe - der Name ist eine Auskunft, keine Aktion.
+            $user_txt  = '<span class="app-topbar__user">Angemeldet als <strong>'
+                       . htmlspecialchars($user->getUsername()) . '</strong></span>';
+            $text      = "<a href='index.php?act=logout' class='btn btn-secondary btn-sm'>Abmelden</a>";
+            $sign      = "<a href='index.php?act=list_user' class='btn btn-secondary btn-sm'>Benutzerliste</a>";
             $logged_in = 'true';
 
             // Die Rolle kommt als usertype.id aus dem geladenen Benutzer und

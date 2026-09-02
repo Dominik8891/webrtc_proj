@@ -1,0 +1,714 @@
+/* ===========================================================================
+   theme.css - Das Erscheinungsbild der Anwendung an EINER Stelle.
+   ===========================================================================
+
+   WOZU DIESE DATEI
+   ----------------
+   Hier stehen Farben, Abstaende, Schriftgroessen, Rundungen und Schatten als
+   CSS-Variablen. Jede andere Datei benutzt diese Variablen und schreibt keine
+   eigenen Farbwerte mehr hin. Wer das Aussehen aendern will, aendert die Werte
+   im :root-Block ganz oben - nicht dreissig verstreute Stellen.
+
+   VERHAELTNIS ZU BOOTSTRAP
+   ------------------------
+   Bootstrap 5.3 bleibt eingebunden, es kommt keine neue Abhaengigkeit dazu.
+   Bootstrap legt seine Farben aber je Bauteil in eigenen Variablen ab
+   (--bs-btn-bg und so weiter), nicht global. Deshalb reicht es nicht, --bs-primary
+   zu ueberschreiben; weiter unten im Abschnitt "Bootstrap-Anbindung" werden die
+   Variablen der einzelnen Bauteile auf unsere Werte gelegt. Bestehendes Markup
+   mit Klassen wie .btn-primary oder .card sieht dadurch neu aus, ohne dass es
+   angefasst werden muss.
+
+   GESTALTUNGSABSICHT
+   ------------------
+   Werkzeug, nicht Werbeseite: ruhige Flaechen, wenig Farbe, klare Kanten,
+   Abstaende aus einer festen Reihe. Farbe ist ein Signal (verfuegbar, gesperrt,
+   Gefahr) und keine Dekoration.
+   =========================================================================== */
+
+:root {
+    /* --- Flaechen ------------------------------------------------------- */
+    /* Der Seitengrund ist leicht kuehl und nie reinweiss, damit sich weisse
+       Karten davon abheben, ohne dass es einen Rahmen dafuer braucht. */
+    --app-bg:              #f2f4f7;
+    --app-surface:         #ffffff;
+    --app-surface-sunken:  #f7f8fa;   /* Eingaben, Tabellenkopf, Codeflaechen */
+    --app-surface-raised:  #ffffff;   /* Menues, Popups                       */
+    --app-overlay:         rgba(19, 23, 30, 0.55);
+
+    /* --- Linien --------------------------------------------------------- */
+    --app-border:          #dfe3e8;
+    --app-border-strong:   #c4cbd4;
+
+    /* --- Text ----------------------------------------------------------- */
+    --app-text:            #1e2430;
+    --app-text-muted:      #5c6673;
+    --app-text-faint:      #8b95a3;
+    --app-text-on-accent:  #ffffff;
+
+    /* --- Akzent (Aktionen, Auswahl, Verweise) --------------------------- */
+    --app-accent:          #3c5bb8;
+    --app-accent-strong:   #2f4a9c;   /* Hover / gedrueckt */
+    --app-accent-soft:     #eaeffb;   /* Hinterlegung, aktiver Reiter */
+    --app-accent-ring:     rgba(60, 91, 184, 0.28);
+
+    /* --- Zustandsfarben -------------------------------------------------
+       "live" ist die wichtigste Farbe der Anwendung: ein Guide ist gerade
+       erreichbar. Sie wird nur dafuer benutzt. */
+    --app-live:            #1c8552;
+    --app-live-strong:     #146640;
+    --app-live-soft:       #e6f4ec;
+
+    --app-warn:            #9a6400;   /* Text auf heller Warnflaeche */
+    --app-warn-solid:      #f0b429;   /* gefuellte Warnflaeche, Nadel im Gespraech */
+    --app-warn-strong:     #dda31c;
+    --app-warn-ink:        #3d2c00;   /* Text auf gefuellter Warnflaeche */
+    --app-warn-soft:       #fdf3e0;
+
+    --app-danger:          #b3261e;
+    --app-danger-strong:   #8f1d17;
+    --app-danger-soft:     #fdecea;
+
+    /* Ruhend: angebotener Standort ohne aktiven Guide. Bewusst grau und
+       nicht rot - "gerade niemand da" ist kein Fehler. */
+    --app-idle:            #8b95a3;
+    --app-idle-soft:       #eceff3;
+
+    /* --- Schrift --------------------------------------------------------
+       Systemschriften: kein Webfont, keine zusaetzliche Ladezeit, und auf
+       jedem Betriebssystem die Schrift, die die Nutzer dort kennen. */
+    --app-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    --app-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+                     "Liberation Mono", monospace;
+
+    --app-text-xs:   0.75rem;    /* 12px - Hilfstexte, Etiketten   */
+    --app-text-sm:   0.8125rem;  /* 13px - Tabellen, Nebentexte    */
+    --app-text-base: 0.9375rem;  /* 15px - Fliesstext              */
+    --app-text-md:   1.0625rem;  /* 17px - kleine Ueberschriften   */
+    --app-text-lg:   1.375rem;   /* 22px - Seitenueberschrift      */
+    --app-text-xl:   1.75rem;    /* 28px - Startseite              */
+
+    --app-weight-normal: 400;
+    --app-weight-medium: 500;
+    --app-weight-bold:   600;    /* Es gibt bewusst kein 700: fett wirkt in
+                                    einer Werkzeugoberflaeche schnell laut. */
+
+    --app-leading-tight: 1.25;
+    --app-leading:       1.55;
+
+    /* --- Abstaende ------------------------------------------------------
+       Eine feste Reihe. Zwischenwerte gibt es nicht; wo 14px "besser passen"
+       wuerde, ist meist die Schachtelung schief. */
+    --app-space-1:  4px;
+    --app-space-2:  8px;
+    --app-space-3:  12px;
+    --app-space-4:  16px;
+    --app-space-5:  24px;
+    --app-space-6:  32px;
+    --app-space-7:  48px;
+    --app-space-8:  64px;
+
+    /* --- Rundungen ------------------------------------------------------ */
+    --app-radius-sm:   4px;
+    --app-radius:      8px;
+    --app-radius-lg:   12px;
+    --app-radius-pill: 999px;
+
+    /* --- Schatten -------------------------------------------------------
+       Sparsam und flach. Ein Schatten trennt Ebenen, er dekoriert nicht. */
+    --app-shadow-sm: 0 1px 2px rgba(19, 23, 30, 0.06);
+    --app-shadow:    0 2px 8px rgba(19, 23, 30, 0.08);
+    --app-shadow-lg: 0 8px 28px rgba(19, 23, 30, 0.16);
+
+    /* --- Kopfleiste ----------------------------------------------------- */
+    --app-topbar-height: 56px;
+
+    /* --- Bewegung ------------------------------------------------------- */
+    --app-transition: 120ms ease-out;
+
+    /* --- Ebenen ---------------------------------------------------------
+       Damit z-index-Werte nicht mehr geraten werden muessen. */
+    --app-z-map-ui:  400;   /* ueber Leaflet-Kacheln (Leaflet nutzt bis 400) */
+    --app-z-topbar:  900;
+    --app-z-overlay: 1000;
+}
+
+/* ===========================================================================
+   Grundlagen
+   =========================================================================== */
+
+html {
+    /* 1rem = 16px bleibt erhalten; die Schriftgroessen oben sind darauf bezogen. */
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    font-family: var(--app-font);
+    font-size: var(--app-text-base);
+    line-height: var(--app-leading);
+    color: var(--app-text);
+    background: var(--app-bg);
+    margin: 0;
+
+    /* Kopfleiste oben, Inhalt darunter - der Inhalt bekommt den Rest der
+       Hoehe. Damit kann eine Seite (die Karte) die Flaeche ausfuellen, ohne
+       die Hoehe der Kopfleiste kennen zu muessen: Die waechst auf schmalen
+       Geraeten auf zwei Zeilen, und eine Rechnung mit 100vh minus fester
+       Hoehe waere dort falsch. */
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;   /* auf Telefonen ohne die Adressleiste mitzuzaehlen */
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-weight: var(--app-weight-bold);
+    line-height: var(--app-leading-tight);
+    letter-spacing: -0.01em;
+    color: var(--app-text);
+    margin: 0 0 var(--app-space-3);
+}
+
+h1 { font-size: var(--app-text-xl); }
+h2 { font-size: var(--app-text-lg); }
+h3 { font-size: var(--app-text-md); }
+h4, h5, h6 { font-size: var(--app-text-base); }
+
+p { margin: 0 0 var(--app-space-3); }
+
+a {
+    color: var(--app-accent);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--app-accent-strong);
+    text-decoration: underline;
+}
+
+/* Sichtbarer Fokus, ueberall gleich. Wer mit der Tastatur bedient, muss
+   sehen, wo er steht - das gilt auch fuer Bootstrap-Bauteile, deren eigener
+   Fokusring weiter unten auf denselben Wert gelegt wird. */
+:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+}
+
+/* Hilfsklassen, die in eigenen Templates benutzt werden. Bewusst wenige. */
+.app-muted     { color: var(--app-text-muted); }
+.app-faint     { color: var(--app-text-faint); }
+.app-text-sm   { font-size: var(--app-text-sm); }
+.app-mono      { font-family: var(--app-font-mono); }
+
+/* Nur fuer Screenreader sichtbar. */
+.app-sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ===========================================================================
+   Anwendungsrahmen: Kopfleiste und Inhaltsbereich
+   =========================================================================== */
+
+.app-topbar {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    height: var(--app-topbar-height);
+    padding: 0 var(--app-space-5);
+    background: var(--app-surface);
+    border-bottom: 1px solid var(--app-border);
+    position: relative;
+    z-index: var(--app-z-topbar);
+}
+
+.app-topbar__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    font-size: var(--app-text-md);
+    font-weight: var(--app-weight-bold);
+    letter-spacing: -0.01em;
+    color: var(--app-text);
+    white-space: nowrap;
+}
+
+.app-topbar__brand:hover {
+    color: var(--app-text);
+    text-decoration: none;
+}
+
+/* Die Marke traegt ein kleines Zeichen statt eines Bildes: eine Datei
+   weniger, und es faerbt sich mit dem Akzent mit. */
+.app-topbar__mark {
+    width: 24px;
+    height: 24px;
+    border-radius: var(--app-radius-sm);
+    background: var(--app-accent);
+    color: var(--app-text-on-accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-bold);
+}
+
+.app-topbar__spacer { flex: 1 1 auto; }
+
+.app-topbar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* Der angemeldete Name gehoert in die Leiste, nicht in die Seitenmitte. */
+.app-topbar__user {
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+    white-space: nowrap;
+}
+
+.app-topbar__user strong {
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text);
+}
+
+@media (max-width: 700px) {
+    .app-topbar {
+        height: auto;
+        min-height: 48px;
+        padding: var(--app-space-2) var(--app-space-3);
+        gap: var(--app-space-2);
+    }
+    /* Der Name hat auf einem Telefon keinen Platz - er steht auch auf der
+       Kontoseite. */
+    .app-topbar__user { display: none; }
+    /* Die Aktionen bleiben in EINER Zeile und werden bei Bedarf geschoben.
+       Drei umgebrochene Knopfreihen haetten sonst die halbe Karte verdeckt.
+       Der Fuellraum entfaellt: Sonst begaenne die Zeile am rechten Rand und
+       die ersten Knoepfe waeren links abgeschnitten statt erreichbar. */
+    .app-topbar__brand { flex: none; }
+    .app-topbar__spacer { display: none; }
+    .app-topbar__actions {
+        flex-wrap: nowrap;
+        justify-content: flex-start;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .app-topbar__actions::-webkit-scrollbar { display: none; }
+    .app-topbar__actions > * { flex: none; }
+}
+
+/* Inhaltsbereich. Seiten bringen ihre eigenen Karten mit; dieser Bereich
+   sorgt nur fuer Breite und Aussenabstand. */
+.app-main {
+    padding: var(--app-space-5);
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.app-main--flush {
+    /* Fuer Seiten, die die Flaeche selbst ausfuellen - die Startseite mit der
+       Karte etwa. Gesetzt von der jeweiligen Seite. */
+    padding: 0;
+    display: flex;
+}
+
+.app-page {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.app-page--narrow { max-width: 480px; }
+.app-page--wide   { max-width: none; }
+
+/* Seitenkopf innerhalb des Inhaltsbereichs. */
+.app-page-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--app-space-4);
+    margin-bottom: var(--app-space-4);
+    flex-wrap: wrap;
+}
+
+.app-page-head__title { margin: 0; }
+
+.app-page-head__sub {
+    margin: var(--app-space-1) 0 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+/* ===========================================================================
+   Flaechenbauteile
+   =========================================================================== */
+
+/* Die Grundflaeche fuer Inhalte. Ersetzt die Kombination
+   "bg-white rounded shadow-sm p-4", die bisher in jedem Template stand. */
+.app-panel {
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-sm);
+}
+
+.app-panel__body { padding: var(--app-space-5); }
+
+.app-panel__head {
+    padding: var(--app-space-4) var(--app-space-5);
+    border-bottom: 1px solid var(--app-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-3);
+}
+
+/* Kleine Zustandsmarke: "Online", "Gesperrt", "3 Guides". */
+.app-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-1);
+    padding: 2px var(--app-space-2);
+    border-radius: var(--app-radius-pill);
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-medium);
+    line-height: 1.6;
+    background: var(--app-idle-soft);
+    color: var(--app-text-muted);
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.app-tag--live   { background: var(--app-live-soft);   color: var(--app-live-strong); }
+.app-tag--warn   { background: var(--app-warn-soft);   color: var(--app-warn); }
+.app-tag--danger { background: var(--app-danger-soft); color: var(--app-danger); }
+.app-tag--accent { background: var(--app-accent-soft); color: var(--app-accent-strong); }
+
+/* Punkt vor dem Text einer Marke. */
+.app-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+}
+
+/* Umschalter zwischen zwei gleichrangigen Ansichten (Karte / Liste).
+   Bewusst keine Reiter: es ist eine Einstellung, kein Seitenwechsel. */
+.app-switch {
+    display: inline-flex;
+    padding: 2px;
+    gap: 2px;
+    background: var(--app-surface-sunken);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+}
+
+.app-switch__item {
+    padding: var(--app-space-1) var(--app-space-3);
+    border-radius: var(--app-radius-sm);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text-muted);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    transition: background var(--app-transition), color var(--app-transition);
+}
+
+.app-switch__item:hover {
+    color: var(--app-text);
+    text-decoration: none;
+}
+
+.app-switch__item[aria-current="true"],
+.app-switch__item.is-active {
+    background: var(--app-surface);
+    color: var(--app-text);
+    box-shadow: var(--app-shadow-sm);
+}
+
+/* ===========================================================================
+   Bootstrap-Anbindung
+   ---------------------------------------------------------------------------
+   Bootstrap setzt die Farben seiner Bauteile in eigenen Variablen je Klasse.
+   Hier werden genau diese Variablen auf unsere Werte gelegt. Dadurch bleibt
+   bestehendes Markup unveraendert gueltig und sieht trotzdem neu aus.
+   =========================================================================== */
+
+:root {
+    --bs-body-font-family: var(--app-font);
+    --bs-body-font-size:   var(--app-text-base);
+    --bs-body-color:       var(--app-text);
+    --bs-body-bg:          var(--app-bg);
+    --bs-border-color:     var(--app-border);
+    --bs-border-radius:    var(--app-radius);
+    --bs-border-radius-sm: var(--app-radius-sm);
+    --bs-border-radius-lg: var(--app-radius-lg);
+    --bs-link-color:       var(--app-accent);
+    --bs-link-hover-color: var(--app-accent-strong);
+    --bs-primary:          var(--app-accent);
+    --bs-secondary-color:  var(--app-text-muted);
+    --bs-emphasis-color:   var(--app-text);
+}
+
+/* --- Schaltflaechen -------------------------------------------------------
+   Eine Hoehe, ein Radius, eine Schriftstaerke. Die Farbe unterscheidet nur
+   noch die Bedeutung. */
+.btn {
+    --bs-btn-padding-y: var(--app-space-2);
+    --bs-btn-padding-x: var(--app-space-4);
+    --bs-btn-font-size: var(--app-text-base);
+    --bs-btn-font-weight: var(--app-weight-medium);
+    --bs-btn-border-radius: var(--app-radius);
+    --bs-btn-focus-box-shadow: 0 0 0 3px var(--app-accent-ring);
+    line-height: 1.4;
+    transition: background-color var(--app-transition), border-color var(--app-transition), color var(--app-transition);
+}
+
+.btn-sm {
+    --bs-btn-padding-y: var(--app-space-1);
+    --bs-btn-padding-x: var(--app-space-3);
+    --bs-btn-font-size: var(--app-text-sm);
+    --bs-btn-border-radius: var(--app-radius-sm);
+}
+
+.btn-lg {
+    --bs-btn-padding-y: var(--app-space-3);
+    --bs-btn-padding-x: var(--app-space-5);
+    --bs-btn-font-size: var(--app-text-md);
+    --bs-btn-border-radius: var(--app-radius);
+}
+
+.btn-primary {
+    --bs-btn-bg:              var(--app-accent);
+    --bs-btn-border-color:    var(--app-accent);
+    --bs-btn-hover-bg:        var(--app-accent-strong);
+    --bs-btn-hover-border-color: var(--app-accent-strong);
+    --bs-btn-active-bg:       var(--app-accent-strong);
+    --bs-btn-active-border-color: var(--app-accent-strong);
+    --bs-btn-disabled-bg:     var(--app-accent);
+    --bs-btn-disabled-border-color: var(--app-accent);
+    --bs-btn-color:           var(--app-text-on-accent);
+    --bs-btn-hover-color:     var(--app-text-on-accent);
+    --bs-btn-active-color:    var(--app-text-on-accent);
+}
+
+/* "Erfolg" heisst in dieser Anwendung fast immer "jemand ist erreichbar,
+   ruf ihn an". Deshalb liegt darauf die Live-Farbe. */
+.btn-success {
+    --bs-btn-bg:              var(--app-live);
+    --bs-btn-border-color:    var(--app-live);
+    --bs-btn-hover-bg:        var(--app-live-strong);
+    --bs-btn-hover-border-color: var(--app-live-strong);
+    --bs-btn-active-bg:       var(--app-live-strong);
+    --bs-btn-active-border-color: var(--app-live-strong);
+    --bs-btn-disabled-bg:     var(--app-live);
+    --bs-btn-disabled-border-color: var(--app-live);
+}
+
+.btn-danger {
+    --bs-btn-bg:              var(--app-danger);
+    --bs-btn-border-color:    var(--app-danger);
+    --bs-btn-hover-bg:        var(--app-danger-strong);
+    --bs-btn-hover-border-color: var(--app-danger-strong);
+    --bs-btn-active-bg:       var(--app-danger-strong);
+    --bs-btn-active-border-color: var(--app-danger-strong);
+    --bs-btn-disabled-bg:     var(--app-danger);
+    --bs-btn-disabled-border-color: var(--app-danger);
+}
+
+.btn-warning {
+    --bs-btn-bg:              var(--app-warn-solid);
+    --bs-btn-border-color:    var(--app-warn-solid);
+    --bs-btn-hover-bg:        var(--app-warn-strong);
+    --bs-btn-hover-border-color: var(--app-warn-strong);
+    --bs-btn-color:           var(--app-warn-ink);
+    --bs-btn-hover-color:     var(--app-warn-ink);
+    --bs-btn-active-color:    var(--app-warn-ink);
+}
+
+/* Sekundaerknoepfe sind hell mit Kante - ein zweiter farbiger Knopf neben dem
+   Akzent wuerde die Rangfolge aufheben. */
+.btn-secondary,
+.btn-light,
+.btn-outline-secondary {
+    --bs-btn-bg:              var(--app-surface);
+    --bs-btn-border-color:    var(--app-border-strong);
+    --bs-btn-color:           var(--app-text);
+    --bs-btn-hover-bg:        var(--app-surface-sunken);
+    --bs-btn-hover-border-color: var(--app-border-strong);
+    --bs-btn-hover-color:     var(--app-text);
+    --bs-btn-active-bg:       var(--app-surface-sunken);
+    --bs-btn-active-border-color: var(--app-border-strong);
+    --bs-btn-active-color:    var(--app-text);
+}
+
+.btn-outline-primary {
+    --bs-btn-color:           var(--app-accent);
+    --bs-btn-border-color:    var(--app-border-strong);
+    --bs-btn-bg:              var(--app-surface);
+    --bs-btn-hover-bg:        var(--app-accent-soft);
+    --bs-btn-hover-border-color: var(--app-accent);
+    --bs-btn-hover-color:     var(--app-accent-strong);
+    --bs-btn-active-bg:       var(--app-accent-soft);
+    --bs-btn-active-border-color: var(--app-accent);
+    --bs-btn-active-color:    var(--app-accent-strong);
+}
+
+.btn-outline-danger {
+    --bs-btn-color:           var(--app-danger);
+    --bs-btn-border-color:    var(--app-border-strong);
+    --bs-btn-bg:              var(--app-surface);
+    --bs-btn-hover-bg:        var(--app-danger-soft);
+    --bs-btn-hover-border-color: var(--app-danger);
+    --bs-btn-hover-color:     var(--app-danger-strong);
+}
+
+.btn-link {
+    --bs-btn-color:       var(--app-accent);
+    --bs-btn-hover-color: var(--app-accent-strong);
+}
+
+/* --- Formulare ----------------------------------------------------------- */
+.form-control,
+.form-select {
+    border-color: var(--app-border-strong);
+    border-radius: var(--app-radius);
+    padding: var(--app-space-2) var(--app-space-3);
+    font-size: var(--app-text-base);
+    color: var(--app-text);
+    background-color: var(--app-surface);
+}
+
+.form-control::placeholder { color: var(--app-text-faint); }
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--app-accent);
+    box-shadow: 0 0 0 3px var(--app-accent-ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+    background-color: var(--app-surface-sunken);
+    color: var(--app-text-faint);
+}
+
+.form-label {
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text-muted);
+    margin-bottom: var(--app-space-1);
+}
+
+.form-check-input:checked {
+    background-color: var(--app-accent);
+    border-color: var(--app-accent);
+}
+
+.form-check-input:focus {
+    border-color: var(--app-accent);
+    box-shadow: 0 0 0 3px var(--app-accent-ring);
+}
+
+.input-group .form-control:focus { z-index: 3; }
+
+/* --- Karten, Tabellen, Meldungen ----------------------------------------- */
+.card {
+    --bs-card-bg: var(--app-surface);
+    --bs-card-border-color: var(--app-border);
+    --bs-card-border-radius: var(--app-radius-lg);
+    --bs-card-inner-border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow-sm);
+}
+
+.table {
+    --bs-table-color: var(--app-text);
+    --bs-table-border-color: var(--app-border);
+    --bs-table-striped-bg: var(--app-surface-sunken);
+    --bs-table-hover-bg: var(--app-accent-soft);
+    font-size: var(--app-text-sm);
+    vertical-align: middle;
+}
+
+.table > thead th {
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--app-text-muted);
+    background: var(--app-surface-sunken);
+    border-bottom-color: var(--app-border);
+}
+
+.alert {
+    --bs-alert-border-radius: var(--app-radius);
+    border-width: 1px;
+    font-size: var(--app-text-sm);
+}
+
+.alert-danger  { --bs-alert-bg: var(--app-danger-soft); --bs-alert-color: var(--app-danger-strong); --bs-alert-border-color: transparent; }
+.alert-warning { --bs-alert-bg: var(--app-warn-soft);   --bs-alert-color: var(--app-warn);          --bs-alert-border-color: transparent; }
+.alert-success { --bs-alert-bg: var(--app-live-soft);   --bs-alert-color: var(--app-live-strong);   --bs-alert-border-color: transparent; }
+.alert-info    { --bs-alert-bg: var(--app-accent-soft); --bs-alert-color: var(--app-accent-strong); --bs-alert-border-color: transparent; }
+
+.badge {
+    font-weight: var(--app-weight-medium);
+    border-radius: var(--app-radius-pill);
+    padding: 3px var(--app-space-2);
+}
+
+.modal-content {
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+}
+
+.modal-header,
+.modal-footer {
+    border-color: var(--app-border);
+    padding: var(--app-space-4) var(--app-space-5);
+}
+
+.modal-body { padding: var(--app-space-5); }
+
+/* DataTables benutzt eigene Bedienelemente. Sie sollen wie unsere aussehen. */
+.dataTables_wrapper .dataTables_filter input,
+.dataTables_wrapper .dataTables_length select {
+    border: 1px solid var(--app-border-strong);
+    border-radius: var(--app-radius);
+    padding: var(--app-space-1) var(--app-space-2);
+    font-size: var(--app-text-sm);
+    color: var(--app-text);
+}
+
+.dataTables_wrapper .dataTables_filter input:focus,
+.dataTables_wrapper .dataTables_length select:focus {
+    outline: none;
+    border-color: var(--app-accent);
+    box-shadow: 0 0 0 3px var(--app-accent-ring);
+}
+
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter {
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+    background: var(--app-accent-soft) !important;
+    border-color: var(--app-border) !important;
+    color: var(--app-accent-strong) !important;
+}

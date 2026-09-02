@@ -1,0 +1,162 @@
+<!--
+    Die Startseite.
+
+    Eingesetzt von App\Controller\SystemController::home() ueber
+    App\Helper\ViewHelper::output(). Gefuellt und gesteuert wird sie von
+    assets/js/home_map.js.
+
+    AUFBAU
+    ------
+    Die Karte ist der Einstieg, nicht eine Abbildung neben Knoepfen. Darauf
+    liegen zwei Arten von Nadeln:
+      - hervorgehoben: ein Guide ist gerade erreichbar, ein Klick fuehrt zum
+        Anruf;
+      - gedaempft: ein angebotener Standort, an dem gerade niemand ist. Er
+        bleibt sichtbar, damit die Karte auch dann zeigt, was es hier gibt,
+        wenn niemand online ist.
+
+    Gibt es ueberhaupt keine Standorte - oder ist der Betrachter noch nicht
+    angemeldet und darf die Liste deshalb nicht sehen -, tritt die
+    Erklaerflaeche weiter unten an ihre Stelle. Sie sagt, was das Produkt ist,
+    wie eine Fuehrung ablaeuft und wie man selbst Guide wird.
+
+    Die Texte stehen absichtlich hier und nicht in JavaScript: Wer sie aendern
+    will, soll sie in einer HTML-Datei finden.
+-->
+<div class="home" id="home">
+
+    <div class="home-bar">
+        <div>
+            <h1 class="home-bar__title">Wohin möchten Sie heute?</h1>
+            <p class="home-bar__sub">
+                Wählen Sie einen Ort auf der Karte. Ein Guide vor Ort nimmt Sie mit – live, und Sie sagen, wohin.
+            </p>
+        </div>
+
+        <div class="home-bar__right">
+            <!-- Zaehler. Wird von home_map.js gesetzt und bleibt bis dahin leer. -->
+            <div class="home-counts" id="home-counts" hidden>
+                <span class="app-tag app-tag--live" id="home-count-live">
+                    <span class="app-dot"></span><span data-count-text>—</span>
+                </span>
+                <span class="app-tag" id="home-count-idle">
+                    <span data-count-text>—</span>
+                </span>
+            </div>
+
+            <!-- Die Tabellenansicht bleibt gleichrangig erreichbar. -->
+            <div class="app-switch" role="group" aria-label="Ansicht">
+                <span class="app-switch__item" aria-current="true">Karte</span>
+                <a class="app-switch__item" id="home-to-table" href="index.php?act=show_locations_page">Liste</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="home-map-shell">
+        <div id="home-map" class="home-map" role="application" aria-label="Karte der angebotenen Standorte"></div>
+
+        <div class="home-loading" id="home-loading" hidden>Standorte werden geladen …</div>
+
+        <div class="home-legend" id="home-legend" hidden>
+            <div class="home-legend__row">
+                <span class="home-legend__key home-legend__key--live"></span>
+                <span>Guide jetzt verfügbar</span>
+            </div>
+            <div class="home-legend__row">
+                <span class="home-legend__key home-legend__key--busy"></span>
+                <span>Guide im Gespräch</span>
+            </div>
+            <div class="home-legend__row">
+                <span class="home-legend__key home-legend__key--idle"></span>
+                <span>Standort ohne Guide</span>
+            </div>
+        </div>
+
+        <!--
+            Erklaerflaeche. Genau einer der drei Zustaende ist sichtbar;
+            umgeschaltet wird ueber das Attribut data-state in home_map.js.
+        -->
+        <div class="home-state" id="home-state" hidden>
+            <div class="home-state__card">
+
+                <!-- Zustand: nicht angemeldet -->
+                <div data-state="guest" hidden>
+                    <p class="home-state__eyebrow">Live geführt statt vorbeigescrollt</p>
+                    <h2 class="home-state__title">Jemand geht für Sie los.</h2>
+                    <p class="home-state__lead">
+                        Wie eine Straßenansicht – nur in echt und in diesem Moment. Ein Mensch vor Ort
+                        überträgt sein Bild, Sie sagen ihm, wo es langgeht. Melden Sie sich an, um zu
+                        sehen, wer gerade unterwegs ist.
+                    </p>
+                </div>
+
+                <!-- Zustand: angemeldet, aber es gibt keinen einzigen Standort -->
+                <div data-state="empty" hidden>
+                    <p class="home-state__eyebrow">Noch nichts auf der Karte</p>
+                    <h2 class="home-state__title">Hier ist noch niemand unterwegs.</h2>
+                    <p class="home-state__lead">
+                        Es sind bislang keine Standorte eingetragen. So funktioniert es, sobald
+                        jemand einen anbietet – und Sie können der Erste sein.
+                    </p>
+                </div>
+
+                <!-- Zustand: die Standorte konnten nicht geladen werden -->
+                <div data-state="error" hidden>
+                    <p class="home-state__eyebrow">Karte nicht geladen</p>
+                    <h2 class="home-state__title">Die Standorte sind gerade nicht abrufbar.</h2>
+                    <p class="home-state__lead">
+                        Der Server hat nicht geantwortet. Das liegt meist an der Verbindung und ist
+                        nach einem erneuten Versuch behoben.
+                    </p>
+                </div>
+
+                <!-- Die drei Schritte einer Führung. Für alle Zustände gleich,
+                     deshalb nur einmal vorhanden. Beim Ladefehler ausgeblendet. -->
+                <ol class="home-steps" id="home-steps">
+                    <li>
+                        <span>
+                            <span class="home-steps__title">Ort wählen</span>
+                            <span class="home-steps__text">Auf der Karte sehen Sie, wo gerade ein Guide bereitsteht.</span>
+                        </span>
+                    </li>
+                    <li>
+                        <span>
+                            <span class="home-steps__title">Anrufen</span>
+                            <span class="home-steps__text">Ein Klick auf die Nadel startet das Gespräch. Ton und Bild kommen direkt von unterwegs.</span>
+                        </span>
+                    </li>
+                    <li>
+                        <span>
+                            <span class="home-steps__title">Führen</span>
+                            <span class="home-steps__text">Mit den Pfeiltasten geben Sie die Richtung vor. Der Guide hört und sieht Ihren Wunsch und geht dorthin.</span>
+                        </span>
+                    </li>
+                </ol>
+
+                <div class="home-state__actions" data-state="guest" hidden>
+                    <a class="btn btn-primary" href="index.php?act=signup_page">Konto anlegen</a>
+                    <a class="btn btn-secondary" href="index.php?act=login_page">Anmelden</a>
+                </div>
+
+                <div class="home-state__actions" data-state="empty" hidden>
+                    <a class="btn btn-primary" id="home-become-guide" href="index.php?act=guide_role_page">Guide werden</a>
+                    <a class="btn btn-secondary" href="index.php?act=show_locations_page">Zur Listenansicht</a>
+                </div>
+
+                <div class="home-state__actions" data-state="error" hidden>
+                    <button type="button" class="btn btn-primary" id="home-retry">Erneut versuchen</button>
+                </div>
+
+                <p class="home-state__foot" data-state="guest" hidden>
+                    Sie sind selbst irgendwo, das andere sehen wollen? Nach der Anmeldung können Sie
+                    Ihren Standort anbieten und Führungen geben.
+                </p>
+
+                <p class="home-state__foot" data-state="empty" hidden>
+                    Als Guide tragen Sie einen Ort ein, an dem Sie sich auskennen. Wenn Sie online
+                    sind, erscheint er hervorgehoben auf dieser Karte – und Sie werden angerufen.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>

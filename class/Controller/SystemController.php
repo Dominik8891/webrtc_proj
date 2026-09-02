@@ -44,12 +44,25 @@ class SystemController
     }
 
     /**
-     * Gibt die Startseite (Backend) oder das Chatfenster (Frontend), wenn der Benutzer eingeloggt ist.
+     * Gibt die Startseite aus.
+     *
+     * Der Einstieg ist die Karte (assets/html/home.html), nicht eine Seite mit
+     * Knoepfen: Das Produkt ist eine Fuehrung an einem Ort, also faengt es bei
+     * einem Ort an. Gefuellt wird die Karte im Browser von
+     * assets/js/home_map.js ueber die Route get_locations - dieselbe Quelle
+     * wie die Tabellenansicht.
+     *
+     * Die Seite ist bewusst auch fuer Gaeste erreichbar (Recht system.home).
+     * Die Standortliste bekommen sie nicht - dafuer fehlt ihnen location.list -
+     * , sondern die Erklaerflaeche der Vorlage.
+     *
      * @return void
      */
     public static function home(): void
     {
-        ViewHelper::output('');
+        $out = file_get_contents('assets/html/home.html');
+        ViewHelper::checkTemplate($out, 'assets/html/home.html');
+        ViewHelper::output($out);
     }
 
     /**

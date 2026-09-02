@@ -1,0 +1,491 @@
+/* ===========================================================================
+   home.css - Die Startseite: Karte als Einstieg.
+   ===========================================================================
+
+   Alle Werte kommen aus assets/css/theme.css. Hier stehen nur Anordnung und
+   die Bauteile, die es ausschliesslich auf der Startseite gibt: der
+   Kartenrahmen, die beiden Nadelarten und die Erklaerflaeche fuer den Fall,
+   dass es (noch) nichts zu zeigen gibt.
+   =========================================================================== */
+
+/* Die Startseite braucht die volle Breite und die volle Resthoehe: Der
+   Inhaltsbereich gibt seinen Aussenabstand ab (Klasse app-main--flush,
+   gesetzt von home_map.js), und die Seitenbreite wird hier aufgehoben. Die
+   Hoehe kommt aus dem Flexaufbau in theme.css - nicht aus einer Rechnung mit
+   der Hoehe der Kopfleiste, die auf schmalen Geraeten umbricht. */
+.app-main--flush > .app-page {
+    max-width: none;
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.home {
+    /* Die Karte ist die Seite, nicht ein Kaestchen darauf. */
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 420px;
+}
+
+/* --- Kopfzeile ueber der Karte -------------------------------------------- */
+.home-bar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--app-space-4);
+    padding: var(--app-space-4) var(--app-space-5);
+    background: var(--app-surface);
+    border-bottom: 1px solid var(--app-border);
+    flex-wrap: wrap;
+}
+
+.home-bar__title {
+    margin: 0;
+    font-size: var(--app-text-lg);
+}
+
+.home-bar__sub {
+    margin: var(--app-space-1) 0 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.home-bar__right {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+}
+
+/* Zaehler: wie viele Guides sind gerade da, wie viele Standorte gibt es
+   ueberhaupt. Das beantwortet die erste Frage vor jedem Klick. */
+.home-counts {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+}
+
+/* --- Kartenflaeche -------------------------------------------------------- */
+.home-map-shell {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;          /* sonst waechst die Karte aus dem Flexbereich */
+    background: var(--app-surface-sunken);
+}
+
+.home-map {
+    position: absolute;
+    inset: 0;
+    /* Die Karte selbst bringt keinen Rahmen mit - sie IST die Flaeche. */
+}
+
+/* Leaflet setzt eine eigene Schrift; hier auf unsere zurueckholen. */
+.home-map .leaflet-container {
+    font-family: var(--app-font);
+    font-size: var(--app-text-sm);
+    background: var(--app-surface-sunken);
+}
+
+/* Bedienelemente von Leaflet an unser Erscheinungsbild angleichen. */
+.home-map .leaflet-control-zoom a {
+    background: var(--app-surface);
+    color: var(--app-text);
+    border-color: var(--app-border);
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+    font-weight: var(--app-weight-medium);
+}
+
+.home-map .leaflet-control-zoom a:hover {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
+}
+
+.home-map .leaflet-bar {
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow);
+    border: 1px solid var(--app-border);
+    overflow: hidden;
+}
+
+.home-map .leaflet-control-attribution {
+    background: rgba(255, 255, 255, 0.86);
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+}
+
+/* --- Legende -------------------------------------------------------------- */
+.home-legend {
+    position: absolute;
+    left: var(--app-space-4);
+    bottom: var(--app-space-4);
+    z-index: var(--app-z-map-ui);
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-2);
+    padding: var(--app-space-3) var(--app-space-4);
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    box-shadow: var(--app-shadow);
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+}
+
+.home-legend__row {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+}
+
+.home-legend__key {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex: none;
+}
+
+.home-legend__key--live {
+    background: var(--app-live);
+    box-shadow: 0 0 0 3px var(--app-live-soft);
+}
+
+.home-legend__key--busy {
+    background: var(--app-surface);
+    border: 3px solid var(--app-warn-solid);
+}
+
+.home-legend__key--idle {
+    background: var(--app-surface);
+    border: 2px solid var(--app-idle);
+}
+
+/* Auf dem Telefon gehoert die Flaeche der Karte. Der erklaerende Untertitel
+   steht bereits im Leerzustand und im Gastzustand - hier kann er weg. */
+@media (max-width: 700px) {
+    .home-bar {
+        padding: var(--app-space-3);
+        gap: var(--app-space-2);
+        align-items: center;
+    }
+    .home-bar__title { font-size: var(--app-text-md); }
+    .home-bar__sub { display: none; }
+}
+
+@media (max-width: 700px) {
+    .home-legend {
+        left: var(--app-space-2);
+        bottom: var(--app-space-2);
+        padding: var(--app-space-2) var(--app-space-3);
+        font-size: var(--app-text-xs);
+    }
+}
+
+/* ===========================================================================
+   Die beiden Nadelarten
+   ---------------------------------------------------------------------------
+   Der ganze Sinn der Karte steckt in diesem Unterschied: Ein Guide, der
+   gerade da ist, ist gruen, gefuellt und hat einen Ring - er ist anklickbar.
+   Ein angebotener Standort ohne Guide ist grau, hohl und leiser. Beides ist
+   sichtbar, damit die Karte auch nachts um vier zeigt, was es hier gibt.
+   =========================================================================== */
+
+/* Leaflet setzt auf den divIcon-Container eigene Hintergruende - entfernen. */
+.home-pin-wrap {
+    background: none;
+    border: 0;
+}
+
+.home-pin {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+
+.home-pin__dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    transition: transform var(--app-transition);
+}
+
+/* Verfuegbar. */
+.home-pin--live .home-pin__dot {
+    width: 18px;
+    height: 18px;
+    background: var(--app-live);
+    border: 3px solid var(--app-surface);
+    box-shadow: var(--app-shadow);
+}
+
+/* Der Ring atmet langsam. Er ist der einzige bewegte Teil der Oberflaeche und
+   sagt genau eine Sache: hier ist jemand wach. */
+.home-pin--live .home-pin__pulse {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border-radius: 50%;
+    background: var(--app-live);
+    opacity: 0.35;
+    animation: home-pin-pulse 2.4s ease-out infinite;
+}
+
+@keyframes home-pin-pulse {
+    0%   { transform: scale(1);   opacity: 0.35; }
+    70%  { transform: scale(2.6); opacity: 0; }
+    100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* Wer Bewegtbild reduziert haben moechte, bekommt den Ring stehend - die
+   Nadel bleibt trotzdem als verfuegbar erkennbar (Farbe, Fuellung, Groesse). */
+@media (prefers-reduced-motion: reduce) {
+    .home-pin--live .home-pin__pulse {
+        animation: none;
+        transform: scale(1.9);
+        opacity: 0.18;
+    }
+}
+
+/* Angeboten, aber gerade niemand da. */
+.home-pin--idle .home-pin__dot {
+    width: 12px;
+    height: 12px;
+    background: var(--app-surface);
+    border: 2px solid var(--app-idle);
+    opacity: 0.85;
+}
+
+/* Im Gespraech: derselbe leise Auftritt wie ein ruhender Standort, aber in
+   der Warnfarbe - der Guide ist da, nur eben nicht frei. */
+.home-pin--busy .home-pin__dot {
+    width: 14px;
+    height: 14px;
+    background: var(--app-surface);
+    border: 3px solid var(--app-warn-solid);
+}
+
+.home-pin:hover .home-pin__dot {
+    transform: translate(-50%, -50%) scale(1.25);
+}
+
+/* ===========================================================================
+   Kartenfenster (Leaflet-Popup)
+   =========================================================================== */
+
+.home-map .leaflet-popup-content-wrapper {
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+    border: 1px solid var(--app-border);
+    padding: 0;
+}
+
+.home-map .leaflet-popup-content {
+    margin: 0;
+    width: 260px !important;
+    font-size: var(--app-text-sm);
+    line-height: var(--app-leading);
+}
+
+.home-map .leaflet-popup-tip {
+    border: 1px solid var(--app-border);
+}
+
+.home-map .leaflet-popup-close-button {
+    color: var(--app-text-faint);
+    padding: var(--app-space-2) var(--app-space-2) 0 0;
+}
+
+.home-popup { padding: var(--app-space-4); }
+
+.home-popup__place {
+    font-size: var(--app-text-md);
+    font-weight: var(--app-weight-bold);
+    color: var(--app-text);
+    margin: 0 0 2px;
+}
+
+.home-popup__country {
+    color: var(--app-text-muted);
+    font-size: var(--app-text-xs);
+    margin: 0 0 var(--app-space-3);
+}
+
+.home-popup__desc {
+    margin: 0 0 var(--app-space-3);
+    color: var(--app-text);
+}
+
+.home-popup__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    margin-bottom: var(--app-space-3);
+    flex-wrap: wrap;
+}
+
+.home-popup__guide {
+    font-size: var(--app-text-xs);
+    color: var(--app-text-muted);
+}
+
+.home-popup__action .btn { width: 100%; }
+
+/* Hinweis unter einer gedaempften Nadel: warum hier gerade nichts geht. */
+.home-popup__note {
+    margin: 0;
+    padding: var(--app-space-2) var(--app-space-3);
+    background: var(--app-surface-sunken);
+    border-radius: var(--app-radius);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-xs);
+}
+
+/* ===========================================================================
+   Erklaerflaeche: Leerzustand, Gastzustand, Ladefehler
+   ---------------------------------------------------------------------------
+   "Keine Einträge gefunden" ist keine Startseite. Wenn es nichts zu zeigen
+   gibt, erklaert die Seite statt dessen, was das Produkt ist, wie eine
+   Fuehrung ablaeuft und wie man selbst Guide wird.
+   =========================================================================== */
+
+.home-state {
+    position: absolute;
+    inset: 0;
+    z-index: var(--app-z-map-ui);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--app-space-5);
+    overflow-y: auto;
+    /* Die Karte bleibt als ruhiger Grund sichtbar, aber gedaempft: Sie ist im
+       Leerzustand Hintergrund und keine Bedienflaeche. */
+    background: rgba(242, 244, 247, 0.82);
+    backdrop-filter: blur(2px);
+}
+
+.home-state[hidden] { display: none; }
+
+.home-state__card {
+    width: 100%;
+    max-width: 560px;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+    padding: var(--app-space-6);
+}
+
+.home-state__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    margin: 0 0 var(--app-space-3);
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-medium);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--app-accent-strong);
+}
+
+.home-state__title {
+    margin: 0 0 var(--app-space-2);
+    font-size: var(--app-text-xl);
+}
+
+.home-state__lead {
+    margin: 0 0 var(--app-space-5);
+    color: var(--app-text-muted);
+}
+
+/* Die drei Schritte einer Fuehrung. Keine Bilder, keine Symbole aus einer
+   fremden Bibliothek - eine nummerierte Liste sagt dasselbe. */
+.home-steps {
+    list-style: none;
+    counter-reset: home-step;
+    margin: 0 0 var(--app-space-5);
+    padding: 0;
+    display: grid;
+    gap: var(--app-space-4);
+}
+
+.home-steps li {
+    counter-increment: home-step;
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: var(--app-space-3);
+    align-items: start;
+}
+
+.home-steps li::before {
+    content: counter(home-step);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--app-accent-soft);
+    color: var(--app-accent-strong);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-bold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.home-steps__title {
+    display: block;
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text);
+}
+
+.home-steps__text {
+    display: block;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.home-state__actions {
+    display: flex;
+    gap: var(--app-space-2);
+    flex-wrap: wrap;
+}
+
+.home-state__foot {
+    margin: var(--app-space-4) 0 0;
+    padding-top: var(--app-space-4);
+    border-top: 1px solid var(--app-border);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+@media (max-width: 700px) {
+    .home-state { padding: var(--app-space-3); }
+    .home-state__card { padding: var(--app-space-5); }
+}
+
+/* Ladehinweis: eine Zeile, kein Bauteil. Er steht nur die paar hundert
+   Millisekunden, die der Abruf dauert. */
+.home-loading {
+    position: absolute;
+    top: var(--app-space-4);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: var(--app-z-map-ui);
+    padding: var(--app-space-2) var(--app-space-4);
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-pill);
+    box-shadow: var(--app-shadow);
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+}
+
+.home-loading[hidden] { display: none; }

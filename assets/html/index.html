@@ -12,9 +12,14 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
 
-    <!--<link rel="stylesheet" href="assets/css/admin.css">-->
+    <!-- Eigene Gestaltung.
+         theme.css steht VOR den uebrigen eigenen Dateien: Dort liegen die
+         Variablen (Farben, Abstaende, Schrift) und die Anbindung an
+         Bootstrap. Alles Weitere benutzt nur noch diese Variablen. -->
+    <link rel="stylesheet" href="assets/css/theme.css">
     <link rel="stylesheet" href="assets/css/call.css">
     <link rel="stylesheet" href="assets/css/map.css">
+    <link rel="stylesheet" href="assets/css/home.css">
 
     <!-- JS-Bibliotheken -->
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -48,46 +53,49 @@
     <script src="assets/js/main.js"></script>
     <script src="assets/js/locations_table.js"></script>
     <script src="assets/js/map.js"></script>
+    <script src="assets/js/home_map.js"></script>
     <script src="assets/js/location_prompt.js"></script>
 
 </head>
-<body class="bg-light min-vh-100">
+<body>
     ###USERSTATUS###
-    <div class="container-fluid py-3">
-        <div class="d-flex justify-content-end align-items-center gap-2">
-            <a href="index.php?act=settings" id="settings" class="btn btn-outline-primary btn-sm " style="display: none;">Mein Account/Einstellungen</a>
-            <a href="index.php?act=get_all_chats" id="chats" class="btn btn-outline-primary btn-sm " style="display: none;">Alle Chats</a>
-        </div>
-    </div>
-    
-    <div class="container mb-3">
-        <div class="d-flex justify-content-center gap-3">
+
+    <!--
+        Kopfleiste. Eine Zeile fuer die ganze Anwendung: links, wo man ist,
+        rechts, was man tun kann. Die Platzhalter fuellt
+        App\Helper\ViewHelper::output().
+
+        Die IDs location-button, browse-locations-button, settings und chats
+        werden von assets/js/ui.js und assets/js/main.js gefuellt bzw. ein-
+        und ausgeblendet - sie muessen erhalten bleiben.
+    -->
+    <header class="app-topbar">
+        <!-- Name und Zeichen der Anwendung stehen an genau dieser Stelle.
+             Steht ein Produktname fest, wird er hier eingetragen - und nur
+             hier. -->
+        <a class="app-topbar__brand" href="index.php?act=home">
+            <span class="app-topbar__mark" aria-hidden="true">W</span>
+            <span>WebRTC-App</span>
+        </a>
+
+        <span class="app-topbar__spacer"></span>
+
+        <div class="app-topbar__actions">
+            ###USER###
             <div id="location-button"></div>
             <div id="browse-locations-button"></div>
+            <a href="index.php?act=settings" id="settings" class="btn btn-secondary btn-sm" style="display: none;">Mein Account</a>
+            <a href="index.php?act=get_all_chats" id="chats" class="btn btn-secondary btn-sm" style="display: none;">Alle Chats</a>
+            ###REGISTER###
+            ###LOGOUT###
         </div>
-    </div>
+    </header>
 
-    <div class="container">
-        <div class="row">
-            <div class="col-12 text-center my-4">
-                <h1 class="fw-bold">WebRTC-App</h1>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-12 d-flex justify-content-center mb-4">
-                <div class="nav-links">
-                    <div class="d-flex flex-column align-items-center gap-2">
-                        ###REGISTER###
-                        ###USER###
-                        ###LOGOUT###
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div id="admin-panel" class="p-4 bg-white rounded shadow-sm">
+    <main id="app-main" class="app-main">
+        <div id="admin-panel" class="app-page">
             ###CONTENT###
         </div>
-    </div>
+    </main>
 
     ###INNER_CALL_CONTROLL###
     ###CALL_CONTROLL###

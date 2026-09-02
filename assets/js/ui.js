@@ -36,7 +36,7 @@ window.webrtcApp.ui = {
                 target = 'index.php?act=guide_role_page';
             }
             if (text) {
-                locationButtonDiv.innerHTML = `<a href="${target}" class="btn btn-success text-light">${text}</a>`;
+                locationButtonDiv.innerHTML = `<a href="${target}" class="btn btn-primary btn-sm">${text}</a>`;
                 locationButtonDiv.style.display = '';
             } else {
                 locationButtonDiv.style.display = 'none';
@@ -54,7 +54,7 @@ window.webrtcApp.ui = {
         var browseLocationButtonDiv = document.getElementById('browse-locations-button');
         browseLocationButtonDiv.innerHTML = '';
         if (window.isLoggedIn) {
-            browseLocationButtonDiv.innerHTML = `<a href="index.php?act=show_locations_page" class="btn btn-primary text-light" style="margin-bottom:10px;">Alle Locations durchsuchen</a>`;
+            browseLocationButtonDiv.innerHTML = `<a href="index.php?act=show_locations_page" class="btn btn-secondary btn-sm">Alle Standorte</a>`;
             browseLocationButtonDiv.style.display = '';
         } else {
             browseLocationButtonDiv.style.display = 'none';
