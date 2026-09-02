@@ -140,15 +140,21 @@ class User
 
     /**
      * Speichert (erstellt oder aktualisiert) einen Benutzer.
-     * @return void
+     *
+     * Gibt zurueck, ob das geklappt hat. Vorher warf diese Methode das
+     * Ergebnis von update() bzw. create() weg und lieferte immer null - ein
+     * `if (!$user->save())` beim Aufrufer war damit stets wahr, und ein
+     * fehlgeschlagener Rollenwechsel haette wie ein erfolgreicher ausgesehen.
+     * Gebraucht wird die Antwort seit App\Model\GuideRole.
+     *
+     * @return bool true, wenn der Datensatz geschrieben wurde
      */
     public function save()
     {
         if ($this->id > 0) {
-            $this->update();
-        } else {
-            $this->create();
+            return $this->update();
         }
+        return $this->create() !== null;
     }
 
     /**

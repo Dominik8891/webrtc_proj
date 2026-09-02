@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS `usertype` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT IGNORE INTO `usertype` (`id`, `name`) VALUES
-( 0, 'Trial'),
-( 1, 'User'),
-( 2, 'Guide'),
+( 0, 'Trial'),   -- frisch registriert, Guide-Frage noch offen
+( 1, 'User'),    -- Zuschauer, hat sich gegen die Guide-Rolle entschieden
+( 2, 'Guide'),   -- bietet Standorte an, hat der Rolle zugestimmt
 (10, 'Admin');
 
 -- --------------------------------------------------------
@@ -350,6 +350,11 @@ CREATE TABLE IF NOT EXISTS `user` (
   -- Rolle des Kontos, siehe Tabelle usertype. Vorgabe ist Trial (0), die
   -- Rolle direkt nach der Registrierung - denselben Wert setzt
   -- User::create() ueber App\Helper\Role::TRIAL.
+  --
+  -- Trial heisst dabei "die Guide-Frage ist noch offen": Beim Login bekommt
+  -- ein solches Konto den Dialog aus assets/html/guide_role.html. Danach ist
+  -- es Guide (2) oder User (1) und wird nicht mehr gefragt. Wer der
+  -- Guide-Rolle zugestimmt hat, steht in guide_profile.
   `type_id` int(11) DEFAULT 0,
   `email_verified` tinyint(1) DEFAULT 0,
 
@@ -393,6 +398,58 @@ CREATE TABLE IF NOT EXISTS `user` (
   UNIQUE KEY `email` (`email`),
   KEY `type_id` (`type_id`),
   CONSTRAINT `user_ibfk_1` FOREIGN KEY (`type_id`) REFERENCES `usertype` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+-- Tabelle: guide_profile
+--
+-- Je ein Datensatz fuer jedes Konto, das der Guide-Rolle jemals zugestimmt
+-- hat. Geschrieben und gelesen ausschliesslich ueber App\Model\GuideRole -
+-- dieselbe Klasse ist auch die einzige Stelle, an der die Guide-Rolle
+-- vergeben oder zurueckgegeben wird.
+--
+-- WOZU DIE TABELLE UEBERHAUPT
+--   Guide zu sein ist eine bewusste Entscheidung, kein Nebeneffekt des
+--   Standortanlegens. Und kuenftig kostet jede Fuehrung Geld: Eine Abrechnung
+--   braucht den Zeitpunkt der Zustimmung, die Fassung der Bedingungen und den
+--   Beginn des Guide-Verhaeltnisses. Genau das steht hier.
+--
+-- WARUM NICHT ALS SPALTEN AN `user`
+--   User::update() schreibt alle Spalten von `user` bei jedem Speichern mit;
+--   ein Zustimmungsdatum waere dort nicht sicher vor der Benutzerverwaltung.
+--   Ausserdem haengen sich die spaeteren Abrechnungstabellen an
+--   guide_profile.user_id - `user` bleibt die Tabelle fuer das Konto, nicht
+--   fuer die Geschaeftsbeziehung.
+--
+-- Bestehende Installationen: migrations/007_guide_rolle.sql.
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `guide_profile` (
+
+  -- Konto, zu dem das Profil gehoert; zugleich Primaerschluessel. Wer die
+  -- Rolle abgibt und spaeter wieder annimmt, behaelt seine Zeile.
+  `user_id` int(11) NOT NULL,
+
+  -- Wann die Guide-Rolle zuletzt angenommen wurde. Beginn des Zeitraums, den
+  -- eine spaetere Abrechnung betrachtet.
+  `guide_since` datetime DEFAULT NULL,
+
+  -- Fassung der Guide-Bedingungen, der zugestimmt wurde; aktueller Stand in
+  -- App\Model\GuideRole::TERMS_VERSION. Steigt die Konstante, weil Fuehrungen
+  -- kostenpflichtig werden, gilt die alte Zustimmung nicht mehr und der
+  -- Dialog erscheint erneut - mit dem neuen Text.
+  `terms_version` int(11) NOT NULL DEFAULT 0,
+
+  -- Zeitpunkt eben dieser Zustimmung.
+  `terms_accepted_at` datetime DEFAULT NULL,
+
+  -- Wann die Rolle zurueckgegeben wurde, NULL bei einem aktiven Guide. Die
+  -- Zeile bleibt beim Widerruf stehen - ein beendetes Guide-Verhaeltnis muss
+  -- nachvollziehbar bleiben.
+  `resigned_at` datetime DEFAULT NULL,
+
+  PRIMARY KEY (`user_id`),
+  CONSTRAINT `guide_profile_ibfk_1` FOREIGN KEY (`user_id`)
+    REFERENCES `user` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------

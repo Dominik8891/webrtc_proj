@@ -582,14 +582,22 @@ function ackLastMove(status = 'executed', reason) {
             return btn().innerHTML;
         };
 
-        assert.ok(show(true, { offerLocation: true, becomeGuide: false })
-            .includes('Neue Lokation hinzuf'), 'Guide sieht den Anlege-Button');
+        const guide = show(true, { offerLocation: true, becomeGuide: false });
+        assert.ok(guide.includes('Neue Lokation hinzuf'), 'Guide sieht den Anlege-Button');
+        assert.ok(guide.includes('act=set_location_page'), 'und kommt zum Standortformular');
         assert.strictEqual(btn().style.display, '');
         ok('Guide und Admin sehen "Neue Lokation hinzufuegen"');
 
-        assert.ok(show(true, { offerLocation: false, becomeGuide: true })
-            .includes('Tour-Guide werden'), 'Zuschauer sieht den Aufstiegs-Button');
-        ok('Zuschauer sieht "Jetzt Tour-Guide werden!"');
+        // Die beiden Beschriftungen fuehren an verschiedene Stellen: Wer noch
+        // kein Guide ist, bekommt die FRAGE nach der Rolle und nicht das
+        // Standortformular. Frueher fuehrten beide zum Formular - und wer es
+        // ausfuellte, war anschliessend Guide, ohne je gefragt worden zu sein.
+        const zuschauer = show(true, { offerLocation: false, becomeGuide: true });
+        assert.ok(zuschauer.includes('Tour-Guide werden'), 'Zuschauer sieht den Aufstiegs-Button');
+        assert.ok(zuschauer.includes('act=guide_role_page'), 'und kommt zur Guide-Frage');
+        assert.ok(!zuschauer.includes('act=set_location_page'),
+            'ein Zuschauer kommt nicht mehr direkt an das Standortformular');
+        ok('Zuschauer sieht "Jetzt Tour-Guide werden!" und wird gefragt, nicht befoerdert');
 
         assert.strictEqual(show(true, { offerLocation: false, becomeGuide: false }), '');
         assert.strictEqual(btn().style.display, 'none');

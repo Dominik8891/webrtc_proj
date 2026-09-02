@@ -1,12 +1,10 @@
 <?php
 namespace App\Controller;
 
-use App\Model\User;
 use App\Model\Location;
 use App\Helper\Auth;
 use App\Helper\Permission;
 use App\Helper\Request;
-use App\Helper\Role;
 use App\Helper\ViewHelper;
 
 /**
@@ -39,8 +37,13 @@ class LocationController
     }
 
     /**
-     * Verarbeitet das Absenden des Location-Formulars.
-     * Setzt die Location, prüft die Eingaben und ändert ggf. den User-Typ.
+     * Verarbeitet das Absenden des Location-Formulars: prüft die Eingaben und
+     * legt den Standort an.
+     *
+     * Zugang: Recht location.create, geprüft in index.php - das haben nur
+     * Guide und Admin. Die Rolle ändert sich hier NICHT mehr; darüber
+     * entscheidet der Dialog in App\Controller\GuideController.
+     *
      * @return void
      */
     public function setLocation()
@@ -74,19 +77,17 @@ class LocationController
                 exit;
             }
 
-            // Aufstieg Zuschauer -> Guide. Das ist kein Recht, sondern ein
-            // Rollenwechsel: Wer einen Standort anbietet, ist ein Guide.
-            $user = new User($user_id);
-            if (Role::mayBecomeGuide($user->getRoleId())) {
-                $user->setRoleId(Role::GUIDE);
-                $user->save();
-
-                // Die Session traegt die Rolle mit; ohne Auffrischung wuerde
-                // der Nutzer bis zum naechsten Login weiter als Zuschauer
-                // gefuehrt.
-                Auth::refreshRole(Role::GUIDE);
-            }
-
+            // Hier stand frueher der stille Aufstieg Zuschauer -> Guide: Wer
+            // einen Standort anlegte, bekam die Guide-Rolle dazu, ohne je
+            // gefragt worden zu sein. Guide zu sein heisst aber, sich vor Ort
+            // von Fremden steuern zu lassen, und kuenftig haengt daran eine
+            // Abrechnung - das darf keine Nebenwirkung eines Formulars sein.
+            //
+            // Die Rolle wird jetzt im Dialog entschieden
+            // (App\Controller\GuideController, App\Model\GuideRole). Wer
+            // hier ankommt, ist bereits Guide: Das Recht location.create haben
+            // nur noch Guide und Admin, und index.php prueft es vor dem
+            // Aufruf dieser Methode.
             $location = new Location();
             $location->setCountry($country_id);
             $location->setCity($city);

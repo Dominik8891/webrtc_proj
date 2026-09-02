@@ -42,9 +42,10 @@ Importiere die mitgelieferte `database.sql` in deine MySQL-Instanz. Diese erstel
 ```bash
 mariadb -u <user> -p <datenbank> < migrations/005_rollen_neu_nummeriert.sql
 mariadb -u <user> -p <datenbank> < migrations/006_location_sperre.sql
+mariadb -u <user> -p <datenbank> < migrations/007_guide_rolle.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre. Beide sind idempotent und löschen nichts. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach. Alle drei sind idempotent und löschen nichts. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
 
 ### 2. Umgebungsvariablen (`.env`)
 Erstelle eine `.env`-Datei im Root-Verzeichnis und hinterlege deine Zugangsdaten:
@@ -235,9 +236,9 @@ Guides dauerhaft im Hintergrund erreichbar halten will, erhoeht den
 
 | `usertype.id` | Rolle | Bedeutung |
 |---|---|---|
-| 0 | Trial | frisch registriert |
-| 1 | User | Zuschauer |
-| 2 | Guide | bietet Standorte an |
+| 0 | Trial | frisch registriert, Guide-Frage noch offen |
+| 1 | User | Zuschauer, hat sich gegen die Guide-Rolle entschieden |
+| 2 | Guide | bietet Standorte an, hat der Rolle zugestimmt |
 | 10 | Admin | Benutzerverwaltung und Moderation |
 
 Die Nummern sind **Etiketten, keine Rangfolge**: Eine höhere Nummer bedeutet nicht "darf mehr". Die Lücke zwischen 2 und 10 ist Platz für weitere Rollen, die nicht gleich Admin sein sollen. Eine neue Rolle braucht genau zwei Einträge — einen in `usertype` und einen in `class/Helper/Permission.php`.
@@ -261,6 +262,20 @@ Was eine Rechtetabelle nicht wissen kann, prüfen weiterhin die Controller **und
 ### Moderation
 
 Ein Admin **löscht keine fremden Standorte, er sperrt sie** (Recht `location.block`). Der gesperrte Standort verschwindet aus der Übersicht der anderen Nutzer, bleibt aber beim Guide bestehen — in seiner eigenen Standortliste sieht er die Sperre samt Grund. Gelöscht wird nur vom Eigentümer.
+
+### Die Guide-Rolle
+
+Guide wird man **auf Nachfrage, nicht nebenbei**. Früher genügte das Anlegen eines Standorts, um die Rolle stillschweigend zu bekommen; heute erklärt ein Dialog, was die Rolle bedeutet — Standorte anbieten und sich vor Ort vom Zuschauer steuern lassen — und fragt danach.
+
+* **Gestellt** wird die Frage nach dem Login, solange die Rolle `Trial` ist (mit und ohne zweiten Faktor: `LoginController::continueAfterLogin`). Sie lässt sich mit *Später entscheiden* übergehen, dann kommt sie beim nächsten Login wieder.
+* **Geändert** wird die Entscheidung jederzeit unter *Mein Account/Einstellungen*. Zurückgeben lässt sich die Rolle nur ohne eigene Standorte — ein Standort ohne Guide wäre ein Angebot, das niemand einlösen kann.
+* **Vollzogen** wird jeder Rollenwechsel ausschließlich in `App\Model\GuideRole`. Wer zustimmt, bekommt eine Zeile in `guide_profile`: Zeitpunkt, Beginn und die Fassung der Bedingungen (`GuideRole::TERMS_VERSION`). Die Zeile bleibt beim Widerruf stehen.
+
+**Vorbereitung auf die Abrechnung.** Führungen sind heute kostenlos und werden es nicht bleiben. Vorbereitet ist dafür dreierlei — mehr bewusst nicht, es wird nichts berechnet und kein Preis gespeichert:
+
+1. `guide_profile` als eigene Tabelle. Die späteren Abrechnungstabellen hängen sich an `guide_profile.user_id`; `user` bleibt die Tabelle für das Konto, nicht für die Geschäftsbeziehung.
+2. `terms_version`. Wird die Konstante hochgezählt, weil Führungen kostenpflichtig werden, gilt jede ältere Zustimmung als überholt und der Dialog erscheint erneut — mit dem neuen Text. Wer wem wann zugestimmt hat, lässt sich nachträglich nicht mehr feststellen; deshalb steht es von Anfang an drin.
+3. `GuideRole::accept()` und `::resign()` als einzige Stellen des Rollenwechsels. Die Prüfungen, die später dazukommen (Auszahlungsdaten hinterlegt? Beträge offen?), gehören dorthin und sonst nirgendwohin.
 
 ---
 

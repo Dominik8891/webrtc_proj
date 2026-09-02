@@ -2,7 +2,9 @@
 namespace App\Controller;
 
 use App\Model\User;
+use App\Model\GuideRole;
 use App\Helper\Auth;
+use App\Helper\Permission;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 
@@ -91,20 +93,7 @@ class LoginController
             unset($_SESSION['login_attempts'][$username]);
             unset($_SESSION['login_blocked_until'][$username]);
 
-            // Die Standortabfrage galt bisher nur fuer role_id < 3 und liess
-            // damit ausgerechnet das Trial-Konto aussen vor, obwohl es sonst
-            // wie ein Zuschauerkonto behandelt wird. Sie wird jetzt jedem
-            // eingeloggten Nutzer einmal je Session angeboten - beantworten
-            // laesst sie sich weiterhin mit "Nein".
-            if (!isset($_SESSION['location_prompt_shown'])) {
-                $_SESSION['location_prompt_shown'] = true;
-                $html = file_get_contents('assets/html/location_prompt.html');
-                ViewHelper::output($html);
-                exit;
-            }
-
-            header("Location: index.php?act=home");
-            exit;
+            self::continueAfterLogin();
         } else {
             // Logging jedes Fehlversuchs
             error_log("Fehlgeschlagener Loginversuch für $username von IP $ip");
@@ -123,6 +112,56 @@ class LoginController
                 $this->outputLoginError("Benutzername oder Passwort falsch. Noch $rest Versuch(e).");
             }
         }
+    }
+
+    /**
+     * Was nach einer erfolgreichen Anmeldung passiert.
+     *
+     * Steht hier und nicht zweimal ausgeschrieben, weil es zwei Wege in die
+     * angemeldete Sitzung gibt: das Loginformular und - bei eingeschaltetem
+     * zweitem Faktor - TwoFactorController::handle2FAVerify. Der zweite Weg
+     * hatte die Standortabfrage bisher schlicht nicht; wer 2FA benutzte,
+     * wurde nie gefragt.
+     *
+     * Zwei Fragen, in dieser Reihenfolge:
+     *
+     *   1. DIE GUIDE-FRAGE, solange sie offen ist. Wer sie mit "Ja"
+     *      beantwortet, bekommt die Standortabfrage anschliessend vom
+     *      GuideController - er ist dann Guide, und erst dann ist seine
+     *      Position von Belang.
+     *
+     *   2. DIE STANDORTABFRAGE fuer alle uebrigen. Sie galt bisher fuer jeden
+     *      eingeloggten Nutzer; fuer einen Zuschauer ist die eigene Position
+     *      aber ohne Bedeutung - er sucht sich einen Standort auf der Karte
+     *      aus, er wird nicht gefunden. Wer gefragt wird, entscheidet deshalb
+     *      das Recht user.position, dieselbe Angabe, ueber die index.php auch
+     *      die Route save_location absichert.
+     *
+     * Beide Fragen kommen hoechstens einmal je Sitzung, und beide lassen sich
+     * uebergehen. Diese Methode kehrt nie zurueck.
+     *
+     * @return never
+     */
+    public static function continueAfterLogin(): void
+    {
+        if (!isset($_SESSION['guide_prompt_shown'])
+            && GuideRole::needsDecision(Auth::userId(), Auth::roleId())) {
+            $_SESSION['guide_prompt_shown'] = true;
+            (new GuideController())->showGuideRolePage();
+            exit;
+        }
+
+        if (Auth::can(Permission::USER_POSITION)
+            && !isset($_SESSION['location_prompt_shown'])) {
+            $_SESSION['location_prompt_shown'] = true;
+            $html = file_get_contents('assets/html/location_prompt.html');
+            ViewHelper::checkTemplate($html, 'assets/html/location_prompt.html');
+            ViewHelper::output($html);
+            exit;
+        }
+
+        header('Location: index.php?act=home');
+        exit;
     }
 
     /**

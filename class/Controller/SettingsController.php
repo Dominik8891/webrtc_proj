@@ -2,6 +2,8 @@
 namespace App\Controller;
 
 use App\Helper\Auth;
+use App\Helper\Permission;
+use App\Helper\Role;
 use App\Helper\ViewHelper;
 use App\Model\User;
 
@@ -32,6 +34,19 @@ class SettingsController
             $twofaBtn = "<a href='index.php?act=2fa_setup' class='btn btn-outline-primary btn-sm'>2FA einrichten</a>";
         }
 
+        // Guide-Rolle. Angezeigt wird die Rolle, geknuepft ist der Knopf an
+        // das Recht user.guide_role: Der Admin sieht seinen Status, aber
+        // keinen Knopf - er wuerde beim Wechsel seine Adminrechte verlieren.
+        // Der erklaerende Text steht auf der Dialogseite, nicht hier.
+        $isGuide     = Role::isGuide(Auth::roleId());
+        $guideStatus = $isGuide ? 'Aktiv' : 'Nicht aktiv';
+        $guideBtn    = '';
+        if (Auth::can(Permission::USER_GUIDE_ROLE)) {
+            $guideLabel = $isGuide ? 'Guide-Rolle ändern' : 'Guide werden';
+            $guideBtn   = "<a href='index.php?act=guide_role_page' class='btn btn-outline-primary btn-sm'>"
+                        . $guideLabel . '</a>';
+        }
+
         // E-Mail-Bestätigungsstatus (optional)
         $mailConfirmed = method_exists($user, 'getEmailVerified') ? ($user->getEmailVerified() ? 'Bestätigt' : 'Nicht bestätigt') : '';
 
@@ -50,6 +65,8 @@ class SettingsController
         $out = str_replace('###EMAIL###', $user->getEmail(), $out);
         $out = str_replace('###TWOFASTATUS###', $status2fa, $out);
         $out = str_replace('###TWOFABTN###', $twofaBtn, $out);
+        $out = str_replace('###GUIDESTATUS###', $guideStatus, $out);
+        $out = str_replace('###GUIDEBTN###', $guideBtn, $out);
         $out = str_replace('###MAILCONFIRM###', $mailConfirm, $out);
 
         ViewHelper::output($out);

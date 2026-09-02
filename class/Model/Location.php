@@ -364,6 +364,42 @@ class Location
     }
 
     /**
+     * Zaehlt die Standorte eines Benutzers.
+     *
+     * Gebraucht von App\Model\GuideRole: Wer die Guide-Rolle zurueckgeben
+     * will, darf keine Standorte mehr anbieten - ein Standort ohne Guide
+     * waere ein Angebot, das niemand einloesen kann.
+     *
+     * Bewusst COUNT und nicht count(selectAllLocationsOfOneUser()): Fuer die
+     * Frage "gibt es ueberhaupt welche" muessen weder Zeilen noch drei Joins
+     * geladen werden.
+     *
+     * Gesperrte Standorte zaehlen mit. Eine Sperre ist eine Massnahme der
+     * Moderation und keine Loeschung - der Datensatz gehoert weiterhin dem
+     * Guide.
+     *
+     * @param int $in_user_id
+     * @return int 0, wenn es keine gibt oder die Abfrage fehlschlaegt
+     */
+    public function countLocationsOfUser($in_user_id)
+    {
+        $user_id = (int)$in_user_id;
+        if ($user_id < 1) return 0;
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                "SELECT COUNT(*) FROM location WHERE user_id = :user_id"
+            );
+            $stmt->bindParam(':user_id', $user_id, \PDO::PARAM_INT);
+            $stmt->execute();
+            return (int)$stmt->fetchColumn();
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Zaehlen der User-Locations: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
      * Gibt die Stadt zurück, falls sie existiert.
      * @return array|false
      */

@@ -193,8 +193,11 @@ class TwoFactorController
             session_regenerate_id(true);
             Auth::establish($user);
             unset($_SESSION['2fa_userid']);
-            header("Location: index.php?act=home");
-            exit;
+            // Derselbe Abschluss wie beim Login ohne zweiten Faktor: erst die
+            // Guide-Frage, dann - fuer Guides - die Standortabfrage. Vorher
+            // ging es hier direkt zur Startseite, wer 2FA benutzte, wurde
+            // deshalb nie gefragt.
+            LoginController::continueAfterLogin();
         } else {
             $this->outputError("Ungültiger Code. Bitte erneut versuchen.");
         }

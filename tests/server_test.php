@@ -18,6 +18,7 @@ require_once $ROOT . '/class/Helper/Permission.php';
 require_once $ROOT . '/class/Controller/WebRTCController.php';
 require_once $ROOT . '/class/Controller/UserController.php';
 require_once $ROOT . '/class/Model/Location.php';
+require_once $ROOT . '/class/Model/GuideRole.php';
 
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
@@ -26,6 +27,7 @@ use App\Controller\TurnController;
 use App\Controller\WebRTCController;
 use App\Controller\UserController;
 use App\Model\Location;
+use App\Model\GuideRole;
 use App\Helper\Role;
 use App\Helper\Permission;
 
@@ -399,17 +401,73 @@ check(Permission::has(Role::ADMIN, Permission::LOCATION_BLOCK) === true, 'Admin 
 check(Permission::has(Role::GUIDE, Permission::LOCATION_BLOCK) === false, 'Guide sperrt nicht');
 ok('Moderation heisst sperren, nicht loeschen');
 
-// Standorte anbieten darf, wer schon Guide ist; anlegen darf sie jeder
-// Angemeldete - genau dieser Schritt macht aus einem Zuschauer einen Guide.
+// Standorte anbieten und anlegen darf, wer die Guide-Rolle angenommen hat.
+// Frueher durfte jeder Angemeldete anlegen, und genau dieser Schritt machte
+// aus einem Zuschauer stillschweigend einen Guide. Die Rolle ist jetzt eine
+// bewusste Entscheidung (App\Model\GuideRole) - wer sie nicht getroffen hat,
+// kommt gar nicht erst an das Standortformular.
 check(Role::mayOfferLocation(Role::GUIDE) === true , 'Guide bietet an');
 check(Role::mayOfferLocation(Role::ADMIN) === true , 'Admin bietet an');
 check(Role::mayOfferLocation(Role::USER)  === false, 'User noch nicht');
 check(Role::mayOfferLocation(Role::TRIAL) === false, 'Trial noch nicht');
-foreach ([Role::TRIAL, Role::USER, Role::GUIDE, Role::ADMIN] as $rolle) {
+foreach ([Role::GUIDE, Role::ADMIN] as $rolle) {
     check(Permission::has($rolle, Permission::LOCATION_CREATE) === true,
-        'jede angemeldete Rolle darf einen Standort anlegen');
+        'wer Standorte anbietet, darf auch welche anlegen');
 }
-ok('anbieten und anlegen sind zwei verschiedene Rechte');
+foreach ([Role::TRIAL, Role::USER, Permission::GUEST] as $rolle) {
+    check(Permission::has($rolle, Permission::LOCATION_CREATE) === false,
+        'ohne Guide-Rolle kein Standortformular');
+}
+ok('Standorte anlegen setzt die angenommene Guide-Rolle voraus');
+
+// ---------------------------------------------------------------------
+// Die Guide-Frage: wer sie beantworten darf und wer die eigene Position
+// melden soll.
+// ---------------------------------------------------------------------
+
+// Die eigene Position ist nur fuer den von Belang, der Standorte anbietet.
+// Ein Zuschauer sucht sich einen Standort auf der Karte aus, er wird nicht
+// gefunden - deshalb fragt der Login ihn nicht mehr danach
+// (LoginController::continueAfterLogin) und die Route save_location weist ihn
+// ab.
+foreach ([Role::GUIDE, Role::ADMIN] as $rolle) {
+    check(Permission::has($rolle, Permission::USER_POSITION) === true,
+        'wer Standorte anbietet, meldet seine Position');
+}
+foreach ([Role::TRIAL, Role::USER, Permission::GUEST] as $rolle) {
+    check(Permission::has($rolle, Permission::USER_POSITION) === false,
+        'ein Zuschauer wird nicht nach seiner Position gefragt');
+}
+check($routes['save_location'][2] === Permission::USER_POSITION,
+    'save_location haengt an genau diesem Recht');
+ok('nach der Position wird nur gefragt, wer Standorte anbietet');
+
+// Ueber die eigene Guide-Rolle entscheiden duerfen alle angemeldeten Rollen
+// ausser dem Admin: Er wuerde beim Annehmen der Guide-Rolle seine
+// Adminrechte verlieren.
+foreach ([Role::TRIAL, Role::USER, Role::GUIDE] as $rolle) {
+    check(Permission::has($rolle, Permission::USER_GUIDE_ROLE) === true,
+        'darf ueber die eigene Guide-Rolle entscheiden');
+}
+check(Permission::has(Role::ADMIN, Permission::USER_GUIDE_ROLE) === false,
+    'der Admin entmachtet sich nicht per Klick');
+check(Permission::has(Permission::GUEST, Permission::USER_GUIDE_ROLE) === false,
+    'ohne Anmeldung gibt es keine Rolle zu entscheiden');
+check($routes['guide_role_page'][2] === Permission::USER_GUIDE_ROLE, 'die Dialogseite haengt am Recht');
+check($routes['guide_role'][2]      === Permission::USER_GUIDE_ROLE, 'die Antwort haengt am Recht');
+ok('die Guide-Frage stellt sich jedem ausser dem Admin');
+
+// Trial heisst "Frage noch offen", User heisst "hat sich entschieden".
+// Beide haben dieselben Rechte - der Unterschied liegt allein darin, wem der
+// Dialog nach dem Login gezeigt wird.
+check(Role::isUndecided(Role::TRIAL) === true , 'Trial ist unentschieden');
+check(Role::isUndecided(Role::USER)  === false, 'User hat sich entschieden');
+check(Role::isUndecided(Role::GUIDE) === false, 'Guide hat sich entschieden');
+check(Role::isUndecided(Role::ADMIN) === false, 'der Admin steht ausserhalb');
+check(Role::isUndecided(null)        === false, 'unbekannt ist nicht unentschieden');
+check(Permission::rightsOf(Role::TRIAL) === Permission::rightsOf(Role::USER),
+    'Trial und User haben dieselben Rechte - der Unterschied ist die offene Frage');
+ok('Trial bedeutet "Guide-Frage noch offen"');
 
 // Unbekannte Rollen bekommen nichts - auch nicht die Gastrechte.
 foreach (Permission::allRights() as $recht) {
@@ -756,5 +814,173 @@ check(preg_match_all('/tableSelector\s*:\s*[\'"]#/', $js) === 0,
 check(preg_match_all('/[\'"]#(?:my)?locationsTable[\'"]/i', $js) === 2,
     'die beiden Selektoren stehen nur in TABLES');
 ok('jede Tabelle wird aus einer einzigen Konfiguration heraus geladen');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n11) Die Guide-Rolle wird angenommen, nicht vergeben\n");
+
+/**
+ * Attrappe fuer die drei Tabellen, die App\Model\GuideRole anfasst: `user`,
+ * `guide_profile` und die Anzahl der Standorte. Antwortet je nach Statement
+ * und schreibt alle abgesetzten mit.
+ */
+class FakeGuideStatement {
+    public $sql; public $params = []; private $db;
+    public function __construct($sql, $db) { $this->sql = $sql; $this->db = $db; }
+    public function bindParam($k, &$v, $type = null) { $this->params[$k] = $v; }
+    public function execute() { $this->db->ausgefuehrt[] = $this; return true; }
+    public function rowCount() { return 1; }
+    public function fetchColumn($i = 0) { return $this->db->standorte; }
+    public function fetchAll($mode = null) { return []; }
+    public function fetch($mode = null) {
+        if (strpos($this->sql, 'guide_profile') !== false) return $this->db->profil;
+        if (strpos($this->sql, 'FROM user')     !== false) return $this->db->benutzer;
+        return false;
+    }
+}
+class FakeGuideConnection {
+    public $ausgefuehrt = [];
+    public $benutzer;          // Zeile aus `user`
+    public $profil    = false; // Zeile aus `guide_profile` oder false
+    public $standorte = 0;     // COUNT(*) aus `location`
+    public function prepare($sql) { return new FakeGuideStatement($sql, $this); }
+    /** Alle abgesetzten Statements, die diesen Text enthalten. */
+    public function mit($teil) {
+        $treffer = [];
+        foreach ($this->ausgefuehrt as $stmt) {
+            if (strpos($stmt->sql, $teil) !== false) $treffer[] = $stmt;
+        }
+        return $treffer;
+    }
+}
+
+$gdb = new FakeGuideConnection();
+PdoConnect::$connection = $gdb;
+
+// --- Wem wird die Frage gestellt ---------------------------------------
+// Trial heisst "noch nicht entschieden" - ohne jeden Datenbankzugriff.
+$gdb->ausgefuehrt = [];
+check(GuideRole::needsDecision(5, Role::TRIAL) === true, 'Trial wird gefragt');
+check(count($gdb->ausgefuehrt) === 0, 'fuer Trial braucht es keine Abfrage');
+
+// User hat sich entschieden und wird nicht wieder gefragt.
+check(GuideRole::needsDecision(5, Role::USER)  === false, 'User wird nicht wieder gefragt');
+check(GuideRole::needsDecision(5, Role::ADMIN) === false, 'der Admin steht ausserhalb');
+check(GuideRole::needsDecision(0, Role::TRIAL) === false, 'ohne Benutzer keine Frage');
+ok('gefragt wird, wessen Entscheidung noch aussteht');
+
+// Ein Guide mit gueltiger Zustimmung wird in Ruhe gelassen.
+$gdb->profil = ['user_id' => 5, 'guide_since' => '2026-01-01 00:00:00',
+                'terms_version' => GuideRole::TERMS_VERSION,
+                'terms_accepted_at' => '2026-01-01 00:00:00', 'resigned_at' => null];
+check(GuideRole::needsDecision(5, Role::GUIDE) === false, 'zugestimmt ist zugestimmt');
+
+// Der Hebel fuer die spaetere Abrechnung: Wer einer aelteren Fassung
+// zugestimmt hat, bekommt den Dialog erneut. Genau darueber laeuft spaeter
+// die Zustimmung zu kostenpflichtigen Fuehrungen.
+$gdb->profil['terms_version'] = GuideRole::TERMS_VERSION - 1;
+check(GuideRole::needsDecision(5, Role::GUIDE) === true, 'alte Fassung wird erneut vorgelegt');
+
+// Ein Guide ohne Profil hat nie zugestimmt (Rolle von Hand gesetzt).
+$gdb->profil = false;
+check(GuideRole::needsDecision(5, Role::GUIDE) === true, 'ohne Zustimmung wird gefragt');
+ok('eine neue Fassung der Bedingungen legt die Frage erneut vor');
+
+// --- Annehmen -----------------------------------------------------------
+$gdb->benutzer   = fakeUser(5, Role::USER);
+$gdb->profil     = false;
+$gdb->ausgefuehrt = [];
+check(GuideRole::accept(5, Role::USER) === true, 'ein Zuschauer nimmt die Rolle an');
+
+$zustimmung = $gdb->mit('INSERT INTO guide_profile');
+check(count($zustimmung) === 1, 'die Zustimmung wird genau einmal festgehalten');
+check((int)$zustimmung[0]->params[':version'] === GuideRole::TERMS_VERSION,
+    'festgehalten wird die Fassung, die im Dialog stand');
+check(strpos($zustimmung[0]->sql, 'terms_accepted_at') !== false, 'mit Zeitpunkt');
+check(strpos($zustimmung[0]->sql, 'guide_since')       !== false, 'mit Beginn');
+check(strpos($zustimmung[0]->sql, 'resigned_at       = NULL') !== false,
+    'ein Wiedereinstieg loescht den Widerruf');
+
+$rolle = $gdb->mit('UPDATE user SET');
+check(count($rolle) === 1, 'die Rolle wird genau einmal geschrieben');
+check((int)$rolle[0]->params[':type_id'] === Role::GUIDE, 'und zwar auf Guide');
+ok('annehmen heisst: Zustimmung festhalten UND Rolle setzen');
+
+// Der Admin kommt hier nicht durch - er wuerde seine Adminrechte verlieren.
+$gdb->ausgefuehrt = [];
+check(GuideRole::accept(5, Role::ADMIN) === false, 'der Admin wird nicht zum Guide');
+check($gdb->mit('UPDATE user SET') === [], 'und seine Rolle bleibt unangetastet');
+ok('ein Klick entmachtet keinen Admin');
+
+// --- Zurueckgeben -------------------------------------------------------
+// Mit Standorten geht es nicht: Ein Standort ohne Guide waere ein Angebot,
+// das niemand einloesen kann.
+$gdb->benutzer    = fakeUser(5, Role::GUIDE);
+$gdb->standorte   = 2;
+$gdb->ausgefuehrt = [];
+check(GuideRole::hasLocations(5) === true, 'die Standorte werden gezaehlt');
+check(GuideRole::resign(5, Role::GUIDE) === false, 'mit Standorten kein Widerruf');
+check($gdb->mit('UPDATE user SET') === [], 'die Rolle bleibt stehen');
+check($gdb->mit('DELETE') === [], 'und geloescht wird nichts');
+ok('wer noch Standorte anbietet, bleibt Guide');
+
+// Ohne Standorte klappt es, und das Profil bleibt als Beleg stehen.
+$gdb->standorte   = 0;
+$gdb->ausgefuehrt = [];
+check(GuideRole::resign(5, Role::GUIDE) === true, 'ohne Standorte geht der Widerruf');
+$rolle = $gdb->mit('UPDATE user SET');
+check(count($rolle) === 1 && (int)$rolle[0]->params[':type_id'] === Role::USER,
+    'aus dem Guide wird wieder ein Zuschauer');
+check(count($gdb->mit('resigned_at = CURRENT_TIMESTAMP')) === 1, 'mit Zeitpunkt vermerkt');
+check($gdb->mit('DELETE FROM guide_profile') === [],
+    'die Zustimmung von damals wird nicht geloescht');
+ok('der Widerruf wird vermerkt, nicht weggeraeumt');
+
+// Wer gar kein Guide ist, kann auch nichts zurueckgeben.
+$gdb->ausgefuehrt = [];
+check(GuideRole::resign(5, Role::USER) === false, 'ein Zuschauer gibt nichts zurueck');
+check($gdb->mit('UPDATE user SET') === [], 'ohne Schreibzugriff');
+ok('zurueckgeben kann nur, wer die Rolle hat');
+
+// --- Die Zaehlung selbst ------------------------------------------------
+$gdb->ausgefuehrt = [];
+$gdb->standorte   = 3;
+check((new Location())->countLocationsOfUser(5) === 3, 'COUNT wird durchgereicht');
+$zaehlung = $gdb->mit('SELECT COUNT(*) FROM location');
+check(count($zaehlung) === 1, 'gezaehlt wird in der Datenbank, nicht im PHP');
+check(strpos($zaehlung[0]->sql, 'user_id = :user_id') !== false, 'auf den Eigentuemer begrenzt');
+$gdb->ausgefuehrt = [];
+check((new Location())->countLocationsOfUser(0) === 0, 'ohne Benutzer null');
+check(count($gdb->ausgefuehrt) === 0, 'und ohne Abfrage');
+ok('die Standortzahl kommt aus einem COUNT auf den Eigentuemer');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n12) Jeder Platzhalter im Template wird auch gefuellt\n");
+
+/**
+ * Sammelt die ###PLATZHALTER### einer Vorlage.
+ *
+ * @param string $datei
+ * @return string[]
+ */
+function platzhalter($datei) {
+    preg_match_all('/###[A-Z_]+###/', file_get_contents($datei), $treffer);
+    return array_values(array_unique($treffer[0]));
+}
+
+// Ein Platzhalter, den niemand ersetzt, steht als ###GUIDEBTN### auf der
+// Seite - sichtbar fuer jeden Benutzer. Geprueft werden die beiden Vorlagen
+// dieses Umbaus gegen ihren Controller.
+$vorlagen = [
+    'assets/html/guide_role.html' => 'class/Controller/GuideController.php',
+    'assets/html/settings.html'   => 'class/Controller/SettingsController.php',
+];
+foreach ($vorlagen as $vorlage => $controller) {
+    $code = file_get_contents($ROOT . '/' . $controller);
+    foreach (platzhalter($ROOT . '/' . $vorlage) as $marke) {
+        check(strpos($code, $marke) !== false,
+            "$marke aus $vorlage wird in $controller nicht ersetzt");
+    }
+}
+ok('guide_role.html und settings.html haben keinen unbesetzten Platzhalter');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

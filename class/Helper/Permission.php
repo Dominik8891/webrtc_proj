@@ -75,8 +75,28 @@ class Permission
     public const USER_PRESENCE = 'user.presence';
     /** Benutzernamen zu einer ID nachschlagen. */
     public const USER_READ_NAME = 'user.read_name';
-    /** Eigene Koordinaten übermitteln. */
+    /**
+     * Eigene Koordinaten übermitteln.
+     *
+     * Nur für Rollen, die Standorte anbieten. Für einen Zuschauer ist die
+     * eigene Position ohne Bedeutung - er sucht sich einen Standort auf der
+     * Karte aus, er wird nicht gefunden. Deshalb fragt der Login sie auch
+     * nicht mehr bei jedem ab, sondern nur noch bei denen, die dieses Recht
+     * haben (LoginController::continueAfterLogin).
+     */
     public const USER_POSITION = 'user.position';
+
+    /**
+     * Über die eigene Guide-Rolle entscheiden.
+     *
+     * Kein Recht auf eine Fähigkeit, sondern der Zugang zu genau einer Frage:
+     * "möchtest du Guide werden?". Wer sie beantworten darf, ist damit auch
+     * derjenige, dem sie beim Login gestellt wird.
+     *
+     * Der Admin hat dieses Recht bewusst NICHT: Er würde beim Annehmen der
+     * Guide-Rolle seine Adminrechte verlieren.
+     */
+    public const USER_GUIDE_ROLE = 'user.guide_role';
 
     /** Standortübersicht aufrufen. */
     public const LOCATION_PAGE = 'location.page';
@@ -89,8 +109,11 @@ class Permission
     /**
      * Einen Standort anlegen.
      *
-     * Das darf auch, wer noch kein Guide ist: Genau dieser Schritt macht aus
-     * einem Zuschauer einen Guide (LocationController::setLocation).
+     * Nur für Guides. Früher durfte das jeder Angemeldete, und genau dieser
+     * Schritt machte aus einem Zuschauer stillschweigend einen Guide. Die
+     * Rolle ist jetzt eine bewusste Entscheidung (App\Model\GuideRole); wer
+     * sie nicht getroffen hat, bekommt statt des Standortformulars die Frage
+     * danach.
      */
     public const LOCATION_CREATE = 'location.create';
     /**
@@ -142,10 +165,15 @@ class Permission
     /**
      * Rechte je Rolle. Vollständig ausgeschrieben, keine Vererbung.
      *
-     * Trial und User haben heute dieselben Rechte - Trial ist der Zustand
-     * direkt nach der Registrierung. Die beiden Listen bleiben trotzdem
-     * getrennt, damit sich Trial später einschränken lässt, ohne dass
-     * irgendwo im Code etwas anderes anzufassen wäre als diese Tabelle.
+     * Trial und User haben heute dieselben Rechte. Der Unterschied liegt
+     * nicht in den Rechten, sondern in der Bedeutung: Trial heißt "die
+     * Guide-Frage ist noch offen", User heißt "hat sich gegen die Guide-Rolle
+     * entschieden". Nur ein Trial-Konto bekommt den Dialog beim Login
+     * (App\Model\GuideRole::needsDecision).
+     *
+     * Die beiden Listen bleiben getrennt, damit sich Trial später
+     * einschränken lässt, ohne dass irgendwo im Code etwas anderes
+     * anzufassen wäre als diese Tabelle.
      */
     private const RIGHTS = [
 
@@ -164,7 +192,12 @@ class Permission
         ],
 
         // -------------------------------------------------------------
-        // Trial: frisch registriert.
+        // Trial: frisch registriert, Guide-Frage noch offen.
+        //
+        // Kein location.create und kein user.position: Beides setzt voraus,
+        // dass jemand Standorte anbietet - und genau das ist noch nicht
+        // entschieden. Stattdessen user.guide_role, also der Zugang zu der
+        // Frage.
         // -------------------------------------------------------------
         Role::TRIAL => [
             self::SYSTEM_HOME,
@@ -176,12 +209,11 @@ class Permission
             self::USER_SETTINGS,
             self::USER_PRESENCE,
             self::USER_READ_NAME,
-            self::USER_POSITION,
+            self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
-            self::LOCATION_CREATE,
             self::LOCATION_EDIT_OWN,
             self::LOCATION_DELETE_OWN,
             self::CHAT_START,
@@ -194,7 +226,11 @@ class Permission
         ],
 
         // -------------------------------------------------------------
-        // User: Zuschauer.
+        // User: Zuschauer, hat sich gegen die Guide-Rolle entschieden.
+        //
+        // Die eigene Position ist für ihn ohne Bedeutung (user.position
+        // fehlt), Standorte legt er keine an (location.create fehlt). Seine
+        // Entscheidung kann er jederzeit ändern - dafür user.guide_role.
         // -------------------------------------------------------------
         Role::USER => [
             self::SYSTEM_HOME,
@@ -206,12 +242,11 @@ class Permission
             self::USER_SETTINGS,
             self::USER_PRESENCE,
             self::USER_READ_NAME,
-            self::USER_POSITION,
+            self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
-            self::LOCATION_CREATE,
             self::LOCATION_EDIT_OWN,
             self::LOCATION_DELETE_OWN,
             self::CHAT_START,
@@ -225,6 +260,9 @@ class Permission
 
         // -------------------------------------------------------------
         // Guide: bietet Standorte an.
+        //
+        // Er hat der Rolle ausdrücklich zugestimmt (App\Model\GuideRole) und
+        // kann sie über user.guide_role auch wieder zurückgeben.
         // -------------------------------------------------------------
         Role::GUIDE => [
             self::SYSTEM_HOME,
@@ -237,6 +275,7 @@ class Permission
             self::USER_PRESENCE,
             self::USER_READ_NAME,
             self::USER_POSITION,
+            self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
@@ -259,6 +298,10 @@ class Permission
         //
         // Der Admin hat KEIN location.delete_own für fremde Standorte - er
         // sperrt sie (location.block). Löschen bleibt beim Eigentümer.
+        //
+        // Und er hat KEIN user.guide_role: Die Guide-Rolle anzunehmen würde
+        // bedeuten, die Adminrechte abzugeben. Wer das wirklich will, lässt
+        // die Rolle in der Benutzerverwaltung ändern.
         // -------------------------------------------------------------
         Role::ADMIN => [
             self::SYSTEM_HOME,

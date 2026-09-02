@@ -12,6 +12,7 @@ use App\Controller\PasswordController;
 use App\Controller\EmailVerificationController;
 use App\Controller\TwoFactorController;
 use App\Controller\SettingsController;
+use App\Controller\GuideController;
 use App\Controller\ChatController;
 use App\Helper\Permission;
 
@@ -105,6 +106,14 @@ return [
 
     // Einstellungen
     "settings"              => [SettingsController::class           , "showSettingsPage"        , Permission::USER_SETTINGS          , 'html'],
+
+    // Guide-Rolle: die Frage stellen und beantworten.
+    //
+    // Zwei Routen mit demselben Recht: Die Seite zeigt die Frage, die zweite
+    // nimmt die Antwort entgegen und aendert dabei die Rolle des Kontos -
+    // deshalb laesst der Controller dort nur POST zu.
+    'guide_role_page'       => [GuideController::class              , 'showGuideRolePage'       , Permission::USER_GUIDE_ROLE        , 'html'],
+    'guide_role'            => [GuideController::class              , 'handleGuideRole'         , Permission::USER_GUIDE_ROLE        , 'html'],
 
     // Chat-Funktionen
     'chat_start'            => [ChatController::class               , 'startChat'               , Permission::CHAT_START             , 'json'],

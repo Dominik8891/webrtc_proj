@@ -15,19 +15,28 @@ window.webrtcApp.ui = {
      * die Schreibweise aus usertype.name ('Admin', 'Guide', 'User', 'Trial'),
      * und 'tourist' gibt es dort überhaupt nicht. Der Button war dadurch für
      * jede Rolle unsichtbar (Befund F-5).
+     *
+     * Die beiden Beschriftungen führen an verschiedene Stellen, und das ist
+     * der Kern der Sache: "Neue Lokation hinzufügen" öffnet das
+     * Standortformular, "Jetzt Tour-Guide werden!" dagegen die Frage nach der
+     * Guide-Rolle. Früher führten beide zum Formular - und wer es ausfüllte,
+     * war anschließend Guide, ohne je gefragt worden zu sein.
      */
     showLocationButton: function() {
         var locationButtonDiv = document.getElementById('location-button');
         locationButtonDiv.innerHTML = '';
         let text = '';
+        let target = '';
         if (window.isLoggedIn && window.userCan) {
             if (window.userCan.offerLocation) {
                 text = 'Neue Lokation hinzufügen';
+                target = 'index.php?act=set_location_page';
             } else if (window.userCan.becomeGuide) {
                 text = 'Jetzt Tour-Guide werden!';
+                target = 'index.php?act=guide_role_page';
             }
             if (text) {
-                locationButtonDiv.innerHTML = `<a href="index.php?act=set_location_page" class="btn btn-success text-light">${text}</a>`;
+                locationButtonDiv.innerHTML = `<a href="${target}" class="btn btn-success text-light">${text}</a>`;
                 locationButtonDiv.style.display = '';
             } else {
                 locationButtonDiv.style.display = 'none';

@@ -9,9 +9,9 @@ namespace App\Helper;
  * Die Nummern sind mit dem Umbau auf das Berechtigungssystem neu vergeben
  * worden (Migration 005). Sie stehen so in `usertype.id`:
  *
- *      0  Trial   frisch registriert, noch nichts weiter
- *      1  User    Zuschauer
- *      2  Guide   bietet Standorte an
+ *      0  Trial   frisch registriert, Guide-Frage noch offen
+ *      1  User    Zuschauer, hat sich gegen die Guide-Rolle entschieden
+ *      2  Guide   bietet Standorte an, hat der Rolle zugestimmt
  *     10  Admin   Benutzerverwaltung und Moderation
  *
  * Die Lücke zwischen 2 und 10 ist Absicht: Dort ist Platz für weitere
@@ -159,13 +159,38 @@ class Role
     }
 
     /**
-     * Ist das ein Konto, das durch das Anlegen eines Standorts zum Guide
-     * aufsteigt? Das betrifft Trial und User - beide bieten bislang keine
-     * Standorte an, und ein Standort ohne Guide-Rolle wäre nutzlos.
+     * Steht die Guide-Frage bei diesem Konto noch offen?
+     *
+     * Genau das bedeutet die Rolle Trial: nicht "eingeschränktes Konto",
+     * sondern "hat sich noch nicht entschieden". Ein frisch registriertes
+     * Konto ist Trial, bis der Dialog beantwortet ist - danach ist es Guide
+     * oder User und wird nicht mehr gefragt.
+     *
+     * Wer die Frage tatsächlich stellt und wann, entscheidet
+     * App\Model\GuideRole::needsDecision(); dort kommt der Fall dazu, dass
+     * ein Guide einer neueren Fassung der Bedingungen zustimmen muss.
+     *
+     * @param mixed $role
+     * @return bool
+     */
+    public static function isUndecided($role)
+    {
+        return self::id($role) === self::TRIAL;
+    }
+
+    /**
+     * Ist das ein Konto, das die Guide-Rolle annehmen kann? Das betrifft
+     * Trial und User - beide bieten bislang keine Standorte an.
      *
      * Das ist bewusst KEIN Recht, sondern ein Rollenwechsel: Die Frage
      * lautet nicht "darf er etwas", sondern "welche Rolle bekommt er
-     * danach".
+     * danach". Vollzogen wird der Wechsel ausschließlich in
+     * App\Model\GuideRole - früher stieg man stillschweigend auf, sobald man
+     * einen Standort anlegte.
+     *
+     * Der Admin steht bewusst nicht in dieser Liste: Er würde beim Wechsel
+     * seine Adminrechte verlieren, und ein Klick in den Einstellungen darf
+     * kein Konto entmachten.
      *
      * @param mixed $role
      * @return bool

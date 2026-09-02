@@ -1,0 +1,63 @@
+<!--
+    Die Guide-Frage. Gefüllt von App\Controller\GuideController.
+
+    Der erklärende Text steht bewusst hier und nicht im Controller: Er ist der
+    Inhalt, dem jemand zustimmt. Ändert er sich in der Sache - etwa weil
+    Führungen kostenpflichtig werden -, wird zusammen mit ihm
+    App\Model\GuideRole::TERMS_VERSION hochgezählt. Alle bisherigen
+    Zustimmungen gelten dann als überholt und der Dialog erscheint erneut.
+
+    Platzhalter:
+      ###GUIDE_STATUS###   Statuszeile: Guide oder Zuschauer
+      ###GUIDE_ACTIONS###  Knöpfe, je nach Zustand des Kontos
+      ###GUIDE_LATER###    "Später entscheiden" - nur bei offener Frage
+      ###GUIDE_HINT###     Zusatzhinweis unter den Knöpfen
+-->
+<div class="container">
+    <div class="card shadow-sm p-4 my-4 mx-auto" style="max-width: 640px;">
+
+        <h2 class="mb-3 text-center">Möchten Sie Guide werden?</h2>
+
+        <p class="mb-3">###GUIDE_STATUS###</p>
+
+        <h5>Was ein Guide macht</h5>
+        <p>
+            Als <strong>Guide</strong> bieten Sie Standorte an: Orte, an denen Sie
+            sich auskennen und an denen Sie unterwegs sein können. Bucht jemand
+            eine Führung, sind Sie mit Kamera und Ton vor Ort - und
+            <strong>die Regie hat der Zuschauer</strong>. Er sagt Ihnen über ein
+            Steuerkreuz, wohin Sie gehen und wohin Sie schauen sollen. Sie
+            entscheiden dabei jederzeit selbst, ob Sie einem Befehl folgen, und
+            können die Steuerung im laufenden Call sperren.
+        </p>
+
+        <h5>Was ein Zuschauer macht</h5>
+        <p>
+            Als <strong>Zuschauer</strong> suchen Sie sich einen Standort auf der
+            Karte aus und lassen sich von einem Guide vor Ort herumführen. Dafür
+            brauchen Sie nichts anzubieten und Ihre eigene Position spielt keine
+            Rolle.
+        </p>
+
+        <div class="alert alert-info" role="alert">
+            <strong>Hinweis zu späteren Kosten:</strong> Führungen sind derzeit
+            kostenlos. Sie werden künftig kostenpflichtig - Zuschauer zahlen für
+            eine Führung, Guides erhalten dafür eine Vergütung. Bevor das in
+            Kraft tritt, legen wir Ihnen die dann geltenden Bedingungen erneut
+            zur Zustimmung vor. Ohne Ihre Zustimmung entstehen weder Kosten noch
+            Ansprüche.
+        </div>
+
+        <div class="d-flex justify-content-center gap-3 flex-wrap mt-3">
+            ###GUIDE_ACTIONS###
+        </div>
+
+        <div class="text-center">
+            ###GUIDE_LATER###
+        </div>
+
+        <div class="mt-3 text-center">
+            ###GUIDE_HINT###
+        </div>
+    </div>
+</div>

@@ -105,6 +105,12 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     Entschieden wird über `window.userCan` aus `ViewHelper::output`; `ui.js`
     kennt selbst keine Rollennamen mehr.
 
+    Geprüft wird zusätzlich das **Ziel** der beiden Beschriftungen: Der Guide
+    kommt zum Standortformular (`act=set_location_page`), der Zuschauer zur
+    Frage nach der Guide-Rolle (`act=guide_role_page`) — und ausdrücklich
+    *nicht* mehr zum Formular. Früher führten beide dorthin, und wer es
+    ausfüllte, war anschließend Guide, ohne je gefragt worden zu sein.
+
 ### Zeitkonstanten im Test
 
 `client_test.js` setzt die Fristen aus `rtc.js` zu Beginn auf kurze Werte
@@ -113,7 +119,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (53 Prüfungen)
+## Was `server_test.php` prüft (65 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -208,6 +214,30 @@ die Tests nicht an. Das ist Absicht.
     war. Die Spaltenzahl stand dabei an drei Stellen gleichzeitig
     (`<thead>`, Zeilenaufbau, feste Zellennummern), die
     Tabellenkonfiguration ebenfalls an drei.
+
+11. **Die Guide-Rolle wird angenommen, nicht vergeben** — gefragt wird, wessen
+    Entscheidung noch aussteht: ein `Trial`-Konto ohne jeden Datenbankzugriff,
+    ein Guide nur dann, wenn seine Zustimmung eine ältere Fassung der
+    Bedingungen trägt (`GuideRole::TERMS_VERSION`) oder ganz fehlt. `User` und
+    `Admin` werden nicht gefragt.
+
+    Beim Annehmen wird die Zustimmung genau einmal festgehalten — mit
+    Zeitpunkt, Beginn und der Fassung, die im Dialog stand — *und* die Rolle
+    gesetzt; ein Admin kommt dabei nicht durch, seine Rolle bleibt
+    unangetastet. Beim Zurückgeben wird abgewiesen, wer noch Standorte
+    anbietet (keine Rollenänderung, kein `DELETE`); sonst wird die Rolle
+    wieder `User` und der Widerruf im Profil vermerkt — die Zustimmung von
+    damals wird nicht gelöscht. Gezählt werden die Standorte per `COUNT(*)`
+    mit `user_id` in der Bedingung, ohne Benutzer gar nicht erst.
+
+    Der Sinn der Prüfung: Der Rollenwechsel stand früher mitten in
+    `LocationController::setLocation()` und passierte als Nebenwirkung des
+    Standortformulars. An `GuideRole::accept()`/`::resign()` hängt später die
+    Abrechnung — diese beiden Methoden müssen die einzigen Stellen bleiben.
+
+12. **Jeder Platzhalter im Template wird auch gefüllt** — jedes `###MARKE###`
+    in `guide_role.html` und `settings.html` kommt im zugehörigen Controller
+    vor. Ein vergessener Platzhalter steht sonst wörtlich auf der Seite.
 
 ## Grenzen
 
