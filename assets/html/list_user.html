@@ -12,7 +12,7 @@
     <div class="app-toolbar">
         <div>
             <h1 class="app-page-head__title">Benutzer</h1>
-            <p class="app-page-head__sub">Wer angemeldet ist, ist grün markiert und erreichbar.</p>
+            <p class="app-page-head__sub">Anrufen lässt sich, wer gerade online ist.</p>
         </div>
         <div>###NEW###</div>
     </div>
@@ -22,8 +22,11 @@
             <table class="table table-striped align-middle mb-0">
                 <thead>
                     <tr>
-                        <th class="user_table_desktop">ID</th>
-                        <th class="user_table_desktop">Status</th>
+                        <!-- Keine ID-Spalte mehr: Die Zahl aus der Datenbank
+                             sagt niemandem etwas, der die Liste benutzt. Zum
+                             Bearbeiten und Loeschen steht sie in den Verweisen
+                             der Aktionsspalte. -->
+                        <th>Status</th>
                         <th>Anrufen</th>
                         <th>Benutzername</th>
                         <th>Nachricht</th>

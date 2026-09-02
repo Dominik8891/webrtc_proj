@@ -48,6 +48,36 @@ window.webrtcApp.homeMap = {
     DEFAULT_VIEW: { center: [50.5, 10.0], zoom: 4 },
 
     /**
+     * Zoomstufe fuer einen EINZELNEN Standort.
+     *
+     * Ein Punkt hat keine Ausdehnung. fitBounds() kann daraus keinen
+     * Ausschnitt errechnen und nimmt die erlaubte Hoechststufe - stand die
+     * auf 12, sah man um eine Nadel in Rheda den halben Landkreis. 15 zeigt
+     * das Viertel drumherum: Strassen mit Namen, ein paar Querstrassen,
+     * erkennbar wo man landet.
+     */
+    SINGLE_ZOOM: 15,
+
+    /**
+     * Hoechste Stufe, auf die fitBounds bei mehreren Standorten gehen darf.
+     *
+     * Etwas kleiner als SINGLE_ZOOM: Liegen zwei Standorte dicht beieinander,
+     * sollen beide zu sehen sein und nicht einer bildschirmfuellend.
+     */
+    FIT_MAX_ZOOM: 14,
+
+    /**
+     * Kleinste Stufe, auf die fitBounds herausgehen darf.
+     *
+     * Ohne Untergrenze zieht ein einzelner weit entfernter Standort - eine
+     * Nadel in Marokko neben einer in Leipzig - die Karte auf die halbe
+     * Weltkugel heraus, und alle uebrigen Nadeln liegen als Haufen
+     * uebereinander. Lieber ein Ausschnitt, in dem etwas zu erkennen ist,
+     * und der Rest ist durch Ziehen erreichbar.
+     */
+    FIT_MIN_ZOOM: 4,
+
+    /**
      * Takt der Statusaktualisierung.
      *
      * Derselbe Wert wie in der Tabellenansicht (locations_table.js): etwas
@@ -358,10 +388,22 @@ window.webrtcApp.homeMap = {
             // waere der gespeicherte Wert veraltet. Einmal nachmessen kostet
             // nichts und macht den Ausschnitt unabhaengig davon.
             this.map.invalidateSize(false);
-            this.map.fitBounds(
-                L.latLngBounds(items.map(item => [item.lat, item.lon])),
-                { padding: [60, 60], maxZoom: 12 }
-            );
+
+            if (items.length === 1) {
+                // Ein Punkt hat keine Ausdehnung - hier gibt es nichts
+                // einzupassen, sondern eine Umgebung zu waehlen.
+                this.map.setView([items[0].lat, items[0].lon], this.SINGLE_ZOOM);
+            } else {
+                this.map.fitBounds(
+                    L.latLngBounds(items.map(item => [item.lat, item.lon])),
+                    { padding: [60, 60], maxZoom: this.FIT_MAX_ZOOM }
+                );
+                // fitBounds kennt keine Untergrenze. Liegen die Standorte sehr
+                // weit auseinander, wird danach zurueckgeholt.
+                if (this.map.getZoom() < this.FIT_MIN_ZOOM) {
+                    this.map.setZoom(this.FIT_MIN_ZOOM);
+                }
+            }
         }
 
         this.updateLegend();

@@ -877,6 +877,62 @@ a:hover {
 }
 
 /* ===========================================================================
+   Zustandsanzeige in Listen (online / im Gespraech / offline)
+   ---------------------------------------------------------------------------
+   BEWUSST OHNE GRUEN, GELB UND GRAU ALS BEDEUTUNGSTRAEGER.
+
+   Diese drei Farben sind auf der Karte vergeben: "Guide verfuegbar", "im
+   Gespraech", "kein Guide vor Ort". Ein gruener Punkt in einer Benutzerliste
+   wuerde dieselbe Farbe fuer etwas anderes benutzen - und der gruene
+   Call-Knopf daneben ein drittes Mal.
+
+   Unterschieden wird deshalb ueber FORM und GEWICHT: gefuellt, geringelt,
+   hohl - dazu die Beschriftung. Das funktioniert auch fuer Menschen, die
+   Farben nicht unterscheiden koennen.
+   =========================================================================== */
+
+.app-state {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    white-space: nowrap;
+    font-size: var(--app-text-sm);
+}
+
+.app-state__dot {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    border-radius: 50%;
+    box-sizing: border-box;
+}
+
+/* Erreichbar: gefuellt und in voller Textfarbe - das kraeftigste der drei. */
+.app-state--online { color: var(--app-text); font-weight: var(--app-weight-medium); }
+.app-state--online .app-state__dot { background: var(--app-text); }
+
+/* Im Gespraech: ein Ring. Da, aber nicht frei. */
+.app-state--busy { color: var(--app-text); }
+.app-state--busy .app-state__dot {
+    background: transparent;
+    border: 3px solid var(--app-text-muted);
+}
+
+/* Nicht da: hohl und leise. */
+.app-state--offline { color: var(--app-text-faint); }
+.app-state--offline .app-state__dot {
+    background: transparent;
+    border: 1px solid var(--app-text-faint);
+}
+
+/* Spalten, die auf schmalen Geraeten entfallen. Die Regel stand frueher in
+   call.css in einer Medienabfrage fuer die Call-Ansicht - dort hatte sie
+   nichts zu suchen und ging beim Umbau der Call-Ansicht verloren. */
+@media (max-width: 700px) {
+    .user_table_desktop { display: none; }
+}
+
+/* ===========================================================================
    Chatfenster (Popup)
    ---------------------------------------------------------------------------
    Gebaut von assets/js/ui_chat.js. Es liegt unten rechts als abgesetzte
@@ -1023,6 +1079,27 @@ a:hover {
 .chat-pop--pending .chat-pop__body { display: none; }
 
 .chat-pop--pending .chat-pop__foot { border-top: 0; }
+
+/* Datumstrenner zwischen zwei Tagen. Eine Linie mit dem Tag in der Mitte -
+   er steht einmal dort, wo der Tag wechselt, und nicht an jeder Nachricht. */
+.chat-daysep {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    margin: var(--app-space-4) 0 var(--app-space-3);
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+}
+
+.chat-daysep::before,
+.chat-daysep::after {
+    content: "";
+    flex: 1 1 auto;
+    height: 1px;
+    background: var(--app-border);
+}
+
+.chat-daysep > span { flex: none; }
 
 /* Eine Nachricht als Blase. Eigene rechts in der Akzentfarbe, fremde links
    auf heller Flaeche - das ersetzt die frueheren Absender-Etiketten. */
@@ -1342,11 +1419,12 @@ a:hover {
     vertical-align: middle;
 }
 
+/* Spaltenkoepfe in normaler Schreibweise. Versalien mit gesperrter Laufweite
+   sind die Optik einer Verwaltungsmaske - sie machen den Kopf laut, ohne ihn
+   lesbarer zu machen. Getrennt wird er jetzt durch Toenung und Farbe. */
 .table > thead th {
-    font-size: var(--app-text-xs);
-    font-weight: var(--app-weight-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
     color: var(--app-text-muted);
     background: var(--app-surface-sunken);
     border-bottom-color: var(--app-border);

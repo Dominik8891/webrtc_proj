@@ -165,6 +165,107 @@ window.webrtcApp.uiChat = {
         })[c]);
     },
 
+    // =====================================================================
+    // Zeitangaben
+    //
+    // Der Server liefert "2026-09-02 13:14:04" - das Format der Datenbank.
+    // An einer Nachricht steht davon nur die Uhrzeit; das Datum steht einmal
+    // als Trenner zwischen den Tagen. Wer heute schreibt, sieht kein Datum,
+    // und wer einen langen Verlauf durchsieht, sieht es genau dort, wo es
+    // wechselt.
+    // =====================================================================
+
+    /**
+     * Wandelt den Zeitstempel des Servers in ein Date.
+     *
+     * Das Leerzeichen wird zu einem T: "2026-09-02 13:14:04" ist kein Format,
+     * das jeder Browser versteht, "2026-09-02T13:14:04" schon - und es gilt
+     * als Ortszeit, was hier richtig ist.
+     *
+     * @param {string} sentAt
+     * @returns {Date|null} null, wenn sich nichts lesen laesst
+     */
+    parseTime: function(sentAt) {
+        const roh = String(sentAt ?? '').trim();
+        if (!roh) return null;
+        const d = new Date(roh.replace(' ', 'T'));
+        return isNaN(d.getTime()) ? null : d;
+    },
+
+    /**
+     * Die Uhrzeit einer Nachricht, "HH:MM".
+     *
+     * Laesst sich der Wert nicht lesen, wird er unveraendert angezeigt: Ein
+     * unerwartetes Format ist besser sichtbar als verschwunden.
+     *
+     * @param {string} sentAt
+     * @returns {string} maskierter Text
+     */
+    formatTime: function(sentAt) {
+        const d = this.parseTime(sentAt);
+        if (!d) return this.esc(sentAt);
+        return this.esc(
+            String(d.getHours()).padStart(2, '0') + ':' +
+            String(d.getMinutes()).padStart(2, '0')
+        );
+    },
+
+    /**
+     * Der Tag einer Nachricht als Schluessel zum Vergleichen.
+     *
+     * Bewusst aus den lokalen Datumsteilen und nicht aus toISOString():
+     * Letzteres rechnet auf UTC um und wuerde den Trenner am Abend einen Tag
+     * zu frueh setzen.
+     *
+     * @param {string} sentAt
+     * @returns {string|null} "YYYY-MM-DD"
+     */
+    dayKey: function(sentAt) {
+        const d = this.parseTime(sentAt);
+        if (!d) return null;
+        return d.getFullYear() + '-'
+             + String(d.getMonth() + 1).padStart(2, '0') + '-'
+             + String(d.getDate()).padStart(2, '0');
+    },
+
+    /**
+     * Die Beschriftung eines Datumstrenners.
+     *
+     * @param {Date} d
+     * @returns {string} maskierter Text
+     */
+    dayLabel: function(d) {
+        const heute = new Date();
+        const gestern = new Date();
+        gestern.setDate(heute.getDate() - 1);
+
+        const gleich = (a, b) => a.getFullYear() === b.getFullYear()
+                              && a.getMonth() === b.getMonth()
+                              && a.getDate() === b.getDate();
+
+        if (gleich(d, heute))   return 'Heute';
+        if (gleich(d, gestern)) return 'Gestern';
+
+        // Das Jahr nur, wenn es ein anderes ist.
+        const optionen = { day: 'numeric', month: 'long' };
+        if (d.getFullYear() !== heute.getFullYear()) optionen.year = 'numeric';
+        return this.esc(d.toLocaleDateString('de-DE', optionen));
+    },
+
+    /**
+     * Leert den Nachrichtenbereich eines Tabs.
+     *
+     * Dabei muss der zuletzt gesetzte Tag vergessen werden - sonst fehlte
+     * nach einem Neuaufbau der erste Datumstrenner, weil der Vergleich noch
+     * den alten Stand kennt.
+     *
+     * @param {jQuery} $tab
+     */
+    clearMessages: function($tab) {
+        $tab.find('.chat-popup-messages').empty();
+        $tab.removeData('chat-day');
+    },
+
     /**
      * Bindet alle UI-Events für einen Chat-Tab.
      */
@@ -292,7 +393,7 @@ window.webrtcApp.uiChat = {
         fetch('?act=chat_get_messages&chat_id=' + chatId)
         .then(r => r.json()).then(data => {
             if (data.success) {
-                $tab.find('.chat-popup-messages').empty();
+                window.webrtcApp.uiChat.clearMessages($tab);
                 let maxMsgId = 0;
                 data.messages.forEach(msg => {
                     window.webrtcApp.uiChat.addChatMessage($tab, msg);
@@ -314,6 +415,19 @@ window.webrtcApp.uiChat = {
     addChatMessage: function($tab, msg) {
         const partnerUserId = $tab.data('partner-id');
         const isPartner = (msg.sender_id == partnerUserId);
+        const $log = $tab.find('.chat-popup-messages');
+
+        // Wechselt der Tag, kommt zuerst ein Trenner. Er steht einmal
+        // zwischen den Tagen und nicht an jeder Nachricht.
+        const tag = this.dayKey(msg.sent_at);
+        if (tag && $tab.data('chat-day') !== tag) {
+            $tab.data('chat-day', tag);
+            $log.append(
+                '<div class="chat-daysep"><span>'
+                + this.dayLabel(this.parseTime(msg.sent_at))
+                + '</span></div>'
+            );
+        }
 
         // Erst maskieren, dann Zeilenumbrueche zu <br> machen - in dieser
         // Reihenfolge. Umgekehrt waere das <br> gleich wieder maskiert, und
@@ -321,10 +435,10 @@ window.webrtcApp.uiChat = {
         const text = this.esc(msg.msg).replace(/\n/g, '<br>');
         const wer  = isPartner ? 'partner' : 'self';
 
-        $tab.find('.chat-popup-messages').append(`
+        $log.append(`
             <div class="chat-msg chat-msg--${wer}">
                 <span class="chat-msg__text">${text}</span>
-                <span class="chat-msg__time">${this.esc(msg.sent_at)}</span>
+                <span class="chat-msg__time">${this.formatTime(msg.sent_at)}</span>
             </div>
         `);
     },
@@ -533,7 +647,7 @@ setInterval(function () {
                             });
                         }
                     }
-                    $tab.find('.chat-popup-messages').empty();
+                    window.webrtcApp.uiChat.clearMessages($tab);
                     data.messages.forEach(msg => window.webrtcApp.uiChat.addChatMessage($tab, msg));
                     $tab.data('last-msg-id', maxMsgId);
                     var container = $tab.find('.chat-popup-messages')[0];
@@ -549,6 +663,9 @@ setInterval(function () {
                     }
                 } else if(!data.success && data.declined) {
                     $tab.find('.chat-popup-accept, .chat-popup-actions').hide();
+                    // Der Verlauf wird durch die Meldung ersetzt - damit ist
+                    // auch der zuletzt gesetzte Tag hinfaellig.
+                    $tab.removeData('chat-day');
                     $tab.find('.chat-popup-messages').html(
                         '<div class="alert alert-danger" role="alert">'
                         + window.webrtcApp.uiChat.esc(

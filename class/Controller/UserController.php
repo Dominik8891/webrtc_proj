@@ -120,9 +120,11 @@ class UserController
         $email  = "";
         $new    = "";
         if (Auth::can(Permission::USER_MANAGE)) {
-            $action = "<th>Aktion</th>";
-            $email  = '<th class="user_table_desktop">Email</th>';
-            $new    = '<a href="index.php?act=manage_user" class="btn btn-success btn-sm">Neuen Benutzer anlegen</a>';
+            $action = '<th>Aktionen</th>';
+            $email  = '<th class="user_table_desktop">E-Mail</th>';
+            // Der Akzent, nicht die Live-Farbe: Gruen bedeutet in dieser
+            // Anwendung "ein Guide ist gerade erreichbar" (assets/css/theme.css).
+            $new    = '<a href="index.php?act=manage_user" class="btn btn-primary btn-sm">Neuer Benutzer</a>';
         }
 
         $all_user_ids = $user->getAll();
@@ -265,32 +267,30 @@ class UserController
             $tmp_user = new User($one_user_id);
             $action  = "";
             $email   = "";
-            $message = "<button class='btn btn-primary start-chat-btn' data-userid='{$one_user_id}'>Chat</button>";
+            $message = "<button class='btn btn-secondary btn-sm start-chat-btn' data-userid='{$one_user_id}'>Chat</button>";
 
             // Auch hier entscheidet das Recht und nicht die Rollennummer:
             // der Vergleich mit der 1 traf den Guide statt den Admin.
+            //
+            // E-Mail und Aktionen liefern die GANZE Zelle oder gar nichts.
+            // Vorher stand in der Zeilenvorlage ein festes <td> um den
+            // E-Mail-Platzhalter: Wer die Liste ohne Verwaltungsrecht ansah,
+            // bekam eine leere Zelle mehr als der Kopf Spalten hatte.
             if (Auth::can(Permission::USER_MANAGE)) {
                 $action = $this->getAction($tmp_user);
-                $email  = htmlspecialchars($tmp_user->getEmail());
+                $email  = '<td class="user_table_desktop">'
+                        . htmlspecialchars($tmp_user->getEmail()) . '</td>';
             }
-            $status = "Offline";
-            $dot = '<span class="status-dot me-1" style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#dc3545;"></span>';
-            if($tmp_user->getUserStatus($tmp_user->getId()) === "online") {
-                $status = "Online";
-                $dot = '<span class="status-dot me-1" style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#28a745;"></span>';
-            } elseif ($tmp_user->getUserStatus($tmp_user->getId()) === "in_call") {
-                $status = "In Call";
-                $dot = '<span class="status-dot me-1" style="display:inline-block; width:14px; height:14px; border-radius:50%; background:#ffc107;"></span>';
-            }
-            $call_btn = $this->createCallBtn($tmp_user->getId());
 
-            $tmp_row = str_replace("###ID###"       , $tmp_user->getId()                                , $row_html);
-            $tmp_row = str_replace("###STATUS###"   , $status                                           , $tmp_row);
-            $tmp_row = str_replace("###CALL###"     , $call_btn                                         , $tmp_row);
-            $tmp_row = str_replace("###USERNAME###" , $dot . htmlspecialchars($tmp_user->getUsername()) , $tmp_row);
-            $tmp_row = str_replace("###EMAIL###"    , $email                                            , $tmp_row);
-            $tmp_row = str_replace("###ACTION###"   , $action                                           , $tmp_row);
-            $tmp_row = str_replace("###MESSAGE###"  , $message                                          , $tmp_row);
+            $status   = $this->stateHtml($tmp_user->getUserStatus($tmp_user->getId()));
+            $call_btn = $this->createCallBtn($tmp_user->getId(), $tmp_user->getUserStatus($tmp_user->getId()));
+
+            $tmp_row = str_replace("###STATUS###"   , $status                                    , $row_html);
+            $tmp_row = str_replace("###CALL###"     , $call_btn                                  , $tmp_row);
+            $tmp_row = str_replace("###USERNAME###" , htmlspecialchars($tmp_user->getUsername()) , $tmp_row);
+            $tmp_row = str_replace("###EMAIL###"    , $email                                     , $tmp_row);
+            $tmp_row = str_replace("###ACTION###"   , $action                                    , $tmp_row);
+            $tmp_row = str_replace("###MESSAGE###"  , $message                                   , $tmp_row);
 
             $all_rows .= $tmp_row;
         }
@@ -303,9 +303,51 @@ class UserController
      * @param int $btn_id
      * @return string
      */
-    private function createCallBtn($btn_id)
+    private function createCallBtn($btn_id, $status = null)
     {
-        return '<button class="btn btn-success start-call-btn btn-sm" id="start-call-btn-' . intval($btn_id) . '">Call</button>';
+        // Der Akzent statt Gruen: Gruen heisst auf der Karte "Guide gerade
+        // verfuegbar". Derselbe Farbton fuer einen Knopf, den es in jeder
+        // Zeile gibt, wuerde die Bedeutung dort entwerten.
+        //
+        // Wer nicht erreichbar ist, laesst sich auch nicht anrufen - der Knopf
+        // sagt das, statt einen Anruf ins Leere anzubieten.
+        $erreichbar = ($status === 'online');
+
+        // Den Akzent traegt nur der Knopf, der auch etwas tut. Ein gesperrter
+        // Knopf in Akzentfarbe in jeder zweiten Zeile faerbt die ganze Liste
+        // ein, ohne dass irgendwo etwas moeglich waere.
+        return '<button class="btn btn-sm start-call-btn '
+             . ($erreichbar ? 'btn-primary' : 'btn-secondary') . '"'
+             . ' id="start-call-btn-' . intval($btn_id) . '"'
+             . ($erreichbar ? '' : ' disabled aria-disabled="true"')
+             . '>Anrufen</button>';
+    }
+
+    /**
+     * Baut die Zustandsanzeige einer Zeile.
+     *
+     * Unterschieden wird ueber Form und Gewicht, nicht ueber Gruen und Rot:
+     * Diese Farben tragen auf der Karte eine feste Bedeutung ("Guide
+     * verfuegbar", "kein Guide vor Ort"). Die Gestaltung steht in
+     * assets/css/theme.css unter .app-state.
+     *
+     * @param string|null $status Wert aus user.user_status
+     * @return string HTML
+     */
+    private function stateHtml($status)
+    {
+        if ($status === 'online') {
+            $art = 'online';  $text = 'Online';
+        } elseif ($status === 'in_call') {
+            $art = 'busy';    $text = 'Im Gespräch';
+        } else {
+            $art = 'offline'; $text = 'Offline';
+        }
+
+        return '<span class="app-state app-state--' . $art . '">'
+             . '<span class="app-state__dot" aria-hidden="true"></span>'
+             . $text
+             . '</span>';
     }
 
     /**
@@ -317,8 +359,8 @@ class UserController
     private function getAction($in_current_user)
     {
         return '<td>
-                    <a href="index.php?act=manage_user&user_id=' . $in_current_user->getId() . '" class="btn btn-warning btn-sm me-2">Ändern</a>
-                    <a href="#" onclick="window.webrtcApp.ui.confirmDelete(\'index.php?act=delete_user&user_id=' . $in_current_user->getId() . '\')" class="btn btn-danger btn-sm">Löschen</a>
+                    <a href="index.php?act=manage_user&user_id=' . $in_current_user->getId() . '" class="btn btn-secondary btn-sm">Bearbeiten</a>
+                    <a href="#" onclick="window.webrtcApp.ui.confirmDelete(\'index.php?act=delete_user&user_id=' . $in_current_user->getId() . '\')" class="btn btn-outline-danger btn-sm">Löschen</a>
                 </td>';
     }
 }

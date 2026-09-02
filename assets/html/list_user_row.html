@@ -1,10 +1,18 @@
+<!--
+    Eine Zeile der Benutzerliste. Gefuellt von
+    App\Controller\UserController::generateUserRows().
+
+    ###EMAIL### und ###ACTION### liefern die VOLLSTAENDIGE Zelle samt <td>
+    oder einen Leerstring - sie erscheinen nur fuer die Verwaltung. Stuende
+    hier ein festes <td> um den Platzhalter, haette die Zeile fuer alle
+    anderen Rollen eine leere Zelle mehr als der Kopf, und die Tabelle waere
+    um eine Spalte verschoben.
+-->
 <tr>
-    <td class="user_table_desktop">###ID###</td>
-    <td class="user_table_desktop">###STATUS###</td>
+    <td>###STATUS###</td>
     <td>###CALL###</td>
     <td>###USERNAME###</td>
     <td>###MESSAGE###</td>
-    <td class="user_table_desktop">###EMAIL###</td>
-        ###ACTION### 
-    
+    ###EMAIL###
+    ###ACTION###
 </tr>
