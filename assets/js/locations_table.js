@@ -141,31 +141,97 @@ window.webrtcApp.locationsTable = {
      */
     actionCellHtml(item, options) {
         let actionBtns = '';
+
+        // Die Hauptaktion behaelt Text und Flaeche. Sie sagt, worum es in der
+        // Liste ueberhaupt geht - als Symbol waere die Tabelle eine Reihe
+        // gleich lauter Zeichen ohne Schwerpunkt.
         if (options.showActions.includes("call")) {
             actionBtns += this.callButtonHtml(item);
         }
+
+        // Alles Weitere sind Nebenaktionen: Symbol ohne Rahmen, Rahmen und
+        // Flaeche erst beim Ueberfahren. Der Ort steht jeweils im aria-label,
+        // damit ein Vorleseprogramm nicht zwanzigmal "Bearbeiten" ohne Bezug
+        // meldet.
+        const ort = this.ortLabel(item);
+
         if (options.showActions.includes("edit")) {
-            // Gelb ist auf der Karte "Guide im Gespraech" - hier waere es
-            // dieselbe Farbe fuer eine Handlung.
-            actionBtns += `
-                <button type="button" class="btn btn-secondary btn-sm edit-location-btn" data-locationid="${this.esc(item.id)}">Bearbeiten</button>
-            `;
+            actionBtns += this.iconBtn({
+                klasse: 'edit-location-btn',
+                symbol: 'edit',
+                titel:  'Bearbeiten',
+                label:  'Standort ' + ort + ' bearbeiten',
+                id:     item.id
+            });
         }
         if (options.showActions.includes("delete")) {
-            actionBtns += `
-                <button type="button" class="btn btn-outline-danger btn-sm delete-location-btn" data-locationid="${this.esc(item.id)}">Löschen</button>
-            `;
+            actionBtns += this.iconBtn({
+                klasse: 'delete-location-btn',
+                symbol: 'delete',
+                titel:  'Löschen',
+                label:  'Standort ' + ort + ' löschen',
+                id:     item.id,
+                warnend: true
+            });
         }
         // Moderation: sperren statt löschen. Der Knopf erscheint nur, wenn der
         // Server das Recht location.block mitgeschickt hat (window.userCan).
         // Das ist reine Anzeige - entschieden wird die Berechtigung erneut in
         // index.php, wenn die Route wirklich aufgerufen wird.
         if (options.showActions.includes("block")) {
-            actionBtns += item.blocked == 1
-                ? `<button type="button" class="btn btn-secondary btn-sm unblock-location-btn" data-locationid="${this.esc(item.id)}">Freigeben</button>`
-                : `<button type="button" class="btn btn-outline-danger btn-sm block-location-btn" data-locationid="${this.esc(item.id)}">Sperren</button>`;
+            actionBtns += (item.blocked == 1)
+                ? this.iconBtn({
+                    klasse: 'unblock-location-btn',
+                    symbol: 'unblock',
+                    titel:  'Freigeben',
+                    label:  'Standort ' + ort + ' freigeben',
+                    id:     item.id
+                })
+                : this.iconBtn({
+                    klasse: 'block-location-btn',
+                    symbol: 'block',
+                    titel:  'Sperren',
+                    label:  'Standort ' + ort + ' sperren',
+                    id:     item.id,
+                    warnend: true
+                });
         }
-        return actionBtns;
+
+        // Die Symbole in einen Behaelter, damit sie als eine Gruppe stehen und
+        // nicht als drei einzelne Zeichen zerfliessen.
+        return actionBtns
+            ? `<div class="app-actions-cell">${actionBtns}</div>`
+            : '';
+    },
+
+    /**
+     * Kurzbezeichnung eines Standorts fuer Vorleseprogramme.
+     *
+     * @param {Object} item
+     * @returns {string}
+     */
+    ortLabel(item) {
+        return [item.city_name, item.country_name].filter(Boolean).join(', ')
+            || ('#' + (item.id ?? ''));
+    },
+
+    /**
+     * Baut einen Symbolknopf.
+     *
+     * Das Symbol selbst steht als Maske in assets/css/theme.css - hier wird
+     * nur die Klasse gesetzt. aria-label und title sind nicht optional: Ohne
+     * sie ist ein Knopf ohne Text weder vorlesbar noch erratbar.
+     *
+     * @param {Object} o { klasse, symbol, titel, label, id, warnend }
+     * @returns {string} HTML
+     */
+    iconBtn(o) {
+        const warn = o.warnend ? ' app-iconbtn--danger' : '';
+        return `<button type="button"`
+             + ` class="app-iconbtn app-iconbtn--${o.symbol}${warn} ${o.klasse}"`
+             + ` data-locationid="${this.esc(o.id)}"`
+             + ` aria-label="${this.esc(o.label)}"`
+             + ` title="${this.esc(o.titel)}"></button>`;
     },
 
     /**

@@ -42,8 +42,7 @@ class GuideController
      */
     public function showGuideRolePage(): void
     {
-        $out = file_get_contents('assets/html/guide_role.html');
-        ViewHelper::checkTemplate($out, 'assets/html/guide_role.html');
+        $out = ViewHelper::template('assets/html/guide_role.html');
 
         $role      = Auth::roleId();
         $is_guide  = Role::isGuide($role);
@@ -174,8 +173,7 @@ class GuideController
     {
         if (!isset($_SESSION['location_prompt_shown'])) {
             $_SESSION['location_prompt_shown'] = true;
-            $html = file_get_contents('assets/html/location_prompt.html');
-            ViewHelper::checkTemplate($html, 'assets/html/location_prompt.html');
+            $html = ViewHelper::template('assets/html/location_prompt.html');
             ViewHelper::output($html);
         }
         header('Location: index.php?act=home');
@@ -190,8 +188,7 @@ class GuideController
      */
     private function outputError(string $msg): void
     {
-        $out = file_get_contents('assets/html/guide_role.html');
-        ViewHelper::checkTemplate($out, 'assets/html/guide_role.html');
+        $out = ViewHelper::template('assets/html/guide_role.html');
 
         $box = '<div class="alert alert-warning">' . htmlspecialchars($msg) . '</div>';
 

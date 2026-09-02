@@ -615,6 +615,59 @@ function ackLastMove(status = 'executed', reason) {
         window.isLoggedIn = true;
     }
 
+    console.error('\n24) Symbolknoepfe sind ohne Text verstaendlich');
+    {
+        // Ein Knopf ohne Beschriftung ist nur dann benutzbar, wenn er sagt,
+        // was er tut: aria-label fuer Vorleseprogramme, title als Tooltip.
+        // Fehlt eines davon, ist der Knopf fuer einen Teil der Nutzer ein
+        // leeres Kaestchen. Diese Pruefung haelt das fest, damit ein spaeter
+        // ergaenzter Knopf nicht ohne durchrutscht.
+        const tabelle = app.locationsTable;
+        const eintrag = {
+            id: 7, user_id: 3, user_status: 'online', blocked: 0,
+            country_name: 'Portugal', city_name: 'Lissabon',
+            description: 'Alfama.'
+        };
+
+        const zelle = tabelle.actionCellHtml(eintrag,
+            { showActions: ['call', 'edit', 'delete', 'block'] });
+
+        // Ein Symbolknopf je Nebenaktion, und die Hauptaktion behaelt Text.
+        assert.ok(zelle.includes('>Anrufen</button>'),
+            'die Hauptaktion hat ihre Beschriftung verloren');
+        for (const symbol of ['edit', 'delete', 'block']) {
+            assert.ok(zelle.includes('app-iconbtn--' + symbol),
+                'Symbolknopf ' + symbol + ' fehlt');
+        }
+        ok('Nebenaktionen als Symbol, die Hauptaktion mit Text');
+
+        // Jeder Symbolknopf traegt beides. Gezaehlt wird stur: so viele
+        // aria-label und title wie Symbolknoepfe.
+        const anzahl = (text, muster) => (text.match(muster) || []).length;
+        assert.strictEqual(anzahl(zelle, /app-iconbtn /g), 3, 'drei Symbolknoepfe erwartet');
+        assert.strictEqual(anzahl(zelle, /aria-label="/g), 3, 'nicht jeder Symbolknopf hat ein aria-label');
+        assert.strictEqual(anzahl(zelle, /title="/g), 3, 'nicht jeder Symbolknopf hat einen Tooltip');
+        ok('jeder Symbolknopf hat aria-label und title');
+
+        // Das aria-label nennt den Standort - sonst meldet ein
+        // Vorleseprogramm in einer langen Liste zwanzigmal "Bearbeiten"
+        // ohne zu sagen, was bearbeitet wird.
+        assert.ok(zelle.includes('aria-label="Standort Lissabon, Portugal bearbeiten"'),
+            'das aria-label nennt den Standort nicht:\n' + zelle);
+        ok('das aria-label nennt den Standort, nicht nur die Aktion');
+
+        // Gesperrt: aus Sperren wird Freigeben, und das Symbol wechselt mit.
+        const gesperrt = tabelle.actionCellHtml(
+            Object.assign({}, eintrag, { blocked: 1 }), { showActions: ['block'] });
+        assert.ok(gesperrt.includes('app-iconbtn--unblock'), 'kein Freigeben-Symbol');
+        assert.ok(!gesperrt.includes('app-iconbtn--block '), 'Sperren-Symbol steht noch da');
+        ok('der gesperrte Standort zeigt Freigeben statt Sperren');
+
+        // Ohne Aktion keine leere Huelle im Markup.
+        assert.strictEqual(tabelle.actionCellHtml(eintrag, { showActions: [] }), '');
+        ok('ohne Aktion bleibt die Zelle leer');
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

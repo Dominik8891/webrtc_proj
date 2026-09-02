@@ -57,8 +57,7 @@ class SystemController
      */
     public static function home(): void
     {
-        $out = file_get_contents('assets/html/home.html');
-        ViewHelper::checkTemplate($out, 'assets/html/home.html');
+        $out = ViewHelper::template('assets/html/home.html');
         ViewHelper::output($out);
     }
 

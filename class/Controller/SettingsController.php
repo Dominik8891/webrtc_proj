@@ -51,7 +51,7 @@ class SettingsController
         $mailConfirmed = method_exists($user, 'getEmailVerified') ? ($user->getEmailVerified() ? 'Bestätigt' : 'Nicht bestätigt') : '';
 
         $mailConfirm = '';
-        $out = file_get_contents('assets/html/settings.html');
+        $out = ViewHelper::template('assets/html/settings.html');
         /*
          * Deaktiviert lassen solange kein eigener SMTP
          * 

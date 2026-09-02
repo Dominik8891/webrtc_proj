@@ -31,7 +31,7 @@ class UserController
      */
     public function manageUser()
     {
-        $out = file_get_contents("assets/html/manage_user.html");
+        $out = ViewHelper::template("assets/html/manage_user.html");
 
         // null als Default: die Zweigunterscheidung weiter unten unterscheidet
         // "Parameter fehlt" (null) von "Parameter ist leer". Mit dem
@@ -113,7 +113,7 @@ class UserController
      */
     public function listUser()
     {
-        $table_html = file_get_contents("assets/html/list_user.html");
+        $table_html = ViewHelper::template("assets/html/list_user.html");
         $user = new User(Auth::userId());
 
         $action = "";
@@ -258,16 +258,24 @@ class UserController
      */
     private function generateUserRows($in_user, $in_user_ids)
     {
-        $row_html = file_get_contents("assets/html/list_user_row.html");
+        $row_html = ViewHelper::template("assets/html/list_user_row.html");
         $all_rows = "";
 
         foreach ($in_user_ids as $one_user_id) {
             if ($one_user_id == $in_user->getId()) continue;
 
-            $tmp_user = new User($one_user_id);
+            $tmp_user      = new User($one_user_id);
+            $tmp_user_name = $tmp_user->getUsername();
             $action  = "";
             $email   = "";
-            $message = "<button class='btn btn-secondary btn-sm start-chat-btn' data-userid='{$one_user_id}'>Chat</button>";
+            // Nebenaktion, also Symbol statt Text. aria-label und title sind
+            // Pflicht: Ohne sie ist der Knopf weder vorlesbar noch erratbar.
+            $message = '<div class="app-actions-cell">'
+                     . '<button type="button" class="app-iconbtn app-iconbtn--chat start-chat-btn"'
+                     . ' data-userid="' . intval($one_user_id) . '"'
+                     . ' aria-label="Chat mit ' . htmlspecialchars($tmp_user_name) . '"'
+                     . ' title="Chat"></button>'
+                     . '</div>';
 
             // Auch hier entscheidet das Recht und nicht die Rollennummer:
             // der Vergleich mit der 1 traf den Guide statt den Admin.
@@ -358,9 +366,29 @@ class UserController
      */
     private function getAction($in_current_user)
     {
+        $id   = intval($in_current_user->getId());
+        $name = htmlspecialchars($in_current_user->getUsername());
+
+        // Bearbeiten und Loeschen sind Nebenaktionen: Symbol ohne Rahmen,
+        // Rahmen und Flaeche erst beim Ueberfahren. Der Name steht im
+        // aria-label, damit ein Vorleseprogramm nicht dreissigmal
+        // "Bearbeiten" ohne Bezug meldet.
+        //
+        // <a> statt <button>: Bearbeiten fuehrt auf eine Seite. Das Loeschen
+        // fragt vorher zurueck - deshalb der Verweis ins Leere und die
+        // Entscheidung im Bestaetigungsdialog.
         return '<td>
-                    <a href="index.php?act=manage_user&user_id=' . $in_current_user->getId() . '" class="btn btn-secondary btn-sm">Bearbeiten</a>
-                    <a href="#" onclick="window.webrtcApp.ui.confirmDelete(\'index.php?act=delete_user&user_id=' . $in_current_user->getId() . '\')" class="btn btn-outline-danger btn-sm">Löschen</a>
+                    <div class="app-actions-cell">
+                        <a href="index.php?act=manage_user&user_id=' . $id . '"
+                           class="app-iconbtn app-iconbtn--edit"
+                           aria-label="Benutzer ' . $name . ' bearbeiten"
+                           title="Bearbeiten"></a>
+                        <a href="#"
+                           onclick="window.webrtcApp.ui.confirmDelete(\'index.php?act=delete_user&user_id=' . $id . '\'); return false;"
+                           class="app-iconbtn app-iconbtn--delete app-iconbtn--danger"
+                           aria-label="Benutzer ' . $name . ' löschen"
+                           title="Löschen"></a>
+                    </div>
                 </td>';
     }
 }

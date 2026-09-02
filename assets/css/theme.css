@@ -95,6 +95,17 @@
     --app-danger-strong:   #8f1d17;
     --app-danger-soft:     #fdecea;
 
+    /* Symbole fuer die Knoepfe in Tabellen. Sie stehen als Maske hier und
+       nicht als SVG im Markup, weil die Tabellen teils in PHP und teils in
+       JavaScript gebaut werden - so gibt es jede Zeichnung nur einmal.
+       Die Farbe kommt ueber currentColor aus dem Knopf, nicht aus dem Bild. */
+    --icon-chat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 11.5a8.4 8.4 0 0 1-9 8.4 9.9 9.9 0 0 1-3.9-.8L3 21l1.9-4.6A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4Z'/%3E%3C/svg%3E");
+    --icon-edit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
+    --icon-trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M19 6l-1 14H6L5 6'/%3E%3Cpath d='M10 11v6M14 11v6'/%3E%3C/svg%3E");
+    --icon-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E");
+    --icon-unlock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 7.5-2'/%3E%3C/svg%3E");
+    --icon-history: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3.5 2'/%3E%3C/svg%3E");
+
     /* Ruhend: angebotener Standort ohne aktiven Guide. Bewusst grau und
        nicht rot - "gerade niemand da" ist kein Fehler. */
     --app-idle:            #8b95a3;
@@ -1770,3 +1781,128 @@ table.dataTable td.dataTables_empty {
 }
 
 .app-linklike:hover { color: var(--app-accent-strong); }
+
+/* ---------------------------------------------------------------------------
+   Symbolknoepfe in Tabellen
+   ---------------------------------------------------------------------------
+   WOZU
+   Drei umrandete Knoepfe pro Zeile ergeben in einer langen Liste drei
+   senkrechte Balken, die genauso laut sind wie der Inhalt. Die Nebenaktionen
+   - Chat, Bearbeiten, Loeschen, Sperren, Verlauf - werden deshalb zu reinen
+   Symbolen ohne Rahmen und ohne Flaeche. Erst wenn die Maus darueber steht,
+   bekommt der Knopf beides. Die HAUPTAKTION einer Zeile (Anrufen) behaelt
+   Text und Flaeche - sonst waere nicht mehr zu sehen, worum es in der Liste
+   geht.
+
+   VERSTAENDLICHKEIT
+   Ein Symbol allein sagt nichts. Jeder Knopf braucht deshalb aria-label
+   (fuer Vorleseprogramme) UND title (der Tooltip des Browsers, ohne
+   Bibliothek). Das ist keine Empfehlung, sondern die Bedingung dafuer, den
+   Text weglassen zu duerfen.
+
+   WARUM DIE SYMBOLE HIER STEHEN
+   Die Tabellen werden an zwei Stellen gebaut: in PHP (Benutzerliste,
+   Chatliste) und in JavaScript (Standorte). Laegen die Symbole im Markup,
+   muesste dasselbe SVG in beiden Sprachen stehen. Als Maske in der CSS-Datei
+   gibt es sie einmal; beide Seiten schreiben nur eine Klasse.
+   mask + currentColor heisst ausserdem: Das Symbol nimmt die Textfarbe an
+   und faerbt sich beim Ueberfahren von selbst mit um.
+   --------------------------------------------------------------------------- */
+
+.app-iconbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid transparent;   /* im Ruhezustand unsichtbar, aber da:
+                                        so springt beim Ueberfahren nichts */
+    border-radius: var(--app-radius-sm, 6px);
+    background: transparent;
+    color: var(--app-text-muted);
+    cursor: pointer;
+    transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+
+.app-iconbtn::before {
+    content: "";
+    width: 1.05rem;
+    height: 1.05rem;
+    background-color: currentColor;
+    -webkit-mask-position: center;
+            mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+            mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+            mask-size: contain;
+}
+
+.app-iconbtn:hover,
+.app-iconbtn:focus-visible {
+    background: var(--app-surface-sunken);
+    border-color: var(--app-border-strong);
+    color: var(--app-text);
+}
+
+.app-iconbtn:focus-visible {
+    outline: 2px solid var(--app-accent-ring);
+    outline-offset: 1px;
+}
+
+.app-iconbtn:disabled {
+    opacity: .4;
+    cursor: default;
+    background: transparent;
+    border-color: transparent;
+}
+
+/* Loeschen und Sperren erst beim Ueberfahren in der Warnfarbe. Im
+   Ruhezustand bleibt die Zeile grau - ein rotes Symbol in jeder Zeile waere
+   wieder das Adminpanel, und Rot gehoert in dieser Anwendung nicht in eine
+   ruhende Liste. */
+.app-iconbtn--danger:hover,
+.app-iconbtn--danger:focus-visible {
+    color: var(--app-danger);
+    border-color: var(--app-danger);
+    background: var(--app-danger-soft);
+}
+
+/* Die Symbole. Quelle: selbst gezeichnete Pfade, keine Symbolschrift und
+   keine Bibliothek. stroke-Zeichnungen, damit sie bei 17px noch lesbar sind. */
+.app-iconbtn--chat::before {
+    -webkit-mask-image: var(--icon-chat);  mask-image: var(--icon-chat);
+}
+.app-iconbtn--edit::before {
+    -webkit-mask-image: var(--icon-edit);  mask-image: var(--icon-edit);
+}
+.app-iconbtn--delete::before {
+    -webkit-mask-image: var(--icon-trash); mask-image: var(--icon-trash);
+}
+.app-iconbtn--block::before {
+    -webkit-mask-image: var(--icon-lock);  mask-image: var(--icon-lock);
+}
+.app-iconbtn--unblock::before {
+    -webkit-mask-image: var(--icon-unlock); mask-image: var(--icon-unlock);
+}
+.app-iconbtn--history::before {
+    -webkit-mask-image: var(--icon-history); mask-image: var(--icon-history);
+}
+
+/* Die Aktionszelle: Symbole eng beieinander, damit sie als eine Gruppe
+   gelesen werden - und linksbuendig wie jede andere Zelle. Rechtsbuendig
+   sahen sie zwar aufgeraeumter aus, standen dann aber weit weg von ihrem
+   eigenen Spaltenkopf. */
+.app-actions-cell {
+    display: flex;
+    align-items: center;
+    /* Eng genug, dass die Symbole als eine Gruppe gelesen werden, weit genug,
+       dass der Anruf-Knopf daneben nicht anklebt. */
+    gap: 6px;
+    white-space: nowrap;
+}
+
+/* Die Aktionsspalte braucht nur so viel Platz wie ihre Symbole. Ohne das
+   zieht der Tabellensatz sie auf ein Sechstel der Breite auf, und zwischen
+   Spaltenkopf und Symbolen klafft eine leere Flaeche. */
+.app-actions-cell { width: max-content; }

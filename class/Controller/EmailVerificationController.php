@@ -42,17 +42,17 @@ class EmailVerificationController
                 $del->execute();
 
                 error_log("E-Mail erfolgreich bestätigt für UserID {$row['user_id']} von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
-                $html = file_get_contents('assets/html/email_verified.html');
+                $html = ViewHelper::template('assets/html/email_verified.html');
                 ViewHelper::output($html);
             } else {
                 // Verifikations-Token NICHT loggen - er bestaetigt eine fremde Adresse.
                 error_log("FEHLGESCHLAGENE E-Mail-Bestätigung (Token ungültig oder abgelaufen) von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
-                $html = file_get_contents('assets/html/email_verified_error.html');
+                $html = ViewHelper::template('assets/html/email_verified_error.html');
                 ViewHelper::output($html);
             }
         } catch (\Exception $e) {
             error_log("Fehler in handleEmailVerification: " . $e->getMessage());
-            $html = file_get_contents('assets/html/email_verified_error.html');
+            $html = ViewHelper::template('assets/html/email_verified_error.html');
             ViewHelper::output($html);
         }
     }
@@ -106,7 +106,7 @@ class EmailVerificationController
     public function sendVerification($user_id)
     {
         $this->sendVerificationMail($user_id);
-        $out = file_get_contents('assets/html/signup_complete.html');
+        $out = ViewHelper::template('assets/html/signup_complete.html');
         ViewHelper::output($out);
     }
 }

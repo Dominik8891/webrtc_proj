@@ -19,7 +19,7 @@ class LoginController
      */
     public function showLoginForm(): void
     {
-        $html = file_get_contents('assets/html/login.html');
+        $html = ViewHelper::template('assets/html/login.html');
         $html = str_replace('###LOGIN_ERROR###', '', $html);
         ViewHelper::output($html);
     }
@@ -154,8 +154,7 @@ class LoginController
         if (Auth::can(Permission::USER_POSITION)
             && !isset($_SESSION['location_prompt_shown'])) {
             $_SESSION['location_prompt_shown'] = true;
-            $html = file_get_contents('assets/html/location_prompt.html');
-            ViewHelper::checkTemplate($html, 'assets/html/location_prompt.html');
+            $html = ViewHelper::template('assets/html/location_prompt.html');
             ViewHelper::output($html);
             exit;
         }
@@ -171,7 +170,7 @@ class LoginController
      */
     public function outputLoginError($msg = 'Benutzername oder Passwort falsch.'): void
     {
-        $html = file_get_contents('assets/html/login.html');
+        $html = ViewHelper::template('assets/html/login.html');
         $html = str_replace('###LOGIN_ERROR###', $msg, $html);
         ViewHelper::output($html);
     }

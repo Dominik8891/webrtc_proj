@@ -260,6 +260,9 @@ class ChatController
         // auch gelöschte (vergangene) Chats anzeigen:
         $chats = Chat::getAllForUser($currentUserId, true);
 
+        // Die Zeilenvorlage einmal laden, nicht einmal pro Zeile.
+        $rowVorlage = ViewHelper::template('assets/html/list_chat_row.html');
+
         $rowsHtml = '';
         foreach ($chats as $chat) {
             // Partner ermitteln
@@ -269,21 +272,27 @@ class ChatController
             // Status bestimmen
             $status = $chat->isActive() ? 'Aktiv' : ($chat->isDeleted() ? 'Beendet' : 'Offen');
 
-            // Button/Link für Verlauf
-            $showChat = '<a href="index.php?act=show_chat&chat_id='.$chat->getId().'">Verlauf anzeigen</a>';
+            // Verlauf: eine Nebenaktion, also ein Symbol ohne Rahmen. Der
+            // Partnername steht im aria-label - "Verlauf anzeigen" allein
+            // wiederholt sich sonst in jeder Zeile ohne Bezug.
+            $showChat = '<div class="app-actions-cell">'
+                      . '<a href="index.php?act=show_chat&chat_id=' . intval($chat->getId()) . '"'
+                      . ' class="app-iconbtn app-iconbtn--history"'
+                      . ' aria-label="Verlauf mit ' . htmlspecialchars($partnerName) . ' anzeigen"'
+                      . ' title="Verlauf anzeigen"></a>'
+                      . '</div>';
 
             // Template füllen (list_chat_row.html)
-            $rowTpl = file_get_contents('assets/html/list_chat_row.html');
             $rowTpl = str_replace(
-                ['###STATUS', '###PARTNER_NAME', '###LAST_MSG###', '###SHOW_CHAT###'],
+                ['###STATUS###', '###PARTNER_NAME###', '###LAST_MSG###', '###SHOW_CHAT###'],
                 [htmlspecialchars($status), htmlspecialchars($partnerName), $chat->getLastMsgAt(), $showChat],
-                $rowTpl
+                $rowVorlage
             );
             $rowsHtml .= $rowTpl;
         }
 
         // Gesamte Tabelle einbinden (list_chat.html)
-        $tableTpl = file_get_contents('assets/html/list_chat.html');
+        $tableTpl = ViewHelper::template('assets/html/list_chat.html');
         $tableTpl = str_replace('###CHAT_ROWS###', $rowsHtml, $tableTpl);
 
         ViewHelper::Output($tableTpl); // oder via JSON, je nach Frontend-Logik
@@ -308,7 +317,7 @@ class ChatController
 
         $messages = ChatMessage::getAllForChat($chatId); // Du kannst hier ggf. auch gelöschte Nachrichten unterscheiden
         // Nun HTML bauen (assets/html/show_chat.html als Basis)
-        $tpl = file_get_contents('assets/html/show_chat.html');
+        $tpl = ViewHelper::template('assets/html/show_chat.html');
         $messagesHtml = '';
         foreach ($messages as $msg) { 
             // Eine Nachricht ist eine Zeile im Verlauf und keine eigene Karte:

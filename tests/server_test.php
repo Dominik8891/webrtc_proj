@@ -19,6 +19,7 @@ require_once $ROOT . '/class/Controller/WebRTCController.php';
 require_once $ROOT . '/class/Controller/UserController.php';
 require_once $ROOT . '/class/Model/Location.php';
 require_once $ROOT . '/class/Model/GuideRole.php';
+require_once $ROOT . '/class/Helper/ViewHelper.php';
 
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
@@ -30,6 +31,7 @@ use App\Model\Location;
 use App\Model\GuideRole;
 use App\Helper\Role;
 use App\Helper\Permission;
+use App\Helper\ViewHelper;
 
 $passed = 0;
 function ok($name) { global $passed; fwrite(STDERR, "  ok  $name\n"); $passed++; }
@@ -1049,5 +1051,119 @@ check(Permission::has(Permission::GUEST, Permission::LOCATION_LIST) === false,
 check(Permission::has(Permission::GUEST, Permission::LOCATION_MAP_PUBLIC) === true,
     'ein Gast kommt an die Karte');
 ok('die beiden Standortrouten haengen an verschiedenen Rechten');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n14) Kein Platzhalter erreicht den Browser im Kommentar\n");
+
+// DER FEHLER, DEN DIESER TEST FESTHAELT
+// -------------------------------------
+// Die Vorlagen tragen am Anfang einen Kommentar, der ihre Platzhalter
+// erklaert - dort steht ###USER_ROWS### also auch als Beschreibung.
+// str_replace() kennt keine Kommentare und ersetzte beide Vorkommen. Bei der
+// Benutzerliste brachten die eingesetzten Zeilen den Kommentarkopf von
+// list_user_row.html mit; dessen "-->" schloss den aeusseren Kommentar
+// vorzeitig. Danach stand die halbe Tabelle ein zweites Mal ueber der
+// Ueberschrift, mit dem Kommentartext als nacktem Text daneben.
+//
+// Geprueft wird deshalb nicht die Absicht, sondern das Ergebnis: Was
+// ViewHelper::template() liefert, darf keinen Platzhalter mehr in einem
+// Kommentar haben.
+$vorlagenDateien = glob($ROOT . '/assets/html/*.html');
+check(count($vorlagenDateien) > 0, 'keine Vorlagen gefunden');
+
+$mitKommentarPlatzhalter = [];
+foreach ($vorlagenDateien as $datei) {
+    $sauber = ViewHelper::template($datei);
+    if (preg_match_all('/<!--.*?-->/s', $sauber, $bloecke)) {
+        foreach ($bloecke[0] as $block) {
+            if (preg_match('/###[A-Z0-9_]+###/', $block)) {
+                $mitKommentarPlatzhalter[] = basename($datei);
+            }
+        }
+    }
+}
+check($mitKommentarPlatzhalter === [],
+    'Platzhalter in Kommentaren: ' . implode(', ', array_unique($mitKommentarPlatzhalter)));
+ok('kein Platzhalter steht nach dem Laden noch in einem Kommentar');
+
+// Die Dokumentation soll dabei in der DATEI bleiben - entfernt wird sie erst
+// beim Laden. Sonst waere die Loesung, die Kommentare zu loeschen.
+$rohListe = file_get_contents($ROOT . '/assets/html/list_user.html');
+check(strpos($rohListe, '###USER_ROWS###  Die Zeilen') !== false,
+    'die Beschreibung in list_user.html ist verschwunden');
+ok('die Beschreibung bleibt in der Vorlage stehen');
+
+// Ein Kommentar MITTEN im Markup ist eine Anmerkung an Ort und Stelle und
+// darf nicht mitgeloescht werden.
+check(strpos(ViewHelper::template($ROOT . '/assets/html/list_user.html'), 'Keine ID-Spalte') !== false,
+    'ein Kommentar im Markup wurde mitentfernt');
+
+// Und die Platzhalter selbst muessen die Behandlung ueberleben.
+$zeile = ViewHelper::template($ROOT . '/assets/html/list_user_row.html');
+foreach (['###STATUS###', '###CALL###', '###USERNAME###', '###EMAIL###', '###ACTION###'] as $marke) {
+    check(strpos($zeile, $marke) !== false, "$marke ging beim Laden verloren");
+}
+ok('Markup-Kommentare und Platzhalter bleiben erhalten');
+
+// Kein Controller laedt eine Vorlage noch an der Hilfsmethode vorbei - sonst
+// gaebe es wieder einen Weg, auf dem der Kommentar in den Browser kommt.
+$roheLader = [];
+foreach (glob($ROOT . '/class/Controller/*.php') as $datei) {
+    if (preg_match('/file_get_contents\(\s*[\'"]assets\/html\//', file_get_contents($datei))) {
+        $roheLader[] = basename($datei);
+    }
+}
+check($roheLader === [],
+    'laedt eine Vorlage ohne ViewHelper::template(): ' . implode(', ', $roheLader));
+ok('alle Vorlagen laufen ueber ViewHelper::template()');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n15) Symbolknoepfe in den PHP-Tabellen tragen Label und Tooltip\n");
+
+// Dieselbe Bedingung wie auf der JavaScript-Seite: Ein Knopf ohne Text ist
+// nur benutzbar, wenn er aria-label (Vorleseprogramm) und title (Tooltip)
+// hat. Geprueft wird die Quelle, weil die Zellenbauer privat sind und ohne
+// Datenbank nicht aufgerufen werden koennen.
+foreach ([
+    'class/Controller/UserController.php' => 'Benutzerliste',
+    'class/Controller/ChatController.php' => 'Chatliste',
+] as $datei => $was) {
+    $code = file_get_contents($ROOT . '/' . $datei);
+
+    // Jedes Vorkommen von app-iconbtn ist ein Symbolknopf. Zu jedem muss im
+    // selben Ausdruck ein aria-label und ein title gehoeren.
+    $anzahl = preg_match_all('/app-iconbtn app-iconbtn--/', $code);
+    check($anzahl > 0, "$was hat keinen Symbolknopf");
+    check(preg_match_all('/aria-label="/', $code) >= $anzahl,
+        "$was: nicht jeder Symbolknopf hat ein aria-label");
+    check(preg_match_all('/title="/', $code) >= $anzahl,
+        "$was: nicht jeder Symbolknopf hat einen Tooltip");
+}
+ok('Benutzerliste und Chatliste beschriften ihre Symbolknoepfe');
+
+// Die Hauptaktion behaelt Text und Flaeche - sie sagt, worum es in der Liste
+// geht. Wuerde sie auch zum Symbol, waere die Zeile eine Reihe gleich lauter
+// Zeichen ohne Schwerpunkt.
+$uc = file_get_contents($ROOT . '/class/Controller/UserController.php');
+check(strpos($uc, '>Anrufen</button>') !== false,
+    'der Anruf-Knopf der Benutzerliste hat seine Beschriftung verloren');
+check(strpos($uc, 'btn btn-sm start-call-btn') !== false,
+    'der Anruf-Knopf ist kein Flaechenknopf mehr');
+ok('die Hauptaktion behaelt Text und Flaeche');
+
+// Und die Symbole selbst stehen an EINER Stelle - in der CSS-Datei als
+// Maske, nicht als SVG in PHP und noch einmal in JavaScript.
+$css = file_get_contents($ROOT . '/assets/css/theme.css');
+foreach (['chat', 'edit', 'trash', 'lock', 'unlock', 'history'] as $symbol) {
+    check(strpos($css, '--icon-' . $symbol . ':') !== false,
+        "das Symbol $symbol fehlt in theme.css");
+}
+foreach (['class/Controller/UserController.php',
+          'class/Controller/ChatController.php',
+          'assets/js/locations_table.js'] as $datei) {
+    check(stripos(file_get_contents($ROOT . '/' . $datei), '<svg') === false,
+        "$datei zeichnet ein eigenes SVG statt die Klasse zu setzen");
+}
+ok('die Symbole stehen einmal in theme.css, nicht in jedem Tabellenbauer');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

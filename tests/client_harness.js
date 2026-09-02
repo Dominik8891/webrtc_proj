@@ -144,6 +144,28 @@ for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'signaling.js'
     eval(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 }
 
+// locations_table.js baut die Zellen der Standortlisten. Geprueft werden hier
+// nur die reinen Baumethoden (actionCellHtml und was daran haengt) - die
+// brauchen kein DOM. Die Datei setzt am Ende aber einen $(document).ready-
+// Block ab, deshalb steht hier gerade so viel jQuery, dass sie durchlaeuft.
+// Absichtlich karg: Was mehr braucht als das, gehoert nicht in diese Tests.
+{
+    const leer = {
+        length: 0,
+        ready(fn) { return this; },
+        on() { return this; }, off() { return this; },
+        show() { return this; }, hide() { return this; }, toggle() { return this; },
+        find() { return this; }, html() { return this; }, text() { return ''; },
+        each() { return this; }, data() { return undefined; }, attr() { return undefined; }
+    };
+    const $ = () => leer;
+    $.fn = { DataTable: { isDataTable: () => false } };
+    $.ajax = () => ({ done: () => ({ fail: () => {} }) });
+    $.extend = Object.assign;
+    global.$ = global.jQuery = $;
+    eval(fs.readFileSync(path.join(ROOT, 'locations_table.js'), 'utf8'));
+}
+
 // Module, die von rtc.js benutzt werden, aber hier nicht geladen sind
 // Abgespielte Signaltoene mitschreiben: Die Protokolltests pruefen, dass ein
 // ausgefuehrter Bewegungsbefehl beim Guide hoerbar wird.

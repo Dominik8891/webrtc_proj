@@ -32,7 +32,7 @@ class LocationController
      */
     public function setLocationPage()
     {
-        $out = file_get_contents('assets/html/set_location.html');
+        $out = ViewHelper::template('assets/html/set_location.html');
         ViewHelper::output($out);
     }
 
@@ -182,7 +182,7 @@ class LocationController
      */
     public function showLocationsPage()
     {
-        $out = file_get_contents('assets/html/locations_table.html');
+        $out = ViewHelper::template('assets/html/locations_table.html');
         ViewHelper::output($out);
     }
 

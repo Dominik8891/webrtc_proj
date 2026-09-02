@@ -20,7 +20,7 @@ class SignupController
      */
     public function showSignupForm(): void
     {
-        $html = file_get_contents('assets/html/signup.html');
+        $html = ViewHelper::template('assets/html/signup.html');
         // Fehler-Platzhalter leeren
         $html = str_replace('###ERROR###', '', $html);
         ViewHelper::output($html);
@@ -74,8 +74,7 @@ class SignupController
                         // auskommentierten Zeile darunter - nur zusaetzlich mit
                         // Mailversand. Beim Deaktivieren des Mailversands ist diese
                         // Zuweisung verlorengegangen, $out war dadurch undefiniert.
-                        $out = file_get_contents('assets/html/signup_complete.html');
-                        ViewHelper::checkTemplate($out, 'assets/html/signup_complete.html');
+                        $out = ViewHelper::template('assets/html/signup_complete.html');
                         ViewHelper::output($out);
                         //(new EmailVerificationController)::sendVerification($user_id);
                         exit;
@@ -104,7 +103,7 @@ class SignupController
     public function outputSignupError($error): void
     {
         // Fehlerfall: Formular mit Fehler anzeigen
-        $html = file_get_contents('assets/html/signup.html');
+        $html = ViewHelper::template('assets/html/signup.html');
         switch ($error) {
             case "username":         $msg = "Der Benutzername ist bereits vergeben."; break;
             case "email":            $msg = "Die E-Mail-Adresse ist bereits vergeben."; break;

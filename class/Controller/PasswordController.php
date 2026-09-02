@@ -19,7 +19,7 @@ class PasswordController
      */
     public function showForgotPwForm(): void
     {
-        $html = file_get_contents('assets/html/forgot_pw.html');
+        $html = ViewHelper::template('assets/html/forgot_pw.html');
         $html = str_replace('###PW_FORGOT_MSG###', '', $html);
         ViewHelper::output($html);
     }
@@ -66,7 +66,7 @@ class PasswordController
             error_log("Passwort-Reset-Versuch für NICHT vorhandene E-Mail " . LogHelper::maskEmail($email) . " von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
         }
 
-        $html = file_get_contents('assets/html/forgot_pw.html');
+        $html = ViewHelper::template('assets/html/forgot_pw.html');
         $html = str_replace('###PW_FORGOT_MSG###', $msg, $html);
         ViewHelper::output($html);
     }
@@ -85,13 +85,13 @@ class PasswordController
 
         $msg = "";
         if ($row) {
-            $html = file_get_contents('assets/html/reset_pw.html');
+            $html = ViewHelper::template('assets/html/reset_pw.html');
             $html = str_replace('###TOKEN###', htmlspecialchars($token), $html);
             $html = str_replace('###PW_RESET_MSG###', $msg, $html);
             ViewHelper::output($html);
         } else {
             $msg = "Der Link ist ungültig oder abgelaufen.";
-            $html = file_get_contents('assets/html/reset_pw.html');
+            $html = ViewHelper::template('assets/html/reset_pw.html');
             $html = str_replace('###TOKEN###', '', $html);
             $html = str_replace('###PW_RESET_MSG###', $msg, $html);
             ViewHelper::output($html);
@@ -112,7 +112,7 @@ class PasswordController
 
         if ($pwd1 !== $pwd2 || strlen($pwd1) < 8) {
             $msg = "Die Passwörter stimmen nicht überein oder sind zu kurz.";
-            $html = file_get_contents('assets/html/reset_pw.html');
+            $html = ViewHelper::template('assets/html/reset_pw.html');
             $html = str_replace('###TOKEN###', htmlspecialchars($token), $html);
             $html = str_replace('###PW_RESET_MSG###', $msg, $html);
             ViewHelper::output($html);
@@ -143,7 +143,7 @@ class PasswordController
             exit;
         } else {
             $msg = "Der Link ist ungültig oder abgelaufen.";
-            $html = file_get_contents('assets/html/reset_pw.html');
+            $html = ViewHelper::template('assets/html/reset_pw.html');
             $html = str_replace('###TOKEN###', '', $html);
             $html = str_replace('###PW_RESET_MSG###', $msg, $html);
             // Reset-Token NICHT loggen - wer ihn hat, uebernimmt das Konto.
@@ -159,7 +159,7 @@ class PasswordController
     public function showChangePwForm() 
     {
         $username = Request::g('username');
-        $html = file_get_contents('assets/html/change_pw.html');
+        $html = ViewHelper::template('assets/html/change_pw.html');
         $html = str_replace('###USERNAME###', $username, $html);
         $html = str_replace('###PW_CHANGE_MSG###', '', $html);
         ViewHelper::output($html);
@@ -197,7 +197,7 @@ class PasswordController
         // nicht erkennbar, ob es den Benutzernamen ueberhaupt gibt.
         if (!$result || !password_verify($pwd_peppered, $result['pwd'])) {
             $msg = "Das alte Passwort ist nicht korrekt!";
-            $html = file_get_contents('assets/html/change_pw.html');
+            $html = ViewHelper::template('assets/html/change_pw.html');
             $html = str_replace('###USERNAME###', $username, $html);
             $html = str_replace('###PW_CHANGE_MSG###', $msg, $html);
             ViewHelper::output($html);
@@ -206,7 +206,7 @@ class PasswordController
 
         if ($pwd1 !== $pwd2 || strlen($pwd1) < 8) {
             $msg = "Die Passwörter stimmen nicht überein oder sind zu kurz.";
-            $html = file_get_contents('assets/html/change_pw.html');
+            $html = ViewHelper::template('assets/html/change_pw.html');
             $html = str_replace('###USERNAME###', $username, $html);
             $html = str_replace('###PW_CHANGE_MSG###', $msg, $html);
             ViewHelper::output($html);

@@ -24,6 +24,49 @@ class ViewHelper
     }
 
     /**
+     * Laedt eine Vorlage aus assets/html und entfernt den Kommentarblock,
+     * mit dem sie dokumentiert ist.
+     *
+     * WARUM DAS NOETIG IST
+     * --------------------
+     * Die Vorlagen tragen am Anfang einen Kommentar, der ihre Platzhalter
+     * erklaert - dort steht also der Text ###USER_ROWS### auch als
+     * Beschreibung. str_replace() kennt aber keine Kommentare: Es ersetzt
+     * JEDES Vorkommen, auch das in der Beschreibung. Damit landete der
+     * Inhalt zweimal in der Seite.
+     *
+     * Unsichtbar blieb die zweite Fuellung nur so lange, wie sie selbst
+     * kein "-->" enthielt. Genau das war bei der Benutzerliste der Fall:
+     * Die eingesetzten Zeilen brachten den Kommentarkopf von
+     * list_user_row.html mit, dessen "-->" den aeusseren Kommentar vorzeitig
+     * schloss. Ab da war alles sichtbar - die Zeilen ein zweites Mal und der
+     * Rest des Kommentartextes als nackter Text ueber der Ueberschrift.
+     *
+     * Statt die Beschreibungen zu verstuemmeln, wird der Kommentar hier
+     * entfernt, bevor irgendetwas ersetzt wird. Die Dokumentation bleibt in
+     * der Datei, wo sie hingehoert, und kommt nicht mehr im Browser an.
+     * Nebenbei steht der Kommentar einer Zeilenvorlage jetzt nicht mehr
+     * einmal pro Tabellenzeile im Dokument.
+     *
+     * Entfernt werden nur Kommentare VOR dem ersten Element - ein Kommentar
+     * mitten im Markup ist eine bewusste Anmerkung an Ort und Stelle und
+     * bleibt stehen.
+     *
+     * @param string $pfad Pfad zur Vorlage, z. B. 'assets/html/login.html'
+     * @return string Der Inhalt ohne den einleitenden Kommentarblock
+     */
+    public static function template(string $pfad): string
+    {
+        $roh = file_get_contents($pfad);
+        self::checkTemplate($roh, $pfad);
+
+        // ^\s*(<!--...-->\s*)+ : ein oder mehrere Kommentarbloecke am Anfang.
+        // Das "U" macht .* genuegsam, sonst reichte der Treffer bis zum
+        // letzten "-->" der Datei.
+        return ltrim(preg_replace('/^\s*(?:<!--.*-->\s*)+/Us', '', $roh));
+    }
+
+    /**
      * Baut das Benutzermenue der Kopfleiste.
      *
      * Enthaelt die Eintraege, die zum eigenen Konto gehoeren. Welche Route
@@ -78,7 +121,7 @@ class ViewHelper
     public static function output($in_content)
     {
         // Hauptlayout laden (enthält die Platzhalter)
-        $out = file_get_contents("assets/html/index.html"); 
+        $out = self::template("assets/html/index.html"); 
         $out = str_replace("###CONTENT###", $in_content, $out);
 
         // Standardlinks (nicht angemeldet)
@@ -135,13 +178,13 @@ class ViewHelper
             $user_role    = Role::name($user_role_id);
 
             // Zusätzliche Steuerelemente für eingeloggte User laden
-            $call        = file_get_contents('assets/html/call_controll.html');
+            $call        = self::template('assets/html/call_controll.html');
             self::checkTemplate($call, 'assets/html/call_controll.html');
 
-            $inner_call  = file_get_contents('assets/html/inner_call_controll.html');
+            $inner_call  = self::template('assets/html/inner_call_controll.html');
             self::checkTemplate($inner_call, 'assets/html/inner_call_controll.html');
 
-            $media       = file_get_contents('assets/html/media.html');
+            $media       = self::template('assets/html/media.html');
             self::checkTemplate($media, 'assets/html/media.html');
 
             // User-ID als JS-Variable bereitstellen
