@@ -1,15 +1,36 @@
-<div class="d-flex justify-content-center">
-    <div class="card shadow-sm p-4" style="max-width: 350px; width: 100%;">
-        <h3 class="mb-3 text-center">Passwort vergessen</h3>
-        <form action="index.php?act=forgot_pw" method="post" autocomplete="off">
-            <div class="mb-3">
-                <label for="email" class="form-label">E-Mail-Adresse</label>
-                <input type="email" name="email" class="form-control" required autofocus>
+<!--
+    Passwort vergessen. Gefuellt von App\Controller\PasswordController.
+
+    Platzhalter:
+      ###PW_FORGOT_MSG###  Meldung; leer, wenn es keine gibt.
+-->
+<div class="app-auth">
+    <div class="app-auth__card">
+        <div class="app-panel">
+            <div class="app-panel__body">
+                <div class="app-auth__head">
+                    <h1 class="app-auth__title">Passwort vergessen</h1>
+                    <p class="app-auth__sub">
+                        Wir schicken Ihnen einen Link an die hinterlegte Adresse.
+                    </p>
+                </div>
+
+                <form action="index.php?act=forgot_pw" method="post" autocomplete="off">
+                    <div class="app-field">
+                        <label for="email" class="form-label">E-Mail-Adresse</label>
+                        <input type="email" id="email" name="email" class="form-control" required autofocus>
+                    </div>
+                    <div class="app-actions app-actions--stretch">
+                        <button type="submit" class="btn btn-primary">Link anfordern</button>
+                    </div>
+                </form>
+
+                <div class="app-form-error">###PW_FORGOT_MSG###</div>
+
+                <p class="app-auth__foot">
+                    <a href="index.php?act=login_page">Zurück zur Anmeldung</a>
+                </p>
             </div>
-            <button type="submit" class="btn btn-primary w-100">Passwort zurücksetzen</button>
-        </form>
-        <div class="text-danger text-center mt-3">
-            ###PW_FORGOT_MSG###
         </div>
     </div>
 </div>

@@ -1,22 +1,41 @@
-<div class="d-flex justify-content-center align-items-center">
-    <div class="card shadow-sm p-4" style="max-width: 350px; width: 100%;">
-        <h3 class="mb-3 text-center">Login</h3>
-        <form action="index.php?act=login" method="post" autocomplete="off">
-            <div class="mb-3">
-                <input type="text" name="username" class="form-control" placeholder="Username" required autofocus>
+<!--
+    Anmeldung. Gefuellt von App\Controller\LoginController.
+
+    Platzhalter:
+      ###LOGIN_ERROR###  Fehlermeldung; leer, wenn es keine gibt. Sie steht
+                         ohne Leerzeichen im Element, damit die Regel
+                         .app-form-error:empty greift und kein leerer Kasten
+                         stehen bleibt.
+-->
+<div class="app-auth">
+    <div class="app-auth__card">
+        <div class="app-panel">
+            <div class="app-panel__body">
+                <div class="app-auth__head">
+                    <h1 class="app-auth__title">Anmelden</h1>
+                    <p class="app-auth__sub">Weiter zu Ihren Führungen.</p>
+                </div>
+
+                <form action="index.php?act=login" method="post" autocomplete="off">
+                    <div class="app-field">
+                        <label for="login-username" class="form-label">Benutzername</label>
+                        <input type="text" id="login-username" name="username" class="form-control" required autofocus>
+                    </div>
+                    <div class="app-field">
+                        <label for="login-password" class="form-label">Passwort</label>
+                        <input type="password" id="login-password" name="pwd" class="form-control" required>
+                    </div>
+                    <div class="app-actions app-actions--stretch">
+                        <button type="submit" class="btn btn-primary">Anmelden</button>
+                    </div>
+                </form>
+
+                <div class="app-form-error">###LOGIN_ERROR###</div>
+
+                <p class="app-auth__foot">
+                    Noch kein Konto? <a href="index.php?act=signup_page">Jetzt registrieren</a>
+                </p>
             </div>
-            <div class="mb-3">
-                <input type="password" name="pwd" class="form-control" placeholder="Password" required>
-            </div>
-            <button type="submit" class="btn btn-primary w-100">Login</button>
-        </form>
-        <!--
-        <div class="mt-3">
-            <a href="index.php?act=forgot_pw_page" class="small">Passwort vergessen?</a>
-        </div>
-        -->
-        <div class="text-danger text-center mt-3">
-            ###LOGIN_ERROR###
         </div>
     </div>
 </div>

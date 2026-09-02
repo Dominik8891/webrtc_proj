@@ -1,17 +1,32 @@
-<div class="container">
-    <div class="card shadow-sm p-4 my-4">
-        <div class="mb-3">
-            ###NEW###
+<!--
+    Benutzerliste (Werkzeugansicht).
+    Gefuellt von App\Controller\UserController.
+
+    Platzhalter:
+      ###NEW###        Knopf "Neuer Benutzer" - nur mit dem Recht user.manage
+      ###EMAIL###      Spaltenkopf "E-Mail" - nur fuer die Verwaltung
+      ###ACTION###     Spaltenkopf "Aktionen" - nur fuer die Verwaltung
+      ###USER_ROWS###  Die Zeilen aus list_user_row.html
+-->
+<div class="app-page">
+    <div class="app-toolbar">
+        <div>
+            <h1 class="app-page-head__title">Benutzer</h1>
+            <p class="app-page-head__sub">Wer angemeldet ist, ist grün markiert und erreichbar.</p>
         </div>
-        <div class="table-responsive">
-            <table class="table table-bordered table-striped align-middle mb-0">
-                <thead class="table-light">
+        <div>###NEW###</div>
+    </div>
+
+    <div class="app-panel">
+        <div class="app-table-wrap">
+            <table class="table table-striped align-middle mb-0">
+                <thead>
                     <tr>
                         <th class="user_table_desktop">ID</th>
                         <th class="user_table_desktop">Status</th>
                         <th>Anrufen</th>
-                        <th>Username</th>
-                        <th>Message</th>
+                        <th>Benutzername</th>
+                        <th>Nachricht</th>
                         ###EMAIL###
                         ###ACTION###
                     </tr>

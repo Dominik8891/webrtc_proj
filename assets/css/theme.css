@@ -439,6 +439,257 @@ a:hover {
 }
 
 /* ===========================================================================
+   Anmelde- und Formularseiten
+   ---------------------------------------------------------------------------
+   Login, Registrierung, Passwort: immer dieselbe schmale Karte in der Mitte,
+   immer dieselbe Ueberschrift, immer derselbe Platz fuer eine Fehlermeldung.
+   Vorher hatte jede dieser Seiten ihre eigene Breite und ihren eigenen
+   Abstand.
+   =========================================================================== */
+
+.app-auth {
+    display: flex;
+    justify-content: center;
+    padding: var(--app-space-7) var(--app-space-4);
+}
+
+.app-auth__card {
+    width: 100%;
+    max-width: 380px;
+}
+
+.app-auth__card--wide { max-width: 460px; }
+
+.app-auth__head {
+    text-align: center;
+    margin-bottom: var(--app-space-5);
+}
+
+.app-auth__title { margin: 0; font-size: var(--app-text-lg); }
+
+.app-auth__sub {
+    margin: var(--app-space-2) 0 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.app-auth__foot {
+    margin: var(--app-space-5) 0 0;
+    padding-top: var(--app-space-4);
+    border-top: 1px solid var(--app-border);
+    text-align: center;
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+}
+
+/* Formularzeile. Eine Reihe, ein Abstand - keine mb-3 von Hand mehr. */
+.app-field { margin-bottom: var(--app-space-4); }
+
+.app-field:last-of-type { margin-bottom: 0; }
+
+.app-field > .form-label { display: block; }
+
+/* Platz fuer die Fehlermeldung des Servers.
+   Sie wird durch einen leeren String ersetzt, wenn es keine gibt - dann
+   verschwindet auch der Abstand, statt eine Luecke zu hinterlassen. Deshalb
+   steht der Platzhalter im Markup ohne Leerzeichen im Element. */
+.app-form-error {
+    margin: var(--app-space-4) 0 0;
+    padding: var(--app-space-2) var(--app-space-3);
+    border-radius: var(--app-radius);
+    background: var(--app-danger-soft);
+    color: var(--app-danger-strong);
+    font-size: var(--app-text-sm);
+    text-align: center;
+}
+
+.app-form-error:empty { display: none; }
+
+/* Knopfreihe unter einem Formular. */
+.app-actions {
+    display: flex;
+    gap: var(--app-space-2);
+    flex-wrap: wrap;
+    margin-top: var(--app-space-5);
+}
+
+.app-actions--center  { justify-content: center; }
+.app-actions--stretch > .btn { flex: 1 1 auto; }
+
+/* ===========================================================================
+   Ergebnisseiten (bestaetigt, fehlgeschlagen)
+   =========================================================================== */
+
+.app-result {
+    max-width: 480px;
+    margin: var(--app-space-7) auto;
+    text-align: center;
+}
+
+.app-result__mark {
+    width: 44px;
+    height: 44px;
+    margin: 0 auto var(--app-space-4);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    background: var(--app-live-soft);
+    color: var(--app-live-strong);
+}
+
+.app-result__mark--danger {
+    background: var(--app-danger-soft);
+    color: var(--app-danger);
+}
+
+.app-result__text {
+    color: var(--app-text-muted);
+    margin-bottom: var(--app-space-5);
+}
+
+/* ===========================================================================
+   Angaben-Liste (Name, E-Mail, 2FA, ...)
+   ---------------------------------------------------------------------------
+   Statt einer Tabelle: Es sind keine Daten in Zeilen und Spalten, sondern
+   Angaben zu genau einem Konto.
+   =========================================================================== */
+
+.app-details {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 0;
+    margin: 0;
+}
+
+.app-details > dt,
+.app-details > dd {
+    padding: var(--app-space-3) 0;
+    border-top: 1px solid var(--app-border);
+    margin: 0;
+}
+
+/* Die erste Zeile braucht keine Trennlinie - darueber steht schon der Kopf
+   des Bereichs oder gar nichts. */
+.app-details > *:nth-child(1),
+.app-details > *:nth-child(2) {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.app-details > dt {
+    display: flex;
+    align-items: center;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-normal);
+}
+
+.app-details > dd {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+    .app-details { grid-template-columns: 1fr; }
+    .app-details > dd { padding-top: 0; border-top: 0; }
+    .app-details > dt { padding-bottom: var(--app-space-1); }
+}
+
+/* ===========================================================================
+   Werkzeugseiten: Tabellen und Listen
+   ---------------------------------------------------------------------------
+   Der Adminbereich darf nach Werkzeug aussehen. Das heisst hier: dichte
+   Zeilen, ruhige Farben, klare Kanten - und derselbe Rahmen wie ueberall.
+   =========================================================================== */
+
+.app-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--app-space-4);
+}
+
+/* Tabelle in einem Panel: Der Rahmen kommt vom Panel, nicht von der Tabelle. */
+.app-table-wrap {
+    overflow-x: auto;
+    border-radius: var(--app-radius-lg);
+}
+
+.app-table-wrap > .table { margin-bottom: 0; }
+
+/* ===========================================================================
+   Kleinteile
+   =========================================================================== */
+
+/* QR-Code bei der Einrichtung der Zwei-Faktor-Anmeldung. */
+.app-qr {
+    display: flex;
+    justify-content: center;
+    margin: 0 0 var(--app-space-5);
+}
+
+.app-qr img {
+    width: 200px;
+    height: 200px;
+    padding: var(--app-space-3);
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+}
+
+/* Eingabefeld fuer einen Zahlencode: gross, mit Abstand zwischen den
+   Ziffern, damit sich beim Abtippen nicht verzaehlt wird. */
+.app-code-input {
+    font-family: var(--app-font-mono);
+    font-size: var(--app-text-lg);
+    letter-spacing: 0.35em;
+    text-align: center;
+}
+
+/* Eine Nachricht im Chatverlauf (App\Controller\ChatController::showChat). */
+.app-message {
+    display: flex;
+    align-items: baseline;
+    gap: var(--app-space-3);
+    padding: var(--app-space-3) 0;
+    border-bottom: 1px solid var(--app-border);
+}
+
+.app-message:last-child { border-bottom: 0; }
+
+.app-message__from {
+    flex: none;
+    min-width: 120px;
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text);
+}
+
+.app-message__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.app-message__time {
+    flex: none;
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+    .app-message { flex-wrap: wrap; gap: var(--app-space-1) var(--app-space-2); }
+    .app-message__from { min-width: 0; }
+    .app-message__text { flex-basis: 100%; }
+}
+
+/* ===========================================================================
    Bootstrap-Anbindung
    ---------------------------------------------------------------------------
    Bootstrap setzt die Farben seiner Bauteile in eigenen Variablen je Klasse.

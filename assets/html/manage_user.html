@@ -1,25 +1,45 @@
-<div class="d-flex justify-content-center">
-    <div class="card shadow-sm p-4" style="max-width: 420px; width: 100%;">
-        <h3 class="mb-3 text-center">Benutzer ###USER_INFO###</h3>
-        <form action="index.php?act=manage_user" method="post" enctype="multipart/form-data" autocomplete="off">
-            <input type="hidden" name="id" value="###ID###">
-            <div class="mb-3">
-                <label for="role" class="form-label">Typ</label>
-                <select name="role" class="form-select">###ROLE###</select>
+<!--
+    Benutzer anlegen und bearbeiten (Adminbereich).
+    Gefuellt von App\Controller\UserController.
+
+    Platzhalter:
+      ###USER_INFO###  "anlegen" oder der bearbeitete Name
+      ###ID###         Benutzer-ID (leer beim Anlegen)
+      ###ROLE###       <option>-Liste der Rollen
+      ###USERNAME###, ###EMAIL###, ###PASSWORD###
+-->
+<div class="app-auth">
+    <div class="app-auth__card app-auth__card--wide">
+        <div class="app-panel">
+            <div class="app-panel__body">
+                <div class="app-auth__head">
+                    <h1 class="app-auth__title">Benutzer ###USER_INFO###</h1>
+                </div>
+
+                <form action="index.php?act=manage_user" method="post" enctype="multipart/form-data" autocomplete="off">
+                    <input type="hidden" name="id" value="###ID###">
+                    <div class="app-field">
+                        <label for="role" class="form-label">Rolle</label>
+                        <select id="role" name="role" class="form-select">###ROLE###</select>
+                    </div>
+                    <div class="app-field">
+                        <label for="username" class="form-label">Benutzername</label>
+                        <input type="text" id="username" name="username" class="form-control" value="###USERNAME###" autocomplete="off">
+                    </div>
+                    <div class="app-field">
+                        <label for="email" class="form-label">E-Mail-Adresse</label>
+                        <input type="email" id="email" name="email" class="form-control" value="###EMAIL###" autocomplete="off">
+                    </div>
+                    <div class="app-field">
+                        <label for="pwd" class="form-label">Passwort</label>
+                        <input type="text" id="pwd" name="pwd" class="form-control" value="###PASSWORD###" autocomplete="off">
+                    </div>
+                    <div class="app-actions">
+                        <button type="submit" name="send" class="btn btn-primary">Speichern</button>
+                        <a href="index.php?act=list_user" class="btn btn-secondary">Abbrechen</a>
+                    </div>
+                </form>
             </div>
-            <div class="mb-3">
-                <label for="username" class="form-label">Benutzername</label>
-                <input type="text" name="username" class="form-control" value="###USERNAME###" autocomplete="off">
-            </div>
-            <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" name="email" class="form-control" value="###EMAIL###" autocomplete="off">
-            </div>
-            <div class="mb-3">
-                <label for="pwd" class="form-label">Passwort</label>
-                <input type="text" name="pwd" class="form-control" value="###PASSWORD###" autocomplete="off">
-            </div>
-            <button type="submit" name="send" class="btn btn-primary w-100">Speichern</button>
-        </form>
+        </div>
     </div>
 </div>

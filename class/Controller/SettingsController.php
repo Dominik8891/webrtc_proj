@@ -56,8 +56,12 @@ class SettingsController
          * Deaktiviert lassen solange kein eigener SMTP
          * 
          *  if ($mailConfirmed !== '') {
-         *      $mailConfirm = "<tr><td>E-Mail bestätigt:</td><td>$mailConfirmed</td></tr>";
+         *      $mailConfirm = "<dt>E-Mail bestätigt</dt><dd>$mailConfirmed</dd>";
          *  }
+         *
+         * Die Angaben stehen seit dem Umbau der Oberflaeche in einer
+         * Beschreibungsliste (assets/html/settings.html), nicht mehr in einer
+         * Tabelle - deshalb <dt>/<dd> statt <tr>/<td>.
          * 
          *
         */

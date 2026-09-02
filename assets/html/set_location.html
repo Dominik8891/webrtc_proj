@@ -1,45 +1,75 @@
-<div class="d-flex justify-content-center">
-    <div class="card shadow-sm p-4" style="max-width: 500px; width: 100%;">
-        <h3 class="mb-4 text-center">Lokation hinzufügen</h3>
+<!--
+    Standort anbieten. Gefuellt und gesteuert von assets/js/map.js.
 
-        <!-- Bereich für Fehlermeldungen der Länder-/Städteauswahl.
-             Wird von assets/js/map.js befüllt (zeigeHinweis) und bleibt
-             leer und unsichtbar, solange alles funktioniert. -->
-        <div id="location-hinweis" class="alert alert-danger" style="display:none;" role="alert"></div>
+    Die IDs countrySelect, citySelect, latitude, longitude, lat, lon,
+    osm_place, current-location, map und location-hinweis werden dort
+    gebraucht - sie muessen erhalten bleiben.
+-->
+<div class="app-page app-page--narrow" style="max-width: 720px;">
+    <div class="app-toolbar">
+        <div>
+            <h1 class="app-page-head__title">Standort anbieten</h1>
+            <p class="app-page-head__sub">
+                Der Ort, an dem Sie führen. Er erscheint auf der Karte – hervorgehoben, sobald Sie online sind.
+            </p>
+        </div>
+    </div>
 
-        <form action="index.php?act=set_location" method="post" autocomplete="off">
-            <div class="mb-3">
-                <button id="current-location" type="button" class="btn btn-outline-secondary w-100 mb-2">Aktuellen Standort verwenden</button>
-            </div>
-            <div class="mb-3 row justify-content-center">
-                <div class="col-12 col-sm-10 col-md-8 col-lg-7">
+    <div class="app-panel">
+        <div class="app-panel__body">
+
+            <!-- Bereich für Fehlermeldungen der Länder-/Städteauswahl.
+                 Wird von assets/js/map.js befüllt (zeigeHinweis) und bleibt
+                 leer und unsichtbar, solange alles funktioniert. -->
+            <div id="location-hinweis" class="alert alert-danger" style="display:none;" role="alert"></div>
+
+            <form action="index.php?act=set_location" method="post" autocomplete="off">
+                <div class="app-field">
+                    <label for="countrySelect" class="form-label">Land</label>
                     <select id="countrySelect" name="country" class="form-select" required>
                         <option value="">Land wählen...</option>
                         <!-- Optionen werden per JS eingefügt -->
                     </select>
-                </div> 
-            </div>
-            <div class="mb-3 row justify-content-center">
-                <div class="col-12 col-sm-10 col-md-8 col-lg-7">
+                </div>
+
+                <div class="app-field">
+                    <label for="citySelect" class="form-label">Stadt</label>
                     <select id="citySelect" name="city" class="form-select" required>
                         <option value="">Stadt wählen...</option>
                     </select>
                 </div>
-            </div>
-            <input type="hidden" id="latitude" name="latitude" value="" required>
-            <input type="hidden" id="longitude" name="longitude" value="" required>
-            <input type="hidden" name="country-iso2" id="country-iso2">
-            <div class="mb-3">
-                <label for="description" class="form-label">Hier eine kurze Beschreibung einfügen</label>
-                <input type="text" name="description" class="form-control" required>
-            </div>
-            <button type="submit" class="btn btn-primary w-100">Lokation hinzufügen</button>
-        </form>
-        <div id="map" class="my-3" style="width: 100%; height: 320px; min-height: 250px; max-width: 100%;"></div>
-        <p class="small">
-            <b>Latitude:</b> <span id="lat"></span><br>
-            <b>Longitude:</b> <span id="lon"></span><br>
-            <b>Ort laut OSM:</b> <span id="osm_place"></span>
-        </p>
+
+                <div class="app-field">
+                    <label for="description" class="form-label">Beschreibung</label>
+                    <input type="text" id="description" name="description" class="form-control"
+                           placeholder="Was gibt es dort zu sehen?" required>
+                </div>
+
+                <input type="hidden" id="latitude" name="latitude" value="" required>
+                <input type="hidden" id="longitude" name="longitude" value="" required>
+                <input type="hidden" name="country-iso2" id="country-iso2">
+
+                <div class="app-field">
+                    <label class="form-label" for="map">Punkt auf der Karte</label>
+                    <div id="map" class="app-picker-map"></div>
+                    <div class="app-actions" style="margin-top: var(--app-space-2);">
+                        <button id="current-location" type="button" class="btn btn-secondary btn-sm">
+                            Aktuellen Standort verwenden
+                        </button>
+                    </div>
+                </div>
+
+                <dl class="app-details app-text-sm">
+                    <dt>Breitengrad</dt><dd><span id="lat" class="app-mono">–</span></dd>
+                    <dt>Längengrad</dt><dd><span id="lon" class="app-mono">–</span></dd>
+                    <dt>Ort laut OpenStreetMap</dt><dd><span id="osm_place">–</span></dd>
+                </dl>
+
+                <div class="app-actions">
+                    <button type="submit" class="btn btn-primary">Standort speichern</button>
+                    <a href="index.php?act=settings" class="btn btn-secondary">Abbrechen</a>
+                </div>
+            </form>
+        </div>
     </div>
 </div>

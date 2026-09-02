@@ -1,62 +1,105 @@
-<div class="container">
-    <div class="card shadow-sm p-4 my-4">
-        <h2 class="mb-4 text-center">Mein Account</h2>
-        <table class="table">
-            <tr><td>Benutzername:</td><td>###USERNAME###</td></tr>
-            <tr><td>E-Mail:</td><td>###EMAIL###</td></tr>
-            <tr><td>2FA:</td><td>###TWOFASTATUS### ###TWOFABTN###</td></tr>
-            <!-- Die Guide-Entscheidung ist umkehrbar und gehoert deshalb
-                 hierher. Der erklaerende Text steht nicht in dieser Zeile,
-                 sondern auf der Dialogseite - an genau einer Stelle. -->
-            <tr><td>Guide:</td><td>###GUIDESTATUS### ###GUIDEBTN###</td></tr>
-            ###MAILCONFIRM###
-        </table>
-        <div class="d-flex justify-content-center gap-2 mb-3 flex-wrap">
-            <a href='index.php?act=change_pw_page&username=###USERNAME###' class="btn btn-primary">Passwort ändern</a>
-            <button class="btn btn-secondary" id="showOwnLocationsBtn" style="display:none;">Eigene Locations bearbeiten</button>
+<!--
+    Kontoseite. Gefuellt von App\Controller\SettingsController.
+
+    Platzhalter:
+      ###USERNAME###     Benutzername (steht auch im Link zur Passwortaenderung)
+      ###EMAIL###        E-Mail-Adresse
+      ###TWOFASTATUS###  "Aktiviert" / "Nicht aktiviert"
+      ###TWOFABTN###     Knopf zum Ein- oder Ausschalten
+      ###GUIDESTATUS###  "Aktiv" / "Nicht aktiv"
+      ###GUIDEBTN###     Knopf zur Guide-Frage - fehlt beim Admin
+      ###MAILCONFIRM###  Zeile zum Bestaetigungsstand der E-Mail (derzeit leer,
+                         siehe Controller: kein SMTP-Server)
+
+    Die Angaben stehen in einer Beschreibungsliste und nicht in einer Tabelle:
+    Es sind keine Daten in Zeilen und Spalten, sondern Angaben zu genau einem
+    Konto. Wer hier eine Zeile ergaenzt, ergaenzt ein Paar aus <dt> und <dd>.
+-->
+<div class="app-page">
+    <div class="app-toolbar">
+        <div>
+            <h1 class="app-page-head__title">Mein Konto</h1>
+            <p class="app-page-head__sub">Anmeldedaten, Sicherheit und die eigenen Standorte.</p>
         </div>
+    </div>
 
+    <div class="app-panel">
+        <div class="app-panel__head">
+            <h2 class="app-page-head__title">Angaben</h2>
+        </div>
+        <div class="app-panel__body">
+            <dl class="app-details">
+                <dt>Benutzername</dt>
+                <dd>###USERNAME###</dd>
 
-        <!-- Eigene Locations -->
-        <div id="myLocationsSection" style="display:none;">
-            <h3 class="mb-3 mt-4">Meine Locations</h3>
-            <a href="index.php?act=set_location_page" class="btn btn-primary mb-3">Neue Lokation Hinzufügen</a>
-            <!-- Eigene Spalten, eigene id: Diese Tabelle hat eine Spalte weniger als
-                 die Uebersicht (keine Spalte "User"). Mit derselben id wie dort
-                 wurde sie mit den Zeilen der Uebersicht befuellt und DataTables
-                 brach mit "Incorrect column count" ab. -->
-            <table class="table table-bordered table-striped" id="myLocationsTable">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Status</th>
-                        <th>Land</th>
-                        <th>Stadt</th>
-                        <th>Beschreibung</th>
-                        <th>Aktionen</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Wird per JS befüllt -->
-                </tbody>
-            </table>
+                <dt>E-Mail-Adresse</dt>
+                <dd>###EMAIL###</dd>
+
+                <dt>Zwei-Faktor-Anmeldung</dt>
+                <dd>###TWOFASTATUS### ###TWOFABTN###</dd>
+
+                <!-- Die Guide-Entscheidung ist umkehrbar und gehoert deshalb
+                     hierher. Der erklaerende Text steht nicht in dieser Zeile,
+                     sondern auf der Dialogseite - an genau einer Stelle. -->
+                <dt>Guide-Rolle</dt>
+                <dd>###GUIDESTATUS### ###GUIDEBTN###</dd>
+
+                ###MAILCONFIRM###
+            </dl>
+
+            <div class="app-actions">
+                <a href='index.php?act=change_pw_page&username=###USERNAME###' class="btn btn-secondary">Passwort ändern</a>
+                <button class="btn btn-secondary" id="showOwnLocationsBtn" style="display:none;">Eigene Standorte</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Eigene Standorte. Wird erst beim Aufklappen geladen
+         (assets/js/locations_table.js). -->
+    <div id="myLocationsSection" style="display:none;">
+        <div class="app-panel" style="margin-top: var(--app-space-4);">
+            <div class="app-panel__head">
+                <h2 class="app-page-head__title">Meine Standorte</h2>
+                <a href="index.php?act=set_location_page" class="btn btn-primary btn-sm">Standort anbieten</a>
+            </div>
+            <div class="app-table-wrap">
+                <!-- Eigene Spalten, eigene id: Diese Tabelle hat eine Spalte weniger
+                     als die Uebersicht (keine Spalte "Guide"). Mit derselben id wie
+                     dort wurde sie mit den Zeilen der Uebersicht befuellt und
+                     DataTables brach mit "Incorrect column count" ab. -->
+                <table class="table table-striped align-middle mb-0" id="myLocationsTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Status</th>
+                            <th>Land</th>
+                            <th>Stadt</th>
+                            <th>Beschreibung</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Wird per JS befüllt -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Mini-Map-Popup für Beschreibung -->
-<div id="descMapPopup" class="shadow rounded" style="display:none; position:absolute; z-index:9999; background:white; border:1px solid #aaa; min-width:260px; max-width:350px;">
-  <div id="descMapHeader" class="fw-bold p-2 border-bottom"></div>
-  <div id="descMap" style="height:200px; width:100%;"></div>
+<!-- Kleine Kartenvorschau beim Ueberfahren der Beschreibung -->
+<div id="descMapPopup" class="app-map-popup" style="display:none;">
+    <div id="descMapHeader" class="app-map-popup__head"></div>
+    <div id="descMap" class="app-map-popup__map"></div>
 </div>
 
-<!-- Modal für große Map -->
+<!-- Grosse Karte im Dialog -->
 <div class="modal fade" id="mapModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <div id="modalLocationInfo" class="fw-bold"></div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div id="modalLocationInfo" class="fw-semibold"></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
       </div>
       <div class="modal-body" style="height: 400px;">
         <div id="modalMap" style="height:100%; width:100%;"></div>
@@ -65,23 +108,23 @@
   </div>
 </div>
 
-<!-- Modal: Beschreibung ändern -->
+<!-- Dialog: Beschreibung aendern -->
 <div class="modal fade" id="editDescModal" tabindex="-1" aria-labelledby="editDescModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="editDescModalLabel">Beschreibung ändern</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
       </div>
       <div class="modal-body">
         <form id="editDescForm">
-          <div class="mb-3">
+          <div class="app-field">
             <label for="currentDescription" class="form-label">Aktuelle Beschreibung</label>
             <input type="text" class="form-control" id="currentDescription" readonly>
           </div>
-          <div class="mb-3">
+          <div class="app-field">
             <label for="newDescription" class="form-label">Neue Beschreibung</label>
-            <textarea class="form-control" id="newDescription" required></textarea>
+            <textarea class="form-control" id="newDescription" rows="3" required></textarea>
           </div>
           <input type="hidden" id="editLocationId">
         </form>

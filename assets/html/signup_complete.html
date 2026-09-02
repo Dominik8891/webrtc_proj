@@ -1,18 +1,22 @@
 <!--
-    Bestätigungsseite nach erfolgreicher Registrierung.
+    Bestaetigungsseite nach erfolgreicher Registrierung.
 
-    HINWEIS: Der Text nennt bewusst KEINE Bestätigungsmail. Der Mailversand
+    HINWEIS: Der Text nennt bewusst KEINE Bestaetigungsmail. Der Mailversand
     ist in SignupController::handleSignup() auskommentiert (kein SMTP-Server),
     und die Verifizierungspflicht beim Login ebenfalls
     (LoginController.php:65-74). Es wird also keine Mail verschickt.
-    Wird der Mailversand wieder aktiviert, gehört der Hinweis auf die
-    Bestätigungsmail hier wieder hinein.
+    Wird der Mailversand wieder aktiviert, gehoert der Hinweis auf die
+    Bestaetigungsmail hier wieder hinein.
 -->
-<div class="d-flex justify-content-center">
-    <div class="alert alert-success mt-5 text-center w-100" style="max-width: 500px;">
-        <h4 class="alert-heading">Registrierung erfolgreich!</h4>
-        <p>Ihr Konto wurde angelegt. Sie können sich jetzt anmelden.</p>
-        <hr>
-        <a href="index.php?act=login_page" class="btn btn-primary btn-sm">Zum Login</a>
+<div class="app-result">
+    <div class="app-panel">
+        <div class="app-panel__body">
+            <div class="app-result__mark" aria-hidden="true">&check;</div>
+            <h1 class="app-auth__title">Registrierung erfolgreich</h1>
+            <p class="app-result__text">Ihr Konto wurde angelegt. Sie können sich jetzt anmelden.</p>
+            <div class="app-actions app-actions--center">
+                <a href="index.php?act=login_page" class="btn btn-primary">Zur Anmeldung</a>
+            </div>
+        </div>
     </div>
 </div>

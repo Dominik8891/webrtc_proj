@@ -1,23 +1,48 @@
-<div class="d-flex justify-content-center align-items-center">
-    <div class="card shadow-sm p-4" style="max-width: 350px; width: 100%;">
-        <h3 class="mb-3 text-center">Sign Up</h3>
-        <form action="index.php?act=signup" method="post" autocomplete="off">
-            <div class="mb-3">
-                <input type="text" name="username" class="form-control" placeholder="Username" required>
+<!--
+    Registrierung. Gefuellt von App\Controller\SignupController.
+
+    Platzhalter:
+      ###ERROR###  Fehlermeldung; leer, wenn es keine gibt.
+-->
+<div class="app-auth">
+    <div class="app-auth__card">
+        <div class="app-panel">
+            <div class="app-panel__body">
+                <div class="app-auth__head">
+                    <h1 class="app-auth__title">Konto anlegen</h1>
+                    <p class="app-auth__sub">
+                        Danach können Sie Führungen buchen – und selbst welche anbieten.
+                    </p>
+                </div>
+
+                <form action="index.php?act=signup" method="post" autocomplete="off">
+                    <div class="app-field">
+                        <label for="signup-username" class="form-label">Benutzername</label>
+                        <input type="text" id="signup-username" name="username" class="form-control" required>
+                    </div>
+                    <div class="app-field">
+                        <label for="signup-email" class="form-label">E-Mail-Adresse</label>
+                        <input type="email" id="signup-email" name="email" class="form-control" required>
+                    </div>
+                    <div class="app-field">
+                        <label for="signup-pwd" class="form-label">Passwort</label>
+                        <input type="password" id="signup-pwd" name="pwd" class="form-control" required>
+                    </div>
+                    <div class="app-field">
+                        <label for="signup-pwd2" class="form-label">Passwort wiederholen</label>
+                        <input type="password" id="signup-pwd2" name="pwd_scnd" class="form-control" required>
+                    </div>
+                    <div class="app-actions app-actions--stretch">
+                        <button type="submit" class="btn btn-primary">Konto anlegen</button>
+                    </div>
+                </form>
+
+                <div class="app-form-error">###ERROR###</div>
+
+                <p class="app-auth__foot">
+                    Schon registriert? <a href="index.php?act=login_page">Anmelden</a>
+                </p>
             </div>
-            <div class="mb-3">
-                <input type="email" name="email" class="form-control" placeholder="Email" required>
-            </div>
-            <div class="mb-3">
-                <input type="password" name="pwd" class="form-control" placeholder="Password" required>
-            </div>
-            <div class="mb-3">
-                <input type="password" name="pwd_scnd" class="form-control" placeholder="Password wiederholen" required>
-            </div>
-            <button type="submit" class="btn btn-success w-100">Sign Up</button>
-        </form>
-        <div class="text-danger text-center mt-3">
-            ###ERROR###
         </div>
     </div>
 </div>

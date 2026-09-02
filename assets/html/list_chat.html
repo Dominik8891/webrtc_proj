@@ -1,13 +1,27 @@
-<div class="container">
-    <div class="card shadow-sm p-4 my-4">
-        <div class="table-responsive">
+<!--
+    Alle Chats des angemeldeten Benutzers.
+    Gefuellt von App\Controller\ChatController.
+
+    Platzhalter:
+      ###CHAT_ROWS###  Die Zeilen aus list_chat_row.html
+-->
+<div class="app-page">
+    <div class="app-toolbar">
+        <div>
+            <h1 class="app-page-head__title">Chats</h1>
+            <p class="app-page-head__sub">Unterhaltungen aus vergangenen und laufenden Führungen.</p>
+        </div>
+    </div>
+
+    <div class="app-panel">
+        <div class="app-table-wrap">
             <table class="table table-hover table-striped align-middle mb-0">
-                <thead class="table-light">
+                <thead>
                     <tr>
                         <th>Status</th>
                         <th>Partner</th>
                         <th>Letzte Nachricht</th>
-                        <th>Zeige Verlauf</th>
+                        <th>Verlauf</th>
                     </tr>
                 </thead>
                 <tbody>

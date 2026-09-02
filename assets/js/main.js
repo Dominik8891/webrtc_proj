@@ -436,8 +436,11 @@ window.addEventListener('DOMContentLoaded', function() {
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '2', 'Speichern nicht erfolgreich. Bitte den Standort auf der Karte auswaehlen.');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '5', 'Registrierung erfolgreich!');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('change', '1', 'Passwort erfolgreich geändert!');
-    // Mobile Browser fix: reload nach Call-Ende
-    if (/Android|iPhone|iPad|iPod|Mobile|Linux/i.test(navigator.userAgent)) {
-        window.webrtcApp.ui.expandPanelForWideTableIfNeeded();
-    }
+    // Hier stand ein Aufruf von ui.expandPanelForWideTableIfNeeded(): Er hat
+    // auf breiten Seiten dem Inhaltsbereich und allen Karten darin ihre
+    // Bootstrap-Klassen wieder abgenommen, weil zwei weisse Kaesten
+    // ineinander standen - der Rahmen aus index.html und die Karte der Seite.
+    // Den aeusseren Kasten gibt es nicht mehr (assets/css/theme.css: der
+    // Inhaltsbereich ist nur noch Breite und Abstand), also gibt es auch
+    // nichts mehr zurueckzunehmen.
 });

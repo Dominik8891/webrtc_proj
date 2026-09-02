@@ -1,4 +1,57 @@
-#map { width: 500px; height: 350px; }
-#city-suggestions { position:absolute; background:#fff; z-index:1000; list-style:none; padding:0; margin:0; width:250px; border:1px solid #aaa;}
-#city-suggestions li { padding:5px; border-bottom:1px solid #eee; }
-#city-suggestions li:hover { background:#efefef; }
+/* ===========================================================================
+   map.css - Karten ausserhalb der Startseite.
+   ===========================================================================
+
+   Die Startseite hat ihre eigene Datei (home.css). Hier stehen die beiden
+   kleineren Karten: die Auswahlkarte im Standortformular und die Vorschau,
+   die in den Standorttabellen an der Beschreibung haengt.
+
+   Alle Werte kommen aus assets/css/theme.css.
+
+   Die Regel "#map { width: 500px }" stand frueher hier. Eine feste Breite in
+   Pixeln passt in kein Formular, das sich der Fenstergroesse anpasst -
+   deshalb jetzt volle Breite und feste Hoehe.
+   =========================================================================== */
+
+/* Auswahlkarte im Standortformular (assets/html/set_location.html). */
+.app-picker-map,
+#map {
+    width: 100%;
+    height: 320px;
+    min-height: 240px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    overflow: hidden;
+}
+
+/* Kartenvorschau an der Beschreibung einer Tabellenzeile
+   (assets/js/locations_table.js). */
+.app-map-popup {
+    position: absolute;
+    z-index: var(--app-z-overlay);
+    min-width: 260px;
+    max-width: 350px;
+    background: var(--app-surface);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+    overflow: hidden;
+}
+
+.app-map-popup__head {
+    padding: var(--app-space-2) var(--app-space-3);
+    border-bottom: 1px solid var(--app-border);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text);
+}
+
+.app-map-popup__map {
+    height: 200px;
+    width: 100%;
+}
+
+/* Leaflet bringt seine eigene Schrift mit - hier auf unsere zurueckholen. */
+.leaflet-container {
+    font-family: var(--app-font);
+}

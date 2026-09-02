@@ -311,16 +311,15 @@ class ChatController
         $tpl = file_get_contents('assets/html/show_chat.html');
         $messagesHtml = '';
         foreach ($messages as $msg) { 
-            $messagesHtml .= '<div class="mb-2">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="d-flex align-items-center">
-                                            <span class="fw-bold me-2">' . htmlspecialchars((new User($msg->getSenderId()))->getUsername()) . ':</span>
-                                            <span>' . htmlspecialchars($msg->getMsg()) . '</span>
-                                            <span class="ms-auto text-muted small">' . htmlspecialchars($msg->getSentAt()) . '</span>
-                                        </div>
-                                    </div>
-                                </div>
+            // Eine Nachricht ist eine Zeile im Verlauf und keine eigene Karte:
+            // Absender, Text, Zeit. Die Gestaltung steht in
+            // assets/css/theme.css unter .app-message.
+            $messagesHtml .= '<div class="app-message">
+                                <span class="app-message__from">'
+                                    . htmlspecialchars((new User($msg->getSenderId()))->getUsername())
+                                . '</span>
+                                <span class="app-message__text">' . htmlspecialchars($msg->getMsg()) . '</span>
+                                <span class="app-message__time">' . htmlspecialchars($msg->getSentAt()) . '</span>
                             </div>';
         }
         $tpl = str_replace('<!-- MESSAGES HERE -->', $messagesHtml, $tpl);

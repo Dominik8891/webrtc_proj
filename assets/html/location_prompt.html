@@ -7,17 +7,22 @@
     das Recht user.position (LoginController::continueAfterLogin), dieselbe
     Angabe, über die index.php auch die Route save_location absichert.
 -->
-<div class="container d-flex justify-content-center align-items-center">
-    <div class="card shadow-sm p-4 text-center" style="max-width: 420px;">
-        <h3 class="mb-3">Möchtest du deinen aktuellen Standort angeben?</h3>
-        <p class="text-muted small">
-            Als Guide hilft das dabei, dich in der Nähe suchenden Zuschauern
-            zuzuordnen. Die Angabe ist freiwillig, und du kannst sie hier auch
-            ablehnen.
-        </p>
-        <div class="d-flex justify-content-center gap-3">
-            <button onclick="askLocation()" class="btn btn-success">Ja</button>
-            <button onclick="window.location.href='index.php'" class="btn btn-outline-secondary">Nein</button>
+<div class="app-auth">
+    <div class="app-auth__card">
+        <div class="app-panel">
+            <div class="app-panel__body">
+                <div class="app-auth__head">
+                    <h1 class="app-auth__title">Ihren aktuellen Standort angeben?</h1>
+                    <p class="app-auth__sub">
+                        Als Guide hilft das dabei, Sie in der Nähe suchenden Zuschauern
+                        zuzuordnen. Die Angabe ist freiwillig.
+                    </p>
+                </div>
+                <div class="app-actions app-actions--stretch">
+                    <button onclick="askLocation()" class="btn btn-primary">Ja, Standort teilen</button>
+                    <button onclick="window.location.href='index.php'" class="btn btn-secondary">Nein, danke</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>

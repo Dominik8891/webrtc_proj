@@ -1,13 +1,32 @@
-<div class="container my-5">
-    <div class="card shadow-sm p-4">
-        <h2 class="mb-4 text-center">Alle Locations</h2>
-        <div class="table-responsive">
-            <table class="table table-bordered table-striped align-middle" id="locationsTable" tabindex="-1">
+<!--
+    Die Standortuebersicht als Tabelle - die Alternative zur Karte auf der
+    Startseite. Gefuellt von assets/js/locations_table.js.
+
+    Die id locationsTable und die Spaltenzahl gehoeren zusammen: Das Modul
+    prueft vor dem Laden, ob Kopfzeile und Zeilenaufbau dieselbe Spaltenzahl
+    haben (ensureColumnsMatch). Eine Spalte hier hinzuzufuegen heisst,
+    columnKeys() dort mitzupflegen.
+-->
+<div class="app-page">
+    <div class="app-toolbar">
+        <div>
+            <h1 class="app-page-head__title">Alle Standorte</h1>
+            <p class="app-page-head__sub">Dieselben Standorte wie auf der Karte, hier zum Durchsuchen und Sortieren.</p>
+        </div>
+        <div class="app-switch" role="group" aria-label="Ansicht">
+            <a class="app-switch__item" href="index.php?act=home">Karte</a>
+            <span class="app-switch__item" aria-current="true">Liste</span>
+        </div>
+    </div>
+
+    <div class="app-panel">
+        <div class="app-table-wrap">
+            <table class="table table-striped align-middle" id="locationsTable" tabindex="-1">
                 <thead>
                     <tr>
                         <th>#</th>
                         <th>Status</th>
-                        <th>User</th>
+                        <th>Guide</th>
                         <th>Land</th>
                         <th>Stadt</th>
                         <th>Beschreibung</th>
@@ -22,19 +41,19 @@
     </div>
 </div>
 
-<!-- Mini Map Popup -->
-<div id="descMapPopup" class="shadow rounded" style="display:none; position:absolute; z-index:9999; background:white; border:1px solid #aaa; min-width:260px; max-width:350px;">
-    <div id="descMapHeader" class="fw-bold p-2 border-bottom"></div>
-    <div id="descMap" style="height:200px; width:100%;"></div>
+<!-- Kleine Kartenvorschau beim Ueberfahren der Beschreibung -->
+<div id="descMapPopup" class="app-map-popup" style="display:none;">
+    <div id="descMapHeader" class="app-map-popup__head"></div>
+    <div id="descMap" class="app-map-popup__map"></div>
 </div>
 
-<!-- Modal für große Map -->
+<!-- Grosse Karte im Dialog -->
 <div class="modal fade" id="mapModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <div id="modalLocationInfo" class="fw-bold"></div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div id="modalLocationInfo" class="fw-semibold"></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
       </div>
       <div class="modal-body" style="height: 400px;">
         <div id="modalMap" style="height:100%; width:100%;"></div>

@@ -1,7 +1,17 @@
-<div class="d-flex justify-content-center">
-    <div class="alert alert-danger mt-5 text-center w-100" style="max-width: 500px;">
-        <h4 class="alert-heading">Fehler</h4>
-        <p>Der Bestätigungslink ist ungültig oder abgelaufen.</p>
-        <a href="index.php?act=signup_page" class="btn btn-outline-danger mt-3">Erneut registrieren</a>
+<!-- Ergebnisseite: Der Bestaetigungslink war nicht mehr gueltig. -->
+<div class="app-result">
+    <div class="app-panel">
+        <div class="app-panel__body">
+            <div class="app-result__mark app-result__mark--danger" aria-hidden="true">!</div>
+            <h1 class="app-auth__title">Link ungültig oder abgelaufen</h1>
+            <p class="app-result__text">
+                Der Bestätigungslink lässt sich nicht mehr einlösen. Bestätigungslinks
+                haben eine begrenzte Gültigkeit.
+            </p>
+            <div class="app-actions app-actions--center">
+                <a href="index.php?act=signup_page" class="btn btn-primary">Erneut registrieren</a>
+                <a href="index.php?act=login_page" class="btn btn-secondary">Zur Anmeldung</a>
+            </div>
+        </div>
     </div>
 </div>
