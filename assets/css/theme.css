@@ -2434,3 +2434,189 @@ table.dataTable td.dataTables_empty {
     line-height: 1;
     letter-spacing: 0;
 }
+
+/* ---------------------------------------------------------------------------
+   Bibliotheken, die ihr Aussehen selbst mitbringen
+   ---------------------------------------------------------------------------
+   Vier Stellen, an denen eine eingebundene Bibliothek eigene feste Farben
+   setzt, die dem Farbprofil nicht gefolgt sind. Alle vier bieten dafuer
+   eigene Variablen an - es braucht also kein Ueberschreiben einzelner
+   Regeln, sondern nur die richtigen Werte.
+
+   ZUR SPEZIFITAET
+   Die Reihenfolge in assets/html/index.html ist:
+       Bootstrap ... theme.css ... DataTables ... DataTables Responsive
+   Fuer Bootstrap reicht deshalb ein gewoehnlicher Selektor: theme.css kommt
+   spaeter und gewinnt bei gleicher Spezifitaet. DataTables und seine
+   Erweiterung laden DANACH - dagegen hilft nur ein laengerer Selektor. Die
+   Regeln unter Punkt 1 sind deshalb so ausfuehrlich geschrieben wie die der
+   Bibliothek selbst; kuerzer kaemen sie nicht an.
+   --------------------------------------------------------------------------- */
+
+/* --- 1. DataTables Responsive --------------------------------------------
+   Die Erweiterung ist in beiden Standortlisten aktiv (responsive: true in
+   assets/js/locations_table.js). Auf schmalen Schirmen klappt sie Spalten
+   ein und zeigt sie in einer Unterzeile.
+
+   ACHTUNG, VERSIONSFALLE
+   Responsive 3 gestaltet ueber Variablen (--dtr-control-triangle_color und
+   weitere). Eingebunden ist hier aber 2.4.1 (assets/html/index.html), und
+   diese Fassung kennt KEINE einzige davon - sie schreibt ihre Farben direkt
+   in die Regeln. Wer die Version hebt, kann den Block hier durch das Setzen
+   jener Variablen ersetzen; bis dahin werden die Regeln ueberschrieben.
+
+   WAS 2.4.1 MITBRINGT
+   Das Aufklappzeichen ist ein rundes Feld mit "+" auf #31b131 (gruen), im
+   aufgeklappten Zustand "-" auf #d33333 (rot). Genau die beiden Farben, die
+   in dieser Anwendung der Karte gehoeren: Gruen heisst dort "Guide jetzt
+   verfuegbar". Ein gruener Kreis in jeder Tabellenzeile auf einem schmalen
+   Schirm entwertet diese Bedeutung - unabhaengig vom Farbprofil.
+
+   Ersetzt wird es deshalb durch dasselbe Mittel wie ueberall sonst in den
+   Tabellen: ein Zeichen in der Textfarbe, ohne Flaeche. Auf und zu
+   unterscheiden sich durch die FORM ("+" und "-"), nicht durch die Farbe.
+
+   ZUR SPEZIFITAET: Die Regeln der Bibliothek sind sehr lang gebaut
+   (table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before)
+   und laden NACH theme.css. Ein gleich langer Selektor reicht deshalb nicht:
+   Bei gleicher Spezifitaet gewinnt die spaeter geladene Datei. Jede Regel
+   hier beginnt darum mit "html" - das ist ein Element mehr und entscheidet
+   die Sache, ohne dass irgendwo !important stehen muss. */
+
+html table.dataTable.dtr-inline.collapsed > tbody > tr > td.dtr-control:before,
+html table.dataTable.dtr-inline.collapsed > tbody > tr > th.dtr-control:before,
+html table.dataTable.dtr-column > tbody > tr > td.dtr-control:before,
+html table.dataTable.dtr-column > tbody > tr > th.dtr-control:before {
+    background-color: transparent;
+    border: 1px solid var(--app-border-strong);
+    color: var(--app-text-muted);
+    box-shadow: none;
+    font-family: var(--app-font);
+    font-weight: var(--app-weight-bold);
+}
+
+html table.dataTable.dtr-inline.collapsed > tbody > tr.parent > td.dtr-control:before,
+html table.dataTable.dtr-inline.collapsed > tbody > tr.parent > th.dtr-control:before,
+html table.dataTable.dtr-column > tbody > tr.parent > td.dtr-control:before,
+html table.dataTable.dtr-column > tbody > tr.parent > th.dtr-control:before {
+    background-color: var(--app-accent);
+    border-color: var(--app-accent);
+    color: var(--app-text-on-accent);
+}
+
+/* Anklickbar: Beim Ueberfahren bekommt das Zeichen den Rahmen kraeftiger -
+   dasselbe Verhalten wie bei den Symbolknoepfen der Tabellen. */
+html table.dataTable > tbody > tr > td.dtr-control:hover:before,
+html table.dataTable > tbody > tr > th.dtr-control:hover:before {
+    border-color: var(--app-accent);
+    color: var(--app-accent);
+}
+
+/* Die aufgeklappte Unterzeile: vertiefter Grund, damit sie als Fortsetzung
+   ihrer Zeile gelesen wird und nicht als neue Zeile. */
+html table.dataTable > tbody > tr.child > td {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
+}
+
+html table.dataTable > tbody > tr.child ul.dtr-details > li {
+    border-bottom: 1px solid var(--app-border);
+}
+
+html table.dataTable > tbody > tr.child span.dtr-title {
+    color: var(--app-text-muted);
+    font-weight: var(--app-weight-medium);
+}
+
+/* Das eigene Fenster der Erweiterung (dtr-modal). Es erscheint nur in der
+   Betriebsart "column"; gestaltet wird es trotzdem, damit es nicht als
+   einziges Weiss stehen bleibt, falls die Betriebsart wechselt. */
+html div.dtr-modal div.dtr-modal-display {
+    background-color: var(--app-surface-raised);
+    border: 1px solid var(--app-border-strong);
+    border-radius: var(--app-radius-lg);
+    box-shadow: var(--app-shadow-lg);
+    color: var(--app-text);
+}
+
+html div.dtr-modal div.dtr-modal-close {
+    background-color: var(--app-surface-sunken);
+    border: 1px solid var(--app-border);
+    color: var(--app-text-muted);
+    border-radius: var(--app-radius-sm);
+}
+
+html div.dtr-modal div.dtr-modal-close:hover {
+    background-color: var(--app-surface);
+    color: var(--app-text);
+}
+
+html div.dtr-modal div.dtr-modal-background {
+    background: var(--app-overlay);
+}
+
+/* --- 2. Das Schliesskreuz von Bootstrap -----------------------------------
+   .btn-close ist kein Zeichen, sondern eine schwarze SVG-Grafik im
+   Hintergrund. Auf dunklem Grund war sie praktisch unsichtbar (gemessen:
+   filter none bei opacity .5). Bootstrap sieht dafuer genau eine Variable
+   vor, mit der sich die Grafik umkehren laesst. */
+.btn-close {
+    --bs-btn-close-opacity:       .6;
+    --bs-btn-close-hover-opacity: 1;
+    --bs-btn-close-focus-shadow:  0 0 0 3px var(--app-accent-ring);
+}
+
+[data-theme="dunkel"] .btn-close {
+    /* Umkehren macht aus der schwarzen Grafik eine helle; grayscale nimmt
+       den Farbstich, brightness hebt sie auf die Helligkeit des Nebentextes. */
+    --bs-btn-close-filter: invert(1) grayscale(100%) brightness(180%);
+}
+
+/* --- 3. Der Bootstrap-Dialog ----------------------------------------------
+   --bs-modal-bg zeigt bei Bootstrap auf --bs-body-bg, und das ist bei uns
+   die GRUNDFLAECHE der Seite. Ein Dialog liegt aber ueber allem und gehoert
+   deshalb auf die oberste Ebene - sonst steht die Reihenfolge
+   bg < sunken < surface auf dem Kopf, und der Dialog hat dieselbe Farbe wie
+   der Hintergrund, ueber dem er schwebt. */
+.modal {
+    --bs-modal-bg:                 var(--app-surface-raised);
+    --bs-modal-color:              var(--app-text);
+    --bs-modal-border-color:       var(--app-border-strong);
+    --bs-modal-header-border-color: var(--app-border);
+    --bs-modal-footer-border-color: var(--app-border);
+    --bs-modal-border-radius:      var(--app-radius-lg);
+}
+
+/* Der Schleier hinter dem Dialog kommt aus derselben Quelle wie der Schleier
+   hinter unseren eigenen Dialogen (.app-dialog). */
+.modal-backdrop.show {
+    background: var(--app-overlay);
+    opacity: 1;
+}
+
+/* --- 4. Der Pfeil im Auswahlfeld ------------------------------------------
+   .form-select zeichnet seinen Pfeil als Hintergrundgrafik. Bootstrap gibt
+   dafuer eine feste dunkle Grafik vor, die im Dunkelprofil kaum zu sehen war.
+
+   WARUM ZWEI FASSUNGEN UND NICHT EINE MIT currentColor
+   Eine Hintergrundgrafik kennt kein currentColor. Die Symbole der
+   Tabellenknoepfe koennen es, weil sie als MASKE liegen und die Textfarbe
+   annehmen - bei einem <select> geht das nicht: Das Element wird vom Browser
+   selbst gezeichnet und nimmt weder ein ::after noch eine Maske an.
+
+   DAS IST DIE GRENZE: Die Farbe steht hier zweimal, einmal fuer helle und
+   einmal fuer dunkle Profile, und beide Male ist es der Ton von
+   --app-text-muted. Wer diesen Wert aendert, muss die beiden Grafiken
+   mitziehen. Ein Test vergleicht sie deshalb mit der Variablen. */
+:root {
+    --app-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%235c6673' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+[data-theme="dunkel"] {
+    --app-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%239aa7b6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+.form-select {
+    --bs-form-select-bg-img: var(--app-select-chevron);
+    background-image: var(--app-select-chevron);
+}

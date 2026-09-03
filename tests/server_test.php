@@ -1441,4 +1441,79 @@ check(preg_match('/\[data-theme="dunkel"\]\s*\{[^}]*color-scheme:\s*dark/', $the
     'das Dunkelprofil setzt color-scheme nicht auf dark');
 ok('der Browser weiss, welche Grundstimmung gilt');
 
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n21) Fremde Bibliotheken folgen dem Farbprofil\n");
+
+// 1) DataTables Responsive. ACHTUNG: Eingebunden ist 2.4.1, und diese
+// Fassung kennt keine --dtr-Variablen - sie schreibt ihre Farben direkt in
+// die Regeln. Das Aufklappzeichen ist dort ein gruener Kreis mit "+" und im
+// aufgeklappten Zustand ein roter mit "-". Gruen heisst in dieser Anwendung
+// "Guide jetzt verfuegbar"; ein gruener Kreis in jeder Tabellenzeile
+// entwertet das.
+check(strpos($layout, 'responsive/2.4.1/css') !== false,
+    'die Version der Responsive-Erweiterung hat sich geaendert - den Block in '
+    . 'theme.css gegen die neue Fassung pruefen');
+check(strpos($themeCss, 'td.dtr-control:before') !== false,
+    'das Aufklappzeichen der Responsive-Erweiterung wird nicht gestaltet');
+check(strpos($themeCss, 'tr.child > td') !== false,
+    'die aufgeklappte Unterzeile wird nicht gestaltet');
+
+// Die Regeln der Bibliothek laden NACH theme.css. Bei gleicher Spezifitaet
+// gewinnt die spaetere Datei - deshalb beginnt jede unserer dtr-Regeln mit
+// "html". Faellt das weg, sind Gruen und Rot wieder da, ohne dass es
+// auffaellt.
+// Geprueft wird JEDE Selektorzeile, nicht nur die letzte: Eine Liste von
+// Selektoren steht ueber mehrere Zeilen, und nur die letzte endet auf "{".
+// Ein fehlender Praefix in der ersten Zeile faellt sonst nicht auf.
+$dtrZeilen = [];
+foreach (explode("\n", $themeCss) as $zeile) {
+    $t = trim($zeile);
+    if ($t === '' || $t[0] === '*' || strpos($t, '/*') === 0) continue;   // Kommentare
+    if (strpos($t, 'dtr-') === false) continue;
+    if (substr($t, -1) !== ',' && substr($t, -1) !== '{') continue;       // Selektorzeilen
+    $dtrZeilen[] = $t;
+}
+check(count($dtrZeilen) >= 8, 'zu wenige dtr-Selektorzeilen gefunden - Block verschoben?');
+foreach ($dtrZeilen as $t) {
+    check(strpos($t, 'html ') === 0,
+        "diese dtr-Selektorzeile hat keinen html-Praefix und kaeme gegen die "
+        . "Bibliothek nicht an: $t");
+}
+ok('die Regeln der Responsive-Erweiterung sind spezifisch genug');
+
+// 2) Das Schliesskreuz. Bootstrap zeichnet es als schwarze Grafik; auf
+// dunklem Grund war es unsichtbar.
+check(preg_match('/\[data-theme="dunkel"\][^{]*\.btn-close[^{]*\{[^}]*--bs-btn-close-filter/', $themeCss) === 1,
+    'das Schliesskreuz wird im Dunkelprofil nicht umgekehrt');
+ok('das Schliesskreuz ist im Dunkelprofil sichtbar');
+
+// 3) Der Dialog. --bs-modal-bg zeigt bei Bootstrap auf --bs-body-bg, also
+// auf unsere GRUNDflaeche. Ein Dialog liegt ueber allem und gehoert auf die
+// oberste Ebene.
+check(preg_match('/\.modal\s*\{[^}]*--bs-modal-bg:\s*var\(--app-surface-raised\)/', $themeCss) === 1,
+    'der Dialog liegt nicht auf der obersten Ebene');
+ok('der Dialog liegt auf --app-surface-raised');
+
+// 4) Der Pfeil im Auswahlfeld. Er steht als Grafik zweimal da - eine
+// Hintergrundgrafik kennt kein currentColor. Genau deshalb diese Pruefung:
+// Die beiden Farben MUESSEN dem --app-text-muted ihres Profils entsprechen,
+// sonst laufen sie beim naechsten Feilen an der Palette auseinander.
+$dunkelBlock = cssBlock($themeCss, '[data-theme="dunkel"]');
+$erwartet = [
+    'indigo' => strtolower(ltrim(trim($root['--app-text-muted']), '#')),
+    'dunkel' => strtolower(ltrim(trim($dunkelBlock['--app-text-muted']), '#')),
+];
+preg_match('/:root\s*\{\s*--app-select-chevron:\s*url\("([^"]+)"\)/', $themeCss, $mHell);
+preg_match('/\[data-theme="dunkel"\]\s*\{\s*--app-select-chevron:\s*url\("([^"]+)"\)/', $themeCss, $mDunkel);
+check(!empty($mHell[1]),   'der Pfeil fehlt im Grundprofil');
+check(!empty($mDunkel[1]), 'der Pfeil fehlt im Dunkelprofil');
+check($mHell[1] !== $mDunkel[1], 'beide Profile benutzen dieselbe Pfeilgrafik');
+check(stripos($mHell[1],   $erwartet['indigo']) !== false,
+    'der helle Pfeil hat nicht die Farbe von --app-text-muted (' . $erwartet['indigo'] . ')');
+check(stripos($mDunkel[1], $erwartet['dunkel']) !== false,
+    'der dunkle Pfeil hat nicht die Farbe von --app-text-muted (' . $erwartet['dunkel'] . ')');
+check(preg_match('/\.form-select\s*\{[^}]*--bs-form-select-bg-img:\s*var\(--app-select-chevron\)/', $themeCss) === 1,
+    'das Auswahlfeld benutzt die eigene Pfeilgrafik nicht');
+ok('der Pfeil traegt in beiden Profilen die Farbe von --app-text-muted');
+
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");
