@@ -532,6 +532,9 @@ CREATE TABLE IF NOT EXISTS `chat_message` (
   PRIMARY KEY (`id`),
   KEY `chat_id` (`chat_id`),
   KEY `sender_id` (`sender_id`),
+  -- Fuer den Loeschlauf der Aufbewahrung (cron/cleanup_chat_messages.php).
+  -- Ohne diesen Index liest jeder Lauf die ganze Tabelle.
+  KEY `idx_chat_message_sent_at` (`sent_at`),
   CONSTRAINT `chat_message_ibfk_1` FOREIGN KEY (`chat_id`) REFERENCES `chat` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chat_message_ibfk_2` FOREIGN KEY (`sender_id`) REFERENCES `user` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -43,9 +43,11 @@ Importiere die mitgelieferte `database.sql` in deine MySQL-Instanz. Diese erstel
 mariadb -u <user> -p <datenbank> < migrations/005_rollen_neu_nummeriert.sql
 mariadb -u <user> -p <datenbank> < migrations/006_location_sperre.sql
 mariadb -u <user> -p <datenbank> < migrations/007_guide_rolle.sql
+mariadb -u <user> -p <datenbank> < migrations/008_farbprofil.sql
+mariadb -u <user> -p <datenbank> < migrations/009_chat_aufbewahrung.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach. Alle drei sind idempotent und löschen nichts. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` ergänzt das Farbprofil je Konto, `009` legt den Index an, mit dem der Löschlauf der Chat-Aufbewahrung (Abschnitt 5) nicht die ganze Tabelle lesen muss. Alle sind idempotent und löschen nichts. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
 
 ### 2. Umgebungsvariablen (`.env`)
 Erstelle eine `.env`-Datei im Root-Verzeichnis und hinterlege deine Zugangsdaten:
@@ -227,6 +229,108 @@ erscheinen; sobald der Tab wieder sichtbar wird, meldet sich der Client
 sofort zurueck. Waehrend eines laufenden Calls tritt das nicht auf. Wer
 Guides dauerhaft im Hintergrund erreichbar halten will, erhoeht den
 `offline_timeout` auf mindestens 90 Sekunden.
+
+### 5. Cronjob fuer die Chat-Aufbewahrung (**empfohlen**)
+
+Chatnachrichten dienen der Absprache vor einer Fuehrung — "bin in zehn
+Minuten da", "welcher Eingang?". Ein dauerhafter Verlauf ist dafuer kein
+Gewinn, sondern eine wachsende Sammlung personenbezogener Daten ohne Zweck.
+Deshalb loescht `cron/cleanup_chat_messages.php` alle Nachrichten, die aelter
+als **30 Tage** sind — endgueltig, nicht als Soft-Delete.
+
+**Laeuft der Cronjob nicht, wird nichts geloescht.** Die Anwendung
+funktioniert weiter, kuendigt im Chatfenster aber eine Loeschung an, die dann
+nicht stattfindet. Wer die Aufbewahrung nicht will, stellt sie in der
+Konfiguration ab (siehe unten) statt den Cronjob wegzulassen — dann
+verschwindet auch der Hinweis.
+
+Der Cronjob braucht dieselbe `.env` und dasselbe `vendor/`-Verzeichnis wie die
+Web-Anwendung, aber keinen Webserver. Er ist idempotent: Er darf beliebig oft
+laufen und darf ausfallen, beim naechsten Durchlauf wird nachgeholt.
+
+#### Linux / macOS
+
+`crontab -e` oeffnen und eine Zeile ergaenzen — Pfade anpassen, den PHP-Pfad
+liefert `which php`. Anders als die Online-Erkennung braucht dieser Lauf
+keinen Minutentakt; einmal taeglich nachts genuegt:
+
+```
+17 3 * * * /usr/bin/php /var/www/webrtc_proj/cron/cleanup_chat_messages.php
+```
+
+Die krumme Minute ist Absicht: Um Punkt starten auf einem geteilten Server
+alle Aufgaben gleichzeitig.
+
+#### Windows (lokales Testen)
+
+```
+schtasks /Create /TN "WebRTC Chat-Aufbewahrung" /SC DAILY /ST 03:17 ^
+  /TR "\"C:\xampp\php\php.exe\" \"C:\xampp\htdocs\webrtc_proj\cron\cleanup_chat_messages.php\""
+```
+
+Wieder entfernen:
+
+```
+schtasks /Delete /TN "WebRTC Chat-Aufbewahrung" /F
+```
+
+#### Pruefen, ob es wirkt
+
+Das Skript einmal von Hand starten. Es gibt nichts aus; hat es etwas
+geloescht, steht eine Zeile im Log aus Abschnitt 3, Fehler ebenfalls:
+
+```
+php cron/cleanup_chat_messages.php
+```
+
+Danach in der Datenbank nachsehen — die aelteste Nachricht darf nicht aelter
+als die Aufbewahrungsdauer sein:
+
+```sql
+SELECT COUNT(*) AS nachrichten, MIN(sent_at) AS aelteste FROM chat_message;
+```
+
+Zum Ausprobieren ohne 30 Tage Wartezeit laesst sich eine Nachricht kuenstlich
+altern:
+
+```sql
+UPDATE chat_message SET sent_at = NOW() - INTERVAL 31 DAY WHERE id = <id>;
+```
+
+#### Dauer anpassen
+
+Die Aufbewahrungsdauer steht an **einer** Stelle: `config/chat_retention.php`.
+
+```php
+return [
+    'retention_days' => 30,
+];
+```
+
+Von dort lesen alle drei Verbraucher:
+
+| Wer | Wozu |
+|---|---|
+| `cron/cleanup_chat_messages.php` | die Grenze, ab der geloescht wird |
+| `class/Helper/ViewHelper.php` | reicht den Wert als `window.chatRetentionDays` ins Frontend; `assets/js/ui_chat.js` schreibt daraus den Hinweis in jedes Chatfenster |
+| `class/Controller/ChatController.php` | derselbe Hinweis auf der Verlaufsseite, die ohne JavaScript ausgeliefert wird |
+
+Die Zahl steht deshalb in **keinem** Hinweistext ausgeschrieben. Wird sie hier
+geaendert, ziehen Loeschlauf und Anzeige von selbst nach — ein Text, der 30
+Tage verspricht, waehrend nach 90 geloescht wird, kann so nicht entstehen.
+
+`0` oder ein negativer Wert schaltet die Loeschung ab: Der Cronjob bricht ohne
+Aenderung ab, und im Chatfenster erscheint kein Hinweis.
+
+**Was nicht geloescht wird:** die Chats selbst. Ein Chat ist die Verbindung
+zweier Nutzer, nicht ihr Inhalt; er bleibt in der Uebersicht stehen, nur ohne
+Verlauf. Sein Feld `last_msg_at` setzt der Lauf auf `NULL`, sobald die letzte
+Nachricht weg ist — sonst stuende in der Uebersicht ein Datum, zu dem es
+nichts mehr zu sehen gibt.
+
+**Nicht betroffen** ist der Chat waehrend eines laufenden Calls: Der laeuft
+ueber den WebRTC-Datenkanal direkt zwischen den Teilnehmern und wird nie
+gespeichert (`assets/js/chat.js`). Dort gibt es nichts zu loeschen.
 
 ---
 

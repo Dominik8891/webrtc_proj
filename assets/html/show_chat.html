@@ -1,6 +1,11 @@
 <!--
     Ein einzelner Chatverlauf.
     Die Nachrichten setzt App\Controller\ChatController in #chat-history ein.
+
+    Platzhalter:
+      ###RETENTION_HINT###  Hinweis auf die Aufbewahrungsdauer, gebaut aus
+                            config/chat_retention.php. Leer, wenn nicht
+                            geloescht wird.
 -->
 <div class="app-page app-page--narrow">
     <div class="app-toolbar">
@@ -10,6 +15,7 @@
 
     <div class="app-panel">
         <div class="app-panel__body">
+            ###RETENTION_HINT###
             <div id="chat-history">
                 <!-- MESSAGES HERE -->
             </div>

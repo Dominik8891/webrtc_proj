@@ -118,6 +118,7 @@ window.webrtcApp.uiChat = {
                         <button class="chat-pop__close close-chat-tab" title="Schließen" aria-label="Chat schließen">&times;</button>
                     </div>
                     <div class="chat-popup-content" style="display:none;">
+                        ${this.retentionNote()}
                         <div class="chat-pop__body chat-popup-messages"></div>
                         <div class="chat-pop__foot">
                             <div class="chat-pop__ask chat-popup-accept" style="display:none;"></div>
@@ -131,6 +132,33 @@ window.webrtcApp.uiChat = {
                     </div>
                 </div>
                 `);
+    },
+
+    /**
+     * Der Hinweis auf die Aufbewahrungsdauer, eine Zeile unter dem Kopf des
+     * Chatfensters.
+     *
+     * Er steht dort, weil die Loeschung sonst als Datenverlust ankommt: Wer
+     * eine Absprache von vor sechs Wochen sucht und sie nicht mehr findet,
+     * haelt das fuer einen Fehler der Anwendung. Angekuendigt ist es eine
+     * Eigenschaft.
+     *
+     * Die Zahl kommt vom Server (window.chatRetentionDays, gesetzt in
+     * class/Helper/ViewHelper.php aus config/chat_retention.php) und steht
+     * hier bewusst NICHT im Text - sonst behauptete der Hinweis eine Dauer,
+     * nach der gar nicht geloescht wird.
+     *
+     * Fehlt der Wert oder ist er 0, wird nicht geloescht - dann steht dort
+     * auch nichts. Ein Hinweis auf eine Loeschung, die nicht stattfindet,
+     * waere schlimmer als keiner.
+     *
+     * @returns {string} HTML oder ein leerer String
+     */
+    retentionNote: function() {
+        const tage = parseInt(window.chatRetentionDays, 10);
+        if (!tage || tage <= 0) return '';
+        return '<p class="chat-pop__note">Nachrichten werden nach ' + tage
+             + ' Tagen automatisch gel\u00f6scht.</p>';
     },
 
     /**

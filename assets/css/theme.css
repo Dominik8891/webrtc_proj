@@ -569,6 +569,23 @@ a:hover {
     font-size: var(--app-text-sm);
 }
 
+/* Ein Nebensatz auf einer Seite: eine Randbedingung, die man kennen sollte,
+   aber nicht als Erstes liest. Erste Verwendung ist der Hinweis auf die
+   Aufbewahrungsdauer ueber einem Chatverlauf
+   (App\Controller\ChatController::retentionHint). */
+.app-hint {
+    margin: 0 0 var(--app-space-4);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+/* Noch eine Stufe zurueckgenommen - fuer Angaben, die zur Kenntnis genommen
+   und dann vergessen werden duerfen. */
+.app-hint--quiet {
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+}
+
 /* ===========================================================================
    Flaechenbauteile
    =========================================================================== */
@@ -1265,9 +1282,26 @@ a:hover {
     background: var(--app-bg);
 }
 
+/* Der Hinweis auf die Aufbewahrungsdauer. Eine schmale Zeile zwischen Kopf
+   und Verlauf: klein, ohne Farbe, ohne Symbol - sie soll gelesen werden
+   koennen, aber nicht mit den Nachrichten um Aufmerksamkeit ringen. Den Text
+   setzt uiChat.retentionNote() aus window.chatRetentionDays. */
+.chat-pop__note {
+    margin: 0;
+    padding: var(--app-space-2) var(--app-space-4);
+    border-bottom: 1px solid var(--app-border);
+    background: var(--app-surface);
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+    line-height: 1.4;
+}
+
 /* Solange eine Anfrage offen ist, gibt es keine Nachrichten - dann steht dort
-   auch keine leere Flaeche. Die Klasse setzt uiChat.setTabUiByActiveState(). */
-.chat-pop--pending .chat-pop__body { display: none; }
+   auch keine leere Flaeche. Die Klasse setzt uiChat.setTabUiByActiveState().
+   Der Aufbewahrungshinweis geht mit: Er gehoert zum Verlauf, und ueber einer
+   noch nicht angenommenen Anfrage gibt es keinen. */
+.chat-pop--pending .chat-pop__body,
+.chat-pop--pending .chat-pop__note { display: none; }
 
 .chat-pop--pending .chat-pop__foot { border-top: 0; }
 

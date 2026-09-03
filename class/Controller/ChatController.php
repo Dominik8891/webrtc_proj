@@ -332,7 +332,34 @@ class ChatController
                             </div>';
         }
         $tpl = str_replace('<!-- MESSAGES HERE -->', $messagesHtml, $tpl);
+        $tpl = str_replace('###RETENTION_HINT###', self::retentionHint(), $tpl);
         ViewHelper::Output($tpl);
+    }
+
+    /**
+     * Der Hinweis auf die Aufbewahrungsdauer fuer die Verlaufsseite.
+     *
+     * Dieselbe Aussage wie im Chatfenster (assets/js/ui_chat.js,
+     * retentionNote) und aus derselben Quelle - hier serverseitig, weil die
+     * Verlaufsseite ohne JavaScript fertig ausgeliefert wird.
+     *
+     * Ist die Aufbewahrung abgeschaltet (0 oder kleiner), bleibt die Stelle
+     * leer: Ein Hinweis auf eine Loeschung, die nicht stattfindet, waere
+     * schlimmer als keiner.
+     *
+     * @return string HTML oder ein leerer String
+     */
+    private static function retentionHint(): string
+    {
+        $retention = require __DIR__ . '/../../config/chat_retention.php';
+        $tage      = (int)$retention['retention_days'];
+
+        if ($tage <= 0) {
+            return '';
+        }
+
+        return '<p class="app-hint app-hint--quiet">Nachrichten werden nach '
+             . $tage . ' Tagen automatisch gel&ouml;scht.</p>';
     }
 
 }

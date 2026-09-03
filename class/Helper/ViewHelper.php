@@ -211,6 +211,18 @@ class ViewHelper
             $presence = require __DIR__ . '/../../config/presence.php';
             $user_id_script .= '<script>window.heartbeatIntervalMs = '
                 . ((int)$presence['heartbeat_interval'] * 1000) . ';</script>';
+
+            // Aufbewahrungsdauer der Chatnachrichten, aus derselben Datei,
+            // aus der sich der Loeschlauf seine Grenze holt
+            // (config/chat_retention.php). assets/js/ui_chat.js schreibt
+            // daraus den Hinweis in den Kopf jedes Chatfensters.
+            //
+            // Waere die Zahl im Hinweistext ausgeschrieben, stuende sie
+            // spaeter gegen eine geaenderte Konfiguration - der Text sagte
+            // 30 Tage, geloescht wuerde nach 90.
+            $retention = require __DIR__ . '/../../config/chat_retention.php';
+            $user_id_script .= '<script>window.chatRetentionDays = '
+                . (int)$retention['retention_days'] . ';</script>';
         }
 
         // JavaScript-Variablen für Frontend bereitstellen (Login-Status, User-ID, Rolle)

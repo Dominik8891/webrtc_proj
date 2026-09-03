@@ -1639,4 +1639,86 @@ check(preg_match('/thead[^{]*th:first-child\s*\{[^}]*padding-left/', $themeCss) 
     'der Abstand haengt an th:first-child - das trifft oft eine ausgeblendete Zelle');
 ok('der Abstand haengt an der Marke, nicht an der Stellung der Spalte');
 
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n24) Die Chat-Aufbewahrung hat genau eine Stellschraube\n");
+
+// Chatnachrichten dienen der Absprache vor einer Fuehrung und werden nach
+// einer festen Frist geloescht. Die Frist steht an EINER Stelle. Geprueft
+// wird hier vor allem, dass sie nirgendwo sonst noch einmal steht - eine
+// zweite Zahl faellt erst auf, wenn die erste geaendert wurde und die
+// Anzeige etwas anderes verspricht als der Loeschlauf tut.
+
+$retention = require $ROOT . '/config/chat_retention.php';
+check(is_array($retention) && array_key_exists('retention_days', $retention),
+    'config/chat_retention.php liefert kein Array mit retention_days');
+check((int)$retention['retention_days'] === 30,
+    'die Vorgabe ist nicht 30 Tage, sondern ' . var_export($retention['retention_days'], true));
+ok('die Dauer steht in config/chat_retention.php');
+
+$cronCode = file_get_contents($ROOT . '/cron/cleanup_chat_messages.php');
+
+// Der Lauf holt die Frist aus der Konfiguration und schreibt sie nicht selbst
+// hin.
+check(strpos($cronCode, "config/chat_retention.php") !== false,
+    'der Cronjob liest die Aufbewahrungsdauer nicht aus der Konfiguration');
+check(preg_match('/INTERVAL\s+\d+\s+DAY/', $cronCode) === 0,
+    'im Cronjob steht eine feste Tageszahl - dann laeuft sie gegen die Konfiguration');
+ok('der Loeschlauf nimmt die Dauer aus der Konfiguration');
+
+// Geloescht wird wirklich. Ein Soft-Delete waere keine Loeschung, sondern
+// eine Ausblendung - der Zweck der Aufbewahrungsfrist ist aber, dass die
+// Daten weg sind.
+check(preg_match('/DELETE\s+FROM\s+chat_message/i', $cronCode) === 1,
+    'der Cronjob loescht die Nachrichten nicht wirklich');
+check(preg_match('/UPDATE\s+chat_message\s+SET\s+deleted/i', $cronCode) === 0,
+    'der Cronjob markiert Nachrichten nur als geloescht');
+ok('geloescht wird endgueltig, nicht als Markierung');
+
+// Abschaltbar: 0 oder kleiner heisst "unbegrenzt aufbewahren". Dann darf der
+// Lauf nichts anfassen.
+check(preg_match('/\$days\s*<=\s*0/', $cronCode) === 1,
+    'eine abgeschaltete Aufbewahrung (0 oder kleiner) haelt den Loeschlauf nicht auf');
+ok('die Aufbewahrung laesst sich abschalten');
+
+// Der Chat bleibt, sein Datum der letzten Nachricht geht mit. Sonst stuende
+// in der Uebersicht ein Zeitpunkt, zu dem es nichts mehr zu sehen gibt.
+check(preg_match('/UPDATE\s+chat\s+SET\s+last_msg_at\s*=\s*NULL/i', $cronCode) === 1,
+    'nach dem Loeschen bleibt last_msg_at stehen und zeigt auf einen leeren Verlauf');
+check(preg_match('/DELETE\s+FROM\s+chat\b/i', $cronCode) === 0,
+    'der Cronjob loescht ganze Chats - der Chat ist die Verbindung, nicht der Inhalt');
+ok('der Chat bleibt, sein Datum wandert mit');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n25) Der Hinweis nennt dieselbe Frist, nach der geloescht wird\n");
+
+// Beide Anzeigen - das Chatfenster im Browser und die Verlaufsseite - holen
+// die Zahl vom Server. Stuende sie im Text, versprachen sie nach einer
+// Aenderung der Konfiguration etwas anderes als der Loeschlauf tut.
+$viewCode = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
+check(strpos($viewCode, 'window.chatRetentionDays') !== false,
+    'ViewHelper reicht die Aufbewahrungsdauer nicht ins Frontend');
+check(strpos($viewCode, "config/chat_retention.php") !== false,
+    'ViewHelper nimmt die Dauer nicht aus der Konfiguration');
+ok('das Frontend bekommt die Dauer vom Server');
+
+$uiChatCode = file_get_contents($ROOT . '/assets/js/ui_chat.js');
+check(strpos($uiChatCode, 'window.chatRetentionDays') !== false,
+    'das Chatfenster liest die Aufbewahrungsdauer nicht');
+check(preg_match('/nach 30 Tagen/', $uiChatCode) === 0,
+    'im Chatfenster steht die Zahl 30 im Text statt in der Konfiguration');
+// Ohne Wert kein Hinweis: Eine angekuendigte Loeschung, die nicht
+// stattfindet, ist schlimmer als gar kein Hinweis.
+check(preg_match('/if\s*\(!tage\s*\|\|\s*tage\s*<=\s*0\)\s*return\s*\x27\x27/', $uiChatCode) === 1,
+    'das Chatfenster zeigt den Hinweis auch bei abgeschalteter Aufbewahrung');
+ok('das Chatfenster kuendigt nur an, was auch passiert');
+
+$chatCtrlCode = file_get_contents($ROOT . '/class/Controller/ChatController.php');
+check(strpos($chatCtrlCode, '###RETENTION_HINT###') !== false,
+    'die Verlaufsseite bekommt keinen Hinweis');
+check(strpos($chatCtrlCode, "config/chat_retention.php") !== false,
+    'die Verlaufsseite nimmt die Dauer nicht aus der Konfiguration');
+check(strpos(file_get_contents($ROOT . '/assets/html/show_chat.html'), '###RETENTION_HINT###') !== false,
+    'die Vorlage show_chat.html hat keinen Platz fuer den Hinweis');
+ok('die Verlaufsseite nennt dieselbe Frist, ohne JavaScript');
+
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");
