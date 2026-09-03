@@ -245,26 +245,66 @@ window.webrtcApp.locationMap = {
     },
 
     /**
-     * Wird ausgelöst, wenn ein Land gewählt wurde.
+     * Wird ausgelöst, wenn sich das Land geändert hat.
+     *
+     * DIESE METHODE IST DER EINZIGE change-HORCHER AUF #countrySelect, UND
+     * DAS MUSS SO BLEIBEN
+     * ---------------------------------------------------------------------
+     * Hier hingen frueher ZWEI Horcher am selben Ereignis: dieser und ein
+     * zweiter in initCitySelect2(), der die Koordinatenfelder leerte. Der
+     * zweite kannte das Merkmal countryJustSetByLocation nicht.
+     *
+     * Damit war das Setzen des Punktes per Mausklick kaputt: onMapClick()
+     * schreibt die Koordinaten, fragt danach OpenStreetMap nach dem Ort und
+     * setzt aus der Antwort das passende Land - programmatisch, mit
+     * trigger('change'). Dieser Aufruf hier stieg wegen des Merkmals
+     * korrekt sofort wieder aus, der zweite Horcher aber loeschte
+     * #latitude und #longitude, die der Klick eine halbe Sekunde vorher
+     * gesetzt hatte. Der Marker blieb liegen, die Anzeige sah richtig aus,
+     * abgeschickt wurde ein Formular ohne Koordinaten - der Server wies es
+     * mit success=2 ab ("Bitte den Standort auf der Karte auswählen").
+     *
+     * Getroffen hat es genau die Faelle, in denen der Klick das Land
+     * AENDERT - also jeden Klick, solange noch kein Land gewaehlt ist. War
+     * das Land des angeklickten Punktes schon eingestellt, wurde gar kein
+     * change ausgeloest und der Klick wirkte. Daher der Eindruck, es habe
+     * einmal geklappt und danach nie wieder.
+     *
+     * Wer hier einen weiteren change-Horcher anhaengt, holt den Fehler
+     * zurueck. Was beim Landwechsel zu geschehen hat, gehoert in diese
+     * Methode.
      */
     onCountryChange() {
+        const selectedOption = $('#countrySelect').find('option:selected');
+        const iso2 = selectedOption.data('iso2');
+
+        this.selectedCountryCode = selectedOption.val();
+
+        // Das Stadtfeld haengt allein am Land: die Staedtesuche ruft
+        // Nominatim mit countrycodes=<iso2> auf und braucht den Code. Das
+        // gilt unabhaengig davon, wer das Land gesetzt hat - deshalb steht
+        // es vor dem Ausstieg weiter unten.
+        this.setzeStadtfeldZustand(!!iso2);
+
+        // Kam die Aenderung vom Kartenklick oder vom Standort-Knopf, ist das
+        // Land nur die FOLGE eines bereits gesetzten Punktes. Dann darf hier
+        // nichts zurueckgesetzt und die Karte nicht verschoben werden - der
+        // Aufrufer setzt Koordinaten, Marker und Stadt selbst.
         if (this.countryJustSetByLocation) {
             this.countryJustSetByLocation = false;
             return;
         }
-        let selectedOption = $('#countrySelect').find('option:selected');
-        let countryName = selectedOption.data('country-name');
-        this.selectedCountryCode = selectedOption.val();
-        let iso2 = selectedOption.data('iso2');
 
-        if (!this.selectedCountryCode) {
-            // Alle Felder resetten
-            $('#citySelect').val('').trigger('change');
-            this.clearCoordsAndOsmPlace();
-            return;
-        }
+        // Ab hier hat der Nutzer das Land selbst gewaehlt. Eine vorher
+        // gesetzte Stadt und ein vorher gesetzter Punkt liegen dann
+        // moeglicherweise in einem anderen Land und muessen weg.
+        $('#citySelect').val('').trigger('change');
+        this.clearCoordsAndOsmPlace();
+
+        if (!this.selectedCountryCode) return;
 
         // Map auf das gewählte Land zentrieren
+        const countryName = selectedOption.data('country-name');
         fetch('https://nominatim.openstreetmap.org/search?country=' + encodeURIComponent(countryName) + '&format=json')
             .then(resp => resp.json())
             .then(data => {
@@ -275,9 +315,6 @@ window.webrtcApp.locationMap = {
                     $('#countrySelect').val('').trigger('change');
                 }
             });
-
-        $('#citySelect').val('').trigger('change');
-        this.clearCoordsAndOsmPlace();
     },
 
     /**
@@ -331,16 +368,11 @@ window.webrtcApp.locationMap = {
             }, 100);
         });
 
-        // Nach Landwechsel alles zurücksetzen
-        $('#countrySelect').on('change', () => {
-            $('#citySelect').val('').trigger('change');
-            $('#latitude, #longitude, #lat, #lon, #osm_place').val('').text('');
-            // Stadtfeld nur freigeben, wenn tatsaechlich ein Land mit
-            // Laendercode gewaehlt ist - der Code ist Pflichtparameter der
-            // Nominatim-Suche.
-            const iso2 = $('#countrySelect option:selected').data('iso2');
-            this.setzeStadtfeldZustand(!!iso2);
-        });
+        // Was beim Landwechsel geschieht - Stadt zuruecksetzen, Stadtfeld
+        // freigeben oder sperren, Koordinaten verwerfen - steht in
+        // onCountryChange(). Hier stand frueher ein zweiter change-Horcher,
+        // der die Koordinaten des Kartenklicks geloescht hat; die Begruendung
+        // ist dort ausfuehrlich aufgeschrieben.
 
         // Stadt gewählt → Felder & Marker setzen
         $('#citySelect').on('select2:select', (e) => {
@@ -476,15 +508,39 @@ window.webrtcApp.locationMap = {
     },
 
     /**
+     * Setzt den Punkt: Anzeige, versteckte Formularfelder und Marker.
+     *
+     * Diese Methode ist die EINZIGE Stelle, die #latitude und #longitude
+     * fuellt. Sie steht am Anfang jedes Weges, auf dem ein Punkt entsteht -
+     * Kartenklick und Standort-Knopf -, und zwar VOR jeder Rueckfrage bei
+     * OpenStreetMap: Die Koordinate ist da bereits bekannt, alles Weitere
+     * (Ortsname, Land, Stadt) ist Beiwerk und darf sie nicht mehr entwerten.
+     *
+     * @param {number} lat  Breitengrad
+     * @param {number} lon  Laengengrad
+     * @param {number} [zoom] Zoomstufe; ohne Angabe bleibt der Ausschnitt
+     */
+    setzePunkt(lat, lon, zoom) {
+        $('#lat').text(lat.toFixed(6));
+        $('#lon').text(lon.toFixed(6));
+        $('#latitude').val(lat);
+        $('#longitude').val(lon);
+        if (this.marker) this.map.removeLayer(this.marker);
+        this.marker = L.marker([lat, lon]).addTo(this.map);
+        if (zoom) this.map.setView([lat, lon], zoom);
+    },
+
+    /**
      * Wird ausgelöst, wenn auf die Karte geklickt wird. Setzt Marker & Felder.
+     *
+     * Der Klick ist die verbindliche Eingabe: Die Koordinaten stehen sofort
+     * in #latitude und #longitude und werden von hier an nicht mehr
+     * angetastet. Was danach kommt - Ortsname, Land, Stadt - ist nur
+     * Beiwerk aus der Antwort von OpenStreetMap und darf den gesetzten
+     * Punkt nicht mehr entwerten. Siehe onCountryChange().
      */
     onMapClick(e) {
-        if (this.marker) this.map.removeLayer(this.marker);
-        this.marker = L.marker(e.latlng).addTo(this.map);
-        $('#lat').text(e.latlng.lat.toFixed(6));
-        $('#lon').text(e.latlng.lng.toFixed(6));
-        $('#latitude').val(e.latlng.lat);
-        $('#longitude').val(e.latlng.lng);
+        this.setzePunkt(e.latlng.lat, e.latlng.lng);
 
         fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + e.latlng.lat + '&lon=' + e.latlng.lng)
             .then(resp => resp.json())
@@ -516,6 +572,14 @@ window.webrtcApp.locationMap = {
                     let option = new Option(place, place, true, true);
                     $('#citySelect').append(option).trigger('change');
                 }
+            })
+            .catch(fehler => {
+                // Ist OpenStreetMap nicht erreichbar oder weist die Anfrage
+                // ab, fehlt nur der Ortsname. Der angeklickte Punkt steht
+                // bereits in den Feldern und bleibt gueltig - deshalb hier
+                // keine Ruecknahme, nur ein Hinweis in der Anzeige.
+                console.error('Ortsname konnte nicht ermittelt werden:', fehler);
+                $('#osm_place').text('Ort nicht ermittelbar - der Punkt ist trotzdem gesetzt.');
             });
     },
 
@@ -528,7 +592,19 @@ window.webrtcApp.locationMap = {
             return;
         }
         navigator.geolocation.getCurrentPosition((pos) => {
-            let lat = pos.coords.latitude, lon = pos.coords.longitude;
+            const lat = pos.coords.latitude, lon = pos.coords.longitude;
+
+            // Die Koordinaten kommen aus dem Geraet und stehen damit schon
+            // fest - erst setzen, dann bei OpenStreetMap nachfragen.
+            //
+            // Hier stand frueher ein setTimeout ueber 500 Millisekunden, das
+            // nichts mit der Standortbestimmung zu tun hatte: Es sollte den
+            // Loeschzweig ueberholen, der beim Setzen des Landes die
+            // Koordinatenfelder leerte (siehe onCountryChange()). Ein
+            // Wettlauf als Behelf - auf einem langsamen Geraet auch
+            // verlierbar. Der Loeschzweig ist weg, also auch die Wartezeit.
+            this.setzePunkt(lat, lon, 14);
+
             fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon)
                 .then(resp => resp.json())
                 .then(data => {
@@ -551,21 +627,18 @@ window.webrtcApp.locationMap = {
                             $('#countrySelect').val(countryOption.val()).trigger('change');
                         }
                     }
-                    setTimeout(() => {
-                        $('#lat').text(lat.toFixed(6));
-                        $('#lon').text(lon.toFixed(6));
-                        $('#latitude').val(lat);
-                        $('#longitude').val(lon);
-                        if (this.marker) this.map.removeLayer(this.marker);
-                        this.marker = L.marker([lat, lon]).addTo(this.map);
-                        this.map.setView([lat, lon], 14);
 
-                        // Stadt im Select2 programmatisch wählen
-                        if (found) {
-                            let option = new Option(found, found, true, true);
-                            $('#citySelect').append(option).trigger('change');
-                        }
-                    }, 500);
+                    // Stadt im Select2 programmatisch wählen
+                    if (found) {
+                        let option = new Option(found, found, true, true);
+                        $('#citySelect').append(option).trigger('change');
+                    }
+                })
+                .catch(fehler => {
+                    // Wie beim Kartenklick: ohne Antwort von OpenStreetMap
+                    // fehlt nur die Adresse. Der Punkt steht bereits.
+                    console.error('Ortsname konnte nicht ermittelt werden:', fehler);
+                    $('#osm_place').text('Ort nicht ermittelbar - der Punkt ist trotzdem gesetzt.');
                 });
         }, function (err) {
             window.webrtcApp.notify.error('Standort konnte nicht ermittelt werden: ' + err.message);

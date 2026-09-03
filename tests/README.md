@@ -1,7 +1,7 @@
 # Tests
 
-Zwei eigenständige Prüfskripte für die Verbindungsstabilität und das
-Steuerprotokoll der WebRTC-Funktion. Bewusst **ohne Test-Framework**: keine Composer-Dev-Abhängigkeit,
+Drei eigenständige Prüfskripte für die Verbindungsstabilität, das
+Steuerprotokoll und die Standortauswahl. Bewusst **ohne Test-Framework**: keine Composer-Dev-Abhängigkeit,
 kein npm-Paket, keine Konfigurationsdatei. Jedes Skript ist ein einzelner
 Aufruf, der entweder durchläuft oder mit Exit-Code 1 abbricht.
 
@@ -9,6 +9,7 @@ Aufruf, der entweder durchläuft oder mit Exit-Code 1 abbricht.
 
 ```bash
 node tests/client_test.js     # Client-Logik (assets/js)
+node tests/map_test.js        # Standortauswahl (assets/js/map.js)
 php  tests/server_test.php    # Serverlogik (class/)
 ```
 
@@ -29,6 +30,7 @@ verändern nichts — sie sind gefahrlos jederzeit ausführbar.
 |---|---|
 | `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `signaling.js`, `chat.js` und `ui.js` aus `assets/js`. Allein nicht ausführbar. |
 | `client_test.js` | Die eigentlichen Client-Prüfungen. |
+| `map_test.js` | Die Standortauswahl auf „Standort anbieten". Bringt seine eigenen Attrappen mit (jQuery, Leaflet, `fetch`), weil die karge jQuery-Attrappe in `client_harness.js` für ein Formular mit Auswahlfeldern nicht reicht. Allein ausführbar. |
 | `server_test.php` | Die Serverprüfungen. Ersetzt `PdoConnect::$connection` durch eine Attrappe, die abgesetzte SQL-Statements nur mitschreibt statt sie auszuführen. |
 
 Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
@@ -285,6 +287,48 @@ die Tests nicht an. Das ist Absicht.
     ist nur dort in Ordnung, wo bewusst ein *fremder* Datensatz gemeint ist
     (Benutzerverwaltung, Standortsperre, Chatpartner) — und dort steht eine
     eigene Prüfung daneben.
+
+## Was `map_test.js` prüft (16 Prüfungen)
+
+Geprüft wird die Seite **Standort anbieten** (`assets/html/set_location.html`,
+`assets/js/map.js`) — vor allem, dass ein per Mausklick gesetzter Punkt auch
+gesetzt **bleibt**.
+
+1. **Genau ein `change`-Horcher am Länderfeld.** Hier lag der Fehler: Am
+   Länderfeld hingen zwei Horcher. Der eine kannte das Merkmal
+   `countryJustSetByLocation` und stieg bei einem programmatisch gesetzten
+   Land korrekt aus; der andere kannte es nicht und leerte `#latitude` und
+   `#longitude` — also genau die Felder, die der Kartenklick eine halbe
+   Sekunde vorher gefüllt hatte. Der Marker blieb liegen, es sah richtig aus,
+   und der Server wies das Formular mit `success=2` ab. Wer wieder einen
+   zweiten Horcher anhängt, fällt hier auf.
+2. **Klick ohne vorher gewähltes Land.** Der Fehlerfall: Ohne Land ändert der
+   Klick über das Reverse-Geocoding das Land, und daran hing das Löschen.
+   Geprüft wird nicht nur, dass der Klick die Felder setzt (das tat er
+   vorher auch), sondern dass sie **nach** der Antwort von OpenStreetMap
+   noch stehen — samt Land, Ortsname und freigegebenem Stadtfeld. Ein
+   gesperrtes `<select>` schickt der Browser nicht mit; die Stadt käme sonst
+   leer beim `LocationController` an.
+3. **Klick im bereits gewählten Land.** Der einzige Fall, der vorher
+   funktionierte — hier wird gar kein Landwechsel ausgelöst. Deshalb der
+   Eindruck, es habe „einmal geklappt".
+4. **Die Gegenprobe.** Wechselt der **Nutzer** das Land selbst, müssen der
+   alte Punkt und der alte Ortsname weiterhin verschwinden — sie lägen sonst
+   im falschen Land. Ohne Land wird das Stadtfeld gesperrt, mit Land
+   freigegeben.
+5. **Ausfall von OpenStreetMap.** Die Koordinaten stehen im Browser fest und
+   dürfen nicht davon abhängen, dass ein fremder Dienst antwortet. Fällt der
+   Reverse-Aufruf aus, fehlt nur der Ortsname; der Punkt bleibt gültig und
+   der Nutzer erfährt den Grund.
+6. **Der Standort-Knopf.** Derselbe Weg wie der Klick, nur kommt die
+   Koordinate aus dem Gerät: Sie steht **sofort** (früher erst nach 500 ms)
+   und überlebt das Setzen von Land und Stadt. Ein Ausfall von OpenStreetMap
+   kostet auch hier nur die Adresse; verweigert das Gerät den Standort,
+   entsteht kein Punkt und der Nutzer erfährt den Grund.
+7. **Kein 500-ms-Behelf mehr.** Im Standort-Knopf stand ein
+   `setTimeout(…, 500)`, das nichts mit der Standortbestimmung zu tun hatte:
+   Es sollte den Löschzweig überholen. Ein Wettlauf als Behelf, auf einem
+   langsamen Gerät auch verlierbar.
 
 ## Grenzen
 
