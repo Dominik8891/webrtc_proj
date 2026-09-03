@@ -199,6 +199,23 @@ ohne Rolle dasteht.
 Nur `offer` wird gestempelt. `restart_offer` nach einem ICE-Restart nicht — die
 Rolle steht seit dem Anruf fest und wird clientseitig gehalten.
 
+**Der Angerufene übernimmt sie, sobald das Offer eintrifft** — nicht erst beim
+Annehmen. Sie steht zu diesem Zeitpunkt bereits fest, und er soll vor seiner
+Entscheidung sehen, worum es geht: eine Führung, in der er gesteuert wird, oder
+ein Anruf der Administration, in dem niemand steuert. Zieht der Anrufer sein
+Offer zurück, bevor angenommen wurde, fällt die Rolle mit ihm.
+
+### Was der Nutzer von der Rolle sieht
+
+Ein `peer`-Call hat kein Steuerkreuz, keine Bestätigung und keine Sperre. Wer
+das nicht weiß, wartet auf eine Steuerung, die es dort gar nicht gibt. Deshalb
+ist die Rolle sichtbar: Annahmedialog und Call-Ansicht tragen dieselbe Klasse
+(`role-guide` / `role-viewer` / `role-peer`, gesetzt von
+[`control.updateRoleUi()`](assets/js/control.js)), und
+[`call.css`](assets/css/call.css) blendet daran den Hinweis *„Anruf der
+Administration — keine Führung, es wird nicht gesteuert"* ein. Es gibt dafür
+keine zweite Prüfung auf das Konto des Anrufers: Die Rolle ist die Aussage.
+
 ### Rolle unbekannt
 
 Kommt keine oder eine unbekannte Rolle an, gilt sie als `null`. Dann:

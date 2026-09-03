@@ -1598,7 +1598,7 @@ function ackLastMove(status = 'executed', reason) {
         assert.deepStrictEqual(doppelt, [], 'diese IDs stehen mehrfach im Markup: ' + doppelt.join(', '));
         ['call-view', 'remote-video', 'local-video', 'local-video-placeholder',
          'direction-indicator', 'control-lock-bar', 'control-pad', 'connection-status',
-         'btn-look-up', 'btn-look-down', 'chat-unread'
+         'btn-look-up', 'btn-look-down', 'chat-unread', 'call-purpose'
         ].forEach(id => {
             assert.ok(ids.includes(id), 'die ID "' + id + '" fehlt in der Call-Ansicht');
         });
@@ -1799,6 +1799,16 @@ function ackLastMove(status = 'executed', reason) {
         assert.strictEqual(app.chat.unread, 0, 'der Zaehler laeuft in den naechsten Call');
         assert.strictEqual(badge.hidden, true, 'der Zaehler bleibt nach dem Auflegen stehen');
         ok('das Auflegen leert den Zaehler');
+
+        // hidden allein genuegt im Browser NICHT: Das display der Klasse
+        // schlaegt die eingebaute Regel fuer [hidden], und dann stuende dort
+        // dauerhaft eine Null. Dieselbe Zeile brauchen .call-sheet und
+        // .call-chat-overlay aus demselben Grund.
+        const cssBadge = require('fs').readFileSync(
+            require('path').join(__dirname, '..', 'assets', 'css', 'call.css'), 'utf8');
+        assert.ok(/\.call-btn__badge\[hidden\]\s*\{[^}]*display:\s*none/.test(cssBadge),
+            'ohne .call-btn__badge[hidden] bleibt der Zaehler sichtbar');
+        ok('der ausgeblendete Zaehler ist auch im Browser weg');
     }
 
     console.error('\n37) Blickrichtung hoch und runter');
@@ -1911,6 +1921,97 @@ function ackLastMove(status = 'executed', reason) {
         assert.ok(!/start-call-btn[\s\S]{0,400}data-locationid/.test(benutzerliste),
             'die Benutzerverwaltung schickt einen Standort mit - dann waere sie kein Direktanruf');
         ok('die Karte gibt ihren Standort mit, die Benutzerverwaltung bewusst nicht');
+    }
+
+    console.error('\n39) Ein Anruf der Administration ist als solcher zu erkennen');
+    {
+        // Der Angerufene sah bisher nur "X ruft an" und wartete danach auf ein
+        // Steuerkreuz, das es in dieser Rolle gar nicht gibt. Erkannt wird der
+        // Fall an der ROLLE - nicht an einer zweiten Pruefung auf das Konto
+        // des Anrufers. Die Rolle vergibt der Server, sie haengt am Offer und
+        // steht damit schon fest, BEVOR angenommen wird.
+        const dialog  = __el('media-select-dialog');
+        const ansicht = __el('call-view');
+
+        resetAll();
+        await app.signaling.handleSignalingData(
+            { type: 'offer', sender_id: 7, sdp: 'sdp-x', role: 'peer' });
+
+        assert.strictEqual(app.state.callRole, 'peer',
+            'die Rolle des Offers gilt erst nach dem Annehmen');
+        assert.ok(dialog.classList.contains('role-peer'),
+            'der Annahmedialog traegt die Rolle nicht');
+        ok('die Rolle steht schon im Annahmedialog fest');
+
+        // Und im laufenden Call bleibt sie stehen: Die Frage "warum kann ich
+        // nichts steuern" stellt sich nicht nur in der ersten Sekunde.
+        app.state.pendingOffer = { sender_id: 7, type: 'offer', sdp: 'sdp-x', role: 'peer' };
+        app.refs.iceServersLoaded = true;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+        await app.rtc.acceptCall({ video: true, audio: true });
+        assert.ok(ansicht.classList.contains('role-peer'),
+            'die Call-Ansicht traegt die Rolle nicht');
+        assert.strictEqual(__el('btn-forward').disabled, true,
+            'im Anruf der Administration laesst sich steuern');
+        app.rtc.endCall(false);
+        assert.ok(!dialog.classList.contains('role-peer'),
+            'nach dem Auflegen haengt die Rolle noch am Dialog');
+        ok('im laufenden Call steht sie ebenso, und das Auflegen raeumt sie ab');
+
+        // Eine Fuehrung bekommt den Hinweis NICHT - sonst waere er wertlos.
+        resetAll();
+        await app.signaling.handleSignalingData(
+            { type: 'offer', sender_id: 7, sdp: 'sdp-x', role: 'guide' });
+        assert.ok(dialog.classList.contains('role-guide') && !dialog.classList.contains('role-peer'),
+            'die Fuehrung wird als Anruf der Administration ausgewiesen');
+
+        // Ohne Rolle wird nichts behauptet.
+        resetAll();
+        await app.signaling.handleSignalingData({ type: 'offer', sender_id: 7, sdp: 'sdp-x' });
+        assert.ok(!dialog.classList.contains('role-peer') && !dialog.classList.contains('role-guide'),
+            'ohne Rolle steht trotzdem eine am Dialog');
+        ok('ohne die Rolle "peer" bleibt der Hinweis weg');
+
+        // Legt der Anrufer auf, bevor angenommen wurde, faellt die Rolle mit
+        // dem Offer - sonst stuende sie noch am Dialog, wenn der naechste
+        // Anruf kommt.
+        resetAll();
+        await app.signaling.handleSignalingData(
+            { type: 'offer', sender_id: 7, sdp: 'sdp-x', role: 'peer' });
+        app.rtc.handleRemoteHangup(7);
+        assert.strictEqual(app.state.callRole, null, 'die Rolle ueberlebt das Auflegen');
+        assert.ok(!dialog.classList.contains('role-peer'), 'die Klasse bleibt am Dialog stehen');
+        ok('ein zurueckgezogener Anruf nimmt seine Rolle mit');
+
+        // Der Text selbst: Er muss die Administration benennen UND sagen,
+        // dass nicht gesteuert wird. Nur eines von beidem beantwortet die
+        // Frage nicht, um die es geht.
+        const fsA = require('fs'), pathA = require('path');
+        const lies = (...teile) => fsA.readFileSync(pathA.join(__dirname, '..', ...teile), 'utf8');
+        [['assets', 'html', 'call_controll.html'], ['assets', 'html', 'inner_call_controll.html']]
+            .forEach(datei => {
+                const markup = lies(...datei);
+                assert.ok(/Anruf der Administration/.test(markup),
+                    datei.join('/') + ': der Hinweis nennt die Administration nicht');
+                assert.ok(/nicht gesteuert/.test(markup),
+                    datei.join('/') + ': der Hinweis sagt nicht, dass nicht gesteuert wird');
+            });
+        assert.ok(lies('assets', 'html', 'call_controll.html').includes('id="call-invite-purpose"'),
+            'im Annahmedialog fehlt der Hinweis');
+        ok('der Hinweis nennt die Administration und die fehlende Steuerung');
+
+        // Sichtbar allein ueber die Rollenklasse - keine style-Zuweisung
+        // irgendwo im Code, die daneben mitreden koennte.
+        const css = lies('assets', 'css', 'call.css').replace(/\s+/g, ' ');
+        assert.ok(css.includes('#call-view:not(.role-peer) #call-purpose'),
+            'der Hinweis im Call haengt nicht an der Rolle');
+        assert.ok(css.includes('#media-select-dialog:not(.role-peer) #call-invite-purpose'),
+            'der Hinweis im Dialog haengt nicht an der Rolle');
+        const js = lies('assets', 'js', 'control.js') + lies('assets', 'js', 'signaling.js')
+                 + lies('assets', 'js', 'rtc.js') + lies('assets', 'js', 'main.js');
+        assert.ok(!/call-(invite-)?purpose/.test(js),
+            'der Hinweis wird irgendwo im Code direkt angefasst - er gehoert der Rollenklasse');
+        ok('sichtbar wird der Hinweis allein ueber die Rollenklasse');
     }
 
     console.error('\n' + passed + ' Pruefungen bestanden.');

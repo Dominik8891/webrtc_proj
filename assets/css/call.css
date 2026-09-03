@@ -250,6 +250,12 @@ body.call-active {
     line-height: 1;
 }
 
+/* OHNE DIESE ZEILE STEHT DA DAUERND EINE NULL. Das display der Klasse schlaegt
+   die Regel des Browsers fuer [hidden] - der Zaehler waere sichtbar, auch wenn
+   chat.renderUnread() ihn ausgeblendet hat. Dieselbe Zeile steht aus demselben
+   Grund bei .call-sheet und .call-chat-overlay. */
+.call-btn__badge[hidden] { display: none; }
+
 /* Der aufgeklappte Chat setzt den Zaehler zurueck; der Knopf traegt dann
    ohnehin schon das Aussehen "offen". Der helle Rand ist fuer den Fall, dass
    der Knopf zu und der Zaehler gesetzt ist - er hebt ihn aus der Leiste
@@ -561,6 +567,16 @@ body.call-active {
     display: none !important;
 }
 
+/* --- Was nur der Anruf ohne Fuehrung zeigt -------------------------------- */
+
+/* Der Hinweis "Anruf der Administration" gehoert allein zur Rolle "peer" -
+   im Annahmedialog wie im laufenden Call. Ohne bekannte Rolle bleibt er weg:
+   Solange nicht feststeht, worum es geht, wird auch nichts behauptet. */
+#call-view:not(.role-peer) #call-purpose,
+#media-select-dialog:not(.role-peer) #call-invite-purpose {
+    display: none !important;
+}
+
 /* --- Was nur der Guide sieht --------------------------------------------- */
 
 /* Sperrschalter und Richtungsanzeige gehoeren nur zum Guide. */
@@ -869,6 +885,84 @@ body.call-active {
     flex: none;
     border-radius: 2px;
     background: currentColor;
+}
+
+/* ===========================================================================
+   Anruf der Administration
+   ---------------------------------------------------------------------------
+   Ein Anruf mit der Verwaltung (Rolle "peer") ist KEINE Fuehrung: Es gibt
+   darin kein Steuerkreuz, keine Bestaetigung, keine Sperre. Wer das nicht
+   weiss, sieht nur einen Namen und wartet auf eine Steuerung, die gar nicht
+   vorgesehen ist. Dieselbe Meldung steht deshalb an zwei Stellen - im
+   Annahmedialog (VOR der Entscheidung) und im laufenden Call (waehrend der
+   Frage "warum kann ich nichts steuern").
+
+   Ein Bauteil, zwei Auspraegungen: Im Dialog ein Kasten in der Breite des
+   Dialogs, im Call ein Streifen ueber dem Video. Die Farbe ist der Akzent,
+   nicht das Warnrot des Sperrhinweises - es ist eine Auskunft, keine Warnung.
+   =========================================================================== */
+
+.call-purpose {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--app-space-2);
+    text-align: left;
+}
+
+/* Wie beim Sperrhinweis ein gezeichnetes Quadrat statt eines
+   Sonderzeichens - das fehlt in zu vielen Systemschriften. */
+.call-purpose__icon {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    margin-top: 0.42em;
+    border-radius: 2px;
+    background: currentColor;
+}
+
+.call-purpose__title {
+    display: block;
+    font-weight: var(--app-weight-bold);
+}
+
+/* --- Im Annahmedialog ---------------------------------------------------- */
+
+.call-purpose--invite {
+    margin-bottom: var(--app-space-5);
+    padding: var(--app-space-3) var(--app-space-4);
+    border-radius: var(--app-radius);
+    background: var(--app-accent-soft);
+    color: var(--app-accent-strong);
+    font-size: var(--app-text-sm);
+    line-height: 1.45;
+}
+
+/* --- Im laufenden Call --------------------------------------------------- */
+
+/* Unter dem Kopfbereich, wie der Sperrhinweis: Der Verbindungsstatus daroeber
+   bleibt frei. Beide koennen sich nicht in die Quere kommen - den
+   Sperrhinweis gibt es nur beim Zuschauer, diesen nur im Anruf ohne
+   Fuehrung. */
+#call-purpose {
+    position: absolute;
+    left: 50%;
+    top: 76px;
+    transform: translateX(-50%);
+    z-index: 13;
+    /* width: max-content ist hier kein Beiwerk. Ein absolut gesetzter Kasten
+       mit left: 50% bekommt als Platz nur die HALBE Breite des Bildschirms -
+       ohne diese Zeile bricht der Satz auf schmalen Geraeten schon mitten in
+       "Anruf der Administration" um. Die Obergrenze haelt ihn trotzdem im
+       Bild. */
+    width: max-content;
+    max-width: calc(100vw - 2 * var(--app-space-4));
+    padding: var(--app-space-2) var(--app-space-4);
+    border-radius: var(--app-radius-lg);
+    background: rgba(74, 84, 214, 0.94);
+    color: #fff;
+    font-size: var(--app-text-sm);
+    line-height: 1.35;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 
 /* ===========================================================================

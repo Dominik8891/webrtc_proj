@@ -22,6 +22,11 @@
                  uebertraegt. Darauf liegen die grosse Richtungsanzeige und
                  der Sperrschalter.
 
+      Peer       Anruf der Administration, keine Fuehrung. Beide sehen und
+                 hoeren einander, niemand steuert - und genau das steht dort
+                 auch, den ganzen Anruf ueber. Sonst wartet der Angerufene
+                 auf eine Steuerung, die es in dieser Rolle nicht gibt.
+
     WARUM EIN MARKUP UND NICHT ZWEI VORLAGEN
     ----------------------------------------
     Jedes Bauteil steht GENAU EINMAL im Dokument. Die Rolle steht erst beim
@@ -39,6 +44,9 @@
                    Chatknopf samt Zaehler ungelesener Nachrichten, Chatblatt.
     NUR GUIDE      Buehne = eigenes Bild, Richtungsanzeige, Sperrschalter.
     NUR ZUSCHAUER  Buehne = Bild des Guides, Steuerung, Sperrhinweis.
+    NUR PEER       Der Hinweis "Anruf der Administration". In dieser Rolle
+                   fuehrt niemand - ohne den Hinweis wartet der Angerufene
+                   auf ein Steuerkreuz, das gar nicht vorgesehen ist.
     WER SENDET     Mikrofon- und Kameraknopf, Geraeteblatt und die eigene
                    Vorschau gehoeren dem Guide und den Teilnehmern eines
                    Anrufs ohne Fuehrung (Rolle "peer", etwa mit der
@@ -98,6 +106,28 @@
             <span id="connection-status" class="connection-status" style="display:none;"></span>
         </div>
         <button id="end-call-btn" type="button" class="btn btn-danger call-hangup">Auflegen</button>
+    </div>
+
+    <!-- NUR IM ANRUF DER ADMINISTRATION (Rolle "peer"): Was das hier ist.
+         Der Angerufene sah bisher nur einen Namen und wartete auf ein
+         Steuerkreuz, das in dieser Rolle gar nicht vorgesehen ist. Der
+         Hinweis bleibt den ganzen Anruf ueber stehen - er beantwortet die
+         Frage "warum kann ich nichts steuern", und die stellt sich nicht nur
+         in der ersten Sekunde.
+
+         BEIDE SEITEN sehen ihn, nicht nur der Angerufene. Die Rolle "peer"
+         ist symmetrisch - eine Unterscheidung nach "wer hat angerufen" waere
+         eine zweite Bedingung fuer einen Satz, der auch fuer den Anrufer
+         stimmt.
+
+         Sichtbar allein ueber die Rollenklasse an #call-view
+         (assets/css/call.css). -->
+    <div id="call-purpose" class="call-purpose" role="status">
+        <span class="call-purpose__icon" aria-hidden="true"></span>
+        <span class="call-purpose__text">
+            <strong class="call-purpose__title">Anruf der Administration</strong>
+            Keine Führung – es wird nicht gesteuert.
+        </span>
     </div>
 
     <!-- ZUSCHAUER: Anzeige, dass der Guide die Steuerung angehalten hat.

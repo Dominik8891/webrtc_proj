@@ -158,6 +158,11 @@ window.webrtcApp.rtc = {
             if (dialog) dialog.style.display = 'none';
             window.webrtcApp.sound.stop('incomming_call_ringtone');
             state.pendingOffer = null;
+            // Die Rolle gilt seit dem Eintreffen des Offers (siehe
+            // signaling.js). Mit dem Offer ist auch sie hinfaellig - sonst
+            // stuende die Rollenklasse noch am Annahmedialog, wenn der
+            // naechste Anruf kommt.
+            window.webrtcApp.control.reset();
         }
     },
 

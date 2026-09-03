@@ -10,6 +10,18 @@
 
     Die Geraetewahl steht schon hier und nicht erst im Call: Wer annimmt,
     entscheidet damit zugleich, womit er teilnimmt.
+
+    WORUM ES GEHT, STEHT SCHON HIER
+    -------------------------------
+    Der Dialog traegt dieselbe Rollenklasse wie die Call-Ansicht
+    ("role-guide", "role-viewer", "role-peer"); gesetzt von
+    assets/js/control.js, sobald das Offer eintrifft - die Rolle steht da
+    schon fest, der Server hat sie angestempelt.
+
+    Gebraucht wird das fuer die Rolle "peer": ein Anruf der Administration.
+    Der ist KEINE Fuehrung, es wird darin nicht gesteuert. Wer das erst im
+    Gespraech merkt, wartet vorher auf ein Steuerkreuz, das nie kommt - und
+    genau davon handelt der Hinweis unten.
 -->
 <div id="media-select-dialog" style="display:none;" role="dialog" aria-modal="true">
   <div class="call-invite">
@@ -17,6 +29,18 @@
     <div class="call-invite__head">
       <p class="call-invite__eyebrow">Eingehender Anruf</p>
       <h2 class="call-invite__name" id="calling_user"></h2>
+    </div>
+
+    <!-- NUR bei einem Anruf der Administration (Rolle "peer"). Ausgeblendet
+         in jeder anderen Rolle und solange keine feststeht - siehe
+         assets/css/call.css, Abschnitt "Rollen". -->
+    <div id="call-invite-purpose" class="call-purpose call-purpose--invite" role="status">
+      <span class="call-purpose__icon" aria-hidden="true"></span>
+      <span class="call-purpose__text">
+        <strong class="call-purpose__title">Anruf der Administration</strong>
+        Das ist keine Führung – es wird nicht gesteuert. Ton und Bild laufen in
+        beide Richtungen.
+      </span>
     </div>
 
     <div class="app-field">

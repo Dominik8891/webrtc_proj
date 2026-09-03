@@ -110,6 +110,16 @@ window.webrtcApp.signaling = {
         if (data.type === 'offer') {
             // Eingehender Anruf: UI vorbereiten
             window.webrtcApp.state.pendingOffer = data;
+
+            // DIE ROLLE GILT AB JETZT, NICHT ERST AB DEM ANNEHMEN. Der Server
+            // hat sie an das Offer gestempelt (WebRTCController::stampCallRoles),
+            // sie steht also schon fest - und der Angerufene soll VOR seiner
+            // Entscheidung sehen, worum es geht: eine Fuehrung, in der er
+            // gesteuert wird, oder ein Anruf der Administration, in dem
+            // niemand steuert. rtc.acceptCall() setzt sie danach noch einmal;
+            // das ist derselbe Wert und schadet nicht.
+            window.webrtcApp.control.applyRole(data.role || null);
+
             var dialog = document.getElementById('media-select-dialog');
             if (dialog) {
                 dialog.style.display = '';

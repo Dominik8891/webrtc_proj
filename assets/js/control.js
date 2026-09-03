@@ -116,17 +116,33 @@ window.webrtcApp.control = {
     },
 
     /**
-     * Setzt die Rollenklasse auf #call-view. Alles Rollenabhängige in der
-     * Oberfläche hängt an dieser Klasse (call.css), nicht an einzelnen
-     * style-Zuweisungen - so gibt es genau eine Stelle, die entscheidet.
+     * Die Bauteile, die eine Rollenklasse tragen.
+     *
+     * ZWEI, NICHT EINES: Die Call-Ansicht und der Annahmedialog. Der Dialog
+     * steht ausserhalb von #call-view (assets/html/call_controll.html) und
+     * erscheint, BEVOR angenommen wird - genau dann muss der Angerufene schon
+     * sehen, worum es geht. Ein Anruf der Administration ist keine Fuehrung,
+     * und wer das erst im Gespraech merkt, wartet vorher auf ein Steuerkreuz,
+     * das nie kommt.
+     */
+    ROLE_CLASS_TARGETS: ['call-view', 'media-select-dialog'],
+
+    /**
+     * Setzt die Rollenklasse auf die Call-Ansicht und den Annahmedialog.
+     * Alles Rollenabhängige in der Oberfläche hängt an dieser Klasse
+     * (call.css), nicht an einzelnen style-Zuweisungen - so gibt es genau
+     * eine Stelle, die entscheidet.
      */
     updateRoleUi() {
         const role = window.webrtcApp.state.callRole;
-        const view = document.getElementById('call-view');
-        if (view && view.classList) {
-            view.classList.remove('role-guide', 'role-viewer', 'role-peer');
-            if (role) view.classList.add('role-' + role);
-        }
+
+        this.ROLE_CLASS_TARGETS.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el || !el.classList) return;
+            el.classList.remove('role-guide', 'role-viewer', 'role-peer');
+            if (role) el.classList.add('role-' + role);
+        });
+
         // updateLockUi() zieht updatePadState() nach sich.
         this.updateLockUi();
     },
