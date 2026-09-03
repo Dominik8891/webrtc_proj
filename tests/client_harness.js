@@ -188,6 +188,16 @@ for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'signaling.js'
         return kette;
     };
     eval(fs.readFileSync(path.join(ROOT, 'theme_switch.js'), 'utf8'));
+
+    // map.js: geprueft wird nur die Flaggenbildung, die kein DOM braucht.
+    // Die Datei ruft beim Laden nichts auf - $(document).ready reicht als
+    // Attrappe oben aus.
+    global.localStorage = {
+        __daten: {},
+        getItem(k) { return k in this.__daten ? this.__daten[k] : null; },
+        setItem(k, w) { this.__daten[k] = String(w); }
+    };
+    eval(fs.readFileSync(path.join(ROOT, 'map.js'), 'utf8'));
 }
 
 // Module, die von rtc.js benutzt werden, aber hier nicht geladen sind

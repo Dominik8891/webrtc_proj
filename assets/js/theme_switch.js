@@ -13,9 +13,18 @@
  * und gesagt, was los ist - sonst sieht der Nutzer ein Profil, das beim
  * naechsten Anmelden nicht mehr da ist.
  *
- * Beim Laden der Seite wird NICHTS gesetzt: Das Attribut steht bereits im
- * ausgelieferten HTML (App\Helper\ViewHelper::output). Wuerde es hier
- * nachgetragen, blitzte bei jedem Seitenwechsel kurz das helle Profil auf.
+ * Beim Laden der Seite wird hier NICHTS gesetzt: Das erledigt schon das
+ * kleine Skript im <head> (App\Helper\Theme::bootScript). Wuerde diese
+ * Datei es nachtragen, blitzte bei jedem Seitenwechsel kurz das helle Profil
+ * auf - sie wird erst geladen, wenn die Seite bereits gezeichnet wird.
+ *
+ * WARUM DIE WAHL AUCH IM BROWSER LIEGT
+ * ------------------------------------
+ * Das Konto kennt die Anwendung erst nach der Anmeldung. Login,
+ * Registrierung und Passwort-vergessen waeren sonst immer hell, auch fuer
+ * jemanden, der Dunkel gewaehlt hat. Deshalb wird die Wahl zusaetzlich im
+ * Browser gemerkt. Beim Anmelden gewinnt weiterhin das Konto und schreibt
+ * den lokalen Wert um - das entscheidet bootScript(), nicht diese Datei.
  */
 window.webrtcApp = window.webrtcApp || {};
 
@@ -26,8 +35,30 @@ window.webrtcApp.themeSwitch = {
      *
      * @param {string} profil
      */
+    /** Schluessel im Browserspeicher. Gleichlautend in App\Helper\Theme. */
+    STORAGE_KEY: 'webrtcapp.theme',
+
     apply(profil) {
         document.documentElement.setAttribute('data-theme', profil);
+        this.remember(profil);
+    },
+
+    /**
+     * Merkt die Wahl im Browser.
+     *
+     * Damit gilt sie auch dort, wo niemand angemeldet ist. Scheitert das
+     * Speichern - privates Fenster, gesperrter Speicher -, ist das kein
+     * Fehler, den der Nutzer sehen muesste: Die Farbe steht ja schon, sie
+     * ueberlebt nur den naechsten Aufruf nicht.
+     *
+     * @param {string} profil
+     */
+    remember(profil) {
+        try {
+            localStorage.setItem(this.STORAGE_KEY, profil);
+        } catch (e) {
+            /* absichtlich still - siehe oben */
+        }
     },
 
     /**

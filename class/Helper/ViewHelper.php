@@ -137,8 +137,11 @@ class ViewHelper
         $inner_call= "";
         $media     = "";
 
-        // Das Farbprofil. Gaeste und Konten ohne Wahl bekommen die Vorgabe.
-        $theme = Theme::DEFAULT;
+        // Das Farbprofil des ANGEMELDETEN Kontos - fuer Gaeste bleibt es
+        // null. Das ist der Unterschied, den das Boot-Skript braucht:
+        // "Konto sagt Indigo" und "niemand angemeldet" muessen unterscheidbar
+        // sein, sonst ueberschriebe ein Gastaufruf die lokale Wahl.
+        $theme = null;
 
         $logged_in     = 'false';
         $user_role     = null;
@@ -151,9 +154,11 @@ class ViewHelper
             $logged_in = 'true';
 
             // Aus DEM Datensatz, der ohnehin geladen wird - keine zweite
-            // Abfrage. normalize() faengt "nie gewaehlt" und ein Profil ab,
-            // das es nicht mehr gibt.
-            $theme = Theme::normalize($user->getTheme());
+            // Abfrage. Ein Konto ohne Wahl bleibt null: Dann gilt weiterhin
+            // die lokale Wahl bzw. die Vorgabe des Betriebssystems, statt
+            // dass die Anmeldung sie stillschweigend auf Indigo zurueckstellt.
+            $roh   = $user->getTheme();
+            $theme = Theme::isValid($roh) ? $roh : null;
 
             // Das Benutzermenue. Es ersetzt die frueheren Einzelknoepfe
             // "Mein Account", "Benutzerliste" und "Abmelden" in der
@@ -240,10 +245,21 @@ class ViewHelper
         $out = str_replace("###LOGOUT###"              , $text             , $out);
         $out = str_replace("###USER###"                , $menu_html        , $out);
         $out = str_replace("###REGISTER###"            , $sign             , $out);
-        // Das Farbprofil steht als Attribut am <html>-Element und damit VOR
-        // dem ersten Zeichnen. Wuerde es ein Skript nachtragen, sieht der
-        // Nutzer im Dunkelprofil bei jedem Seitenwechsel einen hellen Blitz.
-        $out = str_replace("###THEME###"               , $theme            , $out);
+        // Das Farbprofil. Zwei Stellen, und beide sind noetig:
+        //
+        //   ###THEME###      das Attribut am <html>-Element. Angemeldet steht
+        //                    hier der Kontowert, damit die Seite schon
+        //                    richtig ausgeliefert wird. Fuer Gaeste bleibt es
+        //                    leer.
+        //   ###THEME_BOOT### ein kleines Skript im <head>, das fuer Gaeste
+        //                    den lokalen Wert bzw. die Vorgabe des
+        //                    Betriebssystems einsetzt - und beim Anmelden den
+        //                    lokalen Wert auf den Kontowert zieht.
+        //
+        // Beides laeuft vor dem ersten Zeichnen. Ein Skript am Seitenende
+        // waere zu spaet: Der Nutzer saehe die helle Seite aufblitzen.
+        $out = str_replace("###THEME###"     , $theme ?? Theme::DEFAULT      , $out);
+        $out = str_replace("###THEME_BOOT###", Theme::bootScript($theme)     , $out);
 
         // Ausgabe und Script-Beendigung
         die($out); 

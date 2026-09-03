@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebRTC-App</title>
 
+    <!-- Farbprofil setzen, BEVOR die Stilvorlagen greifen. Der Inhalt kommt
+         aus App\Helper\Theme::bootScript(); dort steht auch, warum das
+         Skript ausnahmsweise im Dokument steht und nicht in einer Datei. -->
+    ###THEME_BOOT###
+
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
     <!-- CSS-Bibliotheken -->

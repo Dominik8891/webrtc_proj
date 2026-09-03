@@ -141,8 +141,7 @@ window.webrtcApp.locationMap = {
                             value: country.id,
                             text: country.country_name,
                             'data-country-name': country.country_name,
-                            'data-iso2': country.iso2,
-                            code: country.emoji || ''
+                            'data-iso2': country.iso2
                         })
                     );
                 });
@@ -173,17 +172,64 @@ window.webrtcApp.locationMap = {
     },
 
     /**
-     * Stellt Länderoption in Select2 hübsch mit Flagge dar.
+     * Stellt eine Laenderoption mit Flagge dar.
+     *
+     * DER SENKRECHTE STRICH VOR DEM LAENDERNAMEN
+     * -------------------------------------------
+     * Hier stand vorher ein <img> von flagcdn.com. Laedt dieses Bild nicht -
+     * weil der Dienst nicht erreichbar ist, ein Inhaltsblocker ihn abweist
+     * oder gar keine Verbindung besteht -, zeichnet der Browser an seiner
+     * Stelle das Ersatzbild fuer ein kaputtes Bild. Bei den fest gesetzten
+     * 24x18 Pixeln ist das ein schmaler Strich vor dem Namen: "|Ägypten".
+     * Der Text selbst war nie betroffen; im DOM stand " Ägypten" mit einem
+     * fuehrenden Leerzeichen aus dem append(' ' + text).
+     *
+     * Die Flagge kommt jetzt aus dem Laenderkuerzel selbst: Zwei
+     * Regional-Indikator-Zeichen ergeben zusammen die Flagge des Landes
+     * (AT -> Oesterreich). Das ist Text, keine Datei - es kann nicht
+     * fehlschlagen, braucht keine Verbindung und schickt nicht bei jedem
+     * Aufklappen der Liste die IP jedes Nutzers an einen fremden Dienst.
+     *
+     * WO ES NICHT GEHT: Windows liefert fuer Flaggen keine Zeichen mit. Dort
+     * erscheinen statt der Flagge die beiden Buchstaben des Kuerzels - also
+     * "AT Österreich". Das ist keine schoene, aber eine LESBARE Anzeige, und
+     * genau darin liegt der Unterschied zum kaputten Bild.
+     *
+     * @param {Object} country Eintrag von select2
+     * @returns {string|jQuery}
      */
     formatCountryOption(country) {
         if (!country.id) return country.text;
-        let iso2 = $(country.element).data('iso2');
-        if (!iso2) return country.text;
-        let $img = $('<img>', {
-            src: 'https://flagcdn.com/24x18/' + iso2.toLowerCase() + '.png',
-            style: 'width:24px;height:18px;margin-right:7px;vertical-align:middle;'
-        });
-        return $('<span>').append($img).append(' ' + country.text);
+
+        const iso2 = $(country.element).data('iso2');
+        const flagge = window.webrtcApp.locationMap.flaggeAusIso2(iso2);
+        if (!flagge) return country.text;
+
+        // Die Flagge steht in einem eigenen Element mit fester Breite, damit
+        // die Laendernamen untereinander auf einer Linie beginnen - auch
+        // dort, wo statt der Flagge zwei Buchstaben stehen.
+        return $('<span>')
+            .append($('<span>', { 'class': 'land-flagge', 'aria-hidden': 'true', text: flagge }))
+            .append(document.createTextNode(country.text));
+    },
+
+    /**
+     * Macht aus einem Laenderkuerzel die Flagge als Zeichen.
+     *
+     * A-Z liegen im Unicode-Block der Regional-Indikatoren ab U+1F1E6. Zwei
+     * davon nebeneinander sind die Flagge des Landes mit diesem Kuerzel.
+     *
+     * @param {string} iso2 Zweibuchstabiges Kuerzel, z. B. 'AT'
+     * @returns {string} Die Flagge oder ein Leerstring bei ungueltiger Eingabe
+     */
+    flaggeAusIso2(iso2) {
+        if (typeof iso2 !== 'string') return '';
+        const code = iso2.trim().toUpperCase();
+        if (!/^[A-Z]{2}$/.test(code)) return '';
+        return String.fromCodePoint(
+            0x1F1E6 + code.charCodeAt(0) - 65,
+            0x1F1E6 + code.charCodeAt(1) - 65
+        );
     },
 
     /**

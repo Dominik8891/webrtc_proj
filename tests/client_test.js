@@ -711,6 +711,63 @@ function ackLastMove(status = 'executed', reason) {
         html.setAttribute('data-theme', 'indigo');
     }
 
+    console.error('\n26) Die Laenderflagge kommt ohne Netz aus');
+    {
+        // Vorher stand vor jedem Land ein <img> von flagcdn.com. Laedt das
+        // Bild nicht, zeichnet der Browser das Ersatzbild - bei 24x18 Pixeln
+        // ein schmaler Strich: "|Ägypten". Die Flagge kommt jetzt aus dem
+        // Laenderkuerzel und kann deshalb nicht fehlschlagen.
+        const karte = app.locationMap;
+
+        assert.strictEqual(karte.flaggeAusIso2('AT'), '\u{1F1E6}\u{1F1F9}', 'AT ergibt nicht die Flagge Oesterreichs');
+        assert.strictEqual(karte.flaggeAusIso2('eg'), '\u{1F1EA}\u{1F1EC}', 'Kleinschreibung wird nicht erkannt');
+        assert.strictEqual(karte.flaggeAusIso2(' de '), '\u{1F1E9}\u{1F1EA}', 'Leerzeichen werden nicht abgeschnitten');
+        ok('das Kuerzel wird zur Flagge');
+
+        // Alles, was kein Kuerzel ist, ergibt nichts - und nicht etwa ein
+        // Zeichen aus einem falschen Block.
+        for (const murks of ['', 'D', 'DEU', 'D1', null, undefined, 42, {}]) {
+            assert.strictEqual(karte.flaggeAusIso2(murks), '',
+                'ungueltige Eingabe ' + JSON.stringify(murks) + ' ergab etwas');
+        }
+        ok('ungueltige Kuerzel ergeben nichts');
+
+        // Und im Code darf kein Verweis auf den fremden Bilddienst mehr sein.
+        const quelle = require('fs').readFileSync(
+            require('path').join(__dirname, '..', 'assets', 'js', 'map.js'), 'utf8');
+        // Der Erklaertext darf ihn nennen, die Regeln nicht.
+        const ohneKommentare = quelle.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        assert.ok(!ohneKommentare.includes('flagcdn'), 'map.js laedt noch Bilder von flagcdn');
+        assert.ok(!ohneKommentare.includes('country.emoji'),
+            'der Rest des entfernten emoji-Feldes steht noch im Code');
+        ok('kein Bilddienst und kein Rest des emoji-Feldes mehr');
+    }
+
+    console.error('\n27) Die Wahl wird auch im Browser gemerkt');
+    {
+        // Ohne das gilt das Profil erst nach der Anmeldung - Login,
+        // Registrierung und Passwort-vergessen waeren immer hell.
+        const schalter = app.themeSwitch;
+        localStorage.__daten = {};
+
+        schalter.apply('dunkel');
+        assert.strictEqual(localStorage.getItem(schalter.STORAGE_KEY), 'dunkel',
+            'apply() merkt die Wahl nicht im Browser');
+        ok('apply merkt die Wahl im Browser');
+
+        // Ein gesperrter Speicher (privates Fenster) darf nicht durchschlagen:
+        // Die Farbe steht dann trotzdem, sie ueberlebt nur den Aufruf nicht.
+        const echt = global.localStorage;
+        global.localStorage = { setItem() { throw new Error('gesperrt'); }, getItem() { return null; } };
+        assert.doesNotThrow(() => schalter.apply('neutral'), 'gesperrter Speicher wirft durch');
+        assert.strictEqual(document.documentElement.getAttribute('data-theme'), 'neutral',
+            'bei gesperrtem Speicher wurde die Farbe nicht gesetzt');
+        global.localStorage = echt;
+        ok('ein gesperrter Speicher haelt das Umschalten nicht auf');
+
+        document.documentElement.setAttribute('data-theme', 'indigo');
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

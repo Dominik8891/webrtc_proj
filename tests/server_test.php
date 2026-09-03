@@ -1327,4 +1327,118 @@ foreach (array_keys(Theme::PROFILE) as $schluessel) {
 }
 ok('die hellen Profile lassen die Kacheln, wie sie sind');
 
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n19) Das Farbprofil gilt auch vor der Anmeldung\n");
+
+// Das Boot-Skript steht im <head> und laeuft vor dem ersten Zeichnen. Was
+// es in data-theme schreibt, darf nur aus der bekannten Liste kommen: Der
+// Wert stammt sonst aus dem Browserspeicher, den jeder verstellen kann.
+$bootGast  = Theme::bootScript(null);
+$bootKonto = Theme::bootScript('dunkel');
+
+check(strpos($bootGast, '<script>') !== false, 'bootScript liefert kein Skript');
+check(strpos($bootGast, 'data-theme') !== false, 'bootScript setzt data-theme nicht');
+
+// Die Liste der erlaubten Profile wird eingesetzt, nicht im JavaScript
+// wiederholt. Sonst gaebe es sie zweimal und sie liefen auseinander.
+foreach (array_keys(Theme::PROFILE) as $schluessel) {
+    check(strpos($bootGast, '"' . $schluessel . '"') !== false,
+        "das Profil $schluessel fehlt in der Liste des Boot-Skripts");
+}
+check(strpos($bootGast, 'indexOf(') !== false,
+    'das Boot-Skript prueft den gespeicherten Wert nicht gegen die Liste');
+ok('das Boot-Skript kennt genau die Profile aus Theme::PROFILE');
+
+// Gast: kein Kontowert. Angemeldet: der Kontowert steht drin und wird in
+// den Browserspeicher geschrieben - das Konto ueberschreibt die lokale Wahl.
+check(strpos($bootGast, 'var konto   = null;') !== false,
+    'fuer einen Gast steht ein Kontowert im Boot-Skript');
+check(strpos($bootKonto, '"dunkel"') !== false, 'der Kontowert fehlt im Boot-Skript');
+check(strpos($bootKonto, 'localStorage.setItem') !== false,
+    'das Konto schreibt den lokalen Wert nicht um');
+ok('das Konto gewinnt und zieht den lokalen Wert nach');
+
+// Nie gewaehlt: die Vorgabe des Betriebssystems.
+check(strpos($bootGast, 'prefers-color-scheme: dark') !== false,
+    'ohne Wahl wird das Betriebssystem nicht gefragt');
+check(strpos($bootGast, '"' . Theme::OS_DARK . '"') !== false,
+    'das Dunkelprofil fehlt als Antwort auf die Systemvorgabe');
+check(Theme::isValid(Theme::OS_DARK), 'OS_DARK ist kein gueltiges Profil');
+ok('ohne Wahl entscheidet prefers-color-scheme');
+
+// localStorage kann fehlen oder gesperrt sein. Ein Fehler dort darf die
+// Seite nicht aufhalten - das Skript steht im <head>, vor allem anderen.
+check(preg_match('/try\s*\{/', $bootGast) === 1, 'der Zugriff auf localStorage ist nicht abgesichert');
+check(preg_match('/catch\s*\(/', $bootGast) === 1, 'kein catch um den Speicherzugriff');
+ok('ein gesperrter Browserspeicher haelt die Seite nicht auf');
+
+// PHP und JavaScript benutzen denselben Schluessel. Waeren es zwei, merkte
+// sich die Anwendung die Wahl und faende sie beim naechsten Aufruf nicht.
+$switchJs = file_get_contents($ROOT . '/assets/js/theme_switch.js');
+check(strpos($switchJs, "'" . Theme::STORAGE_KEY . "'") !== false,
+    'theme_switch.js benutzt einen anderen Schluessel als Theme::STORAGE_KEY');
+check(strpos($bootGast, '"' . Theme::STORAGE_KEY . '"') !== false,
+    'das Boot-Skript benutzt einen anderen Schluessel');
+ok('Boot-Skript und Umschalter benutzen denselben Schluessel');
+
+// Und das Skript steht im Kopf der Seite - nicht am Ende, wo es zu spaet waere.
+$layoutKopf = substr($layout, 0, strpos($layout, '</head>'));
+check(strpos($layoutKopf, '###THEME_BOOT###') !== false,
+    'der Platzhalter fuer das Boot-Skript steht nicht im <head>');
+check(strpos($layoutKopf, '###THEME_BOOT###') < strpos($layoutKopf, 'theme.css'),
+    'das Boot-Skript steht hinter den Stilvorlagen - dann blitzt die helle Seite auf');
+ok('das Boot-Skript steht vor den Stilvorlagen');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n20) select2 haengt an den Farbvariablen\n");
+
+// Die Bibliothek bringt weisse Liste, #333 Schrift und ein eigenes Blau
+// (#5897fb) mit. Im Dunkelprofil blieb die aufgeklappte Liste dadurch weiss.
+foreach ([
+    '.select2-dropdown'                                          => 'die aufgeklappte Liste',
+    '.select2-container--default .select2-results__option'        => 'die Eintraege',
+    '.select2-container--default .select2-search--dropdown .select2-search__field' => 'das Suchfeld',
+    '.select2-container--default .select2-selection--single .select2-selection__placeholder' => 'der Platzhalter',
+] as $sel => $was) {
+    check(strpos($themeCss, $sel) !== false, "select2: $was wird nicht gestaltet ($sel)");
+}
+check(strpos($themeCss, '.select2-results__option--highlighted') !== false,
+    'select2: der markierte Eintrag wird nicht gestaltet');
+ok('Liste, Eintraege, Suchfeld, Platzhalter und Markierung sind gestaltet');
+
+// In unserem Block darf keine feste Farbe stehen - sonst folgt genau diese
+// Stelle dem Profil wieder nicht.
+$i = strpos($themeCss, 'select2 (Laender- und Staedteauswahl)');
+check($i !== false, 'der select2-Block fehlt in theme.css');
+// Am ANFANG des Kommentars ansetzen, nicht mitten darin: Sonst fehlt dem
+// Entfernen der Kommentare weiter unten das oeffnende /*, und der erklaerende
+// Text zaehlt als Regel mit.
+$i = strrpos(substr($themeCss, 0, $i), '/*');
+$block = substr($themeCss, $i);
+// Nur bis zum naechsten grossen Abschnitt schauen.
+$ende = strpos($block, "\n/* ---", 200);
+if ($ende !== false) $block = substr($block, 0, $ende);
+
+// Kommentare heraus: Dort werden die Eigenfarben der Bibliothek ja gerade
+// GENANNT, um zu erklaeren, was ersetzt wurde. Geprueft werden die Regeln.
+$regeln = preg_replace('#/\*.*?\*/#s', '', $block);
+
+check(preg_match('/:\s*#[0-9a-fA-F]{3,8}\b/', $regeln) === 0,
+    'im select2-Block steht eine feste Farbe statt einer Variablen');
+foreach (['#5897fb', '#3875d7', '#aaa', '#333'] as $eigenfarbe) {
+    check(strpos($regeln, $eigenfarbe) === false,
+        "die select2-Eigenfarbe $eigenfarbe steht noch in den Regeln");
+}
+ok('der select2-Block benutzt ausschliesslich Profilvariablen');
+
+// color-scheme: Ohne diese Angabe bleiben Bildlaufleisten und die
+// eingebauten Bedienelemente des Browsers im Dunkelprofil hell.
+check(isset($root['color-scheme']) || strpos($themeCss, 'color-scheme: light') !== false,
+    'color-scheme fehlt im Grundprofil');
+// cssBlock() liest nur --variablen; color-scheme ist eine normale
+// Eigenschaft und wird deshalb direkt im Text gesucht.
+check(preg_match('/\[data-theme="dunkel"\]\s*\{[^}]*color-scheme:\s*dark/', $themeCss) === 1,
+    'das Dunkelprofil setzt color-scheme nicht auf dark');
+ok('der Browser weiss, welche Grundstimmung gilt');
+
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");
