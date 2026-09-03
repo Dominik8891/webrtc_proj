@@ -483,6 +483,85 @@ window.webrtcApp.locationsTable = {
 
         $table.find('tbody').html(rows);
         $table.DataTable(this.dataTablesOptions(options));
+        this.bindControlHeader($table);
+    },
+
+    /**
+     * Haelt die Kopfzeile buendig zur Aufklappspalte.
+     *
+     * DAS PROBLEM
+     * -----------
+     * Die Responsive-Erweiterung fuegt fuer das Aufklappzeichen KEINE eigene
+     * Zelle ein - Kopf- und Datenzeilen haben immer gleich viele Zellen.
+     * Sie zeichnet das Zeichen als :before in die erste sichtbare
+     * DATENZELLE und schafft ihm Platz, indem sie dieser Zelle
+     * padding-left: 30px gibt (responsive.dataTables.css,
+     * td.dtr-control). Die zugehoerige KOPFZELLE bekommt diese Angabe
+     * nicht - sie behaelt ihre 10px.
+     *
+     * Gemessen war der Versatz genau 20px, und zwar nur, solange die
+     * Tabelle eingeklappt ist. Bei voller Breite standen Kopf und Inhalt
+     * buendig.
+     *
+     * DIE LOESUNG
+     * -----------
+     * Die Erweiterung markiert nur die Datenzelle mit der Klasse
+     * dtr-control. Hier wird dieselbe Marke auf die zugehoerige Kopfzelle
+     * uebertragen; die Gestaltung in assets/css/theme.css gibt beiden
+     * denselben Abstand.
+     *
+     * WARUM NICHT IN CSS ALLEIN
+     * -------------------------
+     * Die Aufklappspalte ist immer die erste SICHTBARE Spalte, und welche
+     * das ist, aendert sich mit der Fensterbreite (die Erweiterung blendet
+     * Zellen mit display:none aus). Ein th:first-child traefe deshalb oft
+     * eine ausgeblendete Zelle.
+     *
+     * @param {jQuery} $table
+     */
+    bindControlHeader($table) {
+        // Erst im naechsten Bild angleichen, nicht sofort. Die Ereignisse
+        // laufen teils schon, WAEHREND die Erweiterung die Spalten umstellt:
+        // Beim Verkleinern auf 560px wanderte die Aufklappspalte von "#" auf
+        // "Status", der Handler las aber noch den alten Stand und markierte
+        // die falsche Kopfzelle. Sichtbar war das als Versatz, der genau bei
+        // dieser einen Fensterbreite stehen blieb.
+        const angleichen = () => {
+            if (typeof window.requestAnimationFrame === 'function') {
+                window.requestAnimationFrame(() => this.syncControlHeader($table));
+            } else {
+                this.syncControlHeader($table);
+            }
+        };
+
+        // draw: nach jedem Neuzeichnen (Sortieren, Suchen, Blaettern).
+        // responsive-resize: wenn sich die Zahl der sichtbaren Spalten
+        // aendert - genau dann wandert die Aufklappspalte.
+        $table
+            .off('draw.dt.appControl responsive-resize.dt.appControl')
+            .on('draw.dt.appControl responsive-resize.dt.appControl', angleichen);
+
+        angleichen();
+    },
+
+    /**
+     * Setzt die Marke der Aufklappspalte auf die passende Kopfzelle.
+     *
+     * @param {jQuery} $table
+     */
+    syncControlHeader($table) {
+        const $koepfe = $table.find('thead th');
+        $koepfe.removeClass('dtr-control');
+
+        // Dieselbe Spalte wie in der Datenzeile: Die Erweiterung markiert
+        // dort genau eine Zelle. Ueber ihre Stellung unter den Geschwistern
+        // laesst sich die Kopfzelle finden - unabhaengig davon, welche
+        // Spalten gerade ausgeblendet sind.
+        const $steuerZelle = $table.find('tbody tr').first().children('td.dtr-control').first();
+        if (!$steuerZelle.length) return;
+
+        const spalte = $steuerZelle.index();
+        $koepfe.eq(spalte).addClass('dtr-control');
     },
 
     /**

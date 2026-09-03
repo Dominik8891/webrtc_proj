@@ -1596,4 +1596,47 @@ foreach (['class/Controller/UserController.php', 'assets/js/locations_table.js']
 }
 ok('die Beschriftung weicht nur fuer das Auge, nicht fuer Vorleseprogramme');
 
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n23) Kopf und Inhalt der Standortlisten stehen buendig\n");
+
+// DER FEHLER
+// Die Responsive-Erweiterung fuegt fuer das Aufklappzeichen KEINE eigene
+// Zelle ein - Kopf- und Datenzeilen haben immer gleich viele Zellen. Sie
+// zeichnet das Zeichen als :before in die erste sichtbare DATENZELLE und
+// schafft ihm Platz ueber padding-left: 30px auf genau dieser Zelle. Die
+// zugehoerige Kopfzelle bekommt das nicht und behielt ihre 10px. Gemessener
+// Versatz: 20px, und nur solange die Tabelle eingeklappt ist.
+
+// Die Kopfzelle bekommt denselben Abstand.
+check(preg_match('/thead\s*>\s*tr\s*>\s*th\.dtr-control\s*\{[^}]*padding-left:\s*30px/', $themeCss) === 1,
+    'die Kopfzelle der Aufklappspalte bekommt nicht denselben Abstand wie die Datenzelle');
+// Die Erweiterung kennt eine kompakte Fassung mit 27px - die auch.
+check(preg_match('/compact\s*>\s*thead\s*>\s*tr\s*>\s*th\.dtr-control\s*\{[^}]*padding-left:\s*27px/', $themeCss) === 1,
+    'die kompakte Fassung fehlt - dort setzt die Erweiterung 27px');
+ok('die Kopfzelle traegt denselben Abstand wie die Datenzelle');
+
+// Die Marke muss auf die Kopfzelle uebertragen werden: Die Erweiterung
+// markiert nur die Datenzelle.
+check(strpos($tabCode, 'syncControlHeader') !== false,
+    'die Marke der Aufklappspalte wird nicht auf die Kopfzelle uebertragen');
+check(preg_match('/draw\.dt[^\']*responsive-resize\.dt/', $tabCode) === 1,
+    'die Angleichung haengt nicht an draw UND responsive-resize');
+ok('die Marke wandert mit der Aufklappspalte mit');
+
+// UND SIE MUSS AUF DEN NAECHSTEN BILDAUFBAU WARTEN.
+// Die Ereignisse laufen teils schon, waehrend die Erweiterung die Spalten
+// umstellt. Ohne Verzoegerung las der Handler den alten Stand und markierte
+// die falsche Kopfzelle - sichtbar als Versatz, der genau bei einer
+// einzigen Fensterbreite (560px) stehen blieb.
+check(strpos($tabCode, 'requestAnimationFrame') !== false,
+    'die Angleichung laeuft sofort statt im naechsten Bild - dann trifft sie '
+    . 'beim Umschalten der Spalten die falsche Kopfzelle');
+ok('die Angleichung wartet, bis die Erweiterung fertig ist');
+
+// Ein th:first-child waere der naheliegende, aber falsche Weg: Welche
+// Spalte die erste SICHTBARE ist, aendert sich mit der Fensterbreite.
+check(preg_match('/thead[^{]*th:first-child\s*\{[^}]*padding-left/', $themeCss) === 0,
+    'der Abstand haengt an th:first-child - das trifft oft eine ausgeblendete Zelle');
+ok('der Abstand haengt an der Marke, nicht an der Stellung der Spalte');
+
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

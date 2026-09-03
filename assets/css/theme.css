@@ -2504,6 +2504,23 @@ html table.dataTable.dtr-column > tbody > tr.parent > th.dtr-control:before {
     color: var(--app-text-on-accent);
 }
 
+/* Die Kopfzelle der Aufklappspalte bekommt denselben Abstand wie die
+   Datenzelle. Die Erweiterung gibt ihn nur der DATENzelle (30px, um Platz
+   fuer das Zeichen zu schaffen) - die Kopfzelle behielt ihre 10px, und Kopf
+   und Inhalt standen um 20px gegeneinander versetzt.
+
+   Die Marke auf der Kopfzelle setzt syncControlHeader() in
+   assets/js/locations_table.js; die Erweiterung selbst markiert nur die
+   Datenzelle. Beide Angaben stehen hier zusammen, damit sie denselben Wert
+   teilen und nicht auseinanderlaufen. */
+html table.dataTable.dtr-inline.collapsed > thead > tr > th.dtr-control {
+    padding-left: 30px;
+}
+
+html table.dataTable.dtr-inline.collapsed.compact > thead > tr > th.dtr-control {
+    padding-left: 27px;
+}
+
 /* Anklickbar: Beim Ueberfahren bekommt das Zeichen den Rahmen kraeftiger -
    dasselbe Verhalten wie bei den Symbolknoepfen der Tabellen. */
 html table.dataTable > tbody > tr > td.dtr-control:hover:before,
