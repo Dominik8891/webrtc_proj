@@ -1,4 +1,4 @@
-# Steuerprotokoll — Version 1
+# Steuerprotokoll — Version 2
 
 Referenz für alles, was zwischen Zuschauer und Guide über die WebRTC-DataChannels
 läuft. Diese Datei ist verbindlich: Ein Client — auch eine spätere mobile App —
@@ -7,18 +7,34 @@ ist genau dann kompatibel, wenn er sich an das hier Beschriebene hält.
 Die maschinenlesbare Fassung derselben Tabelle steht in
 [`assets/js/protocol.js`](assets/js/protocol.js). Beide werden zusammen geändert.
 
-**Stand:** Protokollversion `1` · Branch `feat/steuerprotokoll`
+**Stand:** Protokollversion `2` · Branch `fix/call-rollen`
+
+### Was Version 2 gegenüber Version 1 ändert
+
+* **Blickrichtung.** `move` kennt zusätzlich `look_up` und `look_down`. Der
+  Guide dreht dabei nur den Kopf beziehungsweise das Gerät, er geht nicht.
+* **Rolle `peer`.** Ein Anruf, in dem niemand führt (Verwaltung ↔ Nutzer). Beide
+  Seiten senden Ton und Bild, niemand steuert.
+* **Der Zuschauer sendet keine Medien mehr.** Das ist keine Protokolländerung im
+  engeren Sinn — auf den DataChannels ändert sich dadurch nichts —, aber es
+  gehört zum Bild und steht deshalb in Abschnitt 3.
+
+Ein Client der Version 1 kennt weder die neuen Richtungen noch `peer` und würde
+sie als ungültig verwerfen. Die Versionsprüfung ist **exakt** (Abschnitt 2), es
+gibt also keine gemischten Calls: Beide Seiten sprechen Version 2 oder gar
+nicht miteinander.
 
 ---
 
 ## 1. Überblick
 
-Zwei Personen, ein Call, feste Rollen:
+Zwei Personen, ein Call, feste Rollen — der Regelfall ist die Führung:
 
 | Rolle | Wer | Tut |
 |---|---|---|
-| `viewer` | Zuschauer, sitzt zu Hause | sendet Bewegungsbefehle |
+| `viewer` | Zuschauer, sitzt zu Hause | sendet Bewegungs- und Blickbefehle, sendet keine Medien |
 | `guide` | Person vor Ort, trägt das Gerät | führt sie aus, bestätigt, kann sperren |
+| `peer` | Anruf ohne Führung (Verwaltung ↔ Nutzer) | nichts davon — beide reden nur miteinander |
 
 Zwei getrennte DataChannels:
 
@@ -45,12 +61,12 @@ Jede Textnachricht auf **beiden** Kanälen ist ein JSON-Objekt mit zwei
 Pflichtfeldern:
 
 ```json
-{ "v": 1, "type": "move", "dir": "forward", "seq": 3 }
+{ "v": 2, "type": "move", "dir": "forward", "seq": 3 }
 ```
 
 | Feld | Typ | Pflicht | Bedeutung |
 |---|---|---|---|
-| `v` | Ganzzahl | ja | Protokollversion. Aktuell immer `1`. |
+| `v` | Ganzzahl | ja | Protokollversion. Aktuell immer `2`. |
 | `type` | Zeichenkette | ja | Nachrichtentyp aus der Tabelle in Abschnitt 4. |
 
 Weitere Felder je Typ, siehe Abschnitt 4.
@@ -72,9 +88,11 @@ Weitere Felder je Typ, siehe Abschnitt 4.
 
 Der Empfänger vergleicht `v` **exakt** mit seiner eigenen Version. Weicht sie
 ab, wird die Nachricht verworfen und protokolliert — es gibt keine Toleranz nach
-oben oder unten und keine Aushandlung. Eine spätere Version 2 muss deshalb
-entweder abwärtskompatibel neben Version 1 laufen (beide Versionen akzeptieren)
-oder mit einem Bruch eingeführt werden.
+oben oder unten und keine Aushandlung. Version 2 wurde deshalb mit einem Bruch
+eingeführt: Ein Client der Version 1 und einer der Version 2 verstehen einander
+gar nicht, statt sich über eine unbekannte Blickrichtung halb zu verstehen. Eine
+spätere Version 3 muss entweder abwärtskompatibel neben Version 2 laufen (beide
+Versionen akzeptieren) oder denselben Bruch machen.
 
 `hello` (Abschnitt 4.1) ist die Nachricht, an der ein Client eine
 Versionsabweichung früh erkennt: Sie geht als erstes über den Steuerkanal, und
@@ -89,15 +107,34 @@ Die Rolle gilt **für genau einen Call** und wird nicht gespeichert.
 **Sie kommt vom Server, nicht aus dem Client.** Der Client hat keinen Weg, sich
 selbst eine Rolle zuzuweisen.
 
+| Rolle | Wer | Tut | Sendet |
+|---|---|---|---|
+| `viewer` | Zuschauer, sitzt zu Hause | steuert | **nichts** |
+| `guide` | Person vor Ort | wird gesteuert | Ton und Bild |
+| `peer` | Anruf ohne Führung (Verwaltung ↔ Nutzer) | nichts davon | Ton und Bild |
+
 Vergeben wird sie in
 [`WebRTCController::callRoles()`](class/Controller/WebRTCController.php) nach
-zwei Regeln:
+zwei Regeln, in dieser Reihenfolge:
 
-1. Ist **genau einer** der beiden Beteiligten als Guide registriert
-   (`usertype.id = 1`), ist er der Guide, der andere der Zuschauer.
-2. Sonst — beide oder keiner — ist **der Angerufene** der Guide. Das ist der
-   Regelfall der Anwendung: Der Zuschauer sucht einen Standort und ruft den
+1. Ist **einer der beiden ein Admin**, ist es keine Führung: Beide bekommen
+   `peer`. Ein Anruf mit der Verwaltung hat einen anderen Zweck — Rückfrage,
+   Unterstützung, Moderation. Dort gibt es nichts zu steuern, und beide sollen
+   einander sehen und hören. Der Admin darf in diesem Fall auch jemanden
+   anrufen, der keine Standorte anbietet.
+2. Sonst muss der **Angerufene Standorte anbieten dürfen** (Recht
+   `location.offer`). Dann ist er der Guide, der Anrufer der Zuschauer. Das ist
+   der Regelfall der Anwendung: Der Zuschauer sucht einen Standort und ruft den
    Guide an, der dort vor Ort ist.
+
+Darf der Angerufene nichts anbieten und ist kein Admin beteiligt, **kommt der
+Anruf gar nicht zustande** — das Offer wird abgewiesen, bevor es gespeichert
+wird. Ein Anruf allein macht niemanden zum Guide; das ist eine ausdrückliche
+Entscheidung des Betroffenen.
+
+Gefragt wird in Regel 2 das *Recht* und nicht die Rollennummer: Es ist dasselbe
+Kriterium, über das ein Standort überhaupt erst auf die Karte kommt. Wer dort
+steht, ist anrufbar.
 
 Ausgeliefert wird sie über den Signalisierungsweg, an das `offer` gehängt:
 
@@ -129,9 +166,36 @@ Kommt keine oder eine unbekannte Rolle an, gilt sie als `null`. Dann:
 * wird **kein Steuerkreuz** gerendert,
 * wird **kein** richtungsgebundener Typ gesendet,
 * wird **jeder** eingehende richtungsgebundene Typ mit dem Code `no_role`
-  abgelehnt.
+  abgelehnt,
+* werden **keine Medien angefordert** — kein Mikrofon, keine Kamera.
 
-Im Zweifel steuert niemand.
+Im Zweifel steuert niemand und sendet niemand.
+
+Dasselbe gilt in der Rolle `peer` für alles Richtungsgebundene: Die Gegenseite
+eines `peer` ist wieder ein `peer`, und weil weder `viewer` noch `guide`
+beteiligt ist, fallen `move`, `ack` und `control_lock` in einem solchen Call von
+selbst durch die Prüfung aus Abschnitt 5. Es braucht dafür keine zweite Regel.
+
+### Wer Medien sendet
+
+| Rolle | Mikrofon | Kamera |
+|---|---|---|
+| `viewer` | nein | nein |
+| `guide` | ja | ja (abschaltbar) |
+| `peer` | ja | zuschaltbar |
+| unbekannt | nein | nein |
+
+**Der Zuschauer sendet nichts.** Er wird nicht einmal nach einer Freigabe
+gefragt: keine Kamera, kein Mikrofon, kein Kameralicht. Gesteuert wird über
+Tasten und die lokalisierten Tonsignale beim Guide — die Anwendung soll
+weltweit funktionieren, und Sprache ist dafür kein verlässliches Steuermittel.
+Seine Oberfläche zeigt deshalb weder eine Selbstansicht noch Knöpfe für Kamera
+und Mikrofon.
+
+Der Anrufer erfährt seine Rolle erst mit der Antwort auf sein `offer`. Er baut
+die Verbindung deshalb **ohne Medien** auf und hält für beide Spurarten je einen
+leeren Sender bereit (`addTransceiver`, Richtung `sendrecv`). Was seine Rolle
+danach vorsieht, wird über `replaceTrack` eingehängt — ohne Neuaushandlung.
 
 ---
 
@@ -144,7 +208,7 @@ falschen Richtung kommt.
 | Typ | Kanal | Richtung | Zweck |
 |---|---|---|---|
 | [`hello`](#41-hello) | `control` | beide | Rollenmeldung zur Gegenprobe |
-| [`move`](#42-move) | `control` | Zuschauer → Guide | Bewegungsbefehl |
+| [`move`](#42-move) | `control` | Zuschauer → Guide | Bewegungs- oder Blickbefehl |
 | [`ack`](#43-ack) | `control` | Guide → Zuschauer | Bestätigung eines Bewegungsbefehls |
 | [`control_lock`](#44-control_lock) | `control` | Guide → Zuschauer | Steuerung sperren/freigeben |
 | [`video_state`](#45-video_state) | `control` | beide | eigenes Videobild an/aus |
@@ -161,12 +225,12 @@ Call gesendet, sobald Rolle **und** Steuerkanal beide da sind.
 
 | Feld | Typ | Pflicht | Werte |
 |---|---|---|---|
-| `role` | Zeichenkette | ja | `"guide"` \| `"viewer"` |
+| `role` | Zeichenkette | ja | `"guide"` \| `"viewer"` \| `"peer"` |
 
 **Richtung:** beide · **Kanal:** `control`
 
 ```json
-{ "v": 1, "type": "hello", "role": "viewer" }
+{ "v": 2, "type": "hello", "role": "viewer" }
 ```
 
 Der Empfänger **übernimmt die gemeldete Rolle nicht** — seine eigene kommt vom
@@ -178,17 +242,38 @@ bleiben. Ein Client darf `hello` ignorieren, muss es aber senden.
 
 ### 4.2 `move`
 
-Ein Bewegungsbefehl. Der einzige Typ, der beim Guide etwas auslöst.
+Eine Anweisung an den Guide: gehen, sich wenden oder den Blick heben und
+senken. Der einzige Typ, der beim Guide etwas auslöst.
 
 | Feld | Typ | Pflicht | Werte |
 |---|---|---|---|
-| `dir` | Zeichenkette | ja | `"forward"` \| `"backward"` \| `"left"` \| `"right"` |
+| `dir` | Zeichenkette | ja | siehe Tabelle unten |
 | `seq` | Ganzzahl | ja | 1 … 2147483647, je Call streng aufsteigend |
+
+| `dir` | Bedeutung | Tonsignal beim Guide |
+|---|---|---|
+| `forward` | vorwärts gehen | `move_forward.mp3` |
+| `backward` | zurückgehen | `move_back.mp3` |
+| `left` | nach links wenden | `turn_left.mp3` |
+| `right` | nach rechts wenden | `turn_right.mp3` |
+| `look_up` | Blick nach oben — **nicht gehen** | `look_up.mp3` |
+| `look_down` | Blick nach unten — **nicht gehen** | `look_down.mp3` |
+
+Blick und Bewegung laufen bewusst als **dieselbe** Nachricht: Für den Guide ist
+beides eine Anweisung, ein Ton, ein Pfeil, und Sequenznummer, Bestätigung und
+Sperre gelten unverändert. Ein eigener Nachrichtentyp hätte all das ein zweites
+Mal gebraucht.
+
+In der Anzeige unterscheiden sich die Blickrichtungen trotzdem deutlich von
+`forward`/`backward`: doppelte Pfeile (`⇑`/`⇓`) statt einfacher und die
+Beschriftung „BLICK HOCH“ / „BLICK RUNTER“. Zwei gleiche Pfeile mit
+verschiedener Bedeutung wären auf einem Display, auf das jemand im Gehen kurz
+schaut, der schlechteste Fall.
 
 **Richtung:** Zuschauer → Guide · **Kanal:** `control`
 
 ```json
-{ "v": 1, "type": "move", "dir": "forward", "seq": 1 }
+{ "v": 2, "type": "move", "dir": "forward", "seq": 1 }
 ```
 
 **Sequenznummern** beginnen bei jedem Call wieder bei `1` und werden je
@@ -222,11 +307,11 @@ Bestätigung. Genau eine je empfangenem `move`, ausgeführt oder abgelehnt.
 **Richtung:** Guide → Zuschauer · **Kanal:** `control`
 
 ```json
-{ "v": 1, "type": "ack", "seq": 1, "status": "executed" }
+{ "v": 2, "type": "ack", "seq": 1, "status": "executed" }
 ```
 
 ```json
-{ "v": 1, "type": "ack", "seq": 2, "status": "rejected", "reason": "locked" }
+{ "v": 2, "type": "ack", "seq": 2, "status": "rejected", "reason": "locked" }
 ```
 
 Mögliche `reason`-Werte:
@@ -270,11 +355,11 @@ gibt sie danach wieder frei.
 **Richtung:** Guide → Zuschauer · **Kanal:** `control`
 
 ```json
-{ "v": 1, "type": "control_lock", "locked": true, "reason": "Straße" }
+{ "v": 2, "type": "control_lock", "locked": true, "reason": "Straße" }
 ```
 
 ```json
-{ "v": 1, "type": "control_lock", "locked": false }
+{ "v": 2, "type": "control_lock", "locked": false }
 ```
 
 Beim Zuschauer:
@@ -306,7 +391,7 @@ Meldet, ob das eigene Videobild gerade läuft. Ersetzt die früheren
 **Richtung:** beide · **Kanal:** `control`
 
 ```json
-{ "v": 1, "type": "video_state", "on": false }
+{ "v": 2, "type": "video_state", "on": false }
 ```
 
 Der Empfänger blendet das Remote-Video ein bzw. aus und zeigt sonst den
@@ -342,7 +427,7 @@ Auflegen. Ersetzt das frühere `__hangup__`.
 **Richtung:** beide · **Kanal:** `control`
 
 ```json
-{ "v": 1, "type": "hangup" }
+{ "v": 2, "type": "hangup" }
 ```
 
 Das Auflegen geht **zusätzlich** über den Signalisierungsweg des Servers raus
@@ -363,7 +448,7 @@ Eine Textnachricht des Nutzers. Der einzige Typ auf dem Kanal `chat`.
 **Richtung:** beide · **Kanal:** `chat`
 
 ```json
-{ "v": 1, "type": "chat", "text": "Kannst du kurz stehen bleiben?" }
+{ "v": 2, "type": "chat", "text": "Kannst du kurz stehen bleiben?" }
 ```
 
 Der Text wird als reiner Text dargestellt (`textContent`), nie als Markup. Er
@@ -475,21 +560,24 @@ Zuschauer (viewer)                Server                 Guide (guide)
       │                             │                          │
       │◄════════ DataChannel "chat" und "control" stehen ══════►│
       │                                                        │
-      │ ──── {v:1,type:"hello",role:"viewer"} ────────────────► │
-      │ ◄─── {v:1,type:"hello",role:"guide"}  ───────────────── │
+      │ ──── {v:2,type:"hello",role:"viewer"} ────────────────► │
+      │ ◄─── {v:2,type:"hello",role:"guide"}  ───────────────── │
       │                                                        │
-      │ ──── {v:1,type:"move",dir:"forward",seq:1} ──────────► │  Ton + Anzeige
-      │ ◄─── {v:1,type:"ack",seq:1,status:"executed"} ───────── │
+      │ ──── {v:2,type:"move",dir:"forward",seq:1} ──────────► │  Ton + Anzeige
+      │ ◄─── {v:2,type:"ack",seq:1,status:"executed"} ───────── │
       │                                                        │
-      │ ◄─── {v:1,type:"control_lock",locked:true,             │  Guide sperrt
+      │ ◄─── {v:2,type:"control_lock",locked:true,             │  Guide sperrt
       │       reason:"Straße"} ──────────────────────────────── │
       │   (Steuerkreuz gesperrt, kein move)                     │
-      │ ◄─── {v:1,type:"control_lock",locked:false} ─────────── │
+      │ ◄─── {v:2,type:"control_lock",locked:false} ─────────── │
       │                                                        │
-      │ ──── {v:1,type:"move",dir:"left",seq:2} ─────────────► │
-      │ ◄─── {v:1,type:"ack",seq:2,status:"executed"} ───────── │
+      │ ──── {v:2,type:"move",dir:"left",seq:2} ─────────────► │
+      │ ◄─── {v:2,type:"ack",seq:2,status:"executed"} ───────── │
       │                                                        │
-      │ ──── {v:1,type:"hangup"} ───────────────────────────► │
+      │ ──── {v:2,type:"move",dir:"look_up",seq:3} ──────────► │  nur der Blick
+      │ ◄─── {v:2,type:"ack",seq:3,status:"executed"} ───────── │
+      │                                                        │
+      │ ──── {v:2,type:"hangup"} ───────────────────────────► │
 ```
 
 ---
@@ -500,7 +588,7 @@ Was ein Client mitführen muss, und was beim Call-Ende zurückgesetzt wird:
 
 | Größe | Wer | Bedeutung |
 |---|---|---|
-| `callRole` | beide | `"guide"`, `"viewer"` oder `null` |
+| `callRole` | beide | `"guide"`, `"viewer"`, `"peer"` oder `null` |
 | `nextSeq` | Zuschauer | nächste zu vergebende Sequenznummer, beginnt bei 1 |
 | `pendingSeq` | Zuschauer | Befehl, dessen Bestätigung aussteht, sonst `null` |
 | `lastRemoteSeq` | Guide | höchste bereits ausgeführte Sequenznummer, beginnt bei 0 |
@@ -516,8 +604,6 @@ alte Sequenznummer und keine hängende Sperre in den nächsten Call laufen.
 
 Bewusst nicht enthalten, für eine spätere Version vorgemerkt:
 
-* **Blick nach oben/unten.** Die Audiodateien `look_up.mp3` und `look_down.mp3`
-  liegen bereit, es gibt aber weder Befehl noch Bedienelement.
 * **Stopp, Geschwindigkeit, Schrittweite, Dauer.** `move` trägt nur eine
   Richtung.
 * **Zielpunkt-Markierung** auf dem Videobild.
@@ -541,5 +627,6 @@ Bewusst nicht enthalten, für eine spätere Version vorgemerkt:
 | `assets/js/chat.js` | Chatkanal: Text und Dateien |
 | `assets/js/rtc.js` | Anlegen und Zuordnen der beiden Kanäle, Verbindungssperre |
 | `class/Controller/WebRTCController.php` | Rollenvergabe und Stempeln am Offer |
-| `tests/client_test.js` | Prüfungen 15–22 decken dieses Protokoll ab |
+| `assets/js/media.js` | Wer sendet (`maySendMedia`), Spuren an die Sender legen |
+| `tests/client_test.js` | Prüfungen 15–22 und 37 decken dieses Protokoll ab |
 | `tests/server_test.php` | Prüfung 5 deckt die Rollenvergabe ab |

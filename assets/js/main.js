@@ -110,7 +110,10 @@ window.webrtcApp.init = function() {
             const now = Date.now();
             if (!lastClicked[id] || now - lastClicked[id] > throttleTime) {
                 lastClicked[id] = now;
-                const name = id.replace('btn-', '');
+                // Aus der ID wird die Richtung: "btn-look-up" -> "look_up".
+                // Die IDs tragen Bindestriche (so ist es im uebrigen Markup),
+                // das Protokoll schreibt Unterstriche (PROTOKOLL.md).
+                const name = id.replace('btn-', '').replace(/-/g, '_');
                 // Steuerbefehle laufen über control.sendMove: Dort werden
                 // Rolle, Sperre und ausstehende Bestätigung geprüft, und
                 // bei instabiler Verbindung wird verworfen statt gepuffert
@@ -224,7 +227,14 @@ window.webrtcApp.init = function() {
         // (assets/css/call.css); auf schmalen Schirmen deckt das Blatt die
         // untere Haelfte ab, dort weicht das Steuerkreuz ganz.
         if (blatt === chatOverlay) {
-            document.getElementById('call-view')?.classList.toggle('chat-open', !!offen);
+            const ansicht = document.getElementById('call-view');
+            if (ansicht) {
+                if (offen) ansicht.classList.add('chat-open');
+                else       ansicht.classList.remove('chat-open');
+            }
+            // Offen heisst gelesen: Der Zaehler am Chatknopf verschwindet in
+            // dem Moment, in dem das Blatt aufgeht.
+            if (offen) window.webrtcApp.chat.clearUnread();
         }
     }
 

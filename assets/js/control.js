@@ -12,6 +12,8 @@
  * Rollen (siehe PROTOKOLL.md, Abschnitt "Rollen"):
  *   - viewer (Zuschauer) sendet "move" und empfängt "ack" und "control_lock".
  *   - guide  (Person vor Ort) sendet "ack" und "control_lock" und empfängt "move".
+ *   - peer   (Anruf ohne Führung, etwa mit der Verwaltung) sendet und empfängt
+ *            nichts davon: Es gibt dort nichts zu steuern.
  * Die Rolle kommt vom Server (WebRTCController) und wird beim Verbindungsaufbau
  * mit dem Offer ausgeliefert. Der Client vergibt sie sich nicht selbst.
  */
@@ -30,12 +32,25 @@ window.webrtcApp.control = {
     /**
      * Darstellung je Richtung: Pfeil und Beschriftung für die Anzeige beim
      * Guide, dazu das zugehörige Audiosignal (media.html).
+     *
+     * Der Ton ist das Hauptsignal - der Guide läuft und schaut nicht aufs
+     * Display. Die Aufnahmen liegen in seiner Sprache vor; die Anzeige ist
+     * die zweite Spur für den Fall, dass er doch hinsieht.
+     *
+     * Bewegung UND Blickrichtung stehen in derselben Tabelle: Für den Guide
+     * ist beides dasselbe - eine Anweisung, ein Ton, ein Pfeil. Die
+     * Blickrichtungen bekommen bewusst DOPPELTE Pfeile: Ein einfaches ↑ steht
+     * hier schon für "vorwärts gehen", und zwei gleiche Pfeile mit
+     * verschiedener Bedeutung wären auf einem Display, auf das jemand im
+     * Gehen kurz schaut, der schlechteste Fall.
      */
     DIRECTIONS: {
-        forward:  { arrow: '↑', label: 'VORWÄRTS',  sound: 'move_forward_sound' },
-        backward: { arrow: '↓', label: 'ZURÜCK',    sound: 'move_back_sound'    },
-        left:     { arrow: '←', label: 'LINKS',          sound: 'turn_left_sound'    },
-        right:    { arrow: '→', label: 'RECHTS',         sound: 'turn_right_sound'   }
+        forward:   { arrow: '↑', label: 'VORWÄRTS',     sound: 'move_forward_sound' },
+        backward:  { arrow: '↓', label: 'ZURÜCK',       sound: 'move_back_sound'    },
+        left:      { arrow: '←', label: 'LINKS',        sound: 'turn_left_sound'    },
+        right:     { arrow: '→', label: 'RECHTS',       sound: 'turn_right_sound'   },
+        look_up:   { arrow: '⇑', label: 'BLICK HOCH',   sound: 'look_up_sound'      },
+        look_down: { arrow: '⇓', label: 'BLICK RUNTER', sound: 'look_down_sound'    }
     },
 
     /**
@@ -50,18 +65,26 @@ window.webrtcApp.control = {
         invalid:   'Befehl wurde als ungültig abgewiesen.'
     },
 
-    // IDs aller Steuerkreuz-Schaltflächen (Desktop und Mobile).
     /**
-     * Die Tasten des Steuerkreuzes.
+     * Die Tasten der Steuerung beim Zuschauer.
      *
-     * Vier Stueck - je Richtung eine. Hier standen frueher acht: Die
-     * Call-Ansicht hatte zwei getrennte Layouts (Desktop und Mobil) mit je
-     * einem eigenen Steuerkreuz. Beide mussten in Sperrzustand und
-     * Wartezustand gleichgehalten werden. Seit die Steuerung als Overlay im
-     * Bild liegt, gibt es sie nur noch einmal.
+     * Sechs Stueck - je Richtung eine, Blick hoch und runter eingeschlossen.
+     * Die ID einer Taste ist "btn-" plus die Richtung, mit Bindestrichen statt
+     * Unterstrichen; assets/js/main.js rechnet sie zurueck.
+     *
+     * Die Liste ist die einzige Stelle, die weiss, WELCHE Tasten es gibt:
+     * main.js bindet sie darueber, updatePadState() sperrt sie darueber. Eine
+     * neue Richtung braucht deshalb einen Eintrag hier, einen in DIRECTIONS,
+     * einen in protocol.DIRECTIONS und einen Knopf im Markup - mehr nicht.
+     *
+     * Frueher standen hier acht: Die Call-Ansicht hatte zwei getrennte
+     * Layouts (Desktop und Mobil) mit je einem eigenen Steuerkreuz. Beide
+     * mussten in Sperrzustand und Wartezustand gleichgehalten werden. Seit
+     * die Steuerung als Overlay im Bild liegt, gibt es sie nur noch einmal.
      */
     ARROW_BUTTON_IDS: [
-        'btn-forward', 'btn-backward', 'btn-left', 'btn-right'
+        'btn-forward', 'btn-backward', 'btn-left', 'btn-right',
+        'btn-look-up', 'btn-look-down'
     ],
 
     // =====================================================================
@@ -75,11 +98,12 @@ window.webrtcApp.control = {
      * eingehende richtungsgebundene Nachrichten werden abgelehnt. Im Zweifel
      * steuert niemand.
      *
-     * @param {string|null} role - 'guide', 'viewer' oder etwas anderes
+     * @param {string|null} role - 'guide', 'viewer', 'peer' oder etwas anderes
      */
     applyRole(role) {
         const p = window.webrtcApp.protocol;
-        const valid = (role === p.ROLE_GUIDE || role === p.ROLE_VIEWER) ? role : null;
+        const bekannt = [p.ROLE_GUIDE, p.ROLE_VIEWER, p.ROLE_PEER];
+        const valid = (bekannt.indexOf(role) !== -1) ? role : null;
 
         if (valid === null && role !== null && role !== undefined) {
             console.warn('[Steuerung] Unbekannte Rolle vom Server verworfen:', role);
@@ -100,7 +124,7 @@ window.webrtcApp.control = {
         const role = window.webrtcApp.state.callRole;
         const view = document.getElementById('call-view');
         if (view && view.classList) {
-            view.classList.remove('role-guide', 'role-viewer');
+            view.classList.remove('role-guide', 'role-viewer', 'role-peer');
             if (role) view.classList.add('role-' + role);
         }
         // updateLockUi() zieht updatePadState() nach sich.

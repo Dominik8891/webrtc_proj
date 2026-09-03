@@ -63,9 +63,9 @@ window.webrtcApp.rtc = {
         this.closePeerConnection();  // PeerConnection & DataChannels schließen
         this.clearMediaStreams();    // Lokalen & Remote MediaStream beenden
         this.hideChatAndArrow();     // Chat/Arrow-Bereich verstecken
+        window.webrtcApp.chat.clearUnread();  // Zaehler am Chatknopf leeren
 
         // State zurücksetzen
-        window.webrtcApp.state.tracksAdded = false;
         window.webrtcApp.state.activeTargetUserId = null;
         window.webrtcApp.state.hangupReceived = false;
         window.webrtcApp.state.pendingOffer = null;
@@ -205,6 +205,11 @@ window.webrtcApp.rtc = {
             });
             refs.localStream = null;
         }
+        // Der selbst gefuehrte Strom der Gegenseite (siehe attachRemoteTrack)
+        // gehoert zu diesem Call und darf nicht in den naechsten laufen -
+        // sonst haengt dort eine tote Spur im Videoelement.
+        window.webrtcApp.refs.remoteStream = null;
+
         const localVideo = document.getElementById('local-video');
         if (localVideo) localVideo.srcObject = null;
         const remoteVideo = document.getElementById('remote-video');
@@ -225,14 +230,26 @@ window.webrtcApp.rtc = {
     /**
      * Startet einen neuen Call mit dem angegebenen Ziel-User.
      *
-     * DER ANRUFER IST DER ZUSCHAUER, und der schaut zu. Deshalb wird hier nur
-     * das Mikrofon angefordert, nicht die Kamera: Er soll mit dem Guide
-     * sprechen koennen, sein eigenes Bild braucht dafuer niemand. Frueher
-     * verlangte diese Stelle Video UND Audio - wer keine Kamera hatte oder
-     * sie nicht freigab, kam gar nicht erst ins Gespraech.
+     * DER ANRUFER HOLT HIER KEINE MEDIEN MEHR.
+     * -----------------------------------------
+     * Ob er ueberhaupt etwas sendet, haengt an seiner Rolle - und die vergibt
+     * der Server. Sie steht in der Antwort auf das Offer, also erst NACH
+     * Schritt 4:
      *
-     * Seine Kamera bleibt trotzdem erreichbar: Der Kamera-Knopf der
-     * Bedienleiste holt den Videotrack bei Bedarf nach (assets/js/main.js).
+     *   viewer  Der Zuschauer sendet nichts. Kein Bild, kein Ton, keine
+     *           Freigabe, kein Kameralicht. Er empfaengt Bild und Ton des
+     *           Guides und steuert ueber Tasten - so ist die Anwendung
+     *           gedacht, und so funktioniert sie auch dort, wo Anrufer und
+     *           Guide keine gemeinsame Sprache haben.
+     *   peer    Anruf ohne Fuehrung (mit der Verwaltung). Dort gehoert das
+     *           Gespraech in beide Richtungen, also wird das Mikrofon geholt
+     *           und die Kamera bleibt zuschaltbar.
+     *
+     * Deshalb wird zuerst verbunden und danach entschieden. Die Sender fuer
+     * beide Spurarten stehen von Anfang an bereit (reserveMediaSenders): Was
+     * spaeter dazukommt, laeuft ueber replaceTrack und braucht keine
+     * Neuaushandlung - die kann diese Anwendung mitten im Gespraech nur fuer
+     * den ICE-Restart.
      *
      * DER ABLAUF IST DURCHGEHEND AWAIT. Vorher lief die Medien- und
      * Offer-Kette als unbeobachtete Promise nebenher, waehrend die
@@ -264,31 +281,19 @@ window.webrtcApp.rtc = {
             await window.webrtcApp.rtc.loadIceServers();
         }
 
-        // 2. Mikrofon holen. Ohne Ton gibt es kein Gespraech - das ist der
-        //    einzige harte Abbruchgrund an dieser Stelle.
-        let stream;
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch (fehler) {
-            window.webrtcApp.rtc.abortCall(window.webrtcApp.rtc.mediaErrorText(fehler));
-            return;
-        }
-        window.webrtcApp.refs.localStream = stream;
-
-        // 3. PeerConnection-Init (Dummy/Selbstanruf für Chrome-Bugfix). Sie
-        //    bekommt den eben geholten Strom - sie fordert keine eigenen
-        //    Medien mehr an.
-        await window.webrtcApp.rtc.initFakeSelfCall();
+        // 2. PeerConnection aufbauen und fuer beide Spurarten einen Sender
+        //    freihalten - noch ohne Spur, denn ob wir senden, steht erst in
+        //    Schritt 5 fest.
+        //
+        //    Hier stand frueher ein "Dummy-Selbstanruf": eine PeerConnection
+        //    mit einem Offer, das sofort wieder verworfen wurde, um in Chrome
+        //    die Geraeteliste zu wecken. Ohne eine Medienanforderung an dieser
+        //    Stelle weckt es gar nichts mehr - es blieb ein zusaetzliches
+        //    Offer ohne Inhalt und eine Zehntelsekunde Wartezeit.
         window.webrtcApp.rtc.createPeerConnection(true);
-        window.webrtcApp.rtc.addLocalTracks();
-        window.webrtcApp.rtc.reserveVideoSender();
+        window.webrtcApp.rtc.reserveMediaSenders();
 
-        // Die Geraeteliste ist erst jetzt brauchbar: Vor der ersten Freigabe
-        // liefert enumerateDevices() Eintraege ohne Namen und ohne Kennung.
-        window.webrtcApp.media.refreshDeviceLists();
-        window.webrtcApp.media.updateIcons();
-
-        // 4. Call-Ansicht zeigen. Ab hier laeuft ein Anruf, den der Nutzer
+        // 3. Call-Ansicht zeigen. Ab hier laeuft ein Anruf, den der Nutzer
         //    auch selbst wieder beenden kann.
         window.webrtcApp.state.targetUsername = await window.webrtcApp.uiRtc.getUsername(targetUserId);
         window.webrtcApp.uiRtc.setEndCallButtonVisible(true);
@@ -300,7 +305,7 @@ window.webrtcApp.rtc = {
             'Rufe ' + window.webrtcApp.state.targetUsername + ' an';
         window.webrtcApp.sound.play('call_ringtone');
 
-        // 5. Offer bauen und abschicken.
+        // 4. Offer bauen und abschicken.
         let antwort;
         try {
             const offer = await window.webrtcApp.refs.localPeerConnection.createOffer();
@@ -329,12 +334,21 @@ window.webrtcApp.rtc = {
             return;
         }
 
-        // Die Rolle in diesem Call vergibt der Server (siehe
-        // WebRTCController::roleForCall). Sie haengt an der Antwort auf das
-        // Offer, damit es dafuer keine zweite Anfrage und kein Zeitfenster
-        // ohne Rolle braucht. Bleibt sie aus, gilt die Rolle als unbekannt -
-        // dann steuert niemand.
+        // 5. Die Rolle in diesem Call vergibt der Server (siehe
+        //    WebRTCController::roleForCall). Sie haengt an der Antwort auf das
+        //    Offer, damit es dafuer keine zweite Anfrage und kein Zeitfenster
+        //    ohne Rolle braucht. Bleibt sie aus, gilt die Rolle als unbekannt -
+        //    dann steuert niemand und es wird nichts gesendet.
         window.webrtcApp.control.applyRole(antwort.role || null);
+
+        // 6. Erst jetzt steht fest, ob wir ueberhaupt etwas senden. Der
+        //    Zuschauer wird an dieser Stelle nach gar nichts gefragt.
+        await window.webrtcApp.media.startOwnMedia();
+
+        // Die Geraeteliste ist erst nach einer Freigabe brauchbar: Vorher
+        // liefert enumerateDevices() Eintraege ohne Namen und ohne Kennung.
+        window.webrtcApp.media.refreshDeviceLists();
+        window.webrtcApp.media.updateIcons();
 
         // Erst jetzt laeuft die Frist bis "wurde nicht angenommen": Das Offer
         // liegt beim Server, es kann also tatsaechlich jemand abnehmen.
@@ -342,38 +356,48 @@ window.webrtcApp.rtc = {
     },
 
     /**
-     * Haelt in der Aushandlung einen Platz fuer die Kamera frei, ohne sie
-     * einzuschalten.
+     * Haelt in der Aushandlung fuer Ton UND Bild je einen Sender frei, ohne
+     * etwas einzuschalten.
      *
-     * DAS IST DER UNTERSCHIED ZWISCHEN "AUS" UND "GIBT ES NICHT". Der
-     * Zuschauer ruft ohne Kamera an. Waere im Angebot gar keine Videospur
-     * vorgesehen, liesse sich die Kamera spaeter nicht mehr zuschalten, ohne
-     * die Verbindung neu auszuhandeln - und eine Neuaushandlung mitten im
-     * Gespraech kann diese Anwendung nur fuer den ICE-Restart. Ein leerer
-     * Transceiver kostet nichts, sendet nichts und macht den Kamera-Knopf der
-     * Bedienleiste zu einem Schalter, der sofort wirkt
-     * (assets/js/main.js, replaceTrack).
+     * DAS IST DER UNTERSCHIED ZWISCHEN "AUS" UND "GIBT ES NICHT". Der Anrufer
+     * weiss beim Bau des Angebots noch nicht, ob er ueberhaupt senden darf -
+     * seine Rolle kommt erst mit der Antwort des Servers auf das Offer.
+     * Stuende eine Spurart dann nicht im Angebot, liesse sie sich spaeter nur
+     * mit einer Neuaushandlung zuschalten, und die kann diese Anwendung
+     * mitten im Gespraech nur fuer den ICE-Restart.
+     *
+     * Ein leerer Transceiver kostet nichts und sendet nichts: Wer keine Spur
+     * daran haengt, uebertraegt auch nichts. Er macht aber sowohl den
+     * Kamera- als auch den Mikrofonknopf zu einem Schalter, der sofort wirkt
+     * (assets/js/media.js, replaceTrack) - und beim Zuschauer bleibt beides
+     * einfach unbenutzt.
+     *
+     * Frueher wurde hier nur die Kamera vorgehalten; das Mikrofon entstand
+     * aus dem Strom, den startCall vorab holte. Der wird nicht mehr vorab
+     * geholt, also muss auch der Tonsender vorgehalten werden.
      */
-    reserveVideoSender() {
+    reserveMediaSenders() {
         const pc = window.webrtcApp.refs.localPeerConnection;
         if (!pc || typeof pc.addTransceiver !== 'function') return;
 
-        // Schon eine Videospur ausgehandelt? Dann nichts tun - sonst stuende
-        // eine zweite, tote Spur im Angebot.
-        const schonDa = pc.getTransceivers().some(t =>
-            (t.sender   && t.sender.track   && t.sender.track.kind   === 'video') ||
-            (t.receiver && t.receiver.track && t.receiver.track.kind === 'video')
-        );
-        if (schonDa) return;
+        ['audio', 'video'].forEach(kind => {
+            // Schon ausgehandelt? Dann nichts tun - sonst stuende eine
+            // zweite, tote Spur im Angebot.
+            const schonDa = pc.getTransceivers().some(t =>
+                (t.sender   && t.sender.track   && t.sender.track.kind   === kind) ||
+                (t.receiver && t.receiver.track && t.receiver.track.kind === kind)
+            );
+            if (schonDa) return;
 
-        try {
-            pc.addTransceiver('video', { direction: 'sendrecv' });
-        } catch (e) {
-            // Kein Abbruchgrund: Der Anruf kommt auch ohne den Platzhalter
-            // zustande, nur laesst sich die Kamera dann nicht nachtraeglich
-            // zuschalten.
-            console.warn('Videospur konnte nicht vorbereitet werden:', e);
-        }
+            try {
+                pc.addTransceiver(kind, { direction: 'sendrecv' });
+            } catch (e) {
+                // Kein Abbruchgrund: Der Anruf kommt auch ohne den Platzhalter
+                // zustande, nur laesst sich diese Spurart dann nicht
+                // nachtraeglich zuschalten.
+                console.warn('Spur "' + kind + '" konnte nicht vorbereitet werden:', e);
+            }
+        });
     },
 
     /**
@@ -386,7 +410,7 @@ window.webrtcApp.rtc = {
      * ZWEI AENDERUNGEN AM ABLAUF
      * --------------------------
      * 1. Die eigenen Spuren werden erst NACH setRemoteDescription gelegt,
-     *    ueber media.attachAnswerTracks(). Damit landen sie auf den
+     *    ueber media.attachTracks(). Damit landen sie auf den
      *    Transceivern des Angebots, und der Videotransceiver bekommt
      *    ausdruecklich die Richtung "sendrecv" - auch dann, wenn die Kamera
      *    im Annahmedialog abgewaehlt wurde. Nur so laesst sie sich spaeter
@@ -466,7 +490,7 @@ window.webrtcApp.rtc = {
         }
 
         // Erst jetzt die eigenen Spuren - siehe Erklaerung oben.
-        await media.attachAnswerTracks(stream);
+        await media.attachTracks(stream);
 
         let answer;
         try {
@@ -685,17 +709,100 @@ window.webrtcApp.rtc = {
             }
         };
 
-        // Remote-Stream anzeigen
+        // Bild und Ton der Gegenseite anzeigen
         window.webrtcApp.refs.localPeerConnection.ontrack = event => {
-            const remoteVideo = document.getElementById('remote-video');
-            if (remoteVideo && event.streams && event.streams[0]) {
-                remoteVideo.srcObject = event.streams[0];
-            }
-            if (event.track && event.track.kind === 'video') {
-                window.webrtcApp.rtc.bindRemoteVideoTrack(event.track);
-            }
+            window.webrtcApp.rtc.attachRemoteTrack(event);
         };
-        window.webrtcApp.state.tracksAdded = false;
+    },
+
+    /**
+     * Haengt eine eingehende Spur an das Videoelement der Gegenseite.
+     *
+     * HIER LAG DIE SCHWARZE FLAECHE. Die Stelle nahm ausschliesslich
+     * event.streams[0] - und dieser Strom ist LEER, wenn die Gegenseite ihre
+     * Spuren mit replaceTrack an einen bereits ausgehandelten Sender gelegt
+     * hat statt mit addTrack(track, strom). replaceTrack ordnet einem Sender
+     * naemlich keinen MediaStream zu; im SDP fehlt dann die msid, und der
+     * Browser meldet das Ereignis ohne Strom. Genau so legt der Guide seine
+     * Spuren (media.attachTracks), seit der Geraetewechsel ohne
+     * Neuaushandlung laeuft. Ergebnis: srcObject wurde nie gesetzt, das
+     * Videoelement blieb leer, der Zuschauer sah Schwarz - und hoerte auch
+     * nichts, denn am selben Element haengt der Ton.
+     *
+     * Deshalb zwei Wege: Liegt ein Strom bei, wird er genommen. Liegt keiner
+     * bei, fuehrt diese Stelle selbst einen und sammelt die Spuren darin
+     * ein. Der zweite Weg ist von der SDP-Beschriftung der Gegenseite
+     * unabhaengig und funktioniert deshalb auch mit einem Client, der es
+     * anders macht.
+     *
+     * @param {RTCTrackEvent} event - Ereignis der PeerConnection
+     */
+    attachRemoteTrack(event) {
+        const refs = window.webrtcApp.refs;
+        const remoteVideo = document.getElementById('remote-video');
+        let strom = (event && event.streams && event.streams[0]) ? event.streams[0] : null;
+
+        if (strom) {
+            refs.remoteStream = strom;
+        } else {
+            // Kein Strom im Ereignis: selbst einen fuehren.
+            if (!refs.remoteStream) {
+                refs.remoteStream = (typeof MediaStream === 'function') ? new MediaStream() : null;
+            }
+            strom = refs.remoteStream;
+            if (strom && event && event.track
+                && strom.getTracks().indexOf(event.track) === -1) {
+                strom.addTrack(event.track);
+            }
+        }
+
+        if (remoteVideo && strom && remoteVideo.srcObject !== strom) {
+            remoteVideo.srcObject = strom;
+            window.webrtcApp.rtc.playRemoteVideo();
+        }
+
+        if (event && event.track && event.track.kind === 'video') {
+            window.webrtcApp.rtc.bindRemoteVideoTrack(event.track);
+        }
+    },
+
+    /**
+     * Startet die Wiedergabe der Gegenseite und faengt ab, wenn der Browser
+     * sie verweigert.
+     *
+     * Mobile Browser lassen eine Wiedergabe MIT TON nur nach einer Geste des
+     * Nutzers zu. Der Anrufer hat auf "Anrufen" gedrueckt, der Angerufene auf
+     * "Annehmen" - normalerweise reicht das. Wird es abgelehnt, bliebe sonst
+     * genau dieselbe schwarze Flaeche stehen, nur aus einem anderen Grund.
+     * Dann sagt ein Hinweis, was zu tun ist, und der naechste Druck auf die
+     * Ansicht startet die Wiedergabe.
+     *
+     * Der Hinweis bleibt beim GUIDE aus: Bei ihm ist dieses Element gar nicht
+     * zu sehen (assets/css/call.css), und der Zuschauer sendet ihm ohnehin
+     * nichts. Ein "Bitte auf das Bild tippen" fuer ein Bild, das es dort nicht
+     * gibt, waere schlicht falsch.
+     */
+    playRemoteVideo() {
+        const remoteVideo = document.getElementById('remote-video');
+        if (!remoteVideo || typeof remoteVideo.play !== 'function') return;
+
+        const versuch = remoteVideo.play();
+        if (!versuch || typeof versuch.catch !== 'function') return;
+
+        versuch.catch(() => {
+            if (window.webrtcApp.state.callRole === window.webrtcApp.protocol.ROLE_GUIDE) return;
+            window.webrtcApp.rtc.showSystemNotice(
+                'Bitte einmal auf das Bild tippen, damit Ton und Bild starten.'
+            );
+            const ansicht = document.getElementById('call-view');
+            if (!ansicht || typeof ansicht.addEventListener !== 'function') return;
+            const nachholen = () => {
+                ansicht.removeEventListener && ansicht.removeEventListener('click', nachholen);
+                const p = remoteVideo.play();
+                if (p && typeof p.catch === 'function') p.catch(() => {});
+            };
+            ansicht.addEventListener('click', nachholen);
+        });
     },
 
     /**
@@ -745,18 +852,6 @@ window.webrtcApp.rtc = {
 
         if (remoteVideo) remoteVideo.style.display = sichtbar ? 'block' : 'none';
         if (platzhalter) platzhalter.style.display = sichtbar ? 'none' : 'flex';
-    },
-
-    /**
-     * Hängt lokale Audio/Video-Tracks an die PeerConnection an (nur 1x pro Call).
-     */
-    addLocalTracks() {
-        if (!window.webrtcApp.refs.localStream || !window.webrtcApp.refs.localPeerConnection) return;
-        if (window.webrtcApp.state.tracksAdded) return;
-        window.webrtcApp.refs.localStream.getTracks().forEach(track => {
-            window.webrtcApp.refs.localPeerConnection.addTrack(track, window.webrtcApp.refs.localStream);
-        });
-        window.webrtcApp.state.tracksAdded = true;
     },
 
     /**
@@ -840,33 +935,6 @@ window.webrtcApp.rtc = {
         dc.onmessage = (e) => {
             window.webrtcApp.control.handleMessage(e.data);
         };
-    },
-
-    /**
-     * Chrome-Workaround: Dummy-PeerConnection erzeugen, um MediaDevices zu aktivieren.
-     *
-     * Die Medien holt diese Methode NICHT mehr selbst. Sie tat es frueher mit
-     * {video:true, audio:true} - und weil sie vor startCall lief und die
-     * PeerConnection samt Tracks stehen liess, waren das auch die Spuren, die
-     * am Ende gesendet wurden. Die Konstanten in startCall hatten darauf gar
-     * keine Wirkung mehr. Jetzt benutzt der Workaround den Strom, den
-     * startCall bereits geholt hat.
-     */
-    initFakeSelfCall: async function() {
-        try {
-            if (!window.webrtcApp.refs.localPeerConnection) {
-                window.webrtcApp.rtc.createPeerConnection(true);
-                await new Promise(resolve => setTimeout(resolve, 100));
-
-                window.webrtcApp.rtc.addLocalTracks();
-                window.webrtcApp.media.updateIcons();
-
-                const offer = await window.webrtcApp.refs.localPeerConnection.createOffer();
-                await window.webrtcApp.refs.localPeerConnection.setLocalDescription(offer);
-            }
-        } catch(e) {
-            console.error("[FakeSelfCall] Fehler bei PeerConnection-Init:", e);
-        }
     },
 
     /**

@@ -18,10 +18,18 @@
  * andere MUSS ueber replaceTrack laufen.
  *
  * Voraussetzung ist, dass es fuer beide Spurarten ueberhaupt einen Sender
- * gibt, auch wenn gerade nichts gesendet wird. Dafuer sorgen
- * rtc.reserveVideoSender() beim Anrufer und rtc.attachAnswerTracks() beim
+ * gibt, auch wenn gerade nichts gesendet wird. Dafuer sorgt
+ * rtc.reserveMediaSenders() beim Anrufer und das Angebot der Gegenseite beim
  * Angerufenen: Nach dem Verbindungsaufbau hat jede Seite je einen Audio- und
  * einen Videosender - notfalls ohne Spur.
+ *
+ * WER UEBERHAUPT SENDEN DARF
+ * --------------------------
+ * Der Zuschauer nicht. Er schaut zu und steuert ueber Tasten; sein Bild und
+ * seine Stimme braucht die Fuehrung nicht, und weil die Anwendung weltweit
+ * laufen soll, ist Sprache ohnehin kein verlaessliches Steuermittel. Deshalb
+ * fragt diese Anwendung ihn gar nicht erst nach Kamera und Mikrofon.
+ * Entschieden wird das an genau einer Stelle: maySendMedia().
  *
  * WARUM DIE SENDERSUCHE UEBER DIE TRANSCEIVER LAEUFT
  * -------------------------------------------------
@@ -108,6 +116,70 @@ window.webrtcApp.media = {
     },
 
     // -----------------------------------------------------------------
+    // Wer sendet ueberhaupt?
+    // -----------------------------------------------------------------
+
+    /**
+     * Darf in diesem Call ueberhaupt etwas von hier gesendet werden?
+     *
+     * Nein in genau zwei Faellen:
+     *   - Rolle "viewer": Der Zuschauer sendet nichts. Punkt.
+     *   - Rolle unbekannt (null): Sie ist noch nicht da oder der Server hat
+     *     keine vergeben. Solange nichts feststeht, wird nichts gesendet -
+     *     ein zu frueh eingeschaltetes Mikrofon laesst sich nicht
+     *     zurueckholen.
+     *
+     * Ja bei "guide" (er IST die Uebertragung) und bei "peer" (Anruf ohne
+     * Fuehrung, etwa mit der Verwaltung - dort gehoert das Gespraech in beide
+     * Richtungen).
+     *
+     * @returns {boolean}
+     */
+    maySendMedia() {
+        const rolle = window.webrtcApp.state.callRole;
+        const p = window.webrtcApp.protocol;
+        return rolle === p.ROLE_GUIDE || rolle === p.ROLE_PEER;
+    },
+
+    /**
+     * Holt beim Anrufer die eigenen Medien - falls seine Rolle welche
+     * vorsieht.
+     *
+     * Laeuft NACH dem Offer, weil die Rolle erst mit dessen Antwort kommt
+     * (siehe rtc.startCall). Die Sender stehen zu diesem Zeitpunkt schon
+     * bereit, die Spur wird also nur noch eingehaengt - ohne Neuaushandlung.
+     *
+     * Ein verweigertes Mikrofon beendet den Anruf hier NICHT. Das Offer liegt
+     * bereits beim Angerufenen, es klingelt dort; ein stiller Abbruch wuerde
+     * ein Telefon laeuten lassen, an dem niemand mehr dran ist. Stattdessen
+     * wird gesagt, was fehlt - das Gespraech laeuft mit dem Ton der
+     * Gegenseite und dem Chat weiter, genau wie beim Angerufenen
+     * (rtc.acquireAcceptMedia).
+     *
+     * @returns {Promise<void>}
+     */
+    async startOwnMedia() {
+        if (!this.maySendMedia()) return;
+
+        const track = await this.acquireTrack('audio');
+        if (!track) {
+            window.webrtcApp.rtc.showSystemNotice(
+                'Der Anruf läuft ohne eigenen Ton weiter; der Chat bleibt nutzbar.'
+            );
+            return;
+        }
+
+        const sender = this.senderFor('audio');
+        if (!sender) return;
+        try { await sender.replaceTrack(track); }
+        catch (e) {
+            window.webrtcApp.notify.error('Das Mikrofon liess sich nicht einschalten: ' + this.errorDetail(e));
+            return;
+        }
+        this.announceStream(sender, window.webrtcApp.refs.localStream, track);
+    },
+
+    // -----------------------------------------------------------------
     // Spuren an die Verbindung haengen
     // -----------------------------------------------------------------
 
@@ -129,7 +201,7 @@ window.webrtcApp.media = {
      *
      * @param {MediaStream|null} stream - Der lokale Strom, kann Spuren fehlen
      */
-    async attachAnswerTracks(stream) {
+    async attachTracks(stream) {
         const pc = window.webrtcApp.refs.localPeerConnection;
         if (!pc) return;
 
@@ -148,6 +220,7 @@ window.webrtcApp.media = {
                 } catch (e) {
                     console.warn('[Medien] Spur "' + kind + '" konnte nicht gelegt werden:', e);
                 }
+                this.announceStream(tr.sender, stream, track);
                 continue;
             }
 
@@ -159,7 +232,34 @@ window.webrtcApp.media = {
                 }
             }
         }
-        window.webrtcApp.state.tracksAdded = true;
+    },
+
+    /**
+     * Meldet dem Sender, zu welchem Strom seine Spur gehoert.
+     *
+     * DAS IST DIE GEGENSEITE DES SCHWARZEN BILDES. replaceTrack() ordnet
+     * einem Sender KEINEN MediaStream zu - anders als addTrack(track, strom).
+     * Ohne Zuordnung fehlt im SDP die "msid", und beim Gegenueber kommt das
+     * ontrack-Ereignis ohne Strom an. Ein Empfaenger, der nur
+     * event.streams[0] auswertet, zeigt dann nichts.
+     *
+     * rtc.attachRemoteTrack() kommt inzwischen auch ohne aus, aber richtig
+     * ist es trotzdem hier: Ein fremder Client - etwa die spaetere App - soll
+     * nicht auf denselben Notbehelf angewiesen sein.
+     *
+     * setStreams gibt es nicht ueberall; wo es fehlt, bleibt es beim
+     * Notbehelf der Gegenseite.
+     *
+     * @param {RTCRtpSender} sender - Sender, dessen Spur eben gelegt wurde
+     * @param {MediaStream|null} stream - Der lokale Strom
+     * @param {MediaStreamTrack|null} track - Die gelegte Spur (null = nichts gelegt)
+     */
+    announceStream(sender, stream, track) {
+        if (!sender || !stream || !track) return;
+        if (typeof sender.setStreams !== 'function') return;
+        try { sender.setStreams(stream); } catch (e) {
+            console.warn('[Medien] Strom konnte dem Sender nicht zugeordnet werden:', e);
+        }
     },
 
     // -----------------------------------------------------------------
@@ -180,6 +280,12 @@ window.webrtcApp.media = {
      * @returns {Promise<boolean>} true, wenn der Zustand jetzt stimmt
      */
     async setMic(on) {
+        // Der Zuschauer sendet nichts - auch nicht auf Knopfdruck. Seine
+        // Knoepfe sind ausgeblendet (assets/css/call.css); diese Sperre ist
+        // die zweite, die auch dann haelt, wenn jemand die Funktion direkt
+        // aufruft.
+        if (on && !this.maySendMedia()) return false;
+
         const sender = this.senderFor('audio');
         if (!sender) {
             window.webrtcApp.notify.error('Es ist kein Mikrofonkanal ausgehandelt.');
@@ -207,6 +313,7 @@ window.webrtcApp.media = {
             window.webrtcApp.notify.error('Das Mikrofon liess sich nicht einschalten: ' + this.errorDetail(e));
             return false;
         }
+        this.announceStream(sender, window.webrtcApp.refs.localStream, track);
         this.updateIcons();
         return true;
     },
@@ -241,6 +348,9 @@ window.webrtcApp.media = {
      * @returns {Promise<boolean>} true, wenn der Zustand jetzt stimmt
      */
     async setCamera(on) {
+        // Siehe setMic(): Der Zuschauer sendet nichts.
+        if (on && !this.maySendMedia()) return false;
+
         const sender = this.senderFor('video');
         if (!sender) {
             window.webrtcApp.notify.error(
@@ -274,6 +384,7 @@ window.webrtcApp.media = {
             return false;
         }
 
+        this.announceStream(sender, window.webrtcApp.refs.localStream, track);
         window.webrtcApp.control.sendVideoState(true);
         this.updateLocalPreview();
         this.updateIcons();
@@ -349,6 +460,8 @@ window.webrtcApp.media = {
             window.webrtcApp.notify.error('Das Gerät liess sich nicht übernehmen: ' + this.errorDetail(e));
             return false;
         }
+
+        this.announceStream(sender, window.webrtcApp.refs.localStream, neu);
 
         // Erst jetzt die alte Quelle freigeben - vorher waere bei einem
         // Fehlschlag beides weg gewesen.

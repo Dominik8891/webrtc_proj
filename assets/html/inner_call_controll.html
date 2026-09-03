@@ -6,9 +6,13 @@
     Guide und Zuschauer machen in diesem Gespraech nicht dasselbe, also sehen
     sie nicht dasselbe:
 
-      Zuschauer  Er schaut zu und steuert. Das Bild des Guides fuellt den
-                 Bildschirm, darauf liegen Steuerkreuz, Verbindungsstatus und
-                 der Hinweis, wenn der Guide die Steuerung angehalten hat.
+      Zuschauer  Er schaut zu und steuert - und er SENDET NICHTS: kein
+                 Bild, kein Ton, keine Geraetefreigabe. Gesteuert wird ueber
+                 Tasten und die Tonsignale beim Guide, nicht ueber Sprache;
+                 die Anwendung soll weltweit funktionieren. Das Bild des
+                 Guides fuellt den Bildschirm, darauf liegen die Steuerung,
+                 der Verbindungsstatus und der Hinweis, wenn der Guide die
+                 Steuerung angehalten hat.
 
       Guide      Er BEKOMMT KEIN BILD - der Zuschauer sendet keins. Ein
                  Videobereich fuer ein Bild, das es nicht gibt, waere eine
@@ -25,16 +29,21 @@
     WebRTCController::roleForCall) - zwei getrennte Vorlagen muessten also
     entweder beide im Dokument liegen (doppelte IDs, genau das ist dieses
     Projekt gerade erst losgeworden) oder zur Laufzeit nachgeladen werden.
-    Stattdessen traegt #call-view die Klasse "role-guide" beziehungsweise
-    "role-viewer" (gesetzt von assets/js/control.js), und
-    assets/css/call.css entscheidet daran, was zu sehen ist und wo es liegt.
+    Stattdessen traegt #call-view die Klasse "role-guide", "role-viewer" oder
+    "role-peer" (gesetzt von assets/js/control.js), und assets/css/call.css
+    entscheidet daran, was zu sehen ist und wo es liegt. Ohne Klasse - die
+    Rolle ist noch nicht da - gilt das Vorsichtigere: nichts, was mit Senden
+    zu tun hat.
 
     GEMEINSAM      Kopfbereich (Name, Verbindungsstatus, Auflegen),
-                   Bedienleiste (Mikrofon, Kamera, Geraete, Chat),
-                   Geraeteblatt, Chatblatt.
+                   Chatknopf samt Zaehler ungelesener Nachrichten, Chatblatt.
     NUR GUIDE      Buehne = eigenes Bild, Richtungsanzeige, Sperrschalter.
-    NUR ZUSCHAUER  Buehne = Bild des Guides, Steuerkreuz, Sperrhinweis,
-                   eigenes Bild klein in der Ecke.
+    NUR ZUSCHAUER  Buehne = Bild des Guides, Steuerung, Sperrhinweis.
+    WER SENDET     Mikrofon- und Kameraknopf, Geraeteblatt und die eigene
+                   Vorschau gehoeren dem Guide und den Teilnehmern eines
+                   Anrufs ohne Fuehrung (Rolle "peer", etwa mit der
+                   Verwaltung). Der Zuschauer sendet nichts, also hat er
+                   nichts davon.
 -->
 <div id="call-view" style="display:none;">
 
@@ -54,8 +63,10 @@
         </div>
 
         <!-- Das eigene Bild.
-             Beim Zuschauer klein in der Ecke, beim Guide die ganze Buehne -
-             siehe assets/css/call.css, Abschnitt "Rollen". -->
+             Beim Guide die ganze Buehne, im Anruf ohne Fuehrung klein in der
+             Ecke, beim Zuschauer gar nicht - er sendet nichts, es gaebe dort
+             nur ein schwarzes Kaestchen zu sehen. Siehe
+             assets/css/call.css, Abschnitt "Rollen". -->
         <video id="local-video" class="call-self" autoplay muted playsinline></video>
 
         <!-- Steht anstelle des eigenen Bildes, solange die eigene Kamera aus
@@ -96,9 +107,20 @@
         <span class="control-lock-notice__text">Steuerung gesperrt – der Guide hat sie angehalten.</span>
     </div>
 
-    <!-- ZUSCHAUER: das Steuerkreuz. Liegt ueber dem Bild, nicht daneben -
-         es ist die Hauptbedienung dieser Rolle. -->
+    <!-- ZUSCHAUER: die Steuerung. Liegt ueber dem Bild, nicht daneben -
+         es ist die Hauptbedienung dieser Rolle.
+
+         ZWEI GRUPPEN, WEIL ES ZWEI DINGE SIND: Das Kreuz schickt den Guide
+         irgendwohin, das Paar daneben dreht nur seinen Blick. Waeren die
+         Blicktasten in die freien Ecken des Kreuzes gesetzt, saessen sechs
+         Tasten in einem Feld, das jeder als Steuerkreuz liest - und ein
+         Fehlgriff bedeutet hier, dass jemand vor Ort losgeht. -->
     <div id="control-pad" class="call-pad">
+        <div class="look-controls">
+            <span class="look-controls__caption" aria-hidden="true">Blick</span>
+            <button id="btn-look-up"   type="button" class="call-arrow call-look" aria-label="Blick nach oben"  title="Blick nach oben">&uArr;</button>
+            <button id="btn-look-down" type="button" class="call-arrow call-look" aria-label="Blick nach unten" title="Blick nach unten">&dArr;</button>
+        </div>
         <div class="arrow-controls">
             <button id="btn-forward"  type="button" class="call-arrow call-arrow--up"    aria-label="Vorwärts">&uarr;</button>
             <button id="btn-left"     type="button" class="call-arrow call-arrow--left"  aria-label="Nach links">&larr;</button>
@@ -114,9 +136,12 @@
         <button id="control-lock-btn" type="button" class="btn btn-warning fw-bold control-lock-btn">Steuerung sperren</button>
     </div>
 
-    <!-- GEMEINSAM: Bedienleiste unten. Die Kamerakontrolle steht in beiden
-         Rollen hier - beim Guide, weil sein Bild die Uebertragung IST, beim
-         Zuschauer, weil er sich zeigen darf, aber nicht muss. -->
+    <!-- Bedienleiste unten.
+         Mikrofon, Kamera und Geraetewahl gehoeren dem, der auch sendet: dem
+         Guide und den Teilnehmern eines Anrufs ohne Fuehrung. Beim Zuschauer
+         fallen sie weg (assets/css/call.css, Abschnitt "Rollen") - er sendet
+         nichts, und ein Knopf, der nichts tut, ist schlimmer als keiner.
+         Der Chat bleibt in jeder Rolle. -->
     <div class="call-bar">
         <button id="switch-mic-btn" type="button" class="call-btn" title="Mikrofon an/aus">
             <img id="mic-icon" src="assets/img/mic.png" alt="Mikrofon">
@@ -125,7 +150,10 @@
             <img id="cam-icon" src="assets/img/camera.png" alt="Kamera">
         </button>
         <button id="call-devices-btn" type="button" class="call-btn call-btn--text" aria-expanded="false">Geräte</button>
-        <button id="chat-toggle-btn" type="button" class="call-btn call-btn--text" aria-expanded="false">Chat</button>
+        <!-- Der Zaehler steht am Chatknopf und nicht im Chat: Wer ihn sehen
+             soll, hat den Chat gerade ZU. Gesetzt von chat.renderUnread(). -->
+        <button id="chat-toggle-btn" type="button" class="call-btn call-btn--text" aria-expanded="false">Chat<span
+            id="chat-unread" class="call-btn__badge" role="status" aria-label="Ungelesene Nachrichten" hidden>0</span></button>
     </div>
 
     <!-- GEMEINSAM: Geraeteauswahl. Aufklappbar statt dauerhaft sichtbar.

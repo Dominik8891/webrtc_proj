@@ -225,6 +225,39 @@ body.call-active {
 /* Ein Symbolknopf bleibt rund. */
 .call-btn:not(.call-btn--text) { padding: 0; }
 
+/* --- Ungelesene Nachrichten am Chatknopf --------------------------------- */
+
+/* Der Chat liegt im Call zugeklappt ueber dem Bild. Kam eine Nachricht an,
+   waehrend er zu war, geschah sichtbar nichts. Der Zaehler sitzt deshalb am
+   Knopf - dort schaut hin, wer den Chat oeffnen will.
+
+   Er sitzt IM Knopf und nicht daneben: Die Leiste liegt als Overlay ueber dem
+   Video, ein ueberstehendes Abzeichen wuerde je nach Bildinhalt verschwinden.
+   Der Rand traegt ihn deshalb auf dem dunklen Knopfgrund. */
+.call-btn__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    margin-left: var(--app-space-2);
+    padding: 0 6px;
+    border-radius: var(--app-radius-pill);
+    background: var(--app-danger);
+    color: #fff;
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-bold);
+    line-height: 1;
+}
+
+/* Der aufgeklappte Chat setzt den Zaehler zurueck; der Knopf traegt dann
+   ohnehin schon das Aussehen "offen". Der helle Rand ist fuer den Fall, dass
+   der Knopf zu und der Zaehler gesetzt ist - er hebt ihn aus der Leiste
+   heraus, ohne dass es blinkt. */
+.call-btn.has-unread {
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
 /* --- Geraeteauswahl ------------------------------------------------------ */
 
 .call-sheet {
@@ -375,6 +408,38 @@ body.call-active {
     bottom: 96px;
     z-index: 12;
     display: flex;
+    /* Zwei Gruppen nebeneinander: links die Blickrichtung, rechts das Kreuz.
+       Mittig ausgerichtet, weil die Blickgruppe niedriger ist als das Kreuz. */
+    align-items: center;
+    gap: var(--app-space-3);
+}
+
+/* Blick hoch und runter. Bewusst NICHT in den freien Ecken des Steuerkreuzes:
+   Sechs Tasten in einem Feld, das jeder als Steuerkreuz liest, laden zum
+   Fehlgriff ein - und ein Fehlgriff schickt hier jemanden vor Ort los.
+
+   Eine Spalte statt eines Rasters, damit die Beschriftung nur so hoch wird,
+   wie ihre Schrift es braucht. */
+.look-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--app-space-2);
+}
+
+.look-controls__caption {
+    font-size: var(--app-text-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.72);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* Dieselbe Groesse wie eine Taste des Steuerkreuzes - beides wird mit dem
+   Daumen bedient. */
+.call-look {
+    width: 60px;
+    height: 60px;
 }
 
 /* Steht der Chat offen, ruecken die Pfeile aus seinem Weg. Sonst laege die
@@ -416,14 +481,16 @@ body.call-active {
 /* Gesperrtes Steuerkreuz: waehrend einer Sperre oder solange die Bestaetigung
    des Guides aussteht. Sichtbar, aber erkennbar nicht bedienbar - ein
    verschwindender Knopf waere unter dem Daumen schlimmer als ein grauer. */
-.arrow-controls button:disabled {
+.arrow-controls button:disabled,
+.look-controls button:disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }
 
 /* Wartet auf die Bestaetigung: gestrichelter Rand, damit der Zuschauer sieht,
    dass der Druck unterwegs ist, und nicht nachdrueckt. */
-.arrow-controls button.is-waiting {
+.arrow-controls button.is-waiting,
+.look-controls button.is-waiting {
     border-style: dashed;
 }
 
@@ -443,6 +510,10 @@ body.call-active {
         grid-template-columns: repeat(3, 56px);
         grid-template-rows: repeat(3, 56px);
     }
+    .call-look {
+        width: 56px;
+        height: 56px;
+    }
     /* Das eigene Bild bleibt unten links: Oben rechts kaeme ihm der
        Sperrhinweis in die Quere, und das Steuerkreuz steht mittig. */
     .call-self {
@@ -456,22 +527,26 @@ body.call-active {
 }
 
 /* ===========================================================================
-   Rollen: zwei Oberflaechen in einem Markup
+   Rollen: drei Oberflaechen in einem Markup
    ---------------------------------------------------------------------------
-   Die Rolle steht als Klasse "role-guide" bzw. "role-viewer" auf #call-view;
-   gesetzt von control.updateRoleUi(). Ohne bekannte Rolle steuert niemand -
-   deshalb sind die Faelle, in denen etwas ERSCHEINT, als "nicht die andere
-   Rolle" formuliert.
+   Die Rolle steht als Klasse "role-guide", "role-viewer" oder "role-peer" auf
+   #call-view; gesetzt von control.updateRoleUi(). Ohne bekannte Rolle steuert
+   niemand und sendet niemand - deshalb sind die Faelle, in denen etwas
+   ERSCHEINT, als "nicht die anderen Rollen" formuliert.
 
-   Guide und Zuschauer machen nicht dasselbe:
-
-     Zuschauer  schaut zu und steuert. Das Bild des Guides fuellt den
-                Bildschirm, darauf Steuerkreuz, Verbindungsstatus, Sperrhinweis.
+     Zuschauer  schaut zu, steuert und SENDET NICHTS. Das Bild des Guides
+                fuellt den Bildschirm, darauf Steuerung, Verbindungsstatus,
+                Sperrhinweis. Keine Selbstansicht, keine Medienknoepfe.
 
      Guide      BEKOMMT KEIN BILD - der Zuschauer sendet keins. Ein
                 Videobereich dafuer waere eine schwarze Flaeche. Bei ihm zeigt
                 die Buehne SEIN EIGENES Bild: seine Kamerakontrolle. Darauf
                 die grosse Richtungsanzeige und der Sperrschalter.
+
+     Peer       Anruf ohne Fuehrung, etwa mit der Verwaltung. Beide senden und
+                empfangen, niemand steuert: Bild der Gegenseite auf der
+                Buehne, eigenes Bild klein in der Ecke, Medienknoepfe da,
+                Steuerkreuz und Sperrschalter weg.
    =========================================================================== */
 
 /* --- Was nur der Zuschauer sieht ----------------------------------------- */
@@ -539,9 +614,39 @@ body.call-active {
     font-size: var(--app-text-lg);
 }
 
-/* --- Das eigene Bild beim Zuschauer -------------------------------------- */
+/* --- Was nur zu sehen ist, wer auch sendet ------------------------------- */
 
-/* Klein in der Ecke - es ist hier nur die Rueckversicherung, dass die eigene
+/* DER ZUSCHAUER SENDET NICHTS. Kein Bild, kein Ton, keine Geraetefreigabe -
+   gesteuert wird ueber Tasten und die Tonsignale beim Guide, damit die
+   Anwendung auch dort funktioniert, wo Zuschauer und Guide keine gemeinsame
+   Sprache haben.
+
+   Damit fallen die Selbstansicht, ihr Platzhalter, die Knoepfe fuer Mikrofon
+   und Kamera und die Geraeteauswahl weg. Das ist keine Kleinigkeit, die man
+   stehen lassen koennte: ein leeres schwarzes Kaestchen in der Ecke und drei
+   Knoepfe, die nichts bewirken.
+
+   Die Regel ist als "NICHT die sendenden Rollen" formuliert und deckt damit
+   denselben Fall gleich mit ab: die Rolle ist noch gar nicht da. Sie kommt
+   beim Anrufer erst mit der Antwort auf das Offer
+   (WebRTCController::roleForCall) - die Knoepfe erst zu zeigen und eine halbe
+   Sekunde spaeter wieder wegzunehmen, waere das Flackern, das jeder als
+   Fehler liest.
+
+   !important, weil media.updateLocalPreview() die Sichtbarkeit dieser
+   Elemente ueber style-Zuweisungen fuehrt - die Rolle muss darueber stehen. */
+#call-view:not(.role-guide):not(.role-peer) #local-video,
+#call-view:not(.role-guide):not(.role-peer) #local-video-placeholder,
+#call-view:not(.role-guide):not(.role-peer) #switch-mic-btn,
+#call-view:not(.role-guide):not(.role-peer) #switch-cam-btn,
+#call-view:not(.role-guide):not(.role-peer) #call-devices-btn,
+#call-view:not(.role-guide):not(.role-peer) #call-devices {
+    display: none !important;
+}
+
+/* --- Das eigene Bild im Anruf ohne Fuehrung ------------------------------ */
+
+/* Klein in der Ecke - es ist dort nur die Rueckversicherung, dass die eigene
    Kamera tut, was sie soll. Die Geometrie steht in .call-self / .call-self-off;
    hier ist nichts zu aendern. */
 

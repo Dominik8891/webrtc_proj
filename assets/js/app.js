@@ -13,7 +13,6 @@ window.webrtcApp = {
         hangupReceived: false,             // Wurde ein Auflegen ("Hangup") empfangen?
         isCallActive: false,               // Ist gerade ein Anruf aktiv?
         pendingOffer: null,                // Zwischengespeichertes Offer für WebRTC-Handshake
-        tracksAdded: false,                // Wurden MediaTracks schon zu RTCPeerConnection hinzugefügt?
         targetUsername: null,              // Benutzername des Call-Partners (zur Anzeige)
         remoteVideoCheckInterval: null,    // Timer-ID für Überprüfung des Remote-Video-Streams
         callTimeout: null,                 // Timeout für eingehende Calls (z.B. Rufannahme abgelaufen)
@@ -82,6 +81,12 @@ window.webrtcApp = {
         chatChannel: null,                 // RTCDataChannel "chat"
         controlChannel: null,              // RTCDataChannel "control"
         localStream: null,                 // Lokaler MediaStream (Webcam/Mikrofon)
+
+        // Strom der Gegenseite. Wird nur gefuehrt, wenn das ontrack-Ereignis
+        // KEINEN Strom mitbringt - dann ist er die einzige Moeglichkeit, die
+        // eingehenden Spuren an ein Videoelement zu haengen. Siehe
+        // rtc.attachRemoteTrack().
+        remoteStream: null,
         pollingIntervalId: null,           // ID des Polling-Intervalls für Fallback-Signalisierung
         meteredIceServers: null,           // ICE-Server-Konfiguration (z.B. von Metered TURN/STUN)
         iceServersLoaded: false,           // Wurden ICE-Server-Konfigurationen schon geladen?

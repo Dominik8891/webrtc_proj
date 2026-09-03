@@ -6,6 +6,70 @@
 // (control.js). Damit kann ein in den Chat getippter Text keinen Steuerbefehl
 // mehr auslösen - und ein Steuerbefehl landet nicht mehr im Chatfenster.
 window.webrtcApp.chat = {
+
+    // -----------------------------------------------------------------
+    // Ungelesene Nachrichten
+    // -----------------------------------------------------------------
+    //
+    // Das Chatblatt liegt im Call zugeklappt ueber dem Bild. Kam eine
+    // Nachricht an, waehrend es zu war, geschah SICHTBAR NICHTS: Die Zeile
+    // landete im Verlauf, den gerade niemand sieht. Der Zaehler haengt
+    // deshalb am Chatknopf der Bedienleiste - dort, wo man hinschaut, wenn
+    // man den Chat oeffnen will.
+    //
+    // Gezaehlt wird nur, solange das Blatt zu ist. Beim Oeffnen wird auf null
+    // gesetzt, denn ab dann liest der Nutzer mit.
+
+    /** Zahl der Nachrichten, die seit dem letzten Oeffnen ankamen. */
+    unread: 0,
+
+    /**
+     * Steht das Chatblatt offen?
+     *
+     * Gefragt wird das Blatt selbst und nicht ein eigener Merker: Es gibt
+     * mehrere Wege, es zu schliessen (Knopf, Kreuz, Klick daneben), und ein
+     * zweiter Zustand daneben waere der, der irgendwann nicht mehr stimmt.
+     *
+     * @returns {boolean}
+     */
+    isOpen() {
+        const overlay = document.getElementById('chat-overlay');
+        return !!overlay && overlay.hidden === false;
+    },
+
+    /** Zaehlt eine ungelesene Nachricht, wenn der Chat gerade zu ist. */
+    noteUnread() {
+        if (this.isOpen()) return;
+        this.unread++;
+        this.renderUnread();
+    },
+
+    /** Setzt den Zaehler zurueck - beim Oeffnen des Chats und am Call-Ende. */
+    clearUnread() {
+        this.unread = 0;
+        this.renderUnread();
+    },
+
+    /**
+     * Schreibt den Zaehler an den Chatknopf.
+     *
+     * Ueber 99 wird nicht mehr gezaehlt, sondern "99+" angezeigt: Eine
+     * dreistellige Zahl sprengt den runden Knopf, und ab dieser Menge ist die
+     * genaue Zahl ohnehin keine Auskunft mehr.
+     */
+    renderUnread() {
+        const badge = document.getElementById('chat-unread');
+        if (badge) {
+            badge.textContent = (this.unread > 99) ? '99+' : String(this.unread);
+            badge.hidden = (this.unread === 0);
+        }
+        const btn = document.getElementById('chat-toggle-btn');
+        if (btn && btn.classList) {
+            if (this.unread > 0) btn.classList.add('has-unread');
+            else                 btn.classList.remove('has-unread');
+        }
+    },
+
     /**
      * Fügt eine Chat-Nachricht dem Log im UI hinzu.
      * @param {string} who  - "self" oder "remote"
@@ -98,6 +162,7 @@ window.webrtcApp.chat = {
             return;
         }
         this.appendMsg("remote", result.message.text);
+        this.noteUnread();
     },
 
     /**
@@ -115,5 +180,6 @@ window.webrtcApp.chat = {
         a.download = "empfangene_datei";
         a.textContent = "Datei herunterladen";
         log.appendChild(a);
+        this.noteUnread();
     }
 };

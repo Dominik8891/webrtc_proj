@@ -27,14 +27,17 @@ function resetAll() {
     app.signaling.stopPolling();
     Object.assign(app.state, {
         activeTargetUserId: null, hangupReceived: false, isCallActive: false,
-        pendingOffer: null, tracksAdded: false, isInitiator: false,
+        pendingOffer: null, isInitiator: false,
         connectionStatus: 'idle', connectedSince: null, callTimeout: null
     });
     app.refs.localPeerConnection = null;
     app.refs.chatChannel = null;
     app.refs.controlChannel = null;
     app.refs.localStream = null;
+    app.refs.remoteStream = null;
     app.refs.pendingCandidates = [];
+    global.__offerRole = null;
+    global.__mediaRequests.length = 0;
     app.sound.plays.length = 0;
     global.__signals.length = 0;
     global.__alerts.length = 0;
@@ -788,43 +791,68 @@ function ackLastMove(status = 'executed', reason) {
     }
 
     // -----------------------------------------------------------------
-    console.error('\n28) Der Anruf des Zuschauers: nur Ton, und Fehler sofort');
+    console.error('\n28) Der Anruf: wer sendet, entscheidet die Rolle');
     {
-        // Der Zuschauer schaut zu. Beim Anrufen wird deshalb nur das Mikrofon
-        // angefordert; frueher verlangte startCall unbedingt Video UND Audio,
-        // und wer keine Kamera freigab, kam gar nicht erst ins Gespraech.
+        // DER ZUSCHAUER SENDET NICHTS. Er wird beim Anrufen nach gar nichts
+        // gefragt - keine Kamera, kein Mikrofon, keine Freigabe. Frueher
+        // holte startCall unbedingt das Mikrofon, noch bevor ueberhaupt
+        // feststand, welche Rolle der Server vergibt.
         resetAll();
-        global.__mediaRequests.length = 0;
         global.__mediaError = null;
+        global.__offerRole = 'viewer';
         app.refs.iceServersLoaded = true;
         app.refs.iceServersDegraded = false;
         app.refs.meteredIceServers = [{ urls: 'stun:x' }];
 
         await app.rtc.startCall(42);
 
-        assert.strictEqual(global.__mediaRequests.length, 1, 'genau eine Medienanforderung');
-        assert.strictEqual(global.__mediaRequests[0].audio, true, 'Ton wird angefordert');
-        assert.ok(!global.__mediaRequests[0].video, 'die Kamera wird NICHT angefordert');
-        assert.deepStrictEqual(app.refs.localStream.getVideoTracks(), [],
-            'es wird keine Videospur gesendet');
-        ok('der Anrufer wird nur nach dem Mikrofon gefragt');
+        assert.strictEqual(global.__mediaRequests.length, 0, 'gar keine Medienanforderung');
+        assert.strictEqual(app.refs.localStream, null, 'es gibt keinen eigenen Strom');
+        assert.strictEqual(app.state.callRole, 'viewer', 'die Rolle des Servers ist uebernommen');
+        assert.strictEqual(app.media.isSending('audio'), false, 'es geht kein Ton raus');
+        assert.strictEqual(app.media.isSending('video'), false, 'es geht kein Bild raus');
+        ok('der Zuschauer wird nach nichts gefragt und sendet nichts');
 
-        // Die Kamera bleibt trotzdem zuschaltbar: Dafuer steht ein leerer
-        // Videosender in der Aushandlung bereit. Ohne ihn liesse sich das Bild
-        // spaeter nur mit einer Neuaushandlung dazuschalten.
-        const platz = app.refs.localPeerConnection.getTransceivers()
-            .filter(t => t.receiver && t.receiver.track && t.receiver.track.kind === 'video');
-        assert.strictEqual(platz.length, 1, 'genau ein Platzhalter fuer die Kamera');
-        assert.strictEqual(platz[0].sender.track, null, 'der Platzhalter sendet nichts');
+        // Fuer BEIDE Spurarten steht trotzdem ein Sender bereit. Ohne ihn
+        // liesse sich im Anruf ohne Fuehrung spaeter nichts zuschalten, ohne
+        // neu auszuhandeln - und das kann diese Anwendung im Gespraech nur
+        // fuer den ICE-Restart.
+        ['audio', 'video'].forEach(art => {
+            const platz = app.refs.localPeerConnection.getTransceivers()
+                .filter(t => t.receiver && t.receiver.track && t.receiver.track.kind === art);
+            assert.strictEqual(platz.length, 1, 'genau ein Sender fuer ' + art);
+            assert.strictEqual(platz[0].sender.track, null, 'der Sender fuer ' + art + ' traegt nichts');
+        });
         assert.strictEqual(app.state.callTimeout !== null, true, 'die Annahmefrist laeuft');
         app.rtc.endCall(false);
-        ok('die Kamera bleibt zuschaltbar, ohne beim Anrufen gefragt zu werden');
+        ok('fuer Ton und Bild steht je ein leerer Sender bereit');
 
-        // Kein Mikrofon: Der Fehler wird SOFORT gemeldet und benannt. Vorher
-        // verschluckte ihn ein console.error, und 25 Sekunden spaeter kam die
-        // falsche Meldung "Der Anruf wurde nicht angenommen".
+        // ANRUF OHNE FUEHRUNG (Rolle "peer", etwa mit der Verwaltung): Dort
+        // gehoert das Gespraech in beide Richtungen, also wird das Mikrofon
+        // geholt - und zwar erst NACH dem Offer, weil die Rolle erst mit
+        // dessen Antwort kommt.
         resetAll();
-        global.__mediaRequests.length = 0;
+        global.__offerRole = 'peer';
+        app.refs.iceServersLoaded = true;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+
+        await app.rtc.startCall(42);
+
+        assert.strictEqual(app.state.callRole, 'peer', 'die Rolle "peer" ist uebernommen');
+        assert.strictEqual(global.__mediaRequests.length, 1, 'genau eine Medienanforderung');
+        assert.ok(global.__mediaRequests[0].audio, 'der Ton wird angefordert');
+        assert.ok(!global.__mediaRequests[0].video, 'die Kamera wird NICHT angefordert');
+        assert.strictEqual(app.media.isSending('audio'), true, 'der Ton geht raus');
+        assert.strictEqual(app.media.isSending('video'), false, 'das Bild bleibt aus');
+        app.rtc.endCall(false);
+        ok('im Anruf ohne Fuehrung wird das Mikrofon geholt, die Kamera nicht');
+
+        // Kein Mikrofon im Anruf ohne Fuehrung: Das Offer liegt bereits beim
+        // Angerufenen, es klingelt dort. Ein stiller Abbruch wuerde ein
+        // Telefon laeuten lassen, an dem niemand mehr dran ist - also laeuft
+        // der Anruf weiter, und es wird gesagt, was fehlt.
+        resetAll();
+        global.__offerRole = 'peer';
         app.refs.iceServersLoaded = true;
         app.refs.meteredIceServers = [{ urls: 'stun:x' }];
         const abgelehnt = new Error('Permission denied');
@@ -838,13 +866,14 @@ function ackLastMove(status = 'executed', reason) {
         assert.ok(/Mikrofon/.test(global.__alerts[0]), 'die Meldung nennt das Mikrofon');
         assert.ok(!/nicht angenommen/.test(global.__alerts[0]),
             'gemeldet wird der Fehler, nicht eine ausgebliebene Annahme');
-        assert.strictEqual(app.state.isCallActive, false, 'der Call laeuft nicht weiter');
-        assert.strictEqual(app.state.callTimeout, null, 'es laeuft keine Annahmefrist');
-        assert.deepStrictEqual(global.__signals, [], 'es geht kein Offer raus');
-        ok('ein Medienfehler wird sofort und benannt gemeldet');
+        assert.strictEqual(app.state.isCallActive, true, 'der Anruf laeuft weiter');
+        assert.ok(global.__logLines('chat-log').some(z => /ohne eigenen Ton/.test(z)),
+            'im Verlauf steht, dass es ohne eigenen Ton weitergeht');
+        app.rtc.endCall(false);
+        ok('ein abgelehntes Mikrofon beendet den laufenden Anruf nicht mehr');
 
-        // Der Server weist einen Anruf ab, dessen Ziel kein Guide ist. Auch das
-        // ist eine Antwort und keine Stille: Sie wird durchgereicht.
+        // Der Server weist einen Anruf ab, der gar nicht zustande kommen darf.
+        // Auch das ist eine Antwort und keine Stille: Sie wird durchgereicht.
         resetAll();
         app.refs.iceServersLoaded = true;
         app.refs.meteredIceServers = [{ urls: 'stun:x' }];
@@ -867,6 +896,7 @@ function ackLastMove(status = 'executed', reason) {
         assert.strictEqual(app.state.isCallActive, false, 'der Call wird abgeraeumt');
         assert.strictEqual(app.state.callTimeout, null, 'keine Frist auf einen Anruf, den es nicht gibt');
         assert.ok(!app.state.callRole, 'ohne Anruf auch keine Rolle');
+        assert.strictEqual(global.__mediaRequests.length, 0, 'und niemand wurde nach Medien gefragt');
         ok('eine Absage des Servers wird sofort weitergegeben');
     }
 
@@ -1252,23 +1282,31 @@ function ackLastMove(status = 'executed', reason) {
     }
 
     /**
-     * Baut einen laufenden Call als ZUSCHAUER (Anrufer) auf.
-     * Er sendet Ton; fuer die Kamera steht ein leerer Sender bereit.
+     * Baut einen laufenden Call als ANRUFER auf.
+     *
+     * @param {string} rolle - Rolle, die der Server auf das Offer zurueckgibt:
+     *                         'viewer' (sendet nichts) oder 'peer' (sendet).
      */
-    async function callAlsZuschauer() {
+    async function callAlsAnrufer(rolle) {
         resetAll();
         medienZuruecksetzen();
+        global.__offerRole = rolle;
         app.refs.iceServersLoaded = true;
         app.refs.iceServersDegraded = false;
         app.refs.meteredIceServers = [{ urls: 'stun:x' }];
 
         await app.rtc.startCall(42);
         app.rtc.stopTimeout();
-        app.control.applyRole('viewer');
         app.state.connectionStatus = 'connected';
         app.state.connectedSince = Date.now() - 10000;
         return app.refs.localPeerConnection;
     }
+
+    /** Ein laufender Call als ZUSCHAUER: Er empfaengt nur. */
+    const callAlsZuschauer = () => callAlsAnrufer('viewer');
+
+    /** Ein laufender Call OHNE FUEHRUNG (Rolle "peer"): beide senden. */
+    const callAlsPeer = () => callAlsAnrufer('peer');
 
     /**
      * Baut einen laufenden Call als GUIDE (Angerufener) auf.
@@ -1306,7 +1344,11 @@ function ackLastMove(status = 'executed', reason) {
         // Vorher blieb der Wechsel wirkungslos - die Geraeteliste war beim
         // Seitenaufbau ohne Freigabe gefuellt worden und enthielt Eintraege
         // mit LEERER Kennung, an denen der Wechsel still abbrach.
-        const pc = await callAlsZuschauer();
+        //
+        // Geprueft wird in den beiden Rollen, die ueberhaupt senden: im Anruf
+        // ohne Fuehrung (Anrufer) und beim Guide (Angerufener). Der Zuschauer
+        // hat weder Kamera noch Mikrofon - bei ihm gibt es nichts zu wechseln.
+        const pc = await callAlsPeer();
         const offersVorher = pc.offersCreated;
 
         // --- Mikrofon ---
@@ -1361,6 +1403,19 @@ function ackLastMove(status = 'executed', reason) {
         ok('bei ausgeschalteter Kamera wird die Wahl nur gemerkt');
         app.rtc.endCall(false);
 
+        // --- Der Zuschauer dagegen sendet nichts, also wechselt er auch
+        //     nichts. Kamera und Mikrofon lassen sich bei ihm nicht einmal
+        //     ueber einen direkten Aufruf einschalten.
+        await callAlsZuschauer();
+        assert.strictEqual(await app.media.setCamera(true), false,
+            'der Zuschauer konnte seine Kamera einschalten');
+        assert.strictEqual(await app.media.setMic(true), false,
+            'der Zuschauer konnte sein Mikrofon einschalten');
+        assert.strictEqual(global.__mediaRequests.length, 0,
+            'der Zuschauer wurde doch nach einem Geraet gefragt');
+        ok('der Zuschauer bekommt weder Kamera noch Mikrofon eingeschaltet');
+        app.rtc.endCall(false);
+
         // --- Dieselbe Zusage in der anderen Rolle und damit in der anderen
         //     Richtung: Der Guide hat angenommen, nicht angerufen.
         const pcGuide = await callAlsGuide();
@@ -1390,7 +1445,7 @@ function ackLastMove(status = 'executed', reason) {
         assert.strictEqual(await app.media.toggleCamera(), true, 'die Kamera ging nicht aus');
         assert.strictEqual(app.media.senderFor('video').track, null,
             'es geht weiter Bild auf die Leitung');
-        assert.deepStrictEqual(letzteSteuernachricht(), { v: 1, type: 'video_state', on: false },
+        assert.deepStrictEqual(letzteSteuernachricht(), { v: P.VERSION, type: 'video_state', on: false },
             'der Gegenseite wird das Abschalten nicht gemeldet');
         // Wirklich aus: Ohne stop() bliebe die Kameraleuchte an, und "Video
         // sperren" waere ein Versprechen, das die Anwendung nicht haelt.
@@ -1404,7 +1459,7 @@ function ackLastMove(status = 'executed', reason) {
         // --- Wieder an ---
         assert.strictEqual(await app.media.toggleCamera(), true, 'die Kamera ging nicht wieder an');
         assert.ok(app.media.senderFor('video').track, 'nach dem Einschalten haengt keine Spur am Sender');
-        assert.deepStrictEqual(letzteSteuernachricht(), { v: 1, type: 'video_state', on: true },
+        assert.deepStrictEqual(letzteSteuernachricht(), { v: P.VERSION, type: 'video_state', on: true },
             'das Einschalten wird nicht gemeldet');
         assert.strictEqual(__el('local-video-placeholder').style.display, 'none',
             'der Platzhalter bleibt ueber dem laufenden Bild stehen');
@@ -1415,11 +1470,11 @@ function ackLastMove(status = 'executed', reason) {
         // Weg 1: die Protokollnachricht. Sie laeuft durch dieselbe Pruefung
         // wie jede andere Steuernachricht.
         await callAlsZuschauer();
-        app.control.handleMessage(JSON.stringify({ v: 1, type: 'video_state', on: false }));
+        app.control.handleMessage(JSON.stringify({ v: P.VERSION, type: 'video_state', on: false }));
         assert.strictEqual(__el('remote-video').style.display, 'none', 'das Bild steht noch');
         assert.strictEqual(__el('remote-video-placeholder').style.display, 'flex',
             'der Platzhalter der Gegenseite fehlt');
-        app.control.handleMessage(JSON.stringify({ v: 1, type: 'video_state', on: true }));
+        app.control.handleMessage(JSON.stringify({ v: P.VERSION, type: 'video_state', on: true }));
         assert.strictEqual(__el('remote-video').style.display, 'block', 'das Bild kommt nicht zurueck');
         assert.strictEqual(__el('remote-video-placeholder').style.display, 'none',
             'der Platzhalter bleibt ueber dem Bild stehen');
@@ -1487,10 +1542,21 @@ function ackLastMove(status = 'executed', reason) {
         assert.strictEqual(__el('control-lock-bar').style.display, 'none',
             'der Zuschauer sieht den Sperrschalter des Guides');
 
+        app.control.applyRole('peer');
+        assert.ok(ansicht.classList.contains('role-peer'), 'die Rolle "peer" steht nicht an der Ansicht');
+        assert.ok(!ansicht.classList.contains('role-viewer') && !ansicht.classList.contains('role-guide'),
+            'im Anruf ohne Fuehrung steht noch eine Fuehrungsrolle daneben');
+        assert.strictEqual(__el('control-lock-bar').style.display, 'none',
+            'im Anruf ohne Fuehrung gibt es einen Sperrschalter');
+        assert.strictEqual(__el('btn-forward').disabled, true,
+            'im Anruf ohne Fuehrung laesst sich steuern - dort gibt es nichts zu steuern');
+
         app.control.applyRole(null);
-        assert.ok(!ansicht.classList.contains('role-guide') && !ansicht.classList.contains('role-viewer'),
+        assert.ok(!ansicht.classList.contains('role-guide')
+            && !ansicht.classList.contains('role-viewer')
+            && !ansicht.classList.contains('role-peer'),
             'ohne Rolle bleibt eine Rollenklasse stehen');
-        ok('die Rollenklasse schaltet die beiden Oberflaechen um');
+        ok('die Rollenklasse schaltet die drei Oberflaechen um');
 
         // Die Aufteilung selbst steht in der Stilvorlage. Geprueft wird, dass
         // sie da ist: Ohne diese Regeln bekaeme der Guide wieder einen
@@ -1508,7 +1574,19 @@ function ackLastMove(status = 'executed', reason) {
             'das Steuerkreuz ist nicht auf den Zuschauer beschraenkt');
         assert.ok(/#call-view:not\(\.role-guide\) #control-lock-bar/.test(ohneLeerzeichen),
             'der Sperrschalter ist nicht auf den Guide beschraenkt');
-        ok('die Stilvorlage trennt Buehne, Steuerkreuz und Sperrschalter nach Rolle');
+
+        // Der Zuschauer sendet nichts - also hat er auch nichts, womit man
+        // sendet: keine Selbstansicht, keine Medienknoepfe, keine
+        // Geraeteauswahl. Dasselbe gilt, SOLANGE DIE ROLLE NOCH NICHT DA IST:
+        // Sie kommt beim Anrufer erst mit der Antwort auf das Offer, und die
+        // Knoepfe erst zu zeigen und gleich wieder wegzunehmen waere das
+        // Flackern, das jeder als Fehler liest.
+        ['#local-video', '#switch-mic-btn', '#switch-cam-btn', '#call-devices-btn'].forEach(teil => {
+            assert.ok(ohneLeerzeichen.includes(
+                '#call-view:not(.role-guide):not(.role-peer) ' + teil),
+                'beim Zuschauer bleibt "' + teil + '" stehen');
+        });
+        ok('die Stilvorlage trennt Buehne, Steuerung, Sperrschalter und Medienknoepfe nach Rolle');
 
         // Ein Markup, nicht zwei: Jede ID gibt es genau einmal. Zwei Vorlagen
         // haetten doppelte IDs bedeutet - genau das ist dieses Projekt gerade
@@ -1519,7 +1597,8 @@ function ackLastMove(status = 'executed', reason) {
         const doppelt = ids.filter((id, i) => ids.indexOf(id) !== i);
         assert.deepStrictEqual(doppelt, [], 'diese IDs stehen mehrfach im Markup: ' + doppelt.join(', '));
         ['call-view', 'remote-video', 'local-video', 'local-video-placeholder',
-         'direction-indicator', 'control-lock-bar', 'control-pad', 'connection-status'
+         'direction-indicator', 'control-lock-bar', 'control-pad', 'connection-status',
+         'btn-look-up', 'btn-look-down', 'chat-unread'
         ].forEach(id => {
             assert.ok(ids.includes(id), 'die ID "' + id + '" fehlt in der Call-Ansicht');
         });
@@ -1627,6 +1706,151 @@ function ackLastMove(status = 'executed', reason) {
         assert.strictEqual(global.__alerts[global.__alerts.length - 1],
             'Der Zugriff auf die Kamera wurde abgelehnt.', 'die Meldung fehlt');
         ok('der Neuaufbau wartet, bis die Meldung gelesen werden konnte');
+    }
+
+    console.error('\n35) Das Bild der Gegenseite kommt an, auch ohne msid');
+    {
+        // HIER LAG DIE SCHWARZE FLAECHE. Der Guide legt seine Spuren mit
+        // replaceTrack an die bereits ausgehandelten Sender - und replaceTrack
+        // ordnet dem Sender KEINEN MediaStream zu. Im SDP fehlt dann die
+        // msid, und beim Zuschauer kommt das ontrack-Ereignis OHNE Strom an.
+        // Die alte Stelle wertete nur event.streams[0] aus, setzte srcObject
+        // also nie - Bild schwarz, und still war es auch, denn am selben
+        // Element haengt der Ton.
+        await callAlsZuschauer();
+        const video = __el('remote-video');
+        video.srcObject = null;
+
+        const bildspur = { kind: 'video', muted: false, onmute: null, onunmute: null, onended: null };
+        const tonspur  = { kind: 'audio', muted: false };
+        app.refs.localPeerConnection.ontrack({ track: tonspur,  streams: [] });
+        app.refs.localPeerConnection.ontrack({ track: bildspur, streams: [] });
+
+        assert.ok(video.srcObject, 'ohne Strom im Ereignis bleibt das Videoelement leer');
+        const arten = video.srcObject.getTracks().map(t => t.kind).sort();
+        assert.deepStrictEqual(arten, ['audio', 'video'],
+            'im selbst gefuehrten Strom fehlen Spuren: ' + arten.join(','));
+        assert.strictEqual(__el('remote-video').style.display, 'block',
+            'das eingetroffene Bild wird nicht angezeigt');
+        ok('ohne Strom im Ereignis wird selbst einer gefuehrt');
+
+        // Bringt das Ereignis einen Strom mit, wird der genommen - so wie
+        // bisher. Der Notbehelf ist die zweite Ebene, nicht die erste.
+        const eigener = makeStream([{ kind: 'video' }]);
+        app.refs.localPeerConnection.ontrack({ track: eigener.getTracks()[0], streams: [eigener] });
+        assert.strictEqual(video.srcObject, eigener, 'der mitgelieferte Strom wird nicht benutzt');
+        ok('ein mitgelieferter Strom hat weiterhin Vorrang');
+
+        // Und er ueberlebt den Call nicht: Sonst haengt im naechsten eine
+        // tote Spur im Videoelement.
+        app.rtc.endCall(false);
+        assert.strictEqual(app.refs.remoteStream, null, 'der Strom der Gegenseite bleibt liegen');
+        ok('der Strom der Gegenseite wird beim Auflegen abgeraeumt');
+
+        // Die Sendeseite meldet ihren Strom jetzt ausdruecklich an, damit die
+        // msid im SDP steht - ein fremder Client (die spaetere App) soll auf
+        // den Notbehelf nicht angewiesen sein.
+        await callAlsGuide();
+        const sender = app.media.senderFor('video');
+        assert.ok(sender.__streams, 'der Sender kennt seinen Strom nicht (setStreams fehlt)');
+        assert.ok(sender.__streams.getVideoTracks().length > 0,
+            'der angemeldete Strom traegt keine Videospur');
+        ok('die Sendeseite meldet ihren Strom am Sender an');
+        app.rtc.endCall(false);
+    }
+
+    console.error('\n36) Ungelesene Chatnachrichten sind am Knopf zu sehen');
+    {
+        // Das Chatblatt liegt im Call zugeklappt ueber dem Bild. Kam eine
+        // Nachricht an, waehrend es zu war, geschah sichtbar nichts.
+        await callAlsZuschauer();
+        const badge = __el('chat-unread');
+        const knopf = __el('chat-toggle-btn');
+        __el('chat-overlay').hidden = true;
+        app.chat.clearUnread();
+
+        assert.strictEqual(badge.hidden, true, 'der Zaehler steht ohne Nachricht schon da');
+
+        app.chat.handleMessage(JSON.stringify({ v: P.VERSION, type: 'chat', text: 'Hallo' }));
+        app.chat.handleMessage(JSON.stringify({ v: P.VERSION, type: 'chat', text: 'Noch was' }));
+        assert.strictEqual(badge.hidden, false, 'der Zaehler bleibt unsichtbar');
+        assert.strictEqual(badge.textContent, '2', 'der Zaehler steht auf ' + badge.textContent);
+        assert.ok(knopf.classList.contains('has-unread'), 'der Knopf ist nicht hervorgehoben');
+        ok('eine Nachricht bei geschlossenem Chat wird am Knopf angezeigt');
+
+        // Offener Chat: Es liest ja jemand mit.
+        __el('chat-overlay').hidden = false;
+        app.chat.clearUnread();
+        app.chat.handleMessage(JSON.stringify({ v: P.VERSION, type: 'chat', text: 'Gelesen' }));
+        assert.strictEqual(badge.hidden, true, 'bei offenem Chat wird trotzdem gezaehlt');
+        assert.ok(!knopf.classList.contains('has-unread'), 'der Knopf bleibt hervorgehoben');
+        ok('bei offenem Chat wird nichts gezaehlt');
+
+        // Eine eigene Nachricht ist keine ungelesene.
+        __el('chat-overlay').hidden = true;
+        app.chat.send('Von mir');
+        assert.strictEqual(badge.hidden, true, 'die eigene Nachricht wird als ungelesen gezaehlt');
+        ok('die eigene Nachricht zaehlt nicht mit');
+
+        // Und beim Auflegen ist Schluss - nichts laeuft in den naechsten Call.
+        app.chat.handleMessage(JSON.stringify({ v: P.VERSION, type: 'chat', text: 'Letzte' }));
+        assert.strictEqual(badge.hidden, false, 'nichts gezaehlt');
+        app.rtc.endCall(false);
+        assert.strictEqual(app.chat.unread, 0, 'der Zaehler laeuft in den naechsten Call');
+        assert.strictEqual(badge.hidden, true, 'der Zaehler bleibt nach dem Auflegen stehen');
+        ok('das Auflegen leert den Zaehler');
+    }
+
+    console.error('\n37) Blickrichtung hoch und runter');
+    {
+        // look_up.mp3 und look_down.mp3 lagen ungenutzt im Projekt. Blick und
+        // Bewegung laufen als dieselbe Nachricht "move": Fuer den Guide ist
+        // beides eine Anweisung, ein Ton, ein Pfeil - und Sequenznummer,
+        // Bestaetigung und Sperre gelten unveraendert.
+        assert.ok(P.DIRECTIONS.includes('look_up') && P.DIRECTIONS.includes('look_down'),
+            'die Blickrichtungen stehen nicht im Protokoll');
+        assert.strictEqual(P.VERSION, 2, 'die Protokollversion wurde nicht erhoeht');
+
+        // Beim Zuschauer: Es gibt eine Taste, und sie schickt die Richtung.
+        fakeActiveCall({ role: 'viewer' });
+        assert.ok(app.control.ARROW_BUTTON_IDS.includes('btn-look-up'),
+            'die Taste "Blick hoch" ist nicht gebunden');
+        assert.strictEqual(__el('btn-look-up').disabled, false,
+            'die Blicktaste ist beim Zuschauer gesperrt');
+        assert.strictEqual(app.control.sendMove('look_up'), true, 'look_up ging nicht raus');
+        const raus = JSON.parse(app.refs.controlChannel.sent.pop());
+        assert.strictEqual(raus.type, 'move', 'die Blickanweisung ist keine move-Nachricht');
+        assert.strictEqual(raus.dir, 'look_up', 'die Richtung fehlt');
+        assert.strictEqual(raus.v, P.VERSION, 'ohne Protokollversion');
+        ok('der Zuschauer schickt die Blickrichtung als move');
+
+        // Beim Guide: Ton und Anzeige. Die Anzeige unterscheidet sich sichtbar
+        // von "vorwaerts" - zwei gleiche Pfeile mit verschiedener Bedeutung
+        // waeren auf einem Display, auf das jemand im Gehen kurz schaut, der
+        // schlechteste Fall.
+        fakeActiveCall({ initiator: false, role: 'guide' });
+        app.state.connectedSince = Date.now() - 10000;
+        app.sound.plays.length = 0;
+        receiveControl({ v: P.VERSION, type: 'move', dir: 'look_down', seq: 1 });
+        assert.ok(app.sound.plays.includes('look_down_sound'),
+            'das Tonsignal fuer "Blick runter" wurde nicht abgespielt');
+        assert.strictEqual(__el('direction-indicator-label').textContent, 'BLICK RUNTER',
+            'die Richtungsanzeige nennt die Blickrichtung nicht');
+        assert.notStrictEqual(__el('direction-indicator-arrow').textContent,
+            app.control.DIRECTIONS.backward.arrow,
+            'Blick runter und Rueckwaerts zeigen denselben Pfeil');
+        const bestaetigung = JSON.parse(app.refs.controlChannel.sent.pop());
+        assert.strictEqual(bestaetigung.status, 'executed', 'die Blickanweisung wurde nicht bestaetigt');
+        ok('der Guide hoert und sieht die Blickrichtung und bestaetigt sie');
+
+        // Jede Richtung im Protokoll hat auch eine Anzeige - sonst wuerde
+        // handleMove() beim Zugriff auf DIRECTIONS[msg.dir] werfen.
+        P.DIRECTIONS.forEach(dir => {
+            assert.ok(app.control.DIRECTIONS[dir], 'zur Richtung "' + dir + '" fehlt die Anzeige');
+            assert.ok(app.control.DIRECTIONS[dir].sound, 'zur Richtung "' + dir + '" fehlt der Ton');
+        });
+        ok('zu jeder Richtung des Protokolls gibt es Ton und Anzeige');
+        app.rtc.endCall(false);
     }
 
     console.error('\n' + passed + ' Pruefungen bestanden.');

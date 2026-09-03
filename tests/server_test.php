@@ -245,22 +245,40 @@ foreach ([[2, 5, 'Guide ruft Trial an'],
 }
 ok('wer keine Standorte anbieten darf, wird durch einen Anruf auch kein Guide');
 
-// Anrufbar ist, wer location.offer hat - das ist dasselbe Kriterium, ueber das
-// ein Standort auf die Karte kommt. Der Admin darf anlegen, also muss sein
-// Standort auch anwaehlbar sein; eine Rollenabfrage haette ihn ausgeschlossen.
+// EIN ANRUF MIT EINEM ADMIN IST KEINE FUEHRUNG. Er hat einen anderen Zweck -
+// Rueckfrage, Unterstuetzung, Moderation -, dort gibt es nichts zu steuern und
+// beide sollen einander sehen und hoeren. Deshalb bekommen beide 'peer'.
+foreach ([[4, 1, 'Nutzer ruft Admin an'],
+          [1, 4, 'Admin ruft Nutzer an'],
+          [2, 1, 'Guide ruft Admin an'],
+          [1, 2, 'Admin ruft Guide an'],
+          [1, 5, 'Admin ruft Trial an']] as [$caller, $callee, $was]) {
+    $r = WebRTCController::callRoles($caller, $callee);
+    check($r !== null, $was . ': kommt zustande');
+    check($r['caller'] === 'peer' && $r['callee'] === 'peer', $was . ': beide sind peer');
+    check(WebRTCController::callAllowed($caller, $callee) === true, $was . ': erlaubt');
+}
+ok('ein Anruf mit einem Admin ist ein Gespraech unter Gleichen, keine Fuehrung');
+
+// Der Admin darf jeden anrufen - auch jemanden, der keine Standorte anbietet.
+// Genau das verspricht der Knopf "Anrufen" in der Benutzerliste, und genau
+// daran scheiterte er bisher: Der Server wies das Offer ab.
+check(WebRTCController::callAllowed(1, 4) === true, 'Admin ruft einen Nutzer an');
+check(WebRTCController::callAllowed(4, 4) === false, 'Nutzer ruft Nutzer an - weiterhin nicht');
+ok('der Admin erreicht jeden, alle anderen nur, wer Standorte anbietet');
+
+// Der Preis dieser Regel: Der Admin fuehrt keine Fuehrungen mehr. Sein
+// Standort ist weiter anrufbar, aber ohne Steuerkreuz auf der Gegenseite.
 check(Permission::has(Role::ADMIN, Permission::LOCATION_OFFER) === true,
     'der Admin darf Standorte anbieten');
-check(WebRTCController::callAllowed(2, 1) === true, 'ein Admin-Standort ist anrufbar');
-check(WebRTCController::callAllowed(1, 2) === true, 'Admin ruft Guide an');
 $r = WebRTCController::callRoles(2, 1);
-check($r['callee'] === 'guide' && $r['caller'] === 'viewer',
-    'der angerufene Admin fuehrt, der anrufende Guide schaut zu');
-ok('anrufbar ist, wer Standorte anbieten darf - Guide wie Admin');
+check($r['callee'] !== 'guide', 'der angerufene Admin fuehrt trotzdem');
+ok('der Admin bleibt anrufbar, fuehrt aber nicht');
 
-// Und zwar genau die: Wer das Recht nicht hat, ist auch kein Anrufziel. Die
-// Bedingung steht damit an einer Stelle - in der Rechtetabelle.
-foreach ([[Role::GUIDE, 2, true], [Role::ADMIN, 1, true],
-          [Role::USER, 4, false], [Role::TRIAL, 5, false]] as [$rolle, $konto, $erwartet]) {
+// Fuer alle ohne Admin gilt weiter: Anrufbar ist, wer location.offer hat -
+// dasselbe Kriterium, ueber das ein Standort auf die Karte kommt. Die
+// Bedingung steht damit an einer Stelle, in der Rechtetabelle.
+foreach ([[Role::GUIDE, 2, true], [Role::USER, 4, false], [Role::TRIAL, 5, false]] as [$rolle, $konto, $erwartet]) {
     check(Permission::has($rolle, Permission::LOCATION_OFFER) === $erwartet,
         'location.offer fuer Rolle ' . var_export($rolle, true));
     check(WebRTCController::callAllowed(5, $konto) === $erwartet,
@@ -275,15 +293,29 @@ check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'zwei Guides');
 ok('bei zwei Guides ist der Angerufene der Guide');
 
 // Beide Seiten fragen unabhaengig - und muessen zusammenpassen.
-foreach ([[5, 2], [4, 2], [2, 3], [1, 2], [2, 1]] as [$caller, $callee]) {
+foreach ([[5, 2], [4, 2], [2, 3]] as [$caller, $callee]) {
     $a = WebRTCController::roleForCall($caller, $callee, $caller);
     $b = WebRTCController::roleForCall($caller, $callee, $callee);
-    check($a !== $b, "Rollen muessen sich unterscheiden ($caller -> $callee)");
-    check(in_array($a, ['guide', 'viewer'], true), 'gueltige Rolle fuer den Anrufer');
-    check(in_array($b, ['guide', 'viewer'], true), 'gueltige Rolle fuer den Angerufenen');
+    check($a === 'viewer' && $b === 'guide', "Fuehrung: viewer ruft guide ($caller -> $callee)");
+}
+// Im Anruf ohne Fuehrung sind beide gleich - das ist der Sinn der Rolle.
+foreach ([[1, 2], [2, 1], [1, 4]] as [$caller, $callee]) {
+    check(WebRTCController::roleForCall($caller, $callee, $caller) === 'peer', 'Anrufer ist peer');
+    check(WebRTCController::roleForCall($caller, $callee, $callee) === 'peer', 'Angerufener ist peer');
 }
 check(WebRTCController::roleForCall(5, 2, 4) === null, 'Unbeteiligter bekommt keine Rolle');
 ok('beide Seiten bekommen zueinander passende Rollen, Dritte gar keine');
+
+// Die Rollennamen sind eine Zeichenkette, die zwei Sprachen teilen. Weicht
+// eine davon ab, verwirft der Client die Rolle als unbekannt - und dann
+// steuert in diesem Call niemand, ohne dass irgendwo ein Fehler stuende.
+$protokollJs = file_get_contents(__DIR__ . '/../assets/js/protocol.js');
+foreach ([WebRTCController::ROLE_VIEWER, WebRTCController::ROLE_GUIDE,
+          WebRTCController::ROLE_PEER] as $rolle) {
+    check(strpos($protokollJs, "'" . $rolle . "'") !== false,
+        'die Rolle "' . $rolle . '" steht auch in assets/js/protocol.js');
+}
+ok('Server und Client meinen dieselben Rollennamen');
 
 // Gestempelt wird ausschliesslich am Offer.
 $messages = [

@@ -119,6 +119,10 @@ function makeStream(tracks) {
 }
 global.makeTrack  = makeTrack;
 global.makeStream = makeStream;
+
+// Der Browser-Konstruktor. rtc.attachRemoteTrack() fuehrt damit einen
+// eigenen Strom, wenn das ontrack-Ereignis keinen mitbringt.
+global.MediaStream = function (tracks) { return makeStream(tracks ? tracks.slice() : []); };
 /** Die Geraetekennung aus einer Bedingung wie {deviceId:{exact:'cam-2'}}. */
 function wunschGeraet(bedingung) {
     if (!bedingung || bedingung === true) return null;
@@ -164,6 +168,9 @@ global.navigator.mediaDevices = {
 global.alert = (msg) => { global.__alerts.push(msg); };
 global.__alerts = [];
 global.__signals = [];
+// Rolle, die der Server auf ein Offer zurueckgibt: 'viewer', 'peer' oder null
+// (keine Rolle im Feld). Die Tests setzen sie je Fall.
+global.__offerRole = null;
 global.console.log = () => {};
 global.console.warn = () => {};
 
@@ -211,6 +218,11 @@ class FakePeerConnection {
                 if (t && t.kind !== sender.__kind) throw new TypeError('Kind mismatch');
                 sender.track = t;
             },
+            // Der Browser merkt sich am Sender, zu welchem Strom seine Spur
+            // gehoert - daraus entsteht die msid im SDP. replaceTrack allein
+            // setzt das NICHT; dafuer gibt es setStreams.
+            setStreams(...streams) { sender.__streams = streams[0] || null; },
+            __streams: null,
             __kind: track.kind
         };
         this.senders.push(sender);
@@ -224,6 +236,8 @@ class FakePeerConnection {
                 if (t && t.kind !== sender.__kind) throw new TypeError('Kind mismatch');
                 sender.track = t;
             },
+            setStreams(...streams) { sender.__streams = streams[0] || null; },
+            __streams: null,
             __kind: kind
         };
         const tr = { sender, receiver: { track: { kind } }, direction: (init && init.direction) || 'sendrecv', kind };
@@ -246,6 +260,8 @@ class FakePeerConnection {
                     if (t && t.kind !== sender.__kind) throw new TypeError('Kind mismatch');
                     sender.track = t;
                 },
+                setStreams(...streams) { sender.__streams = streams[0] || null; },
+                __streams: null,
                 __kind: kind
             };
             this.senders.push(sender);
@@ -279,8 +295,18 @@ global.makeChannel = makeChannel;
 global.fetch = async (url, opts) => {
     if (String(url).includes('getSignal')) {
         if (opts && opts.method === 'POST') {
-            global.__signals.push(JSON.parse(opts.body));
-            return { ok: true, text: async () => '{"status":"ok"}', json: async () => ({ status: 'ok' }) };
+            const msg = JSON.parse(opts.body);
+            global.__signals.push(msg);
+            // Der Server haengt die Rolle an die Antwort auf das Offer
+            // (WebRTCController::roleForCall). Welche das ist, entscheidet
+            // in den Tests __offerRole - davon haengt ab, ob der Anrufer
+            // ueberhaupt Medien holt.
+            const antwort = { status: 'ok' };
+            if (msg && msg.type === 'offer' && global.__offerRole) {
+                antwort.role = global.__offerRole;
+            }
+            const roh = JSON.stringify(antwort);
+            return { ok: true, text: async () => roh, json: async () => antwort };
         }
         return { ok: true, json: async () => [] };
     }

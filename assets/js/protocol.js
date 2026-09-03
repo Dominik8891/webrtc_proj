@@ -1,5 +1,5 @@
 /**
- * Steuerprotokoll (Version 1) - Definition und Prüfung.
+ * Steuerprotokoll (Version 2) - Definition und Prüfung.
  *
  * Diese Datei ist die einzige Stelle, an der festgelegt ist, welche
  * Nachrichten es gibt, welche Felder sie tragen, über welchen DataChannel sie
@@ -21,7 +21,12 @@
 (function () {
     'use strict';
 
-    var VERSION = 1;
+    // Version 2: Die Blickrichtungen "look_up" und "look_down" sind als
+    // Bewegungsrichtungen dazugekommen, und neben "viewer" und "guide" gibt es
+    // die Rolle "peer" fuer einen Anruf, in dem niemand fuehrt. Ein Client der
+    // Version 1 kennt beides nicht und wuerde eine Blickanweisung als
+    // ungueltig verwerfen - deshalb die neue Nummer.
+    var VERSION = 2;
 
     var CHANNEL_CHAT    = 'chat';
     var CHANNEL_CONTROL = 'control';
@@ -29,7 +34,19 @@
     var ROLE_GUIDE  = 'guide';   // Person vor Ort, wird gesteuert
     var ROLE_VIEWER = 'viewer';  // Zuschauer, steuert
 
-    var DIRECTIONS = ['forward', 'backward', 'left', 'right'];
+    // Anruf ohne Fuehrung: ein Gespraech unter Gleichen, wie es zwischen der
+    // Verwaltung und einem Nutzer stattfindet. Beide senden Ton und Bild,
+    // niemand steuert. Die Rolle steht ausdruecklich da, statt sie als
+    // "keine Rolle" (null) auszudruecken: null heisst "noch nicht bekannt",
+    // und solange nichts bekannt ist, muss die Oberflaeche vom Vorsichtigeren
+    // ausgehen und darf nichts senden.
+    var ROLE_PEER   = 'peer';
+
+    // Bewegung und Blick. Beide laufen als "move": Es ist derselbe Vorgang -
+    // der Zuschauer weist an, der Guide fuehrt aus und bestaetigt. Ein
+    // eigener Nachrichtentyp haette Sequenznummer, Bestaetigung und Sperre
+    // ein zweites Mal gebraucht.
+    var DIRECTIONS = ['forward', 'backward', 'left', 'right', 'look_up', 'look_down'];
 
     // Gründe, aus denen ein Bewegungsbefehl abgelehnt wird. Sie gehen als
     // "reason" in der Bestätigung zurück, damit der Zuschauer weiß, warum
@@ -66,7 +83,7 @@
             channel: CHANNEL_CONTROL,
             from: 'any',
             fields: {
-                role: { type: 'enum', values: [ROLE_GUIDE, ROLE_VIEWER], required: true }
+                role: { type: 'enum', values: [ROLE_GUIDE, ROLE_VIEWER, ROLE_PEER], required: true }
             }
         },
         move: {
@@ -181,6 +198,7 @@
         CHANNEL_CONTROL: CHANNEL_CONTROL,
         ROLE_GUIDE: ROLE_GUIDE,
         ROLE_VIEWER: ROLE_VIEWER,
+        ROLE_PEER: ROLE_PEER,
         DIRECTIONS: DIRECTIONS,
         REJECT_REASONS: REJECT_REASONS,
         MAX_FRAME_BYTES: MAX_FRAME_BYTES,
@@ -190,12 +208,20 @@
         /**
          * Rolle der Gegenseite. In einem Call gibt es genau zwei Teilnehmer,
          * also ist die Rolle des Partners durch die eigene festgelegt.
+         *
+         * In einem Anruf ohne Fuehrung sind beide "peer" - die Gegenseite
+         * eines peer ist wieder ein peer. Weil "peer" weder "viewer" noch
+         * "guide" ist, faellt in einem solchen Call jede richtungsgebundene
+         * Nachricht (move, ack, control_lock) von selbst durch die Pruefung in
+         * validate(). Es braucht dafuer keine zweite Abfrage.
+         *
          * @param {string|null} ownRole
-         * @returns {string|null} 'guide', 'viewer' oder null bei unbekannter Rolle
+         * @returns {string|null} 'guide', 'viewer', 'peer' oder null bei unbekannter Rolle
          */
         peerRole: function (ownRole) {
             if (ownRole === ROLE_GUIDE)  return ROLE_VIEWER;
             if (ownRole === ROLE_VIEWER) return ROLE_GUIDE;
+            if (ownRole === ROLE_PEER)   return ROLE_PEER;
             return null;
         },
 
