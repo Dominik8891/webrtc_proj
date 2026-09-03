@@ -116,6 +116,12 @@ window.webrtcApp.locationsTable = {
 
     /**
      * Baut den Call-Button einer Zeile. Nur ein erreichbarer Nutzer ist anrufbar.
+     *
+     * Der Knopf traegt AUCH die Standortkennung, nicht nur den Nutzer: Dieser
+     * Anruf geht von einem Standort aus, und daran haengt beim Server die
+     * Rollenvergabe - von einem Standort aus fuehrt der Angerufene
+     * (WebRTCController::callRoles).
+     *
      * @param {Object} item - Datensatz aus der API
      * @returns {string} HTML
      */
@@ -128,6 +134,7 @@ window.webrtcApp.locationsTable = {
             <button type="button"
                 class="btn btn-sm start-call-btn ${view.callable ? 'btn-primary' : 'btn-secondary'}"
                 data-userid="${this.esc(item.user_id)}"
+                data-locationid="${this.esc(item.id)}"
                 ${view.callable ? "" : "disabled aria-disabled='true'"}
             >Anrufen</button>
         `;
@@ -940,12 +947,15 @@ window.webrtcApp.locationsTable = {
         // Call-Button-Click
         $(options.tableSelector).on('click', '.start-call-btn', function() {
             const userId = $(this).data('userid');
+            // Der Standort geht mit: Dieser Anruf beginnt an einem Ort, also
+            // ist es eine Fuehrung. Siehe callButtonHtml().
+            const locationId = $(this).data('locationid');
             if(typeof window.webrtcApp?.rtc?.startCall === 'function') {
                 // startCall() setzt die Symbole selbst, sobald der Strom
                 // steht. Hier stand ein setTimeout(updateCallIcons(), 1000):
                 // Die Klammern riefen die Funktion sofort auf und uebergaben
                 // dem Zeitgeber deren Rueckgabewert - gewartet wurde nie.
-                window.webrtcApp.rtc.startCall(userId);
+                window.webrtcApp.rtc.startCall(userId, locationId);
             } else {
                 window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
             }

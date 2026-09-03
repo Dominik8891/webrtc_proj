@@ -13,6 +13,17 @@ class WebRTCHandler {
     private $type;
     private $sdp;
     private $candidate;
+
+    /**
+     * Standort, von dem der Anruf ausging - NULL bei einem Direktanruf.
+     *
+     * Nur bei einem 'offer' belegt. Der Angerufene holt sein Offer erst
+     * Sekunden spaeter ueber das Polling ab; ohne diese Spalte haette er die
+     * Angabe nicht mehr, und beide Seiten kaemen zu verschiedenen Rollen
+     * (siehe App\Controller\WebRTCController::callRoles).
+     */
+    private $location_id;
+
     private $createt_at;
 
     /**
@@ -38,6 +49,7 @@ class WebRTCHandler {
                     $this->type         = $result[0]['type'];
                     $this->sdp          = $result[0]['sdp'];
                     $this->candidate    = $result[0]['candidate'];
+                    $this->location_id  = $result[0]['location_id'] ?? null;
                     $this->createt_at   = $result[0]['createt_at'];
                 } else {
                     throw new \Exception("RTC Signal mit ID {$in_id} nicht gefunden.");
@@ -57,14 +69,15 @@ class WebRTCHandler {
      */
     public function create() {
         try {
-            $query = "INSERT INTO rtc_signal ( sender_id, receiver_id, type,  sdp,  candidate, created_at)
-                                    VALUES ( :sender,   :receiver,  :type, :sdp, :candidate,    NOW()  )";
+            $query = "INSERT INTO rtc_signal ( sender_id, receiver_id, type,  sdp,  candidate, location_id, created_at)
+                                    VALUES ( :sender,   :receiver,  :type, :sdp, :candidate, :location,      NOW()  )";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt ->bindParam(':sender', $this->sender_id);
             $stmt ->bindParam(':receiver', $this->receiver_id);
             $stmt ->bindParam(':type', $this->type);
             $stmt ->bindParam(':sdp', $this->sdp);
             $stmt ->bindParam(':candidate', $this->candidate);
+            $stmt ->bindParam(':location', $this->location_id, \PDO::PARAM_INT);
             $stmt ->execute();
             return true;
         } catch (\PDOException $e) {
@@ -203,4 +216,18 @@ class WebRTCHandler {
     public function setType($in_type)           { $this->type = $in_type; }
     public function setSdp($in_sdp)             { $this->sdp = $in_sdp; }
     public function setCandidate($in_candidate) { $this->candidate = $in_candidate; }
+
+    /**
+     * Setzt den Standort, von dem der Anruf ausging.
+     *
+     * Alles ausser einer positiven Ganzzahl wird zu NULL - "kein Standort"
+     * ist der Normalfall und darf nicht als 0 in der Spalte landen.
+     *
+     * @param mixed $in_location_id
+     */
+    public function setLocationId($in_location_id)
+    {
+        $id = (int)$in_location_id;
+        $this->location_id = ($id > 0) ? $id : null;
+    }
 }

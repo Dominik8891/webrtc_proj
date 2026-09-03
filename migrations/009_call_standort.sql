@@ -1,0 +1,63 @@
+-- ===========================================================================
+-- Migration 009: Der Anruf merkt sich, von welchem Standort er ausging
+-- ===========================================================================
+--
+-- Ergaenzt die Tabelle `rtc_signal` um die Spalte `location_id`.
+--
+-- WOZU
+--   Die Rolle in einem Call vergibt der Server
+--   (App\Controller\WebRTCController::callRoles), und sie haengt seit dieser
+--   Aenderung davon ab, WOHER der Anruf kam:
+--
+--     Von einem Standort aus  Der Angerufene fuehrt. Das gilt fuer jedes
+--                             Konto, dem der Standort gehoert - auch fuer
+--                             einen Admin. Wer einen Standort anbietet, wird
+--                             dort auch gesteuert.
+--     Ohne Standort           Ein Direktanruf, wie ihn die Benutzerverwaltung
+--                             ausloest. Ist ein Admin beteiligt, ist das
+--                             keine Fuehrung: Beide bekommen die Rolle
+--                             "peer", beide senden Ton und Bild, niemand
+--                             steuert.
+--
+--   BEIDE SEITEN MUESSEN ZUR SELBEN ANTWORT KOMMEN. Der Anrufer schickt den
+--   Standort mit seinem Offer; der Angerufene holt sein Offer Sekunden
+--   spaeter ueber das Polling ab und hat diese Angabe dann nicht mehr - es
+--   sei denn, sie steht an der Zeile. Genau dafuer ist die Spalte da.
+--
+--   Geschrieben wird sie von App\Model\WebRTCHandler::create(), gelesen von
+--   WebRTCController::stampCallRoles(). Vertraut wird ihr nicht: Vor jeder
+--   Rollenvergabe wird geprueft, dass es den Standort gibt, dass er dem
+--   Angerufenen gehoert und dass er nicht gesperrt ist. Ein Anrufer, der eine
+--   fremde Kennung mitschickt, kommt damit nicht weiter.
+--
+-- WARUM OHNE FREMDSCHLUESSEL
+--   Eine Zeile in `rtc_signal` lebt 15 Sekunden und wird danach geloescht -
+--   sie ist ein Zettel, kein Datenbestand. Ein Fremdschluessel auf
+--   `location` wuerde diesen Zettel an einen dauerhaften Datensatz binden und
+--   bei jedem Loeschen eines Standorts mitreden wollen. Denselben Weg geht
+--   `location`.`blocked_by` (Migration 006) aus demselben Grund. Geprueft
+--   wird beim Lesen, nicht beim Schreiben.
+--
+-- EIGENSCHAFTEN
+--   * Idempotent: nutzt "IF NOT EXISTS" in ALTER TABLE (MariaDB).
+--     Unter MySQL 8 laeuft diese Datei NICHT - dort die ALTER-Zeile ohne
+--     "IF NOT EXISTS" ausfuehren und einen bereits vorhandenen Spaltennamen
+--     als erledigt betrachten.
+--   * Kein Datenverlust: es kommt nur eine Spalte hinzu. Bestehende Zeilen
+--     bekommen NULL - was "ohne Standort" heisst und damit genau dem
+--     entspricht, was ein Signal von vor dieser Aenderung war.
+--   * Kein Index: Ueber diese Spalte wird nie gefiltert oder verknuepft, sie
+--     wird ausschliesslich mit der ohnehin gelesenen Zeile mitgeholt.
+--
+-- AUSFUEHREN
+--   mariadb -u <user> -p <datenbank> < migrations/009_call_standort.sql
+-- ===========================================================================
+
+-- Standort, von dem der Anruf ausging. NULL = Direktanruf ohne Standort.
+-- Nur an Zeilen vom Typ 'offer' belegt; alle uebrigen Signaltypen gehoeren zu
+-- einem Call, dessen Rollen laengst feststehen.
+ALTER TABLE `rtc_signal`
+  ADD COLUMN IF NOT EXISTS `location_id` int(11) DEFAULT NULL;
+
+-- Ergebnis zur Kontrolle
+SELECT COUNT(*) AS signale, SUM(location_id IS NOT NULL) AS mit_standort FROM `rtc_signal`;

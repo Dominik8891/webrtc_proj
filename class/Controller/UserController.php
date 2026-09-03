@@ -283,6 +283,12 @@ class UserController
      */
     private function createCallBtn($btn_id, $status = null)
     {
+        // KEINE STANDORTKENNUNG. Diese Liste ruft eine Person an, nicht einen
+        // Ort - der Server erkennt daran den Direktanruf und vergibt bei
+        // Beteiligung eines Admins keine Fuehrungsrollen, sondern zweimal
+        // "peer" (WebRTCController::callRoles). Die Knoepfe der Standortliste
+        // und der Karte tragen dagegen ein data-locationid.
+
         // Der Akzent statt Gruen: Gruen heisst auf der Karte "Guide gerade
         // verfuegbar". Derselbe Farbton fuer einen Knopf, den es in jeder
         // Zeile gibt, wuerde die Bedeutung dort entwerten.

@@ -13,8 +13,9 @@ Die maschinenlesbare Fassung derselben Tabelle steht in
 
 * **Blickrichtung.** `move` kennt zusätzlich `look_up` und `look_down`. Der
   Guide dreht dabei nur den Kopf beziehungsweise das Gerät, er geht nicht.
-* **Rolle `peer`.** Ein Anruf, in dem niemand führt (Verwaltung ↔ Nutzer). Beide
-  Seiten senden Ton und Bild, niemand steuert.
+* **Rolle `peer`.** Ein Direktanruf, in dem niemand führt (Verwaltung ↔
+  Nutzer). Beide Seiten senden Ton und Bild, niemand steuert. Ein Anruf, der
+  von einem Standort ausgeht, bleibt auch mit einem Admin eine Führung.
 * **Der Zuschauer sendet keine Medien mehr.** Das ist keine Protokolländerung im
   engeren Sinn — auf den DataChannels ändert sich dadurch nichts —, aber es
   gehört zum Bild und steht deshalb in Abschnitt 3.
@@ -34,7 +35,7 @@ Zwei Personen, ein Call, feste Rollen — der Regelfall ist die Führung:
 |---|---|---|
 | `viewer` | Zuschauer, sitzt zu Hause | sendet Bewegungs- und Blickbefehle, sendet keine Medien |
 | `guide` | Person vor Ort, trägt das Gerät | führt sie aus, bestätigt, kann sperren |
-| `peer` | Anruf ohne Führung (Verwaltung ↔ Nutzer) | nichts davon — beide reden nur miteinander |
+| `peer` | Direktanruf ohne Führung (Verwaltung ↔ Nutzer) | nichts davon — beide reden nur miteinander |
 
 Zwei getrennte DataChannels:
 
@@ -111,32 +112,70 @@ selbst eine Rolle zuzuweisen.
 |---|---|---|---|
 | `viewer` | Zuschauer, sitzt zu Hause | steuert | **nichts** |
 | `guide` | Person vor Ort | wird gesteuert | Ton und Bild |
-| `peer` | Anruf ohne Führung (Verwaltung ↔ Nutzer) | nichts davon | Ton und Bild |
+| `peer` | Direktanruf ohne Führung (Verwaltung ↔ Nutzer) | nichts davon | Ton und Bild |
 
-Vergeben wird sie in
+Entscheidend ist, **woher der Anruf kam**. Eine Führung beginnt an einem
+Standort: Der Zuschauer sucht sich auf der Karte oder in der Liste einen Ort aus
+und ruft den an, der dort ist. Ein Direktanruf aus der Benutzerverwaltung meint
+etwas anderes — dort steht kein Ort, sondern eine Person.
+
+Der Anrufer schickt deshalb mit seinem `offer` die Standortkennung mit:
+
+```json
+{ "type": "offer", "sdp": "…", "target": 7, "location": 91 }
+```
+
+Das Feld `location` ist optional. Fehlt es, ist es ein Direktanruf. Es ist eine
+**Behauptung des Clients** und wird als solche behandelt (siehe unten).
+
+Vergeben wird die Rolle in
 [`WebRTCController::callRoles()`](class/Controller/WebRTCController.php) nach
-zwei Regeln, in dieser Reihenfolge:
+drei Regeln, in dieser Reihenfolge:
 
-1. Ist **einer der beiden ein Admin**, ist es keine Führung: Beide bekommen
-   `peer`. Ein Anruf mit der Verwaltung hat einen anderen Zweck — Rückfrage,
-   Unterstützung, Moderation. Dort gibt es nichts zu steuern, und beide sollen
-   einander sehen und hören. Der Admin darf in diesem Fall auch jemanden
-   anrufen, der keine Standorte anbietet.
-2. Sonst muss der **Angerufene Standorte anbieten dürfen** (Recht
-   `location.offer`). Dann ist er der Guide, der Anrufer der Zuschauer. Das ist
-   der Regelfall der Anwendung: Der Zuschauer sucht einen Standort und ruft den
-   Guide an, der dort vor Ort ist.
+1. Geht der Anruf **von einem Standort des Angerufenen** aus, führt der
+   Angerufene — ohne Ausnahme, auch als Admin. Wer einen Standort anbietet,
+   lässt sich dort steuern; dafür steht das Angebot auf der Karte.
+2. Sonst: Ist **einer der beiden ein Admin**, ist es keine Führung. Beide
+   bekommen `peer`. Ein Direktanruf mit der Verwaltung hat einen anderen
+   Zweck — Rückfrage, Unterstützung, Moderation. Dort gibt es nichts zu
+   steuern, und beide sollen einander sehen und hören. Der Admin darf in
+   diesem Fall auch jemanden anrufen, der keine Standorte anbietet.
+3. Sonst muss der **Angerufene Standorte anbieten dürfen** (Recht
+   `location.offer`). Dann ist er der Guide, der Anrufer der Zuschauer.
 
 Darf der Angerufene nichts anbieten und ist kein Admin beteiligt, **kommt der
 Anruf gar nicht zustande** — das Offer wird abgewiesen, bevor es gespeichert
 wird. Ein Anruf allein macht niemanden zum Guide; das ist eine ausdrückliche
 Entscheidung des Betroffenen.
 
-Gefragt wird in Regel 2 das *Recht* und nicht die Rollennummer: Es ist dasselbe
+Gefragt wird in Regel 3 das *Recht* und nicht die Rollennummer: Es ist dasselbe
 Kriterium, über das ein Standort überhaupt erst auf die Karte kommt. Wer dort
 steht, ist anrufbar.
 
-Ausgeliefert wird sie über den Signalisierungsweg, an das `offer` gehängt:
+### Die Standortkennung wird geprüft, nicht geglaubt
+
+Sie kommt vom Anrufer. Regel 1 greift deshalb nur, wenn **alles** davon gilt:
+
+* Den Standort gibt es.
+* Er **gehört dem Angerufenen**. Sonst könnte jeder Anrufer eine beliebige
+  fremde Kennung mitschicken und damit ein Steuerkreuz auf jemanden richten,
+  der davon nichts weiß.
+* Er ist **nicht gesperrt**. Ein gesperrter Standort ist aus der Übersicht
+  genommen; über ihn beginnt keine Führung mehr.
+* Der Angerufene hat das Recht `location.offer`.
+
+Hält eines davon nicht, wird die Kennung schlicht ignoriert und es gelten die
+Regeln 2 und 3.
+
+**Der Server merkt sich den Standort an der Signalzeile**
+(`rtc_signal.location_id`, Migration 009). Der Angerufene holt sein Offer erst
+Sekunden später über das Polling ab und hätte die Angabe sonst nicht mehr —
+dann käme dieselbe Verbindung beim Anrufer als Führung und beim Angerufenen als
+Gespräch unter Gleichen heraus. Ausgeliefert wird die Kennung nicht; sie ist
+eine Sache zwischen Offer und Rollenvergabe.
+
+Ausgeliefert wird die Rolle über den Signalisierungsweg, an das `offer`
+gehängt:
 
 * **Anrufer:** Die Antwort auf sein `POST index.php?act=getSignal` mit
   `type: "offer"` enthält zusätzlich `role`.
@@ -152,9 +191,10 @@ Ausgeliefert wird sie über den Signalisierungsweg, an das `offer` gehängt:
   { "id": 91, "type": "offer", "sender_id": 42, "sdp": "…", "role": "guide" }
   ```
 
-Beide Seiten rechnen damit über dasselbe Paar (Anrufer, Angerufener) und
-bekommen zwingend zueinander passende Rollen. Ein zweiter Aufruf ist nicht nötig
-und es gibt kein Zeitfenster, in dem ein Client ohne Rolle dasteht.
+Beide Seiten rechnen über dieselben Angaben — Anrufer, Angerufener und
+Standort — und bekommen deshalb zwingend zueinander passende Rollen. Ein
+zweiter Aufruf ist nicht nötig und es gibt kein Zeitfenster, in dem ein Client
+ohne Rolle dasteht.
 
 Nur `offer` wird gestempelt. `restart_offer` nach einem ICE-Restart nicht — die
 Rolle steht seit dem Anruf fest und wird clientseitig gehalten.
@@ -184,6 +224,7 @@ selbst durch die Prüfung aus Abschnitt 5. Es braucht dafür keine zweite Regel.
 | `guide` | ja | ja (abschaltbar) |
 | `peer` | ja | zuschaltbar |
 | unbekannt | nein | nein |
+
 
 **Der Zuschauer sendet nichts.** Er wird nicht einmal nach einer Freigabe
 gefragt: keine Kamera, kein Mikrofon, kein Kameralicht. Gesteuert wird über
@@ -626,7 +667,8 @@ Bewusst nicht enthalten, für eine spätere Version vorgemerkt:
 | `assets/js/control.js` | Steuerkanal: Senden, Empfangen, Bestätigung, Sperre, Richtungsanzeige |
 | `assets/js/chat.js` | Chatkanal: Text und Dateien |
 | `assets/js/rtc.js` | Anlegen und Zuordnen der beiden Kanäle, Verbindungssperre |
-| `class/Controller/WebRTCController.php` | Rollenvergabe und Stempeln am Offer |
+| `class/Controller/WebRTCController.php` | Rollenvergabe, Prüfung der Standortkennung, Stempeln am Offer |
+| `class/Model/WebRTCHandler.php` | Signalzeilen samt `location_id` |
 | `assets/js/media.js` | Wer sendet (`maySendMedia`), Spuren an die Sender legen |
 | `tests/client_test.js` | Prüfungen 15–22 und 37 decken dieses Protokoll ab |
 | `tests/server_test.php` | Prüfung 5 deckt die Rollenvergabe ab |

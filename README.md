@@ -17,7 +17,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 * **High-Security:** * Passwort-Hashing mit individuellem **Pepper**.
     * **Zwei-Faktor-Authentifizierung (2FA/TOTP)** inklusive QR-Code-Generierung.
     * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP.
-* **Rollen- und Rechtesystem:** Vier Rollen (Trial, User, Guide, Admin) mit **benannten Rechten ohne Vererbung und ohne Rangfolge**. Jede Route in `config/routes.php` trägt ihr Recht als Pflichtfeld; `index.php` prüft es, bevor der Controller läuft. Details unten unter [Berechtigungen](#-berechtigungen). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide, Zuschauer oder — bei einem Anruf mit der Verwaltung — Peer; der Client kann sie sich nicht selbst geben. Der Zuschauer sendet dabei weder Bild noch Ton: Er schaut zu und steuert. In einem Anruf mit der Verwaltung läuft die Übertragung in beide Richtungen.
+* **Rollen- und Rechtesystem:** Vier Rollen (Trial, User, Guide, Admin) mit **benannten Rechten ohne Vererbung und ohne Rangfolge**. Jede Route in `config/routes.php` trägt ihr Recht als Pflichtfeld; `index.php` prüft es, bevor der Controller läuft. Details unten unter [Berechtigungen](#-berechtigungen). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide, Zuschauer oder — bei einem Direktanruf aus der Benutzerverwaltung — Peer; der Client kann sie sich nicht selbst geben. Entscheidend ist, woher der Anruf kam: Von einem Standort aus führt der Angerufene, auch wenn er Admin ist, und der Zuschauer sendet dabei weder Bild noch Ton. Bei einem Direktanruf mit einem Admin gibt es nichts zu steuern, dort läuft die Übertragung in beide Richtungen.
 
 ---
 
@@ -43,9 +43,11 @@ Importiere die mitgelieferte `database.sql` in deine MySQL-Instanz. Diese erstel
 mariadb -u <user> -p <datenbank> < migrations/005_rollen_neu_nummeriert.sql
 mariadb -u <user> -p <datenbank> < migrations/006_location_sperre.sql
 mariadb -u <user> -p <datenbank> < migrations/007_guide_rolle.sql
+mariadb -u <user> -p <datenbank> < migrations/008_farbprofil.sql
+mariadb -u <user> -p <datenbank> < migrations/009_call_standort.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach. Alle drei sind idempotent und löschen nichts. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call. Alle sind idempotent und löschen nichts. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
 
 ### 2. Umgebungsvariablen (`.env`)
 Erstelle eine `.env`-Datei im Root-Verzeichnis und hinterlege deine Zugangsdaten:

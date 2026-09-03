@@ -251,6 +251,14 @@ window.webrtcApp.rtc = {
      * Neuaushandlung - die kann diese Anwendung mitten im Gespraech nur fuer
      * den ICE-Restart.
      *
+     * WOHER DER ANRUF KOMMT, ENTSCHEIDET UEBER DIE ROLLEN. Karte und
+     * Standortliste rufen von einem Standort aus an und geben dessen Kennung
+     * mit; dann fuehrt der Angerufene, auch wenn er Admin ist. Die
+     * Benutzerverwaltung ruft eine PERSON an und gibt keine Kennung mit -
+     * daraus wird mit einem Admin ein Gespraech ohne Fuehrung. Entschieden
+     * wird das im Server (WebRTCController::callRoles), der die Kennung
+     * gegen Eigentuemer und Sperre prueft; hier wird sie nur durchgereicht.
+     *
      * DER ABLAUF IST DURCHGEHEND AWAIT. Vorher lief die Medien- und
      * Offer-Kette als unbeobachtete Promise nebenher, waehrend die
      * Call-Ansicht und das 25-Sekunden-Timeout schon starteten. Ein Fehler
@@ -261,8 +269,10 @@ window.webrtcApp.rtc = {
      * tatsaechlich beim Server liegt.
      *
      * @param {number} targetUserId - Die ID des Gesprächspartners
+     * @param {number|string|null} [locationId] - Standort, von dem der Anruf
+     *        ausgeht. Fehlt er, ist es ein Direktanruf.
      */
-    startCall: async function(targetUserId) {
+    startCall: async function(targetUserId, locationId) {
         // Wir bauen den Call auf, also sind wir der Initiator und damit im
         // Störungsfall für den ICE-Restart zuständig.
         window.webrtcApp.state.isInitiator = true;
@@ -310,11 +320,17 @@ window.webrtcApp.rtc = {
         try {
             const offer = await window.webrtcApp.refs.localPeerConnection.createOffer();
             await window.webrtcApp.refs.localPeerConnection.setLocalDescription(offer);
-            antwort = await window.webrtcApp.signaling.sendSignalMessage({
+            const nachricht = {
                 type: 'offer',
                 sdp: offer.sdp,
                 target: targetUserId
-            });
+            };
+            // Nur mitschicken, wenn es wirklich einen Standort gibt: Eine 0
+            // oder ein leerer Wert waere eine Angabe, die keine ist.
+            const standort = parseInt(locationId, 10);
+            if (standort > 0) nachricht.location = standort;
+
+            antwort = await window.webrtcApp.signaling.sendSignalMessage(nachricht);
         } catch (fehler) {
             window.webrtcApp.rtc.abortCall('Der Anruf konnte nicht aufgebaut werden: '
                 + (fehler && fehler.message ? fehler.message : 'unbekannter Fehler'));

@@ -84,6 +84,15 @@ window.webrtcApp.init = function() {
     }
 
     // ---------- Call per Button starten ----------
+    //
+    // Das sind die Knoepfe der BENUTZERVERWALTUNG (UserController). Sie
+    // rufen eine Person an, nicht einen Ort - deshalb geht hier bewusst KEINE
+    // Standortkennung mit. Daran erkennt der Server den Direktanruf: Ist ein
+    // Admin beteiligt, wird daraus ein Gespraech ohne Fuehrung, kein
+    // Steuerkreuz (WebRTCController::callRoles).
+    //
+    // Die Knoepfe der Standortliste und der Karte haengen an eigenen
+    // Handlern (locations_table.js, home_map.js) und geben ihren Standort mit.
     document.querySelectorAll('.start-call-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const btnId = this.id || '';

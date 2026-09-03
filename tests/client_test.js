@@ -1853,6 +1853,66 @@ function ackLastMove(status = 'executed', reason) {
         app.rtc.endCall(false);
     }
 
+    console.error('\n38) Der Anruf sagt, von welchem Standort er ausgeht');
+    {
+        // WOHER DER ANRUF KOMMT, ENTSCHEIDET UEBER DIE ROLLEN. Karte und
+        // Standortliste rufen von einem Ort aus an - dann fuehrt der
+        // Angerufene, auch wenn er Admin ist. Die Benutzerverwaltung ruft
+        // eine Person an und gibt keinen Ort mit; daraus wird mit einem Admin
+        // ein Gespraech ohne Fuehrung. Entschieden wird das im Server, hier
+        // wird die Kennung nur durchgereicht - aber wenn sie unterwegs
+        // verloren geht, faellt jede Fuehrung ueber einen Admin-Standort um.
+        resetAll();
+        global.__offerRole = 'viewer';
+        app.refs.iceServersLoaded = true;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+
+        await app.rtc.startCall(42, 7);
+        const mitOrt = global.__signals.find(s => s.type === 'offer');
+        assert.strictEqual(mitOrt.location, 7, 'die Standortkennung fehlt im Offer');
+        assert.strictEqual(typeof mitOrt.location, 'number', 'die Kennung geht als Text raus');
+        app.rtc.endCall(false);
+        ok('ein Anruf von einem Standort schickt dessen Kennung mit');
+
+        // Ohne Standort steht das Feld GAR NICHT im Offer - eine 0 oder ein
+        // leerer Wert waere eine Angabe, die keine ist.
+        for (const nichts of [undefined, null, 0, '', 'abc']) {
+            resetAll();
+            global.__offerRole = 'peer';
+            app.refs.iceServersLoaded = true;
+            app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+
+            await app.rtc.startCall(42, nichts);
+            const offer = global.__signals.find(s => s.type === 'offer');
+            assert.ok(!('location' in offer),
+                'aus ' + JSON.stringify(nichts) + ' wurde eine Standortangabe');
+            app.rtc.endCall(false);
+        }
+        ok('ohne brauchbaren Standort bleibt das Feld weg');
+
+        // Die Standortliste haengt die Kennung an ihren Anrufknopf. Ohne sie
+        // wuesste der Klickhandler nicht, von welchem Ort aus angerufen wird.
+        const zelle = app.locationsTable.actionCellHtml(
+            { id: 7, user_id: 3, user_status: 'online', blocked: 0,
+              country_name: 'Portugal', city_name: 'Lissabon', description: 'Alfama.' },
+            { showActions: ['call'] });
+        assert.ok(/start-call-btn[^>]*data-locationid="7"/.test(zelle),
+            'am Anrufknopf der Standortliste fehlt die Standortkennung:\n' + zelle);
+        ok('der Anrufknopf der Standortliste traegt seinen Standort');
+
+        // Die Karte ebenso - und die Benutzerverwaltung ausdruecklich NICHT:
+        // Sie ruft eine Person an, nicht einen Ort.
+        const fsQ = require('fs'), pathQ = require('path');
+        const karte = fsQ.readFileSync(pathQ.join(__dirname, '..', 'assets', 'js', 'home_map.js'), 'utf8');
+        assert.ok(/home-call-btn[\s\S]{0,200}data-locationid=/.test(karte),
+            'am Anrufknopf der Karte fehlt die Standortkennung');
+        const benutzerliste = fsQ.readFileSync(
+            pathQ.join(__dirname, '..', 'class', 'Controller', 'UserController.php'), 'utf8');
+        assert.ok(!/start-call-btn[\s\S]{0,400}data-locationid/.test(benutzerliste),
+            'die Benutzerverwaltung schickt einen Standort mit - dann waere sie kein Direktanruf');
+        ok('die Karte gibt ihren Standort mit, die Benutzerverwaltung bewusst nicht');
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

@@ -555,6 +555,22 @@ CREATE TABLE IF NOT EXISTS `rtc_signal` (
   `type` varchar(50) DEFAULT NULL,
   `sdp` text DEFAULT NULL,
   `candidate` text DEFAULT NULL,
+
+  -- Standort, von dem der Anruf ausging. NULL = Direktanruf ohne Standort,
+  -- wie ihn die Benutzerverwaltung ausloest.
+  --
+  -- Daran haengt die Rollenvergabe: Von einem Standort aus fuehrt der
+  -- Angerufene (auch ein Admin), ohne Standort ist ein Anruf mit einem Admin
+  -- keine Fuehrung. Der Anrufer schickt die Kennung mit seinem Offer, der
+  -- Angerufene holt sie Sekunden spaeter mit derselben Zeile ab - anders
+  -- kaemen die beiden Seiten nicht zur selben Antwort
+  -- (WebRTCController::callRoles / ::stampCallRoles).
+  --
+  -- Bewusst OHNE Fremdschluessel auf location(id): Eine Zeile hier lebt 15
+  -- Sekunden. Geprueft wird beim Lesen - Eigentuemer und Sperre -, nicht
+  -- ueber die Datenbank. Nur an Zeilen vom Typ 'offer' belegt.
+  `location_id` int(11) DEFAULT NULL,
+
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `sender_id` (`sender_id`),

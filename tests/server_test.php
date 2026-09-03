@@ -184,16 +184,25 @@ ok('Aufraeumen loescht nie innerhalb des Lesefensters');
 fwrite(STDERR, "\n5) Rollenvergabe fuer den Call (Steuerprotokoll)\n");
 
 /**
- * Attrappe, die Benutzer aus einer Tabelle im Speicher liefert. Die
+ * Attrappe, die Benutzer UND Standorte aus Tabellen im Speicher liefert. Die
  * Rollenvergabe ist die einzige Serverlogik des Steuerprotokolls; geprueft
  * wird sie damit ohne Datenbank.
+ *
+ * Unterschieden wird an der Abfrage selbst: App\Model\User fragt "FROM user"
+ * ueber :user_id, App\Model\Location fragt "FROM location" ueber :id.
  */
 class FakeUserStatement {
-    public $sql; public $params = []; private $users;
-    public function __construct($sql, $users) { $this->sql = $sql; $this->users = $users; }
+    public $sql; public $params = []; private $users; private $locations;
+    public function __construct($sql, $users, $locations) {
+        $this->sql = $sql; $this->users = $users; $this->locations = $locations;
+    }
     public function bindParam($k, &$v) { $this->params[$k] = $v; }
     public function execute() { return true; }
     public function fetch($mode = null) {
+        if (strpos($this->sql, 'FROM location') !== false) {
+            $id = (int)($this->params[':id'] ?? 0);
+            return $this->locations[$id] ?? false;
+        }
         $id = (int)($this->params[':user_id'] ?? 0);
         return $this->users[$id] ?? false;
     }
@@ -201,7 +210,10 @@ class FakeUserStatement {
 }
 class FakeUserConnection {
     public $users = [];
-    public function prepare($sql) { return new FakeUserStatement($sql, $this->users); }
+    public $locations = [];
+    public function prepare($sql) {
+        return new FakeUserStatement($sql, $this->users, $this->locations);
+    }
 }
 
 /** Baut eine Benutzerzeile, wie sie aus der Tabelle user kaeme. */
@@ -209,6 +221,16 @@ function fakeUser($id, $typeId) {
     return [
         'id' => $id, 'username' => 'u' . $id, 'email' => 'u' . $id . '@example.org',
         'pwd' => 'x', 'type_id' => $typeId, 'deleted' => 0
+    ];
+}
+
+/** Baut eine Standortzeile, wie sie aus der Tabelle location kaeme. */
+function fakeLocation($id, $userId, $blocked = 0) {
+    return [
+        'id' => $id, 'user_id' => $userId, 'city_id' => 1,
+        'latitude' => '52.0', 'longitude' => '13.0', 'description' => 'Ort ' . $id,
+        'blocked' => $blocked, 'blocked_reason' => $blocked ? 'Grund' : null,
+        'country_name' => 'Deutschland', 'city_name' => 'Berlin'
     ];
 }
 
@@ -220,6 +242,12 @@ $userDb->users = [
     3 => fakeUser(3,  2),  // Guide
     4 => fakeUser(4,  1),  // User
     5 => fakeUser(5,  0),  // Trial
+];
+// Standorte: 10 gehoert dem Guide 2, 11 dem Admin 1, 12 ist gesperrt.
+$userDb->locations = [
+    10 => fakeLocation(10, 2),
+    11 => fakeLocation(11, 1),
+    12 => fakeLocation(12, 2, 1),
 ];
 PdoConnect::$connection = $userDb;
 
@@ -245,9 +273,10 @@ foreach ([[2, 5, 'Guide ruft Trial an'],
 }
 ok('wer keine Standorte anbieten darf, wird durch einen Anruf auch kein Guide');
 
-// EIN ANRUF MIT EINEM ADMIN IST KEINE FUEHRUNG. Er hat einen anderen Zweck -
-// Rueckfrage, Unterstuetzung, Moderation -, dort gibt es nichts zu steuern und
-// beide sollen einander sehen und hoeren. Deshalb bekommen beide 'peer'.
+// EIN DIREKTANRUF MIT EINEM ADMIN IST KEINE FUEHRUNG. Er geht nicht von einem
+// Standort aus, sondern von einer Person in der Benutzerverwaltung, und hat
+// einen anderen Zweck - Rueckfrage, Unterstuetzung, Moderation. Dort gibt es
+// nichts zu steuern, beide sollen einander sehen und hoeren: zweimal 'peer'.
 foreach ([[4, 1, 'Nutzer ruft Admin an'],
           [1, 4, 'Admin ruft Nutzer an'],
           [2, 1, 'Guide ruft Admin an'],
@@ -258,7 +287,7 @@ foreach ([[4, 1, 'Nutzer ruft Admin an'],
     check($r['caller'] === 'peer' && $r['callee'] === 'peer', $was . ': beide sind peer');
     check(WebRTCController::callAllowed($caller, $callee) === true, $was . ': erlaubt');
 }
-ok('ein Anruf mit einem Admin ist ein Gespraech unter Gleichen, keine Fuehrung');
+ok('ein Direktanruf mit einem Admin ist ein Gespraech unter Gleichen');
 
 // Der Admin darf jeden anrufen - auch jemanden, der keine Standorte anbietet.
 // Genau das verspricht der Knopf "Anrufen" in der Benutzerliste, und genau
@@ -267,13 +296,36 @@ check(WebRTCController::callAllowed(1, 4) === true, 'Admin ruft einen Nutzer an'
 check(WebRTCController::callAllowed(4, 4) === false, 'Nutzer ruft Nutzer an - weiterhin nicht');
 ok('der Admin erreicht jeden, alle anderen nur, wer Standorte anbietet');
 
-// Der Preis dieser Regel: Der Admin fuehrt keine Fuehrungen mehr. Sein
-// Standort ist weiter anrufbar, aber ohne Steuerkreuz auf der Gegenseite.
-check(Permission::has(Role::ADMIN, Permission::LOCATION_OFFER) === true,
-    'der Admin darf Standorte anbieten');
-$r = WebRTCController::callRoles(2, 1);
-check($r['callee'] !== 'guide', 'der angerufene Admin fuehrt trotzdem');
-ok('der Admin bleibt anrufbar, fuehrt aber nicht');
+// GEHT DER ANRUF VON EINEM STANDORT AUS, FUEHRT DER ANGERUFENE - ohne
+// Ausnahme. Wer einen Standort anbietet, laesst sich dort steuern; dafuer
+// steht das Angebot auf der Karte. Das gilt auch fuer den Admin: Standort 11
+// gehoert ihm.
+$r = WebRTCController::callRoles(4, 2, 10);
+check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'Anruf am Standort des Guides');
+$r = WebRTCController::callRoles(4, 1, 11);
+check($r['caller'] === 'viewer' && $r['callee'] === 'guide',
+    'am eigenen Standort fuehrt auch der Admin');
+check(WebRTCController::roleForCall(4, 1, 1, 11) === 'guide',
+    'der angerufene Admin bekommt am Standort die Guide-Rolle');
+check(WebRTCController::roleForCall(4, 1, 4, 11) === 'viewer',
+    'der Anrufer bekommt dort die Zuschauerrolle');
+ok('von einem Standort aus fuehrt der Angerufene, auch als Admin');
+
+// Und genau deshalb wird die Kennung geprueft statt geglaubt. Sie kommt vom
+// Anrufer; wer eine fremde oder gesperrte mitschickt, erzwingt damit keine
+// Fuehrung.
+foreach ([[10, 1, 'fremder Standort (gehoert dem Guide, angerufen ist der Admin)'],
+          [12, 2, 'gesperrter Standort'],
+          [99, 2, 'Standort, den es nicht gibt']] as [$ort, $callee, $was]) {
+    $r = WebRTCController::callRoles(1, $callee, $ort);
+    check($r['callee'] !== 'guide', $was . ': fuehrt trotzdem');
+}
+// Der gesperrte Standort des Guides faellt auf die Regel "Angerufener bietet
+// an" zurueck - eine Fuehrung bleibt es, nur nicht wegen dieses Ortes.
+$r = WebRTCController::callRoles(4, 2, 12);
+check($r['caller'] === 'viewer' && $r['callee'] === 'guide',
+    'ein Guide bleibt auch mit gesperrtem Standort ein Guide');
+ok('eine fremde, gesperrte oder unbekannte Standortkennung erzwingt keine Fuehrung');
 
 // Fuer alle ohne Admin gilt weiter: Anrufbar ist, wer location.offer hat -
 // dasselbe Kriterium, ueber das ein Standort auf die Karte kommt. Die
@@ -328,6 +380,23 @@ check($stamped[0]['role'] === 'guide', 'Angerufener ist der Guide');
 check(!isset($stamped[1]['role']), 'ICE-Kandidat bekommt keine Rolle');
 check(!isset($stamped[2]['role']), 'restart_offer bekommt keine Rolle - die Rolle steht seit dem Anruf fest');
 ok('nur das Offer traegt die Rolle');
+
+// BEIDE SEITEN MUESSEN ZUR SELBEN ANTWORT KOMMEN. Der Angerufene holt sein
+// Offer Sekunden spaeter ueber das Polling ab - den Standort hat er dann nur
+// noch, weil er an der Zeile steht (Migration 009). Ohne ihn wuerde aus
+// derselben Verbindung beim Anrufer eine Fuehrung und beim Angerufenen ein
+// Gespraech unter Gleichen.
+$mitOrt  = [['type' => 'offer', 'sender_id' => 4, 'receiver_id' => 1, 'location_id' => 11]];
+$ohneOrt = [['type' => 'offer', 'sender_id' => 4, 'receiver_id' => 1, 'location_id' => null]];
+$a = WebRTCController::stampCallRoles($mitOrt, 1);
+$b = WebRTCController::stampCallRoles($ohneOrt, 1);
+check($a[0]['role'] === 'guide', 'mit Standort an der Zeile fuehrt der angerufene Admin');
+check($b[0]['role'] === 'peer',  'ohne Standort ist es ein Direktanruf');
+check($a[0]['role'] === WebRTCController::roleForCall(4, 1, 1, 11),
+    'die gestempelte Rolle weicht von der berechneten ab');
+check(!array_key_exists('location_id', $a[0]),
+    'die Standortkennung wird an den Client ausgeliefert');
+ok('der Standort an der Zeile haelt beide Seiten zusammen und bleibt intern');
 
 // ---------------------------------------------------------------------
 fwrite(STDERR, "\n6) Rollen-Normalisierung (Befunde F-5/F-6)\n");

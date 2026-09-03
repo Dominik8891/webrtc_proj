@@ -155,7 +155,7 @@ window.webrtcApp.homeMap = {
             const btn = e.target.closest('.home-call-btn');
             if (!btn) return;
             e.preventDefault();
-            this.startCall(btn.getAttribute('data-userid'));
+            this.startCall(btn.getAttribute('data-userid'), btn.getAttribute('data-locationid'));
         });
 
         document.getElementById('home-retry')?.addEventListener('click', () => {
@@ -187,18 +187,22 @@ window.webrtcApp.homeMap = {
      * Startet den Anruf zu einem Guide.
      *
      * Derselbe Weg wie in der Tabellenansicht: Die Karte entscheidet nichts
-     * ueber den Ablauf des Calls, sie loest ihn nur aus.
+     * ueber den Ablauf des Calls, sie loest ihn nur aus - und sagt dabei, von
+     * WELCHEM Standort aus. Daran haengt beim Server die Rollenvergabe: Von
+     * einem Standort aus fuehrt der Angerufene, auch wenn er Admin ist
+     * (WebRTCController::callRoles).
      *
      * @param {string|number} userId
+     * @param {string|number|null} [locationId] Standort hinter der Nadel
      */
-    startCall(userId) {
+    startCall(userId, locationId) {
         if (!userId) return;
         if (typeof window.webrtcApp?.rtc?.startCall !== 'function') {
             window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
             return;
         }
         this.map?.closePopup();
-        window.webrtcApp.rtc.startCall(userId);
+        window.webrtcApp.rtc.startCall(userId, locationId);
         // Die Symbole fuer Kamera und Mikrofon haengen an der Verbindung, die
         // erst aufgebaut wird. Kurz warten, dann nachziehen.
         setTimeout(() => {
@@ -580,7 +584,9 @@ window.webrtcApp.homeMap = {
             }
             return `
                 <div class="home-popup__action">
-                    <button type="button" class="btn btn-success home-call-btn" data-userid="${this.esc(item.userId)}">
+                    <button type="button" class="btn btn-success home-call-btn"
+                            data-userid="${this.esc(item.userId)}"
+                            data-locationid="${this.esc(item.id)}">
                         Führung starten
                     </button>
                 </div>`;

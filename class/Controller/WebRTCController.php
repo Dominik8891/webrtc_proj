@@ -1,6 +1,7 @@
 <?php
 namespace App\Controller;
 
+use App\Model\Location;
 use App\Model\User;
 use App\Model\WebRTCHandler;
 use App\Helper\Auth;
@@ -66,25 +67,40 @@ class WebRTCController
                         (is_array($data['candidate']) ? json_encode($data['candidate']) : $data['candidate'])
                         : null;
 
+                    // WOHER KAM DER ANRUF? Die Standortkennung schickt der
+                    // Anrufer mit dem Offer; fehlt sie, ist es ein Direktanruf
+                    // (Benutzerverwaltung). Sie ist eine BEHAUPTUNG des
+                    // Clients und wird als solche behandelt: callRoles()
+                    // prueft, ob es den Standort gibt, ob er dem Angerufenen
+                    // gehoert und ob er nicht gesperrt ist. Wer eine fremde
+                    // Kennung mitschickt, kommt damit nirgends hin.
+                    $location  = isset($data['location']) ? (int)$data['location'] : 0;
+                    if ($location < 1) $location = null;
+
                     // DER ANRUF WIRD HIER ZUGELASSEN ODER GAR NICHT.
                     //
                     // Ein Offer erreicht den Angerufenen nur, wenn sich fuer
                     // das Paar ueberhaupt Rollen vergeben lassen (siehe
-                    // callRoles): also wenn der Angerufene Standorte anbietet
-                    // oder einer der beiden ein Admin ist. Frueher wurde jedes
-                    // Offer gespeichert und der Empfaenger dabei zum Guide
-                    // erklaert - also durfte ein Anruf ueber eine Rolle
-                    // entscheiden, der der Betroffene nie zugestimmt hatte.
-                    // Abgewiesen wird VOR dem Speichern: Ein liegengebliebenes
-                    // Offer wuerde beim naechsten Poll trotzdem klingeln.
+                    // callRoles): also wenn der Anruf von einem Standort des
+                    // Angerufenen ausgeht, wenn der Angerufene Standorte
+                    // anbietet oder wenn einer der beiden ein Admin ist.
+                    //
+                    // Frueher wurde jedes Offer gespeichert und der
+                    // Empfaenger dabei zum Guide erklaert - also durfte ein
+                    // Anruf ueber eine Rolle entscheiden, der der Betroffene
+                    // nie zugestimmt hatte. Abgewiesen wird VOR dem
+                    // Speichern: Ein liegengebliebenes Offer wuerde beim
+                    // naechsten Poll trotzdem klingeln.
                     //
                     // Nur 'offer' wird geprueft. Answer, Kandidaten, Hangup
                     // und die Restart-Nachrichten gehoeren zu einem Call, der
                     // diese Pruefung bereits bestanden hat.
-                    if ($type === 'offer' && !self::callAllowed($sender, $target)) {
-                        error_log('WebRTCController: Anruf abgewiesen, Benutzer #'
-                            . (int)$target . ' bietet nichts an und der Anrufer #'
-                            . (int)$sender . ' ist kein Admin.');
+                    if ($type === 'offer' && !self::callAllowed($sender, $target, $location)) {
+                        error_log('WebRTCController: Anruf abgewiesen - Benutzer #'
+                            . (int)$target . ' bietet nichts an, der Anrufer #'
+                            . (int)$sender . ' ist kein Admin, und der Anruf kam'
+                            . ' von keinem gueltigen Standort ('
+                            . ($location === null ? 'ohne Angabe' : '#' . $location) . ').');
                         echo json_encode([
                             'status' => 'error',
                             'msg'    => 'Dieser Benutzer bietet keine Führungen an und kann '
@@ -99,6 +115,9 @@ class WebRTCController
                     $rtc_handler->setType($type);
                     $rtc_handler->setSdp($sdp);
                     $rtc_handler->setCandidate($candidate);
+                    // Nur am Offer. Alle uebrigen Signaltypen gehoeren zu
+                    // einem Call, dessen Rollen laengst feststehen.
+                    $rtc_handler->setLocationId($type === 'offer' ? $location : null);
                     $rtc_handler->create();
 
                     $response = ['status' => 'ok'];
@@ -108,7 +127,7 @@ class WebRTCController
                     // in dem ein Client ohne Rolle dasteht, und keine
                     // Gelegenheit, sich selbst eine zuzuweisen.
                     if ($type === 'offer') {
-                        $response['role'] = self::roleForCall($sender, $target, $sender);
+                        $response['role'] = self::roleForCall($sender, $target, $sender, $location);
                     }
 
                     echo json_encode($response);
@@ -179,28 +198,38 @@ class WebRTCController
      *   peer/peer       Ein Gespräch unter Gleichen. Niemand führt, niemand
      *                   steuert, beide senden Ton und Bild.
      *
-     * 1. IST EIN ADMIN BETEILIGT, IST ES KEINE FÜHRUNG.
+     * ENTSCHEIDEND IST, WOHER DER ANRUF KAM. Eine Führung beginnt an einem
+     * Standort: Der Zuschauer sucht sich auf der Karte oder in der Liste
+     * einen Ort aus und ruft den an, der dort ist. Ein Direktanruf aus der
+     * Benutzerverwaltung meint etwas anderes - dort steht kein Ort, sondern
+     * eine Person.
      *
-     *    Ein Anruf mit der Verwaltung hat einen anderen Zweck als eine
-     *    Führung: Rückfragen, Unterstützung, Moderation. Dort gibt es nichts
-     *    zu steuern, und beide Seiten sollen einander sehen und hören.
-     *    Deshalb bekommen beide die Rolle "peer" - und weil "peer" weder
-     *    "viewer" noch "guide" ist, weist die Protokollprüfung Bewegungs-
-     *    befehle, Bestätigungen und die Steuerungssperre in einem solchen
-     *    Call von selbst ab (siehe assets/js/protocol.js, validate).
+     * 1. GEHT DER ANRUF VON EINEM STANDORT AUS, FÜHRT DER ANGERUFENE.
+     *
+     *    Ohne Ausnahme, auch wenn er Admin ist: Wer einen Standort anbietet,
+     *    lässt sich dort steuern - dafür steht das Angebot auf der Karte.
+     *    Geprüft wird der Standort, nicht die Behauptung des Anrufers, siehe
+     *    guidedFromLocation().
+     *
+     * 2. OHNE STANDORT UND MIT EINEM ADMIN IST ES KEINE FÜHRUNG.
+     *
+     *    Ein Direktanruf mit der Verwaltung hat einen anderen Zweck:
+     *    Rückfragen, Unterstützung, Moderation. Dort gibt es nichts zu
+     *    steuern, und beide Seiten sollen einander sehen und hören. Deshalb
+     *    bekommen beide die Rolle "peer" - und weil "peer" weder "viewer"
+     *    noch "guide" ist, weist die Protokollprüfung Bewegungsbefehle,
+     *    Bestätigungen und die Steuerungssperre in einem solchen Call von
+     *    selbst ab (siehe assets/js/protocol.js, validate).
      *
      *    Der Admin kann in diesem Fall auch anrufen, ohne dass der
      *    Angerufene Standorte anbieten muss - genau das verspricht der Knopf
      *    "Anrufen" in der Benutzerliste, und genau daran scheiterte er
      *    bisher.
      *
-     *    Der Preis: Ein Admin führt keine Führungen mehr. Wer als Admin einen
-     *    Standort anbietet, wird angerufen wie jeder andere auch, aber ohne
-     *    Steuerkreuz auf der Gegenseite.
-     *
-     * 2. SONST MUSS DER ANGERUFENE STANDORTE ANBIETEN DÜRFEN (Recht
+     * 3. SONST MUSS DER ANGERUFENE STANDORTE ANBIETEN DÜRFEN (Recht
      *    location.offer). Dann ist er der Guide und der Anrufer der
-     *    Zuschauer.
+     *    Zuschauer. Das ist der Fall "Anruf ohne Standortangabe an einen
+     *    Guide" - er bleibt eine Führung, wie er es immer war.
      *
      *    Gefragt wird das Recht und nicht die Rolle - das ist dasselbe
      *    Kriterium, über das ein Standort überhaupt erst auf die Karte kommt.
@@ -222,21 +251,90 @@ class WebRTCController
      * Angerufener) auf und bekommen deshalb zwingend zueinander passende
      * Rollen.
      *
-     * @param int $callerId Wer angerufen hat
-     * @param int $calleeId Wer angerufen wurde
+     * @param int      $callerId   Wer angerufen hat
+     * @param int      $calleeId   Wer angerufen wurde
+     * @param int|null $locationId Standort, von dem der Anruf ausging;
+     *                             null = Direktanruf ohne Standort
      * @return array|null ['caller' => 'viewer', 'callee' => 'guide'],
      *                    ['caller' => 'peer', 'callee' => 'peer'] oder null,
      *                    wenn der Anruf nicht zustande kommt
      */
-    public static function callRoles($callerId, $calleeId)
+    public static function callRoles($callerId, $calleeId, $locationId = null)
     {
+        $fuehrung = ['caller' => self::ROLE_VIEWER, 'callee' => self::ROLE_GUIDE];
+
+        if (self::guidedFromLocation($locationId, $calleeId)) return $fuehrung;
+
         if (self::isAdminAccount($callerId) || self::isAdminAccount($calleeId)) {
             return ['caller' => self::ROLE_PEER, 'callee' => self::ROLE_PEER];
         }
 
         if (!self::offersLocations($calleeId)) return null;
 
-        return ['caller' => self::ROLE_VIEWER, 'callee' => self::ROLE_GUIDE];
+        return $fuehrung;
+    }
+
+    /**
+     * Führt der Angerufene an diesem Standort?
+     *
+     * Die Standortkennung kommt vom Anrufer und ist damit eine BEHAUPTUNG.
+     * Sie wird deshalb an drei Bedingungen geprüft, und alle drei müssen
+     * halten:
+     *
+     *   1. Den Standort gibt es.
+     *   2. Er gehört dem Angerufenen. Sonst könnte jeder Anrufer eine
+     *      beliebige fremde Kennung mitschicken und damit eine Führung
+     *      erzwingen - samt Steuerkreuz auf jemanden, der davon nichts weiß.
+     *   3. Er ist nicht gesperrt. Ein gesperrter Standort ist aus der
+     *      Übersicht genommen; über ihn beginnt keine Führung mehr.
+     *
+     * Dazu kommt das Recht location.offer: Wer nicht anbieten darf, führt
+     * auch nicht - selbst wenn noch ein alter Standort auf seinen Namen läuft.
+     *
+     * @param int|null $locationId
+     * @param int      $calleeId
+     * @return bool
+     */
+    private static function guidedFromLocation($locationId, $calleeId)
+    {
+        // Dieselbe Frage kommt je Offer zweimal: einmal aus callAllowed(),
+        // einmal aus roleForCall(). Ohne diesen Zwischenspeicher waeren das
+        // zwei SELECTs auf dieselbe Zeile. Er lebt nur fuer die Dauer der
+        // Anfrage - siehe roleIdOf().
+        static $bekannt = [];
+
+        $id     = (int)$locationId;
+        $callee = (int)$calleeId;
+        if ($id < 1 || $callee < 1) return false;
+
+        $schluessel = $id . ':' . $callee;
+        if (array_key_exists($schluessel, $bekannt)) return $bekannt[$schluessel];
+
+        $bekannt[$schluessel] = self::checkGuidedFromLocation($id, $callee);
+        return $bekannt[$schluessel];
+    }
+
+    /**
+     * Die eigentliche Pruefung hinter guidedFromLocation().
+     *
+     * @param int $locationId
+     * @param int $calleeId
+     * @return bool
+     */
+    private static function checkGuidedFromLocation($locationId, $calleeId)
+    {
+        if (!self::offersLocations($calleeId)) return false;
+
+        try {
+            $location = new Location($locationId);
+        } catch (\Exception $e) {
+            // Kein Fehlerfall, sondern eine Antwort: Den Standort gibt es
+            // nicht (mehr). Der Anruf faellt auf die uebrigen Regeln zurueck.
+            error_log('WebRTCController::checkGuidedFromLocation: ' . $e->getMessage());
+            return false;
+        }
+
+        return $location->belongsToUser($calleeId) && !$location->isBlocked();
     }
 
     /**
@@ -247,28 +345,30 @@ class WebRTCController
      * Die Frage steht bewusst neben callRoles() und wird nicht daneben
      * nachgebaut: Es gibt eine Bedingung, und sie steht an einer Stelle.
      *
-     * @param int $callerId Wer angerufen hat
-     * @param int $calleeId Wer angerufen wurde
+     * @param int      $callerId   Wer angerufen hat
+     * @param int      $calleeId   Wer angerufen wurde
+     * @param int|null $locationId Standort, von dem der Anruf ausging
      * @return bool
      */
-    public static function callAllowed($callerId, $calleeId)
+    public static function callAllowed($callerId, $calleeId, $locationId = null)
     {
-        return self::callRoles($callerId, $calleeId) !== null;
+        return self::callRoles($callerId, $calleeId, $locationId) !== null;
     }
 
     /**
      * Rolle eines bestimmten Teilnehmers in diesem Call.
      *
-     * @param int $callerId Wer angerufen hat
-     * @param int $calleeId Wer angerufen wurde
-     * @param int $userId   Für wen die Rolle gesucht ist
+     * @param int      $callerId   Wer angerufen hat
+     * @param int      $calleeId   Wer angerufen wurde
+     * @param int      $userId     Für wen die Rolle gesucht ist
+     * @param int|null $locationId Standort, von dem der Anruf ausging
      * @return string|null 'viewer', 'guide', 'peer' oder null - wenn der
      *                     Nutzer nicht beteiligt ist ODER der Anruf gar nicht
      *                     zulässig war
      */
-    public static function roleForCall($callerId, $calleeId, $userId)
+    public static function roleForCall($callerId, $calleeId, $userId, $locationId = null)
     {
-        $roles = self::callRoles($callerId, $calleeId);
+        $roles = self::callRoles($callerId, $calleeId, $locationId);
         if ($roles === null) return null;
         if ((int)$userId === (int)$callerId) return $roles['caller'];
         if ((int)$userId === (int)$calleeId) return $roles['callee'];
@@ -286,6 +386,15 @@ class WebRTCController
      * Anruf und diesem Abruf zurückgegeben. Dann steuert in diesem Call
      * niemand - der Client wertet ein fehlendes "role" als unbekannt aus.
      *
+     * DER STANDORT KOMMT AUS DER ZEILE, nicht aus der Anfrage. Der Anrufer
+     * hat ihn mit seinem Offer geschickt und der Server ihn an der Zeile
+     * abgelegt (Migration 009); der Angerufene holt sein Offer Sekunden
+     * später ab und hätte die Angabe sonst nicht mehr. Ohne sie kämen die
+     * beiden Seiten zu verschiedenen Rollen - genau das darf nicht passieren.
+     *
+     * Ausgeliefert wird die Kennung NICHT: Der Client hat mit ihr nichts zu
+     * tun, sie ist eine Angelegenheit zwischen Offer und Rollenvergabe.
+     *
      * @param array $messages   Bereits gefilterte Signalnachrichten
      * @param int   $receiverId Empfänger, der gerade abfragt
      * @return array Nachrichten mit ergänztem Feld "role" bei Offers
@@ -293,9 +402,12 @@ class WebRTCController
     public static function stampCallRoles($messages, $receiverId)
     {
         foreach ($messages as $index => $msg) {
+            unset($messages[$index]['location_id']);
             if (!isset($msg['type']) || $msg['type'] !== 'offer') continue;
             if (!isset($msg['sender_id'])) continue;
-            $messages[$index]['role'] = self::roleForCall($msg['sender_id'], $receiverId, $receiverId);
+            $messages[$index]['role'] = self::roleForCall(
+                $msg['sender_id'], $receiverId, $receiverId, $msg['location_id'] ?? null
+            );
         }
         return $messages;
     }
