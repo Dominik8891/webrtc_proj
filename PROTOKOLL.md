@@ -312,6 +312,23 @@ Meldet, ob das eigene Videobild gerade läuft. Ersetzt die früheren
 Der Empfänger blendet das Remote-Video ein bzw. aus und zeigt sonst den
 Platzhalter.
 
+**Wird gesendet:**
+
+1. **Einmal beim Verbindungsaufbau**, zusammen mit [`hello`](#41-hello), sobald
+   der Steuerkanal offen ist — mit dem Zustand, der dann gerade gilt. Ohne
+   diese Meldung wüsste die Gegenseite bei einem Teilnehmer ohne Kamera gar
+   nichts: Sie sähe eine schwarze Fläche, ohne zu erfahren, ob noch kein Bild
+   angekommen ist oder gar keins kommt.
+2. **Bei jedem Umschalten** der eigenen Kamera.
+
+**Zweiter Weg ohne Protokoll.** Wer seine Kamera abschaltet, nimmt die Spur mit
+`RTCRtpSender.replaceTrack(null)` vom Sender. Die Empfangsspur der Gegenseite
+wird dadurch vom Browser selbst als `muted` gemeldet. Der Empfänger wertet
+beides aus (`assets/js/rtc.js`, `bindRemoteVideoTrack`): Die Nachricht ist
+schneller und ausdrücklich, das Stummwerden funktioniert auch dann, wenn der
+Steuerkanal gerade nicht steht. Ohne den zweiten Weg bliebe in diesem Fall das
+letzte Standbild stehen — nicht zu unterscheiden von einem eingefrorenen Bild.
+
 ---
 
 ### 4.6 `hangup`

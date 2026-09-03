@@ -178,12 +178,15 @@ window.webrtcApp.signaling = {
         } else if (data.type === 'call_failed') {
             // Call konnte nicht aufgebaut werden (Fehler, kein Media etc.)
             window.webrtcApp.sound.stop('call_ringtone');
-            window.webrtcApp.rtc.endCall(false);
             window.webrtcApp.rtc.stopTimeout();
+            // Meldung vor dem Abbau: endCall() laesst auf Mobilgeraeten die
+            // Seite neu laden und wartet dabei auf den laengsten stehenden
+            // Hinweis (siehe rtc.abortCall).
             window.webrtcApp.notify.error('Der Anruf konnte nicht gestartet werden.\n'
                 + (data.reason === 'no_media_selected'
                     ? 'Die Gegenseite hat weder Ton noch Bild ausgewählt.'
                     : 'Die Verbindung ließ sich nicht aufbauen.'));
+            window.webrtcApp.rtc.endCall(false);
         }
     },
 

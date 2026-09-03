@@ -941,8 +941,11 @@ window.webrtcApp.locationsTable = {
         $(options.tableSelector).on('click', '.start-call-btn', function() {
             const userId = $(this).data('userid');
             if(typeof window.webrtcApp?.rtc?.startCall === 'function') {
+                // startCall() setzt die Symbole selbst, sobald der Strom
+                // steht. Hier stand ein setTimeout(updateCallIcons(), 1000):
+                // Die Klammern riefen die Funktion sofort auf und uebergaben
+                // dem Zeitgeber deren Rueckgabewert - gewartet wurde nie.
                 window.webrtcApp.rtc.startCall(userId);
-                setTimeout(updateCallIcons(), 1000);
             } else {
                 window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
             }

@@ -49,79 +49,37 @@ window.webrtcApp.init = function() {
     }
 
     // ---------- Medienauswahl für Call akzeptieren ----------
+    //
+    // Hier steht nur noch die Verdrahtung: Auswahl einlesen, Klingelton aus,
+    // Dialog zu. Der Ablauf des Annehmens liegt in rtc.acceptCall().
     const acceptMediaBtn = document.getElementById('media-accept-btn');
     if (acceptMediaBtn) {
         acceptMediaBtn.addEventListener('click', async function() {
+            const useVideo = !!document.getElementById('media-video-checkbox')?.checked;
+            const useAudio = !!document.getElementById('media-audio-checkbox')?.checked;
+
+            // Die Pruefung steht VOR dem Schliessen des Dialogs, und sie
+            // beendet den Anruf nicht mehr: Wer beides abwaehlt, hat sich
+            // vertan und soll die Auswahl nachholen koennen. Vorher wurde der
+            // Dialog geschlossen, der Anruf abgebrochen und der Anrufer
+            // benachrichtigt - wegen eines vergessenen Hakens.
+            if (!useVideo && !useAudio) {
+                window.webrtcApp.notify.error(
+                    'Bitte mindestens Ton oder Video auswählen, um den Anruf anzunehmen.'
+                );
+                return;
+            }
+
             window.webrtcApp.sound.stop('incomming_call_ringtone');
             const dialog = document.getElementById('media-select-dialog');
             if (dialog) dialog.style.display = 'none';
-            window.webrtcApp.uiRtc.setEndCallButtonVisible(true);
-            window.webrtcApp.state.isCallActive = true;
-            // Wir nehmen an, sind also nicht der Initiator: Bei einer Störung
-            // handelt die Gegenseite neu aus, wir bitten sie nur darum.
-            window.webrtcApp.state.isInitiator = false;
-            window.webrtcApp.rtc.setConnectionStatus('connecting');
-            // Im Call langsamer weiterpollen - der Weg wird für Auflegen und
-            // ICE-Restart gebraucht.
-            window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IN_CALL);
-            window.webrtcApp.uiChat.updatePollingState();
-            const data = window.webrtcApp.state.pendingOffer;
-            window.webrtcApp.state.activeTargetUserId = data.sender_id;
-            // Die Rolle hat der Server an das Offer gestempelt (siehe
-            // WebRTCController::roleForCall). Fehlt sie, gilt sie als
-            // unbekannt - dann rendert kein Steuerkreuz und eingehende
-            // Bewegungsbefehle werden abgelehnt.
-            window.webrtcApp.control.applyRole(data.role || null);
-            window.webrtcApp.state.targetUsername = await window.webrtcApp.uiRtc.getUsername(data.sender_id);
-            document.body.classList.add('call-active');
-            document.getElementById('call-view').style.display = '';
-            document.getElementById('remote-username').textContent = 'Anruf mit ' + window.webrtcApp.state.targetUsername;
 
-            const useVideo = document.getElementById('media-video-checkbox').checked;
-            const useAudio = document.getElementById('media-audio-checkbox').checked;
-            let constraints = {};
-            if (useVideo) constraints.video = true;
-            if (useAudio) constraints.audio = true;
-            if (!useVideo && !useAudio) {
-                msg = 'Bitte mindestens Audio oder Video auswählen, um den Call zu starten!';
-                window.webrtcApp.rtc.sendCallFailedMsg(msg)
-                return;
-            }
-            let stream = null;
-            try { stream = await navigator.mediaDevices.getUserMedia(constraints); }
-            catch (e) {
-                msg = 'Konnte Medien nicht holen: ' + e.message;
-                window.webrtcApp.rtc.sendCallFailedMsg(msg)
-                return;
-            }
-            window.webrtcApp.refs.localStream = stream;
-            document.getElementById('local-video').srcObject = stream;
-            await window.webrtcApp.rtc.loadIceServers();
-            window.webrtcApp.rtc.createPeerConnection(false);
-            window.webrtcApp.rtc.addLocalTracks();
-            try {
-                await window.webrtcApp.refs.localPeerConnection.setRemoteDescription(new RTCSessionDescription({
-                    type: data.type,
-                    sdp: data.sdp
-                }));
-            } catch (e) {
-                window.webrtcApp.notify.error('Die Verbindung konnte nicht aufgebaut werden: ' + e.message);
-                return;
-            }
-            let answer;
-            try {
-                answer = await window.webrtcApp.refs.localPeerConnection.createAnswer();
-                await window.webrtcApp.refs.localPeerConnection.setLocalDescription(answer);
-            } catch (e) {
-                window.webrtcApp.notify.error('Die Verbindung konnte nicht aufgebaut werden: ' + e.message);
-                return;
-            }
-            window.webrtcApp.signaling.sendSignalMessage({
-                type: 'answer',
-                sdp: answer.sdp,
-                target: data.sender_id
+            await window.webrtcApp.rtc.acceptCall({
+                video: useVideo,
+                audio: useAudio,
+                videoDeviceId: document.getElementById('camera-select')?.value || null,
+                audioDeviceId: document.getElementById('mic-select')?.value || null
             });
-            updateCallIcons();
         });
     }
 
@@ -134,7 +92,6 @@ window.webrtcApp.init = function() {
                 userId = btnId.substring('start-call-btn-'.length);
             }
             window.webrtcApp.rtc.startCall(userId);
-            setTimeout(updateCallIcons(), 1000);
         });
     });
 
@@ -171,181 +128,57 @@ window.webrtcApp.init = function() {
         window.webrtcApp.control.toggleLock();
     });
 
-    // ---------- Geräteauswahl (Kamera/Mikro) füllen (Setup für beide) ----------
-    async function populateMediaDeviceLists() {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        // Je Geraeteart zwei Auswahlfelder: eines im Annahmedialog, eines in
-        // der Call-Ansicht.
-        const selects = [
-            ['camera-select', 'camera-select-in-call'],
-            ['mic-select', 'mic-select-in-call']
-        ];
-        // Kameras
-        selects[0].forEach(id => {
-            const sel = document.getElementById(id);
-            if (!sel) return;
-            sel.innerHTML = "";
-            devices.filter(d => d.kind === "videoinput").forEach((device, i) => {
-                const option = document.createElement("option");
-                option.value = device.deviceId;
-                option.text = device.label || `Kamera ${i+1}`;
-                sel.appendChild(option);
-            });
-        });
-        // Mikrofone
-        selects[1].forEach(id => {
-            const sel = document.getElementById(id);
-            if (!sel) return;
-            sel.innerHTML = "";
-            const audios = devices.filter(d => d.kind === "audioinput");
-            audios.forEach((device, i) => {
-                const option = document.createElement("option");
-                option.value = device.deviceId;
-                option.text = device.label || `Mikrofon ${i+1}`;
-                sel.appendChild(option);
-            });
-            if (audios.length === 0) {
-                const option = document.createElement("option");
-                option.text = "(Kein Mikrofon gefunden)";
-                option.disabled = true;
-                sel.appendChild(option);
-            }
+    // ---------- Geraeteauswahl und Medienknoepfe ----------
+    //
+    // Der Inhalt liegt in assets/js/media.js. Hier steht nur, WANN er laeuft.
+    //
+    // Die Liste wird nicht mehr nur einmal beim Seitenaufbau gefuellt. Das
+    // war der Grund, warum ein Geraetewechsel im Call nichts bewirkte: Vor
+    // der ersten Freigabe liefert enumerateDevices() Eintraege ohne Namen und
+    // mit LEERER Kennung. Genau die standen dann dauerhaft in der Auswahl,
+    // und der Wechsel auf einen solchen Eintrag konnte gar nicht wirken.
+    //
+    // Neu gefuellt wird jetzt:
+    //   - beim Seitenaufbau (fuer den Annahmedialog),
+    //   - nach jeder erteilten Freigabe (media.acquireTrack, rtc.acceptCall,
+    //     rtc.startCall),
+    //   - wenn der Browser einen Geraetewechsel meldet (devicechange),
+    //   - beim Aufklappen des Geraeteblatts im Call.
+    window.webrtcApp.media.refreshDeviceLists();
+
+    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+        navigator.mediaDevices.addEventListener('devicechange', function() {
+            window.webrtcApp.media.refreshDeviceLists();
         });
     }
-    populateMediaDeviceLists();
-
-    // ---------- In-Call-Selects für Kamera/Mikro + Event-Handler ----------
-    window.webrtcApp.init.updateMediaDeviceSelects = populateMediaDeviceLists;
 
     // ---------- Kamera/Mikro im laufenden Call wechseln ----------
-    window.webrtcApp.init.handleMediaDeviceChange = async function(type) {
-        const select = document.getElementById(
-            type === 'video' ? 'camera-select-in-call' : 'mic-select-in-call'
-        );
-        if (!select || !select.value) return;
-        const constraints = {};
-        constraints[type] = { deviceId: { exact: select.value } };
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        const track = type === 'video' ? stream.getVideoTracks()[0] : stream.getAudioTracks()[0];
-        const pc = window.webrtcApp.refs.localPeerConnection;
-        const sender = pc?.getSenders().find(s => s.track && s.track.kind === type);
-        if (sender && track) {
-            await sender.replaceTrack(track);
-            const localStream = window.webrtcApp.refs.localStream;
-            if (localStream) {
-                localStream.getTracks().filter(t => t.kind === type).forEach(t => localStream.removeTrack(t));
-                localStream.addTrack(track);
-            }
-            if (type === 'video') {
-                document.getElementById('local-video').srcObject = window.webrtcApp.refs.localStream;
-            }
-        }
-        updateCallIcons();
-    };
-
-    // Geraetewechsel im laufenden Call
+    // Der Wechsel laeuft ueber RTCRtpSender.replaceTrack(): Er wirkt sofort
+    // bei der Gegenseite, ohne Offer und Answer. Siehe media.switchDevice().
     document.getElementById('camera-select-in-call')
-        ?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('video'));
+        ?.addEventListener('change', function() {
+            window.webrtcApp.media.switchDevice('video', this.value);
+        });
     document.getElementById('mic-select-in-call')
-        ?.addEventListener('change', () => window.webrtcApp.init.handleMediaDeviceChange('audio'));
+        ?.addEventListener('change', function() {
+            window.webrtcApp.media.switchDevice('audio', this.value);
+        });
 
-    // ---------- ECHTER MUTE/UNMUTE & VIDEO ON/OFF für Desktop UND Mobile -----------
-    function getSender(kind) {
-        const pc = window.webrtcApp.refs.localPeerConnection;
-        if (!pc) return null;
-        let sender = pc.getSenders().find(s => s.track && s.track.kind === kind);
-        if (!sender) sender = pc.getSenders().find(s => !s.track);
-        return sender;
-    }
-
-    // Mikrofon und Kamera gibt es je einmal - die Bedienleiste der
-    // Call-Ansicht ist dieselbe auf jedem Geraet. Hier stand vorher ein
-    // Helfer, der Desktop- und Mobilknopf zu einem Paar zusammensuchte.
-    const micBtns  = [document.getElementById('switch-mic-btn')].filter(Boolean);
-    const micIcons = [document.getElementById('mic-icon')].filter(Boolean);
-    function updateMicIcon() {
-        const sender = getSender('audio');
-        micIcons.forEach(icon => {
-            icon.src = (sender && sender.track) ? 'assets/img/mic.png' : 'assets/img/mic-off.png';
-        });
-        micBtns.forEach(btn => {
-            btn.title = (sender && sender.track) ? 'Mikrofon stummschalten' : 'Mikrofon einschalten';
-        });
-    }
-    micBtns.forEach(btn => {
-        btn.addEventListener('click', async function() {
-            if (!window.webrtcApp.state.isCallActive) return;
-            const sender = getSender('audio');
-            if (sender && sender.track) {
-                await sender.replaceTrack(null);
-            } else {
-                const stream = window.webrtcApp.refs.localStream;
-                if (stream) {
-                    const newTrack = stream.getAudioTracks()[0];
-                    if (newTrack) await sender.replaceTrack(newTrack);
-                }
-            }
-            updateMicIcon();
-        });
+    // ---------- Mikrofon und Kamera an/aus ----------
+    // Beide Knoepfe gibt es genau einmal - die Bedienleiste der Call-Ansicht
+    // ist dieselbe auf jedem Geraet. Was passiert, steht in media.js; hier
+    // steht nur, dass ein Druck es ausloest.
+    document.getElementById('switch-mic-btn')?.addEventListener('click', function() {
+        if (!window.webrtcApp.state.isCallActive) return;
+        window.webrtcApp.media.toggleMic();
     });
 
-    // --- Kamera ---
-    const camBtns  = [document.getElementById('switch-cam-btn')].filter(Boolean);
-    const camIcons = [document.getElementById('cam-icon')].filter(Boolean);
-    function updateCamIcon() {
-        const sender = getSender('video');
-        camIcons.forEach(icon => {
-            icon.src = (sender && sender.track) ? 'assets/img/camera.png' : 'assets/img/camera-off.png';
-        });
-        camBtns.forEach(btn => {
-            btn.title = (sender && sender.track) ? 'Kamera ausschalten' : 'Kamera einschalten';
-        });
-    }
-    camBtns.forEach(btn => {
-        btn.addEventListener('click', async function() {
-            if (!window.webrtcApp.state.isCallActive) return;
-            const sender = getSender('video');
-            const stream = window.webrtcApp.refs.localStream;
-            if (sender && sender.track) {
-                await sender.replaceTrack(null);
-                window.webrtcApp.control.sendVideoState(false);
-            } else {
-                let newTrack = null;
-                if (stream && stream.getVideoTracks().length > 0) {
-                    newTrack = stream.getVideoTracks()[0];
-                } else {
-                    try {
-                        const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                        newTrack = newStream.getVideoTracks()[0];
-                        if (newTrack && stream) stream.addTrack(newTrack);
-                    } catch (e) {
-                        window.webrtcApp.notify.error('Die Kamera ließ sich nicht einschalten: ' + e.message);
-                        return;
-                    }
-                }
-                if (newTrack && sender) {
-                    await sender.replaceTrack(newTrack);
-                } else if (newTrack && stream && window.webrtcApp.refs.localPeerConnection) {
-                    window.webrtcApp.refs.localPeerConnection.addTrack(newTrack, stream);
-                }
-                if (stream) {
-                    document.getElementById('local-video').srcObject = stream;
-                }
-                window.webrtcApp.control.sendVideoState(true);
-            }
-            updateCamIcon();
-        });
+    document.getElementById('switch-cam-btn')?.addEventListener('click', function() {
+        if (!window.webrtcApp.state.isCallActive) return;
+        window.webrtcApp.media.toggleCamera();
     });
 
-    // Call-Icon-Status aktualisieren (wird mehrfach verwendet)
-    function updateCallIcons() {
-        updateMicIcon();
-        updateCamIcon();
-    }
-    window.updateMicIcon = updateMicIcon;
-    window.updateCamIcon = updateCamIcon;
-    window.updateCallIcons = updateCallIcons;
-    updateCallIcons();
+    window.webrtcApp.media.updateIcons();
 
     // ---------- Kopfleiste ----------
     //
@@ -406,6 +239,10 @@ window.webrtcApp.init = function() {
         const offen = deviceSheet && deviceSheet.hidden;
         setSheet(chatOverlay, chatToggle, false);
         setSheet(deviceSheet, deviceToggle, !!offen);
+        // Beim Aufklappen die Liste erneuern: Ein waehrend des Calls
+        // angestecktes Headset soll darin stehen, und nach der Freigabe
+        // haben die Eintraege jetzt Namen statt "Kamera 1".
+        if (offen) window.webrtcApp.media.refreshDeviceLists();
     });
 
     document.getElementById('chat-close')?.addEventListener('click', function() {

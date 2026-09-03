@@ -50,6 +50,27 @@ window.webrtcApp.notify = {
     TOAST_MS_ERROR: 7000,
 
     /**
+     * Zeitpunkt, bis zu dem noch ein Hinweis steht (ms seit Epoche), oder 0.
+     *
+     * Gebraucht von rtc.endCall(): Die Anwendung laedt nach einem Call auf
+     * Mobilgeraeten die Seite neu. Der Neuaufbau loeschte bisher jede
+     * Meldung nach einer Sekunde - also genau die Meldung, die sagt, WARUM
+     * der Call zu Ende ist ("Der Zugriff auf die Kamera wurde abgelehnt").
+     * Mit dieser Angabe kann der Aufrufer warten, bis der Hinweis gelesen
+     * werden konnte.
+     */
+    toastUntil: 0,
+
+    /**
+     * Wie lange steht noch ein Hinweis?
+     * @returns {number} Millisekunden, 0 wenn nichts mehr aussteht
+     */
+    pendingMs() {
+        const rest = this.toastUntil - Date.now();
+        return rest > 0 ? rest : 0;
+    },
+
+    /**
      * Der Bereich, in dem die Hinweise liegen. Wird beim ersten Hinweis
      * angelegt, damit auf Seiten ohne Meldung nichts im Dokument steht.
      *
@@ -105,8 +126,13 @@ window.webrtcApp.notify = {
             setTimeout(() => el.remove(), 250);
         };
 
+        const dauer = (sorte === 'error') ? this.TOAST_MS_ERROR : this.TOAST_MS;
+        // Der spaeteste Zeitpunkt gewinnt: Steht schon ein laengerer Hinweis,
+        // darf ein kurzer die Frist nicht verkuerzen.
+        this.toastUntil = Math.max(this.toastUntil, Date.now() + dauer);
+
         zu.addEventListener('click', weg);
-        setTimeout(weg, sorte === 'error' ? this.TOAST_MS_ERROR : this.TOAST_MS);
+        setTimeout(weg, dauer);
     },
 
     /** @param {string} text */

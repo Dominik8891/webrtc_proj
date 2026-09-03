@@ -27,7 +27,7 @@ verändern nichts — sie sind gefahrlos jederzeit ausführbar.
 
 | Datei | Inhalt |
 |---|---|
-| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `navigator.mediaDevices`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Die Medien-Attrappe schreibt mit, welche Spuren angefordert wurden, und lässt sich über `__mediaError` zu einer Ablehnung zwingen. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `signaling.js`, `chat.js` und `ui.js` aus `assets/js`. Allein nicht ausführbar. |
+| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `navigator.mediaDevices`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Die Medien-Attrappe schreibt mit, welche Spuren angefordert wurden, kennt eine Geräteliste (`__devices`) samt `enumerateDevices` und `getSettings().deviceId` und lässt sich über `__mediaError` (alles) oder `__mediaErrorFor.video` / `.audio` (eine Spurart) zu einer Ablehnung zwingen. Die PeerConnection-Attrappe bildet Transceiver samt Richtung nach: `setRemoteDescription` eines Angebots legt sie als `recvonly` an, und `replaceTrack` weist eine Spur der falschen Art mit `TypeError` ab — so wie der Browser. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. `navigator` wird über `Object.defineProperty` gesetzt: Node bringt seit Version 21 ein eigenes mit, und das ist ein Getter ohne Setter — eine einfache Zuweisung lief still ins Leere. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `media.js`, `signaling.js`, `chat.js` und `ui.js` aus `assets/js`. Allein nicht ausführbar. |
 | `client_test.js` | Die eigentlichen Client-Prüfungen. |
 | `server_test.php` | Die Serverprüfungen. Ersetzt `PdoConnect::$connection` durch eine Attrappe, die abgesetzte SQL-Statements nur mitschreibt statt sie auszuführen. |
 
@@ -35,7 +35,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (82 Prüfungen)
+## Was `client_test.js` prüft (99 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -108,6 +108,52 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     raus und es läuft keine Annahmefrist. Weist der Server den Anruf ab (Ziel
     ist kein Guide), steht seine Begründung in der Meldung, der Call wird
     abgeräumt und es wird keine Rolle vergeben.
+
+### Medien im laufenden Call (31–34)
+
+31. **Gerätewechsel wirkt — ohne Neuaushandlung** — ein Wechsel von Kamera oder
+    Mikrofon geht über `RTCRtpSender.replaceTrack()`; geprüft wird, dass danach
+    das neue Gerät am Sender hängt, dass **kein** neues Offer entstanden ist
+    und dass die alte Spur gestoppt und aus dem lokalen Strom genommen wurde.
+    Der Sender wird über den **Transceiver** gesucht, nicht über
+    `sender.track.kind`: Bei stummem Mikrofon lieferte die alte Suche („der
+    erste Sender ohne Spur") für Video den Audiosender, und `replaceTrack`
+    warf. Ist eine Spurart abgeschaltet, wird die Wahl nur gemerkt und gilt
+    beim Einschalten — nichts wird heimlich wieder angeschaltet. Alles davon
+    in **beiden Rollen**: als Zuschauer (Anrufer) und als Guide (Angerufener).
+
+32. **Die eigene Kamera abschalten kommt beim Gegenüber an** — die Spur wird
+    vom Sender genommen *und* gestoppt (sonst bliebe die Kameraleuchte an), sie
+    verlässt den lokalen Strom, der eigene Platzhalter erscheint, und die
+    Gegenseite bekommt `video_state {on:false}`. Auf der Empfangsseite wird
+    beides geprüft: die Protokollnachricht **und** das Stummwerden der
+    Empfangsspur (`track.onmute`) — der zweite Weg trägt auch dann, wenn der
+    Steuerkanal nicht steht; ohne ihn blieb das letzte Standbild stehen.
+    Außerdem: Der eigene Videozustand geht **von selbst** mit der Begrüßung
+    raus, und wer ohne Kamera annimmt, behält trotzdem einen `sendrecv`-
+    Videotransceiver — sonst ließe sie sich später nur mit einer
+    Neuaushandlung zuschalten.
+
+33. **Guide und Zuschauer bekommen verschiedene Oberflächen** — die Rollenklasse
+    auf `#call-view` schaltet um (Sperrschalter beim Guide, Steuerkreuz und
+    Sperrhinweis beim Zuschauer, ohne Rolle nichts von beidem). Geprüft wird
+    außerdem die Stilvorlage selbst: dass beim Guide der Empfangsbereich
+    entfällt (er bekommt kein Bild — ein Videobereich dafür wäre eine schwarze
+    Fläche) und das eigene Bild stattdessen die Bühne füllt. Und dass es
+    **ein** Markup geblieben ist: Jede ID in `inner_call_controll.html` steht
+    genau einmal.
+
+34. **Ein verweigerter Medienzugriff wird gemeldet** — der Gerätewechsel hatte
+    gar kein `try`/`catch`, die Ablehnung endete als unbehandelte
+    Promise-Ablehnung in der Konsole. Jetzt: genau *eine* Meldung, die das
+    **richtige** Gerät nennt (vorher stand in jedem Fall „Mikrofon", auch wenn
+    die Kamera abgelehnt worden war). Beim Annehmen beendet eine abgelehnte
+    Kamera das Gespräch nicht mehr — es läuft mit Ton weiter, die Kamera bleibt
+    zuschaltbar; fällt auch der Ton aus, wird mit einer Meldung abgebrochen und
+    der Anrufer benachrichtigt. Zuletzt: Das Neuladen der Seite nach dem Call
+    (Mobilgeräte) wartet, bis die Meldung gelesen werden konnte — vorher lud es
+    starr nach einer Sekunde neu und löschte damit genau den Satz, der den
+    Abbruch erklärte.
 
 ### Standort anbieten (29, 30)
 

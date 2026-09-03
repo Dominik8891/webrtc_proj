@@ -58,6 +58,7 @@ window.webrtcApp.rtc = {
 
         this.stopReconnect();        // Alle Wiederverbindungs-Timer stoppen
         window.webrtcApp.control.reset();  // Rolle, Sequenznummern, Sperre, Anzeige
+        window.webrtcApp.media.reset();    // Geraetewahl und eigenes Vorschaubild
         this.resetUI();              // Entfernt UI-Call-Status
         this.closePeerConnection();  // PeerConnection & DataChannels schließen
         this.clearMediaStreams();    // Lokalen & Remote MediaStream beenden
@@ -79,9 +80,17 @@ window.webrtcApp.rtc = {
         // auf eingehende Anrufe.
         window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IDLE);
 
-        // Mobile Browser fix: reload nach Call-Ende
+        // Mobile Browser fix: reload nach Call-Ende.
+        //
+        // Der Neuaufbau wartet, bis ein noch stehender Hinweis gelesen werden
+        // konnte. Vorher lud die Seite starr nach einer Sekunde neu - und
+        // loeschte damit genau die Meldung, die den Abbruch erklaerte
+        // ("Der Zugriff auf die Kamera wurde abgelehnt ..."). Auf einem
+        // Telefon war das der Grund, warum bei verweigertem Medienzugriff
+        // scheinbar gar nichts kam.
         if (/Android|iPhone|iPad|iPod|Mobile|Linux/i.test(navigator.userAgent)) {
-            setTimeout(() => location.reload(), 1000);
+            const wartezeit = Math.max(1000, window.webrtcApp.notify.pendingMs() + 400);
+            setTimeout(() => location.reload(), wartezeit);
         }
     },
 
@@ -273,10 +282,11 @@ window.webrtcApp.rtc = {
         window.webrtcApp.rtc.createPeerConnection(true);
         window.webrtcApp.rtc.addLocalTracks();
         window.webrtcApp.rtc.reserveVideoSender();
-        updateCallIcons();
 
-        const localVideo = document.getElementById('local-video');
-        if (localVideo) localVideo.srcObject = stream;
+        // Die Geraeteliste ist erst jetzt brauchbar: Vor der ersten Freigabe
+        // liefert enumerateDevices() Eintraege ohne Namen und ohne Kennung.
+        window.webrtcApp.media.refreshDeviceLists();
+        window.webrtcApp.media.updateIcons();
 
         // 4. Call-Ansicht zeigen. Ab hier laeuft ein Anruf, den der Nutzer
         //    auch selbst wieder beenden kann.
@@ -367,6 +377,195 @@ window.webrtcApp.rtc = {
     },
 
     /**
+     * Nimmt einen eingehenden Anruf an.
+     *
+     * Stand vorher als anonymer Klickhandler in assets/js/main.js. Hier ist
+     * er pruefbar und liegt neben startCall(), mit dem er sich die Haelfte
+     * des Ablaufs teilt.
+     *
+     * ZWEI AENDERUNGEN AM ABLAUF
+     * --------------------------
+     * 1. Die eigenen Spuren werden erst NACH setRemoteDescription gelegt,
+     *    ueber media.attachAnswerTracks(). Damit landen sie auf den
+     *    Transceivern des Angebots, und der Videotransceiver bekommt
+     *    ausdruecklich die Richtung "sendrecv" - auch dann, wenn die Kamera
+     *    im Annahmedialog abgewaehlt wurde. Nur so laesst sie sich spaeter
+     *    per replaceTrack zuschalten, ohne neu auszuhandeln. Vorher lief
+     *    addTrack VOR setRemoteDescription; wer ohne Kamera annahm, konnte
+     *    sie im Gespraech nicht mehr einschalten.
+     * 2. Eine abgelehnte Kamera beendet den Anruf nicht mehr. Der Guide
+     *    hoert und spricht weiter, und er erfaehrt, was fehlt.
+     *
+     * @param {Object} wahl - Auswahl aus dem Annahmedialog
+     * @param {boolean} wahl.video - Bild senden
+     * @param {boolean} wahl.audio - Ton senden
+     * @param {string|null} [wahl.videoDeviceId] - gewaehlte Kamera
+     * @param {string|null} [wahl.audioDeviceId] - gewaehltes Mikrofon
+     */
+    acceptCall: async function(wahl) {
+        const state = window.webrtcApp.state;
+        const media = window.webrtcApp.media;
+        const data  = state.pendingOffer;
+
+        if (!data) {
+            window.webrtcApp.notify.error('Der Anruf ist nicht mehr da.');
+            return;
+        }
+
+        window.webrtcApp.uiRtc.setEndCallButtonVisible(true);
+        state.isCallActive = true;
+        // Wir nehmen an, sind also nicht der Initiator: Bei einer Störung
+        // handelt die Gegenseite neu aus, wir bitten sie nur darum.
+        state.isInitiator = false;
+        window.webrtcApp.rtc.setConnectionStatus('connecting');
+        // Im Call langsamer weiterpollen - der Weg wird für Auflegen und
+        // ICE-Restart gebraucht.
+        window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IN_CALL);
+        window.webrtcApp.uiChat.updatePollingState();
+
+        state.activeTargetUserId = data.sender_id;
+        // Die Rolle hat der Server an das Offer gestempelt (siehe
+        // WebRTCController::roleForCall). Fehlt sie, gilt sie als unbekannt -
+        // dann rendert kein Steuerkreuz und eingehende Bewegungsbefehle
+        // werden abgelehnt.
+        window.webrtcApp.control.applyRole(data.role || null);
+        state.targetUsername = await window.webrtcApp.uiRtc.getUsername(data.sender_id);
+        document.body.classList.add('call-active');
+        const callView = document.getElementById('call-view');
+        if (callView) callView.style.display = '';
+        const name = document.getElementById('remote-username');
+        if (name) name.textContent = 'Anruf mit ' + state.targetUsername;
+
+        // Die im Dialog gewaehlten Geraete gelten fuer den ganzen Call - auch
+        // dann, wenn die Kamera zwischendurch aus und wieder an geht.
+        media.rememberDevice('video', wahl.videoDeviceId || null);
+        media.rememberDevice('audio', wahl.audioDeviceId || null);
+
+        const stream = await window.webrtcApp.rtc.acquireAcceptMedia(wahl);
+        if (!stream) return;                // Meldung ist raus, Call abgebaut
+        window.webrtcApp.refs.localStream = stream;
+
+        await window.webrtcApp.rtc.loadIceServers();
+        window.webrtcApp.rtc.createPeerConnection(false);
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        if (!pc) {
+            window.webrtcApp.rtc.sendCallFailedMsg('Die Verbindung konnte nicht aufgebaut werden.');
+            return;
+        }
+
+        try {
+            await pc.setRemoteDescription(new RTCSessionDescription({
+                type: data.type,
+                sdp: data.sdp
+            }));
+        } catch (e) {
+            window.webrtcApp.rtc.sendCallFailedMsg(
+                'Die Verbindung konnte nicht aufgebaut werden: ' + (e && e.message ? e.message : 'unbekannter Fehler')
+            );
+            return;
+        }
+
+        // Erst jetzt die eigenen Spuren - siehe Erklaerung oben.
+        await media.attachAnswerTracks(stream);
+
+        let answer;
+        try {
+            answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+        } catch (e) {
+            window.webrtcApp.rtc.sendCallFailedMsg(
+                'Die Verbindung konnte nicht aufgebaut werden: ' + (e && e.message ? e.message : 'unbekannter Fehler')
+            );
+            return;
+        }
+
+        window.webrtcApp.signaling.sendSignalMessage({
+            type: 'answer',
+            sdp: answer.sdp,
+            target: data.sender_id
+        });
+        window.webrtcApp.rtc.flushPendingCandidates();
+
+        // Jetzt liegt eine Freigabe vor: Erst ab hier haben die Geraete in
+        // enumerateDevices() Namen und Kennungen.
+        media.refreshDeviceLists();
+        media.updateIcons();
+    },
+
+    /**
+     * Holt die Medien fuer einen angenommenen Anruf.
+     *
+     * Faellt nur EINE der beiden Spurarten aus, laeuft das Gespraech mit der
+     * anderen weiter - und der Nutzer erfaehrt, welche fehlt und warum.
+     * Vorher endete jede Ablehnung den Anruf, und die Meldung nannte in jedem
+     * Fall "Medien", nie das betroffene Geraet.
+     *
+     * Zuerst wird EIN gemeinsamer getUserMedia-Aufruf versucht: Der Browser
+     * fragt dann auch nur einmal nach. Erst wenn der scheitert, wird je Spur
+     * einzeln nachgefasst - nur so ist zu erkennen, welches Geraet abgelehnt
+     * wurde.
+     *
+     * @param {Object} wahl - siehe acceptCall()
+     * @returns {Promise<MediaStream|null>} null = Anruf ist bereits abgebaut
+     */
+    acquireAcceptMedia: async function(wahl) {
+        const media = window.webrtcApp.media;
+
+        const gesamt = {};
+        if (wahl.audio) gesamt.audio = media.deviceConstraint('audio');
+        if (wahl.video) gesamt.video = media.deviceConstraint('video');
+
+        try {
+            return await navigator.mediaDevices.getUserMedia(gesamt);
+        } catch (fehler) {
+            // Nur eine Spurart gewuenscht: Es gibt nichts aufzuteilen.
+            if (!wahl.audio || !wahl.video) {
+                window.webrtcApp.rtc.sendCallFailedMsg(
+                    window.webrtcApp.rtc.mediaErrorText(fehler, wahl.video ? 'video' : 'audio')
+                );
+                return null;
+            }
+        }
+
+        const einzeln = async (kind) => {
+            const c = {};
+            c[kind] = media.deviceConstraint(kind);
+            try { return { stream: await navigator.mediaDevices.getUserMedia(c) }; }
+            catch (e) { return { fehler: e }; }
+        };
+
+        const ton  = await einzeln('audio');
+        const bild = await einzeln('video');
+
+        if (!ton.stream && !bild.stream) {
+            window.webrtcApp.rtc.sendCallFailedMsg(
+                window.webrtcApp.rtc.mediaErrorText(ton.fehler, 'audio')
+            );
+            return null;
+        }
+
+        if (ton.stream && !bild.stream) {
+            window.webrtcApp.notify.error(
+                window.webrtcApp.rtc.mediaErrorText(bild.fehler, 'video')
+                + ' Der Anruf läuft ohne Bild weiter.'
+            );
+            return ton.stream;
+        }
+
+        if (bild.stream && !ton.stream) {
+            window.webrtcApp.notify.error(
+                window.webrtcApp.rtc.mediaErrorText(ton.fehler, 'audio')
+                + ' Der Anruf läuft ohne Ton weiter; der Chat bleibt nutzbar.'
+            );
+            return bild.stream;
+        }
+
+        // Beide einzeln erfolgreich - der gemeinsame Aufruf war ein Ausreisser.
+        bild.stream.getVideoTracks().forEach(t => ton.stream.addTrack(t));
+        return ton.stream;
+    },
+
+    /**
      * Bricht einen gerade aufgebauten Anruf ab und sagt dem Nutzer, warum.
      *
      * Gedacht fuer die Fehler VOR dem Zustandekommen des Gespraechs: kein
@@ -378,8 +577,13 @@ window.webrtcApp.rtc = {
     abortCall(text) {
         window.webrtcApp.rtc.stopTimeout();
         window.webrtcApp.sound.stop('call_ringtone');
-        window.webrtcApp.rtc.endCall(false);
+        // Die Meldung steht VOR dem Abbau. endCall() laesst auf Mobilgeraeten
+        // die Seite neu laden und richtet sich dafuer nach der Frist des
+        // laengsten stehenden Hinweises (notify.pendingMs). Eine Meldung, die
+        // erst danach abgesetzt wird, wuerde nicht mitgezaehlt und mit dem
+        // Neuaufbau verschwinden.
         window.webrtcApp.notify.error(text);
+        window.webrtcApp.rtc.endCall(false);
     },
 
     /**
@@ -390,23 +594,36 @@ window.webrtcApp.rtc = {
      * Ohne diese Uebersetzung stand dort zuletzt gar nichts - der Fehler ging
      * in console.error unter.
      *
+     * Das Geraet steht als Parameter dabei: Der Text lautete frueher in jedem
+     * Fall auf "Mikrofon", auch wenn die KAMERA abgelehnt worden war. Eine
+     * Meldung, die das falsche Geraet nennt, ist schlimmer als keine - sie
+     * schickt den Nutzer in die falsche Einstellung.
+     *
      * @param {Error} fehler - Was getUserMedia abgelehnt hat
+     * @param {string} [kind] - 'audio' (Vorgabe) oder 'video'
      * @returns {string}
      */
-    mediaErrorText(fehler) {
+    mediaErrorText(fehler, kind) {
         const name = fehler && fehler.name ? fehler.name : '';
+        const video = (kind === 'video');
+        const geraet = video ? 'die Kamera' : 'das Mikrofon';
+        const Geraet = video ? 'Die Kamera'  : 'Das Mikrofon';
+
         if (name === 'NotAllowedError' || name === 'SecurityError') {
-            return 'Der Zugriff auf das Mikrofon wurde abgelehnt. Bitte erlauben Sie ihn '
-                 + 'in den Einstellungen des Browsers und rufen Sie erneut an.';
+            return 'Der Zugriff auf ' + geraet + ' wurde abgelehnt. Bitte erlauben Sie ihn '
+                 + 'in den Einstellungen des Browsers und versuchen Sie es erneut.';
         }
-        if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-            return 'Es wurde kein Mikrofon gefunden. Ohne Mikrofon lässt sich kein Gespräch führen.';
+        if (name === 'NotFoundError' || name === 'OverconstrainedError'
+            || name === 'ConstraintNotSatisfiedError') {
+            return video
+                ? 'Es wurde keine Kamera gefunden. Ohne Kamera lässt sich kein Bild übertragen.'
+                : 'Es wurde kein Mikrofon gefunden. Ohne Mikrofon lässt sich kein Gespräch führen.';
         }
-        if (name === 'NotReadableError') {
-            return 'Das Mikrofon lässt sich nicht öffnen. Vermutlich benutzt es gerade ein '
-                 + 'anderes Programm.';
+        if (name === 'NotReadableError' || name === 'TrackStartError') {
+            return Geraet + ' lässt sich nicht öffnen. Vermutlich benutzt '
+                 + (video ? 'sie' : 'es') + ' gerade ein anderes Programm.';
         }
-        return 'Das Mikrofon konnte nicht verwendet werden: '
+        return Geraet + ' konnte nicht verwendet werden: '
              + (fehler && fehler.message ? fehler.message : 'unbekannter Fehler');
     },
 
@@ -471,20 +688,63 @@ window.webrtcApp.rtc = {
         // Remote-Stream anzeigen
         window.webrtcApp.refs.localPeerConnection.ontrack = event => {
             const remoteVideo = document.getElementById('remote-video');
-            const placeholder = document.getElementById('remote-video-placeholder');
-            if (remoteVideo) {
+            if (remoteVideo && event.streams && event.streams[0]) {
                 remoteVideo.srcObject = event.streams[0];
-                // Overlay verbergen, wenn Video kommt
-                if (placeholder && event.streams[0].getVideoTracks().length > 0) {
-                    placeholder.classList.remove('d-flex', 'show', 'align-items-center', 'justify-content-center');
-                    placeholder.style.display = 'none';
-                    placeholder.style.opacity = '0';
-                    placeholder.style.visibility = 'hidden';
-                    remoteVideo.style.display = "block";
-                }
+            }
+            if (event.track && event.track.kind === 'video') {
+                window.webrtcApp.rtc.bindRemoteVideoTrack(event.track);
             }
         };
         window.webrtcApp.state.tracksAdded = false;
+    },
+
+    /**
+     * Haengt sich an die eingehende Videospur, um zu merken, wann die
+     * Gegenseite ihr Bild abschaltet.
+     *
+     * DAS IST DER ZWEITE WEG. Der erste ist die Nachricht video_state ueber
+     * den Steuerkanal - schnell und ausdruecklich, aber sie setzt voraus,
+     * dass der Kanal steht. Eine Spur, auf der nichts mehr gesendet wird
+     * (replaceTrack(null) beim Gegenueber), wird dagegen vom Browser selbst
+     * als "muted" gemeldet. Darauf ist Verlass, auch bei gestoerter
+     * Verbindung.
+     *
+     * Ohne das blieb beim Gegenueber das letzte Standbild stehen - eine
+     * abgeschaltete Kamera war nicht von einem eingefrorenen Bild zu
+     * unterscheiden.
+     *
+     * @param {MediaStreamTrack} track - Die eingehende Videospur
+     */
+    bindRemoteVideoTrack(track) {
+        if (!track) return;
+
+        const zeigen = () => window.webrtcApp.rtc.setRemoteVideoVisible(true);
+        const verbergen = () => window.webrtcApp.rtc.setRemoteVideoVisible(false);
+
+        track.onunmute = zeigen;
+        track.onmute   = verbergen;
+        track.onended  = verbergen;
+
+        // Der Anfangszustand steht schon fest, bevor ein Ereignis kommt.
+        window.webrtcApp.rtc.setRemoteVideoVisible(track.muted !== true);
+    },
+
+    /**
+     * Blendet das Bild der Gegenseite ein oder den Platzhalter an seiner
+     * Stelle.
+     *
+     * Die einzige Stelle, die daran dreht. Vorher tat es der ontrack-Handler
+     * mit dem einen Satz Klassen und control.handleVideoState() mit einem
+     * anderen - die beiden konnten sich gegenseitig ueberschreiben.
+     *
+     * @param {boolean} sichtbar - true = Bild, false = Platzhalter
+     */
+    setRemoteVideoVisible(sichtbar) {
+        const remoteVideo = document.getElementById('remote-video');
+        const platzhalter = document.getElementById('remote-video-placeholder');
+
+        if (remoteVideo) remoteVideo.style.display = sichtbar ? 'block' : 'none';
+        if (platzhalter) platzhalter.style.display = sichtbar ? 'none' : 'flex';
     },
 
     /**
@@ -565,6 +825,10 @@ window.webrtcApp.rtc = {
             // Steht der Kanal, bevor die Rolle vom Server da war, holt
             // control.applyRole() das "hello" nach.
             window.webrtcApp.control.sendHello();
+            // Der eigene Videozustand gehoert zur Begruessung: Ohne ihn wuesste
+            // die Gegenseite nicht, ob gerade kein Bild kommt oder nur noch
+            // keins angekommen ist.
+            window.webrtcApp.media.announceVideoState();
             window.webrtcApp.control.updateRoleUi();
             window.webrtcApp.rtc.handleConnectionStateChange();
         };
@@ -595,7 +859,7 @@ window.webrtcApp.rtc = {
                 await new Promise(resolve => setTimeout(resolve, 100));
 
                 window.webrtcApp.rtc.addLocalTracks();
-                updateCallIcons();
+                window.webrtcApp.media.updateIcons();
 
                 const offer = await window.webrtcApp.refs.localPeerConnection.createOffer();
                 await window.webrtcApp.refs.localPeerConnection.setLocalDescription(offer);
@@ -1225,7 +1489,8 @@ window.webrtcApp.rtc = {
             target: window.webrtcApp.state.activeTargetUserId,
             reason: 'media_error'
         });
-        window.webrtcApp.rtc.endCall(false);
+        // Meldung vor dem Abbau - siehe abortCall().
         window.webrtcApp.notify.error(msg);
+        window.webrtcApp.rtc.endCall(false);
     }
 };

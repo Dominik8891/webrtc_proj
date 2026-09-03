@@ -456,17 +456,37 @@ body.call-active {
 }
 
 /* ===========================================================================
-   Rollen: wer was sieht
+   Rollen: zwei Oberflaechen in einem Markup
    ---------------------------------------------------------------------------
    Die Rolle steht als Klasse "role-guide" bzw. "role-viewer" auf #call-view;
    gesetzt von control.updateRoleUi(). Ohne bekannte Rolle steuert niemand -
-   deshalb sind beide Faelle als "nicht die Rolle" formuliert.
+   deshalb sind die Faelle, in denen etwas ERSCHEINT, als "nicht die andere
+   Rolle" formuliert.
+
+   Guide und Zuschauer machen nicht dasselbe:
+
+     Zuschauer  schaut zu und steuert. Das Bild des Guides fuellt den
+                Bildschirm, darauf Steuerkreuz, Verbindungsstatus, Sperrhinweis.
+
+     Guide      BEKOMMT KEIN BILD - der Zuschauer sendet keins. Ein
+                Videobereich dafuer waere eine schwarze Flaeche. Bei ihm zeigt
+                die Buehne SEIN EIGENES Bild: seine Kamerakontrolle. Darauf
+                die grosse Richtungsanzeige und der Sperrschalter.
    =========================================================================== */
+
+/* --- Was nur der Zuschauer sieht ----------------------------------------- */
 
 /* Das Steuerkreuz gibt es ausschliesslich beim Zuschauer. */
 #call-view:not(.role-viewer) #control-pad {
     display: none !important;
 }
+
+/* Der Sperrhinweis ebenso. */
+#call-view:not(.role-viewer) #control-lock-notice {
+    display: none !important;
+}
+
+/* --- Was nur der Guide sieht --------------------------------------------- */
 
 /* Sperrschalter und Richtungsanzeige gehoeren nur zum Guide. */
 #call-view:not(.role-guide) #control-lock-bar,
@@ -474,9 +494,103 @@ body.call-active {
     display: none !important;
 }
 
-/* Der Sperrhinweis wiederum nur zum Zuschauer. */
-#call-view:not(.role-viewer) #control-lock-notice {
+/* --- Die Buehne beim Guide ----------------------------------------------- */
+
+/* KEIN Videobereich fuer ein Bild, das es nicht gibt: Der Empfangsbereich und
+   sein Platzhalter fallen beim Guide ganz weg. */
+#call-view.role-guide #remote-video,
+#call-view.role-guide #remote-video-placeholder {
     display: none !important;
+}
+
+/* Stattdessen fuellt das eigene Bild die Buehne. Es ist kein Beiwerk mehr,
+   sondern das, was uebertragen wird - der Guide muss sehen koennen, worauf
+   die Kamera zeigt. Deshalb dieselbe Flaeche, dieselbe Beschneidung und kein
+   Rahmen: Ein umrandetes Kaestchen mitten im Bildschirm wuerde so aussehen,
+   als fehle daneben etwas. */
+#call-view.role-guide #local-video,
+#call-view.role-guide #local-video-placeholder {
+    position: absolute;
+    inset: 0;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    transform: none;
+}
+
+#call-view.role-guide #local-video {
+    object-fit: cover;
+    background: #000;
+}
+
+/* Der Sperrschalter ist beim Guide die zweitwichtigste Flaeche nach der
+   Richtungsanzeige - er haelt damit die Steuerung an, wenn es eng wird.
+   Deshalb ueber die volle Breite und mit ordentlicher Hoehe. */
+#call-view.role-guide .control-lock-btn {
+    width: min(420px, calc(100vw - 2 * var(--app-space-4)));
+    min-height: 62px;
+    font-size: var(--app-text-lg);
+}
+
+/* --- Das eigene Bild beim Zuschauer -------------------------------------- */
+
+/* Klein in der Ecke - es ist hier nur die Rueckversicherung, dass die eigene
+   Kamera tut, was sie soll. Die Geometrie steht in .call-self / .call-self-off;
+   hier ist nichts zu aendern. */
+
+/* --- Platzhalter fuer die eigene Kamera ---------------------------------- */
+
+.call-self-off {
+    position: absolute;
+    left: var(--app-space-4);
+    bottom: 92px;
+    z-index: 9;
+    width: 152px;
+    height: 104px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--app-space-1);
+    background: #16191f;
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    border-radius: var(--app-radius-lg);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+    color: rgba(255, 255, 255, 0.62);
+    text-align: center;
+}
+
+.call-self-off__mark {
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+.call-self-off__text {
+    margin: 0;
+    font-size: var(--app-text-xs);
+}
+
+/* Auf der ganzen Buehne (Guide) darf der Text nicht winzig bleiben. */
+#call-view.role-guide .call-self-off__mark { font-size: 4rem; }
+#call-view.role-guide .call-self-off__text { font-size: var(--app-text-base); }
+
+@media (max-width: 720px) {
+    /* Gleiche Masse wie .call-self, damit Bild und Platzhalter an derselben
+       Stelle in derselben Groesse stehen. */
+    .call-self-off {
+        width: 96px;
+        height: 66px;
+        left: var(--app-space-3);
+        bottom: 156px;
+    }
+    .call-self-off__mark { font-size: 1.2rem; }
 }
 
 /* ===========================================================================

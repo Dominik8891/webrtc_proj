@@ -1234,6 +1234,401 @@ function ackLastMove(status = 'executed', reason) {
         }
     }
 
+    // -----------------------------------------------------------------
+    // Medien im laufenden Call (31-34).
+    //
+    // Gemeinsame Vorbereitung: ein Call, in dem beide Spurarten ausgehandelt
+    // sind - einmal in der Rolle des Zuschauers (er ruft an) und einmal in der
+    // des Guides (er nimmt an). Beide Wege muessen dasselbe leisten.
+    // -----------------------------------------------------------------
+
+    /** Setzt die Medien-Attrappe in den Ausgangszustand. */
+    function medienZuruecksetzen() {
+        global.__mediaRequests.length = 0;
+        global.__mediaError = null;
+        global.__mediaErrorFor.audio = null;
+        global.__mediaErrorFor.video = null;
+        app.media.reset();
+    }
+
+    /**
+     * Baut einen laufenden Call als ZUSCHAUER (Anrufer) auf.
+     * Er sendet Ton; fuer die Kamera steht ein leerer Sender bereit.
+     */
+    async function callAlsZuschauer() {
+        resetAll();
+        medienZuruecksetzen();
+        app.refs.iceServersLoaded = true;
+        app.refs.iceServersDegraded = false;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+
+        await app.rtc.startCall(42);
+        app.rtc.stopTimeout();
+        app.control.applyRole('viewer');
+        app.state.connectionStatus = 'connected';
+        app.state.connectedSince = Date.now() - 10000;
+        return app.refs.localPeerConnection;
+    }
+
+    /**
+     * Baut einen laufenden Call als GUIDE (Angerufener) auf.
+     * @param {Object} [wahl] - Auswahl im Annahmedialog
+     */
+    async function callAlsGuide(wahl) {
+        resetAll();
+        medienZuruecksetzen();
+        app.refs.iceServersLoaded = true;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+        app.state.pendingOffer = { sender_id: 7, type: 'offer', sdp: 'sdp-x', role: 'guide' };
+
+        await app.rtc.acceptCall(Object.assign({ video: true, audio: true }, wahl || {}));
+
+        // Der Angerufene bekommt die Kanaele sonst erst ueber ondatachannel.
+        if (!app.refs.chatChannel)    app.rtc.attachChannel(makeChannel(P.CHANNEL_CHAT));
+        if (!app.refs.controlChannel) app.rtc.attachChannel(makeChannel(P.CHANNEL_CONTROL));
+        app.state.connectionStatus = 'connected';
+        app.state.connectedSince = Date.now() - 10000;
+        return app.refs.localPeerConnection;
+    }
+
+    /** Die zuletzt ueber den Steuerkanal gesendete Nachricht. */
+    function letzteSteuernachricht() {
+        const gesendet = app.refs.controlChannel.sent;
+        if (!gesendet.length) return null;
+        return JSON.parse(gesendet[gesendet.length - 1]);
+    }
+
+    console.error('\n31) Geraetewechsel im Call wirkt - ohne Neuaushandlung');
+    {
+        // Ein Wechsel von Kamera oder Mikrofon aendert nur die Quelle hinter
+        // einer bereits ausgehandelten Spur. Dafuer ist replaceTrack da: Er
+        // wirkt sofort bei der Gegenseite, ohne Offer und ohne Answer.
+        // Vorher blieb der Wechsel wirkungslos - die Geraeteliste war beim
+        // Seitenaufbau ohne Freigabe gefuellt worden und enthielt Eintraege
+        // mit LEERER Kennung, an denen der Wechsel still abbrach.
+        const pc = await callAlsZuschauer();
+        const offersVorher = pc.offersCreated;
+
+        // --- Mikrofon ---
+        const altesMikro = app.media.localTrack('audio');
+        assert.strictEqual(await app.media.switchDevice('audio', 'mic-2'), true,
+            'der Mikrofonwechsel wurde nicht ausgefuehrt');
+        assert.strictEqual(app.media.senderFor('audio').track.deviceId, 'mic-2',
+            'am Sender haengt nicht das neue Mikrofon');
+        assert.strictEqual(pc.offersCreated, offersVorher,
+            'der Wechsel hat neu ausgehandelt statt replaceTrack zu benutzen');
+        assert.strictEqual(altesMikro.stopped, true,
+            'das alte Mikrofon laeuft weiter');
+        assert.strictEqual(app.refs.localStream.getAudioTracks().length, 1,
+            'im lokalen Strom liegen jetzt zwei Tonspuren');
+        ok('das Mikrofon wechselt ueber replaceTrack, ohne Neuaushandlung');
+
+        // --- Kamera ---
+        assert.strictEqual(await app.media.setCamera(true), true, 'die Kamera ging nicht an');
+        assert.strictEqual(await app.media.switchDevice('video', 'cam-2'), true,
+            'der Kamerawechsel wurde nicht ausgefuehrt');
+        assert.strictEqual(app.media.senderFor('video').track.deviceId, 'cam-2',
+            'am Sender haengt nicht die neue Kamera');
+        assert.strictEqual(pc.offersCreated, offersVorher,
+            'der Kamerawechsel hat neu ausgehandelt');
+        ok('die Kamera wechselt ueber replaceTrack, ohne Neuaushandlung');
+
+        // --- Der Sender wird ueber den Transceiver gesucht, nicht ueber die
+        //     Spur. Genau hier lag der zweite Fehler: Bei stummem Mikrofon
+        //     lieferte die Frage nach dem VIDEOsender den AUDIOsender - der
+        //     erste Sender ohne Spur -, und replaceTrack warf.
+        await app.media.setMic(false);
+        assert.strictEqual(app.media.senderFor('audio').track, null, 'das Mikrofon ist nicht stumm');
+        assert.strictEqual(await app.media.switchDevice('video', 'cam-1'), true,
+            'bei stummem Mikrofon scheitert der Kamerawechsel');
+        assert.strictEqual(app.media.senderFor('video').track.deviceId, 'cam-1',
+            'die Kamera wurde nicht gewechselt');
+        assert.strictEqual(app.media.senderFor('audio').track, null,
+            'der Kamerawechsel hat am Audiosender gedreht');
+        ok('bei stummem Mikrofon wird der richtige Sender getroffen');
+
+        // --- Ausgeschaltet: die Wahl wird gemerkt, aber nichts heimlich
+        //     eingeschaltet. Wer die Kamera gesperrt hat, will sie nicht
+        //     durch die Auswahl eines Geraets wieder anhaben.
+        await app.media.setCamera(false);
+        assert.strictEqual(await app.media.switchDevice('video', 'cam-2'), false,
+            'die ausgeschaltete Kamera wurde durch die Auswahl eingeschaltet');
+        assert.strictEqual(app.media.senderFor('video').track, null, 'es geht wieder Bild raus');
+        assert.strictEqual(app.state.media.videoDeviceId, 'cam-2', 'die Wahl wurde nicht gemerkt');
+        await app.media.setCamera(true);
+        assert.strictEqual(app.media.senderFor('video').track.deviceId, 'cam-2',
+            'beim Einschalten gilt die gemerkte Wahl nicht');
+        ok('bei ausgeschalteter Kamera wird die Wahl nur gemerkt');
+        app.rtc.endCall(false);
+
+        // --- Dieselbe Zusage in der anderen Rolle und damit in der anderen
+        //     Richtung: Der Guide hat angenommen, nicht angerufen.
+        const pcGuide = await callAlsGuide();
+        const offersGuide = pcGuide.offersCreated;
+        assert.strictEqual(await app.media.switchDevice('video', 'cam-2'), true,
+            'der Guide kann die Kamera nicht wechseln');
+        assert.strictEqual(app.media.senderFor('video').track.deviceId, 'cam-2',
+            'beim Guide haengt nicht die neue Kamera am Sender');
+        assert.strictEqual(await app.media.switchDevice('audio', 'mic-2'), true,
+            'der Guide kann das Mikrofon nicht wechseln');
+        assert.strictEqual(app.media.senderFor('audio').track.deviceId, 'mic-2',
+            'beim Guide haengt nicht das neue Mikrofon am Sender');
+        assert.strictEqual(pcGuide.offersCreated, offersGuide,
+            'der Guide handelt beim Wechsel neu aus');
+        ok('auch in der Guide-Rolle wirkt der Wechsel ohne Neuaushandlung');
+        app.rtc.endCall(false);
+    }
+
+    console.error('\n32) Die eigene Kamera abschalten kommt beim Gegenueber an');
+    {
+        const pc = await callAlsGuide();
+        const kanal = app.refs.controlChannel;
+        const spurVorher = app.media.localTrack('video');
+        kanal.sent.length = 0;
+
+        // --- Abschalten ---
+        assert.strictEqual(await app.media.toggleCamera(), true, 'die Kamera ging nicht aus');
+        assert.strictEqual(app.media.senderFor('video').track, null,
+            'es geht weiter Bild auf die Leitung');
+        assert.deepStrictEqual(letzteSteuernachricht(), { v: 1, type: 'video_state', on: false },
+            'der Gegenseite wird das Abschalten nicht gemeldet');
+        // Wirklich aus: Ohne stop() bliebe die Kameraleuchte an, und "Video
+        // sperren" waere ein Versprechen, das die Anwendung nicht haelt.
+        assert.strictEqual(spurVorher.stopped, true, 'die Kamera laeuft weiter');
+        assert.strictEqual(app.refs.localStream.getVideoTracks().length, 0,
+            'die abgeschaltete Spur liegt noch im lokalen Strom');
+        assert.strictEqual(__el('local-video-placeholder').style.display, 'flex',
+            'der eigene Platzhalter erscheint nicht');
+        ok('die Kamera geht wirklich aus und die Gegenseite erfaehrt es');
+
+        // --- Wieder an ---
+        assert.strictEqual(await app.media.toggleCamera(), true, 'die Kamera ging nicht wieder an');
+        assert.ok(app.media.senderFor('video').track, 'nach dem Einschalten haengt keine Spur am Sender');
+        assert.deepStrictEqual(letzteSteuernachricht(), { v: 1, type: 'video_state', on: true },
+            'das Einschalten wird nicht gemeldet');
+        assert.strictEqual(__el('local-video-placeholder').style.display, 'none',
+            'der Platzhalter bleibt ueber dem laufenden Bild stehen');
+        ok('das Einschalten wird ebenso gemeldet');
+        app.rtc.endCall(false);
+
+        // --- Die Empfangsseite ---
+        // Weg 1: die Protokollnachricht. Sie laeuft durch dieselbe Pruefung
+        // wie jede andere Steuernachricht.
+        await callAlsZuschauer();
+        app.control.handleMessage(JSON.stringify({ v: 1, type: 'video_state', on: false }));
+        assert.strictEqual(__el('remote-video').style.display, 'none', 'das Bild steht noch');
+        assert.strictEqual(__el('remote-video-placeholder').style.display, 'flex',
+            'der Platzhalter der Gegenseite fehlt');
+        app.control.handleMessage(JSON.stringify({ v: 1, type: 'video_state', on: true }));
+        assert.strictEqual(__el('remote-video').style.display, 'block', 'das Bild kommt nicht zurueck');
+        assert.strictEqual(__el('remote-video-placeholder').style.display, 'none',
+            'der Platzhalter bleibt ueber dem Bild stehen');
+        ok('video_state schaltet beim Empfaenger Bild und Platzhalter um');
+
+        // Weg 2: die Empfangsspur wird stumm. Darauf ist auch dann Verlass,
+        // wenn der Steuerkanal gerade nicht steht - vorher blieb in diesem
+        // Fall das letzte Standbild stehen.
+        const fernspur = { kind: 'video', muted: false, onmute: null, onunmute: null, onended: null };
+        app.rtc.bindRemoteVideoTrack(fernspur);
+        assert.strictEqual(__el('remote-video').style.display, 'block',
+            'eine laufende Spur zeigt kein Bild');
+        fernspur.muted = true;
+        fernspur.onmute();
+        assert.strictEqual(__el('remote-video-placeholder').style.display, 'flex',
+            'die stumme Empfangsspur blendet den Platzhalter nicht ein');
+        fernspur.muted = false;
+        fernspur.onunmute();
+        assert.strictEqual(__el('remote-video').style.display, 'block',
+            'das Bild kommt nach dem Wiederanlaufen nicht zurueck');
+        ok('auch ohne Steuerkanal wird die abgeschaltete Kamera erkannt');
+        app.rtc.endCall(false);
+
+        // --- Der Anfangszustand wird von selbst gemeldet ---
+        // Wer ohne Kamera annimmt, sendete frueher NIE ein video_state. Beim
+        // Zuschauer blieb eine schwarze Flaeche ohne Erklaerung stehen.
+        await callAlsGuide({ video: false, audio: true });
+        const frisch = makeChannel(P.CHANNEL_CONTROL);
+        app.rtc.attachChannel(frisch);
+        frisch.onopen();
+        const typen = frisch.sent.map(r => JSON.parse(r).type);
+        assert.ok(typen.includes('hello'), 'die Rolle wird nicht gemeldet');
+        assert.ok(typen.includes('video_state'), 'der eigene Videozustand wird nicht gemeldet');
+        const zustand = frisch.sent.map(r => JSON.parse(r)).find(m => m.type === 'video_state');
+        assert.strictEqual(zustand.on, false, 'gemeldet wird ein Bild, das gar nicht gesendet wird');
+        // Und der Platz fuer die Kamera steht trotzdem bereit: Ohne ihn
+        // liesse sie sich nur mit einer Neuaushandlung zuschalten.
+        assert.ok(app.media.senderFor('video'), 'ohne Kamera gibt es keinen Videosender');
+        assert.strictEqual(app.media.transceiverFor('video').direction, 'sendrecv',
+            'der Videotransceiver bleibt auf Empfang - die Kamera waere gesperrt');
+        ok('der eigene Videozustand geht mit der Begruessung raus');
+        app.rtc.endCall(false);
+    }
+
+    console.error('\n33) Guide und Zuschauer bekommen verschiedene Oberflaechen');
+    {
+        // Die Rolle steht als Klasse auf #call-view; alles Rollenabhaengige
+        // haengt daran (assets/css/call.css) - es gibt genau eine Stelle, die
+        // entscheidet.
+        const ansicht = __el('call-view');
+
+        app.control.applyRole('guide');
+        assert.ok(ansicht.classList.contains('role-guide'), 'die Guide-Rolle steht nicht an der Ansicht');
+        assert.ok(!ansicht.classList.contains('role-viewer'), 'die Zuschauerrolle steht noch daneben');
+        assert.strictEqual(__el('control-lock-bar').style.display, 'flex',
+            'der Guide sieht den Sperrschalter nicht');
+        assert.strictEqual(__el('control-lock-notice').style.display, 'none',
+            'der Guide bekommt den Sperrhinweis des Zuschauers');
+        assert.strictEqual(__el('btn-forward').disabled, true,
+            'der Guide kann steuern - das ist die Aufgabe des Zuschauers');
+
+        app.control.applyRole('viewer');
+        assert.ok(ansicht.classList.contains('role-viewer'), 'die Zuschauerrolle steht nicht an der Ansicht');
+        assert.ok(!ansicht.classList.contains('role-guide'), 'die Guide-Rolle steht noch daneben');
+        assert.strictEqual(__el('control-lock-bar').style.display, 'none',
+            'der Zuschauer sieht den Sperrschalter des Guides');
+
+        app.control.applyRole(null);
+        assert.ok(!ansicht.classList.contains('role-guide') && !ansicht.classList.contains('role-viewer'),
+            'ohne Rolle bleibt eine Rollenklasse stehen');
+        ok('die Rollenklasse schaltet die beiden Oberflaechen um');
+
+        // Die Aufteilung selbst steht in der Stilvorlage. Geprueft wird, dass
+        // sie da ist: Ohne diese Regeln bekaeme der Guide wieder einen
+        // Videobereich fuer ein Bild, das es bei ihm nicht gibt.
+        const fsCss = require('fs'), pathCss = require('path');
+        const css = fsCss.readFileSync(
+            pathCss.join(__dirname, '..', 'assets', 'css', 'call.css'), 'utf8');
+        const ohneLeerzeichen = css.replace(/\s+/g, ' ');
+
+        assert.ok(/#call-view\.role-guide #remote-video,[^}]*display: none/.test(ohneLeerzeichen),
+            'beim Guide bleibt der Empfangsbereich stehen');
+        assert.ok(/#call-view\.role-guide #local-video[^{]*\{[^}]*inset: 0/.test(ohneLeerzeichen),
+            'beim Guide fuellt das eigene Bild die Buehne nicht');
+        assert.ok(/#call-view:not\(\.role-viewer\) #control-pad/.test(ohneLeerzeichen),
+            'das Steuerkreuz ist nicht auf den Zuschauer beschraenkt');
+        assert.ok(/#call-view:not\(\.role-guide\) #control-lock-bar/.test(ohneLeerzeichen),
+            'der Sperrschalter ist nicht auf den Guide beschraenkt');
+        ok('die Stilvorlage trennt Buehne, Steuerkreuz und Sperrschalter nach Rolle');
+
+        // Ein Markup, nicht zwei: Jede ID gibt es genau einmal. Zwei Vorlagen
+        // haetten doppelte IDs bedeutet - genau das ist dieses Projekt gerade
+        // erst losgeworden.
+        const markup = fsCss.readFileSync(
+            pathCss.join(__dirname, '..', 'assets', 'html', 'inner_call_controll.html'), 'utf8');
+        const ids = (markup.match(/\sid="([^"]+)"/g) || []).map(t => t.split('"')[1]);
+        const doppelt = ids.filter((id, i) => ids.indexOf(id) !== i);
+        assert.deepStrictEqual(doppelt, [], 'diese IDs stehen mehrfach im Markup: ' + doppelt.join(', '));
+        ['call-view', 'remote-video', 'local-video', 'local-video-placeholder',
+         'direction-indicator', 'control-lock-bar', 'control-pad', 'connection-status'
+        ].forEach(id => {
+            assert.ok(ids.includes(id), 'die ID "' + id + '" fehlt in der Call-Ansicht');
+        });
+        ok('jedes Bauteil steht genau einmal im Markup');
+    }
+
+    console.error('\n34) Ein verweigerter Medienzugriff wird gemeldet');
+    {
+        const abgelehnt = () => {
+            const e = new Error('Permission denied');
+            e.name = 'NotAllowedError';
+            return e;
+        };
+
+        // --- Geraetewechsel. Hier stand vorher gar kein try/catch: Die
+        //     Ablehnung endete als unbehandelte Promise-Ablehnung in der
+        //     Konsole, und der Nutzer sah nichts.
+        await callAlsGuide();
+        global.__alerts.length = 0;
+        global.__mediaErrorFor.video = abgelehnt();
+        assert.strictEqual(await app.media.switchDevice('video', 'cam-2'), false,
+            'der Wechsel gilt trotz Ablehnung als erfolgt');
+        assert.strictEqual(global.__alerts.length, 1, 'genau eine Meldung erwartet');
+        assert.ok(/Kamera/.test(global.__alerts[0]), 'die Meldung nennt die Kamera nicht');
+        assert.ok(!/Mikrofon/.test(global.__alerts[0]),
+            'die Meldung nennt das falsche Geraet: ' + global.__alerts[0]);
+        assert.ok(app.media.senderFor('video').track, 'die bisherige Kamera wurde mit abgeraeumt');
+        ok('eine abgelehnte Kamera beim Geraetewechsel wird benannt gemeldet');
+        app.rtc.endCall(false);
+
+        // --- Beim Annehmen. Eine abgelehnte Kamera beendet das Gespraech
+        //     nicht mehr: Der Guide hoert und spricht weiter.
+        resetAll();
+        medienZuruecksetzen();
+        global.__alerts.length = 0;
+        app.refs.iceServersLoaded = true;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+        app.state.pendingOffer = { sender_id: 7, type: 'offer', sdp: 'sdp-x', role: 'guide' };
+        global.__mediaErrorFor.video = abgelehnt();
+
+        await app.rtc.acceptCall({ video: true, audio: true });
+
+        assert.strictEqual(app.state.isCallActive, true, 'der Anruf wurde wegen der Kamera abgebrochen');
+        assert.strictEqual(global.__alerts.length, 1, 'genau eine Meldung erwartet');
+        assert.ok(/Kamera/.test(global.__alerts[0]), 'die Meldung nennt die Kamera nicht');
+        assert.ok(/ohne Bild/.test(global.__alerts[0]),
+            'es wird nicht gesagt, wie es weitergeht: ' + global.__alerts[0]);
+        assert.ok(app.media.isSending('audio'), 'ohne Kamera geht auch kein Ton raus');
+        assert.ok(app.media.senderFor('video'), 'die Kamera bleibt nicht zuschaltbar');
+        assert.ok(global.__signals.some(s => s.type === 'answer'), 'es geht keine Antwort raus');
+        ok('eine abgelehnte Kamera beendet den Anruf nicht mehr');
+        app.rtc.endCall(false);
+
+        // --- Beides abgelehnt: Ohne Ton gibt es kein Gespraech. Genau EINE
+        //     Meldung, und der Anrufer wird benachrichtigt.
+        resetAll();
+        medienZuruecksetzen();
+        global.__alerts.length = 0;
+        app.refs.iceServersLoaded = true;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+        app.state.pendingOffer = { sender_id: 7, type: 'offer', sdp: 'sdp-x', role: 'guide' };
+        global.__mediaErrorFor.audio = abgelehnt();
+        global.__mediaErrorFor.video = abgelehnt();
+
+        await app.rtc.acceptCall({ video: true, audio: true });
+
+        assert.strictEqual(global.__alerts.length, 1, 'genau eine Meldung erwartet');
+        assert.ok(/Mikrofon/.test(global.__alerts[0]), 'die Meldung nennt das Mikrofon nicht');
+        assert.strictEqual(app.state.isCallActive, false, 'der Anruf laeuft ohne Medien weiter');
+        assert.ok(global.__signals.some(s => s.type === 'call_failed'),
+            'der Anrufer erfaehrt nicht, dass es nicht geht');
+        ok('ohne Ton wird abgebrochen - mit einer Meldung und einer Nachricht an den Anrufer');
+        medienZuruecksetzen();
+
+        // --- Und die Meldung ueberlebt das Neuladen der Seite.
+        //     endCall() laedt auf Mobilgeraeten neu. Vorher tat es das starr
+        //     nach einer Sekunde - und loeschte damit genau die Meldung, die
+        //     den Abbruch erklaerte. Auf einem Telefon war das der Grund,
+        //     warum bei verweigertem Zugriff scheinbar nichts kam.
+        const echterAgent = global.navigator.userAgent;
+        const echteLocation = global.location;
+        let neugeladenNach = null;
+        const echterTimeout = global.setTimeout;
+        global.navigator.userAgent = 'Mozilla/5.0 (Linux; Android 14)';
+        global.location = { reload() {} };
+        global.setTimeout = (fn, ms) => {
+            // Nur den Neulade-Zeitgeber abfangen, alle anderen normal laufen
+            // lassen - sonst stuende der Rest der Pruefungen still.
+            if (String(fn).includes('reload')) { neugeladenNach = ms; return 0; }
+            return echterTimeout(fn, ms);
+        };
+
+        resetAll();
+        app.notify.toastUntil = 0;
+        app.state.isCallActive = true;
+        app.rtc.abortCall('Der Zugriff auf die Kamera wurde abgelehnt.');
+
+        global.setTimeout = echterTimeout;
+        global.navigator.userAgent = echterAgent;
+        if (echteLocation === undefined) delete global.location; else global.location = echteLocation;
+
+        assert.ok(neugeladenNach !== null, 'auf dem Telefon wird gar nicht mehr neu geladen');
+        assert.ok(neugeladenNach > 4000,
+            'die Seite laedt nach ' + neugeladenNach + ' ms neu - die Meldung ist dann weg');
+        assert.strictEqual(global.__alerts[global.__alerts.length - 1],
+            'Der Zugriff auf die Kamera wurde abgelehnt.', 'die Meldung fehlt');
+        ok('der Neuaufbau wartet, bis die Meldung gelesen werden konnte');
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

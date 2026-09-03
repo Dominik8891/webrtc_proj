@@ -454,23 +454,10 @@ window.webrtcApp.control = {
      * @param {Object} msg - video_state-Nachricht
      */
     handleVideoState(msg) {
-        const remoteVideo = document.getElementById('remote-video');
-        const placeholder = document.getElementById('remote-video-placeholder');
-
-        if (remoteVideo) remoteVideo.style.display = msg.on ? 'block' : 'none';
-        if (!placeholder) return;
-
-        if (msg.on) {
-            placeholder.classList.remove('d-flex', 'show', 'align-items-center', 'justify-content-center');
-            placeholder.style.display = 'none';
-            placeholder.style.opacity = '0';
-            placeholder.style.visibility = 'hidden';
-        } else {
-            placeholder.classList.add('d-flex', 'show', 'align-items-center', 'justify-content-center');
-            placeholder.style.display = 'flex';
-            placeholder.style.opacity = '';
-            placeholder.style.visibility = '';
-        }
+        // Angezeigt wird an genau einer Stelle (rtc.setRemoteVideoVisible).
+        // Hier standen frueher eigene Klassen- und Stilzuweisungen, die sich
+        // mit denen des ontrack-Handlers ueberschrieben.
+        window.webrtcApp.rtc.setRemoteVideoVisible(!!msg.on);
     },
 
     // =====================================================================

@@ -51,6 +51,17 @@ window.webrtcApp = {
             rejected: 0,            // Zahl verworfener Protokollnachrichten
             lastRejectCode: null    // Code der zuletzt verworfenen Nachricht
         },
+        // ----- Lokale Medien -----
+        // Welche Kamera und welches Mikrofon in DIESEM Call benutzt werden.
+        // Die Kennungen kommen aus enumerateDevices() und werden gebraucht,
+        // wenn eine Spur neu geholt werden muss - etwa nach dem Abschalten
+        // der Kamera. Sie gelten je Call und werden von media.reset()
+        // geleert.
+        media: {
+            videoDeviceId: null,    // gewaehlte Kamera (null = irgendeine)
+            audioDeviceId: null     // gewaehltes Mikrofon (null = irgendeins)
+        },
+
         reconnect: {
             graceTimer: null,              // 5-s-Frist bei "disconnected", bevor neu ausgehandelt wird
             deadlineTimer: null,           // Gesamtfrist, danach wird endgültig beendet
@@ -83,6 +94,7 @@ window.webrtcApp = {
     rtc: {},              // WebRTC-spezifische Logik und Methoden (Verbindungsaufbau, Handling etc.)
     protocol: {},         // Definition und Pruefung des Steuerprotokolls (protocol.js)
     control: {},          // Steuerkanal: Senden, Empfangen, Anzeige (control.js)
+    media: {},            // Lokale Medien: Mikrofon, Kamera, Geraetewechsel (media.js)
     ui: {},               // User-Interface-Logik (Fenstersteuerung, Anzeigen, UI-Interaktionen)
     sound: {},            // Sounds für Call (Klingeln, Auflegen etc.)
     chat: {},             // Chat-Logik (Nachrichtenverarbeitung, Verlauf, Rendering)
