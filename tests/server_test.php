@@ -1295,4 +1295,36 @@ $vh = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
 check(strpos($vh, '"###THEME###"') !== false, 'ViewHelper fuellt ###THEME### nicht');
 ok('das Profil steht vor dem ersten Zeichnen im HTML');
 
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n18) Der Kachelfilter beruehrt die Nadeln nicht\n");
+
+// Die hellen Kacheln von OpenStreetMap werden im Dunkelprofil umgekehrt.
+// Entscheidend ist, WO der Filter liegt: nur auf der Kachelebene.
+// Stuende er am Kartenelement (.leaflet-container) oder an der Nadelebene,
+// wuerde aus dem Gruen der verfuegbaren Guides ein Rot - und die Legende
+// daneben waere falsch. Das ist im Browser nachgemessen; hier steht die
+// Absicherung, damit der Selektor nicht spaeter verrutscht.
+check(preg_match('/\[data-theme="dunkel"\]\s+\.leaflet-tile-pane\s*\{[^}]*filter:/', $themeCss) === 1,
+    'der Kachelfilter haengt nicht an [data-theme="dunkel"] .leaflet-tile-pane');
+
+// Und an keiner Ebene, in der Nadeln, Kartenfenster oder Bedienelemente
+// liegen. Auch nicht am Kartenelement selbst - das enthaelt sie alle.
+foreach (['.leaflet-container', '.leaflet-marker-pane', '.leaflet-popup-pane',
+          '.leaflet-overlay-pane', '.leaflet-control-container'] as $ebene) {
+    $muster = '/\[data-theme="[a-z]+"\]\s+' . preg_quote($ebene, '/') . '\s*\{[^}]*filter:/';
+    check(preg_match($muster, $themeCss) === 0,
+        "ein Profil filtert $ebene - dort liegen die Nadeln");
+}
+ok('der Filter liegt nur auf der Kachelebene');
+
+// Umgekehrt darf kein HELLES Profil die Kacheln anfassen: Dort ist die
+// Karte richtig, wie sie kommt.
+foreach (array_keys(Theme::PROFILE) as $schluessel) {
+    if ($schluessel === 'dunkel') continue;
+    $muster = '/\[data-theme="' . $schluessel . '"\]\s+\.leaflet-tile-pane\s*\{[^}]*filter:/';
+    check(preg_match($muster, $themeCss) === 0,
+        "das helle Profil $schluessel filtert die Kacheln");
+}
+ok('die hellen Profile lassen die Kacheln, wie sie sind');
+
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

@@ -2177,3 +2177,74 @@ table.dataTable td.dataTables_empty {
     color: var(--app-text-muted);
     line-height: var(--app-leading-tight);
 }
+
+/* ---------------------------------------------------------------------------
+   Kartenkacheln im Dunkelprofil
+   ---------------------------------------------------------------------------
+   DAS PROBLEM
+   Die Kacheln kommen von OpenStreetMap und sind hell - Landflaechen um
+   #f2efe9. Auf dunklem Grund ist die Karte damit ein leuchtendes Rechteck
+   mitten in einer ruhigen Oberflaeche. Genau das, was ein Dunkelprofil
+   vermeiden soll.
+
+   WAS HIER PASSIERT
+   Die Kacheln werden umgekehrt (invert) und danach um 180 Grad im Farbkreis
+   zurueckgedreht (hue-rotate). Das Umkehren macht hell zu dunkel; das
+   Zurueckdrehen holt die Farbtoene wieder an ihre Stelle, damit Wasser blau
+   bleibt und Wald gruen. brightness/contrast/saturate nehmen dem Ergebnis
+   die letzte Haerte.
+
+   Nachgerechnet mit den echten OSM-Farben:
+       Land       #f2efe9 -> #1c1a16
+       Wasser     #aad3df -> #223d45
+       Wald       #c8facc -> #052607
+       Schrift    #333333 -> #b6b6b6   (8,6:1 auf Land - gut lesbar)
+
+   WARUM NUR .leaflet-tile-pane
+   Das ist der entscheidende Punkt. Der Filter liegt AUSSCHLIESSLICH auf der
+   Kachelebene. Nadeln, Kartenfenster, Zoomknoepfe und die Herkunftsangabe
+   liegen in eigenen Ebenen daneben und bleiben unberuehrt - die drei
+   Nadelfarben werden also nicht mitgefiltert. Waere der Filter am ganzen
+   Kartenelement, wuerde aus Gruen ein Rot und die Legende waere falsch.
+
+   Gemessen auf der gefilterten Karte: Der weisse Rand der Nadel steht bei
+   11,5:1 (ueber Wasser) bis 17,4:1 (ueber Land). Die Nadel traegt ihren
+   Kontrast also weiterhin ueber den Rand, nicht ueber die Fuellfarbe -
+   deshalb duerfen Gruen, Gelb und Grau unveraendert bleiben.
+
+   WO DIE GRENZE LIEGT
+   Das ist eine gefilterte Karte, keine gestaltete. Die Farbtoene bleiben
+   dabei erhalten - Wasser bleibt blau, Wald gruen, eine Hauptstrasse warm
+   braun; das leistet das Zurueckdrehen im Farbkreis. Was sich umdreht, ist
+   die HELLIGKEIT, und zwar in beide Richtungen: Was im Original hell war,
+   wird dunkel, und was dunkel war, wird hell. Bei OpenStreetMap geht das
+   gut aus, weil dort helle Flaechen die Karte tragen und nur die Schrift
+   dunkel ist. Fuer eine Kachel mit dunklen Flaechen waere der Filter
+   falsch herum.
+
+   Damit haengt das Ergebnis am Kartenstil: Aendert OpenStreetMap seine
+   Farben, aendert sich diese Karte mit. Eine wirklich gestaltete
+   Dunkelkarte gaebe es nur mit einem anderen Kachelanbieter - das waere
+   eine neue Abhaengigkeit und ein zweiter Dienst in den
+   Datenschutzangaben.
+   --------------------------------------------------------------------------- */
+
+[data-theme="dunkel"] .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.90) saturate(0.80);
+}
+
+/* Waehrend eine Kachel noch laedt, sieht man die Flaeche darunter. Sie muss
+   zur gefilterten Karte passen, sonst blitzt bei jedem Verschieben ein
+   heller Streifen auf. */
+[data-theme="dunkel"] .leaflet-container {
+    background: #14181e;
+}
+
+/* Wer Bewegung und starke Kontraste reduziert haben will, bekommt die
+   Kacheln nur abgedunkelt statt umgekehrt: kein Farbwechsel, kein
+   Umkippen der Helligkeit, nur weniger Leuchten. */
+@media (prefers-contrast: less) {
+    [data-theme="dunkel"] .leaflet-tile-pane {
+        filter: brightness(0.72) saturate(0.85);
+    }
+}
