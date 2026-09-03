@@ -208,11 +208,13 @@ class PasswordController
      * eintragen und Passwörter durchprobieren: Die Antwort "Das alte
      * Passwort ist nicht korrekt!" ist die Auskunft, ob geraten wurde.
      *
-     * Der Zähler aus LoginController::handleLogin() greift hier nicht - er
-     * steht in $_SESSION und zählt nur Anmeldeversuche. Ein Angreifer mit
-     * eigener, gültiger Sitzung konnte über diese Route also unbegrenzt und
-     * ohne Sperre raten, während dasselbe am Login nach fünf Versuchen für
-     * fünf Minuten endet.
+     * Ein Zähler stand dem nirgends entgegen: Der aus
+     * LoginController::handleLogin() greift hier nicht - er hängt am
+     * Anmeldeformular und zählt nur Anmeldeversuche. (Er taugt im Übrigen
+     * auch dort wenig: Zähler und Sperre liegen in $_SESSION, wer pro
+     * Versuch kein Cookie mitschickt, bekommt jedes Mal eine frische
+     * Sitzung. Das ist ein eigener, hier nicht behobener Befund.)
+     * Über diese Route ließ sich also unbegrenzt raten.
      *
      * Jetzt entscheidet die Sitzung, welches Konto gemeint ist. Der
      * Benutzername aus dem Formular wird nicht mehr gelesen; das versteckte
