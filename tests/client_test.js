@@ -870,6 +870,153 @@ function ackLastMove(status = 'executed', reason) {
         ok('eine Absage des Servers wird sofort weitergegeben');
     }
 
+    // -----------------------------------------------------------------
+    // Gemeinsame Attrappe fuer die Seite "Standort anbieten" (29 und 30).
+    //
+    // Der Harness laedt map.js in einem eigenen Block mit einer sehr kargen
+    // jQuery-Attrappe (fuer die Flaggenpruefung in 26 reicht sie). Hier wird
+    // dieselbe Datei ein zweites Mal geladen - mit einer Attrappe, die
+    // Feldwerte, Attribute, angehaengte Optionen und die gebundenen Handler
+    // mitschreibt, und in einem eigenen Geltungsbereich, damit weder $ noch
+    // window.webrtcApp global ueberschrieben werden.
+    // -----------------------------------------------------------------
+    const fs = require('fs'), path = require('path');
+    const mapQuelle = fs.readFileSync(
+        path.join(__dirname, '..', 'assets', 'js', 'map.js'), 'utf8');
+
+    function ladeKarte(umgebung) {
+        const bauen = new Function(
+            'window', '$', 'jQuery', 'document', 'L', 'fetch', 'Option',
+            mapQuelle + '\nreturn window.webrtcApp.locationMap;');
+
+        // Das Dokument braucht nur, was map.js daran anfasst: den
+        // Kartenbereich, zu dem der Hinweis beim Abschicken scrollt.
+        const dokument = {
+            ready() {},
+            getElementById: (id) => (id === 'map' ? umgebung.kartenBereich : null)
+        };
+
+        return bauen(
+            umgebung.fenster, umgebung.jq, umgebung.jq, dokument,
+            umgebung.L, umgebung.fetch, umgebung.Option);
+    }
+
+    // Kleine jQuery-Attrappe: genug, dass der echte Code durchlaeuft.
+    // Sie merkt sich Feldwerte, Beschriftungen und die gebundenen
+    // Handler - mehr braucht diese Pruefung nicht.
+    function baueSeite(landVorgewaehlt, vorbelegung) {
+        const felder = {};
+        const handler = {};
+        // Was der Server nach einer Ablehnung ins Formular zurueckschreibt:
+        // Koordinaten direkt in die versteckten Felder, Land und Stadt als
+        // data-Attribute am Formular (assets/html/set_location.html).
+        const vor = vorbelegung || {};
+        felder['#location-form'] = { attribute: {
+            'data-vorher-land':  vor.land  || '',
+            'data-vorher-stadt': vor.stadt || ''
+        } };
+        felder['#latitude']  = { value: vor.latitude  || '' };
+        felder['#longitude'] = { value: vor.longitude || '' };
+        const gewaehlt = landVorgewaehlt
+            ? { value: '7', daten: { iso2: 'de', 'country-name': 'Deutschland' } }
+            : { value: '', daten: {} };
+        felder['#countrySelect option:selected'] = gewaehlt;
+        felder['#countrySelect'] = { value: gewaehlt.value, daten: {} };
+        felder['#dieLandOption'] = { value: '7', daten: { iso2: 'de', 'country-name': 'Deutschland' } };
+
+        const zerlege = (sel) => sel.split(',').map(t => t.trim()).filter(Boolean);
+        function huelle(ids) {
+            return {
+                length: ids.length,
+                val(v) {
+                    if (v === undefined) return felder[ids[0]] ? felder[ids[0]].value : undefined;
+                    ids.forEach(i => {
+                        (felder[i] = felder[i] || {}).value = v;
+                        // Im echten DOM zieht eine neue Auswahl die
+                        // Option:selected mit. Ohne das liefe der Zweig
+                        // "kein Landeszentrum gefunden" endlos im Kreis:
+                        // Er setzt das Feld zurueck und loest wieder
+                        // 'change' aus - und die Attrappe meldete weiter
+                        // das alte Land.
+                        if (i === '#countrySelect') {
+                            felder['#countrySelect option:selected'] = v
+                                ? { value: v, daten: { iso2: 'de', 'country-name': 'Deutschland' } }
+                                : { value: '', daten: {} };
+                        }
+                    });
+                    return this;
+                },
+                text(t) {
+                    if (t === undefined) return felder[ids[0]] ? felder[ids[0]].text : '';
+                    ids.forEach(i => { (felder[i] = felder[i] || {}).text = t; });
+                    return this;
+                },
+                on(evt, fn) {
+                    ids.forEach(i => { (handler[i + '|' + evt] = handler[i + '|' + evt] || []).push(fn); });
+                    return this;
+                },
+                trigger(evt, ereignis) {
+                    const e = ereignis || { params: {} };
+                    ids.forEach(i => (handler[i + '|' + evt] || []).slice().forEach(fn => fn(e)));
+                    return this;
+                },
+                attr(k, v) {
+                    const f = (felder[ids[0]] = felder[ids[0]] || {});
+                    f.attribute = f.attribute || {};
+                    if (v === undefined) return f.attribute[k];
+                    f.attribute[k] = v;
+                    return this;
+                },
+                find(s) { return huelle([ids[0] + ' ' + s]); },
+                // Gefiltert wird immer nach dem Laenderkuerzel; hier steht
+                // genau eine Option zur Auswahl.
+                filter() { return huelle(['#dieLandOption']); },
+                data(k) { const f = felder[ids[0]]; return f && f.daten ? f.daten[k] : undefined; },
+                prop() { return this; }, next() { return huelle([]); },
+                append(was) {
+                    const f = (felder[ids[0]] = felder[ids[0]] || {});
+                    (f.angehaengt = f.angehaengt || []).push(was);
+                    return this;
+                },
+                empty() { return this; },
+                show() { return this; }, hide() { return this; },
+                select2() { return this; }, each() { return this; }
+            };
+        }
+        const jq = (sel) => typeof sel === 'string'
+            ? huelle(zerlege(sel))
+            : Object.assign(huelle([]), { ready() { return this; } });
+        jq.fn = { select2() {} };
+
+        // Was das Reverse-Geocoding antwortet, wechselt je Pruefung.
+        const antwort = { wert: {
+            display_name: 'Berlin, Deutschland',
+            address: { country_code: 'de', city: 'Berlin' }
+        } };
+
+        const fenster = { webrtcApp: { notify: {
+            error: (t) => global.__alerts.push(String(t)), success() {}, info() {}
+        } } };
+
+        // Mitschreiben, ob zur Karte gescrollt wurde.
+        const kartenBereich = { gescrollt: 0, scrollIntoView() { this.gescrollt++; } };
+
+        const karte = ladeKarte({
+            fenster, jq, kartenBereich,
+            L: { marker: () => ({ addTo() { return this; } }) },
+            Option: function (text, value) { return { text, value }; },
+            fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(antwort.wert) })
+        });
+
+        // Statt initMap(): Leaflet wird hier nicht geladen.
+        karte.map = { on() {}, removeLayer() {}, setView() {}, addLayer() {} };
+        karte.initCitySelect2();
+        karte.bindEvents();
+
+        return { felder, handler, jq, karte, antwort, kartenBereich,
+                 handlerAnzahl: (handler['#countrySelect|change'] || []).length };
+    }
+
     console.error('\n29) Ein Klick auf die Karte setzt den Punkt und behaelt ihn');
     {
         // Der Befund: Auf "Standort anbieten" liess sich der Punkt nicht per
@@ -889,116 +1036,6 @@ function ackLastMove(status = 'executed', reason) {
         // allerersten Klick ist noch gar kein Land gewaehlt, der schlug immer
         // fehl. Deshalb wird hier BEIDES geprueft, und dazu die Gegenprobe:
         // waehlt der Nutzer selbst ein Land, muss weiterhin geleert werden.
-        const fs = require('fs'), path = require('path');
-        const mapQuelle = fs.readFileSync(
-            path.join(__dirname, '..', 'assets', 'js', 'map.js'), 'utf8');
-
-        // Der Harness laedt map.js in einem eigenen Block mit einer sehr
-        // kargen jQuery-Attrappe (fuer die Flaggenpruefung in 26 reicht sie).
-        // Hier wird dieselbe Datei ein zweites Mal geladen - mit einer
-        // Attrappe, die Feldwerte und Handler mitschreibt, und in einem
-        // eigenen Geltungsbereich, damit weder $ noch window.webrtcApp global
-        // ueberschrieben werden.
-        function ladeKarte(umgebung) {
-            const bauen = new Function(
-                'window', '$', 'jQuery', 'document', 'L', 'fetch', 'Option',
-                mapQuelle + '\nreturn window.webrtcApp.locationMap;');
-            return bauen(
-                umgebung.fenster, umgebung.jq, umgebung.jq, { ready() {} },
-                umgebung.L, umgebung.fetch, umgebung.Option);
-        }
-
-        // Kleine jQuery-Attrappe: genug, dass der echte Code durchlaeuft.
-        // Sie merkt sich Feldwerte, Beschriftungen und die gebundenen
-        // Handler - mehr braucht diese Pruefung nicht.
-        function baueSeite(landVorgewaehlt) {
-            const felder = {};
-            const handler = {};
-            const gewaehlt = landVorgewaehlt
-                ? { value: '7', daten: { iso2: 'de', 'country-name': 'Deutschland' } }
-                : { value: '', daten: {} };
-            felder['#countrySelect option:selected'] = gewaehlt;
-            felder['#countrySelect'] = { value: gewaehlt.value, daten: {} };
-            felder['#dieLandOption'] = { value: '7', daten: { iso2: 'de', 'country-name': 'Deutschland' } };
-
-            const zerlege = (sel) => sel.split(',').map(t => t.trim()).filter(Boolean);
-            function huelle(ids) {
-                return {
-                    length: ids.length,
-                    val(v) {
-                        if (v === undefined) return felder[ids[0]] ? felder[ids[0]].value : undefined;
-                        ids.forEach(i => {
-                            (felder[i] = felder[i] || {}).value = v;
-                            // Im echten DOM zieht eine neue Auswahl die
-                            // Option:selected mit. Ohne das liefe der Zweig
-                            // "kein Landeszentrum gefunden" endlos im Kreis:
-                            // Er setzt das Feld zurueck und loest wieder
-                            // 'change' aus - und die Attrappe meldete weiter
-                            // das alte Land.
-                            if (i === '#countrySelect') {
-                                felder['#countrySelect option:selected'] = v
-                                    ? { value: v, daten: { iso2: 'de', 'country-name': 'Deutschland' } }
-                                    : { value: '', daten: {} };
-                            }
-                        });
-                        return this;
-                    },
-                    text(t) {
-                        if (t === undefined) return felder[ids[0]] ? felder[ids[0]].text : '';
-                        ids.forEach(i => { (felder[i] = felder[i] || {}).text = t; });
-                        return this;
-                    },
-                    on(evt, fn) {
-                        ids.forEach(i => { (handler[i + '|' + evt] = handler[i + '|' + evt] || []).push(fn); });
-                        return this;
-                    },
-                    trigger(evt) {
-                        ids.forEach(i => (handler[i + '|' + evt] || []).slice().forEach(fn => fn({ params: {} })));
-                        return this;
-                    },
-                    find(s) { return huelle([ids[0] + ' ' + s]); },
-                    // Gefiltert wird immer nach dem Laenderkuerzel; hier steht
-                    // genau eine Option zur Auswahl.
-                    filter() { return huelle(['#dieLandOption']); },
-                    data(k) { const f = felder[ids[0]]; return f && f.daten ? f.daten[k] : undefined; },
-                    prop() { return this; }, next() { return huelle([]); },
-                    append() { return this; }, empty() { return this; },
-                    show() { return this; }, hide() { return this; },
-                    select2() { return this; }, each() { return this; },
-                    attr() { return undefined; }
-                };
-            }
-            const jq = (sel) => typeof sel === 'string'
-                ? huelle(zerlege(sel))
-                : Object.assign(huelle([]), { ready() { return this; } });
-            jq.fn = { select2() {} };
-
-            // Was das Reverse-Geocoding antwortet, wechselt je Pruefung.
-            const antwort = { wert: {
-                display_name: 'Berlin, Deutschland',
-                address: { country_code: 'de', city: 'Berlin' }
-            } };
-
-            const fenster = { webrtcApp: { notify: {
-                error: (t) => global.__alerts.push(String(t)), success() {}, info() {}
-            } } };
-
-            const karte = ladeKarte({
-                fenster, jq,
-                L: { marker: () => ({ addTo() { return this; } }) },
-                Option: function (text, value) { return { text, value }; },
-                fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(antwort.wert) })
-            });
-
-            // Statt initMap(): Leaflet wird hier nicht geladen.
-            karte.map = { on() {}, removeLayer() {}, setView() {}, addLayer() {} };
-            karte.initCitySelect2();
-            karte.bindEvents();
-
-            return { felder, handler, jq, karte, antwort,
-                     handlerAnzahl: (handler['#countrySelect|change'] || []).length };
-        }
-
         // Genau EIN change-Handler. Ein zweiter, ungeschuetzter waere der
         // Rueckfall in den Befund - deshalb wird die Zahl selbst geprueft und
         // nicht nur ihre Wirkung.
@@ -1060,6 +1097,141 @@ function ackLastMove(status = 'executed', reason) {
         assert.ok(!/setTimeout\([\s\S]{0,400}?\}, 500\)/.test(ohneKommentare),
             'die Wartezeit von 500 ms steht noch im Code');
         ok('kein Warten mehr auf ein Loeschen, das es nicht mehr gibt');
+    }
+
+    console.error('\n30) Kein Absenden ohne Punkt, und keine verlorene Eingabe');
+    {
+        // ZWEI BEFUNDE AUS DEMSELBEN FORMULAR
+        //
+        // (a) An #latitude und #longitude stand ein required. Es hatte keine
+        //     Wirkung: Ein <input type="hidden"> ist von der Pruefung des
+        //     Browsers ausgenommen. Das Formular ging ohne Koordinaten raus,
+        //     der Server wies es ab - eine Seite weiter, weg von dem Feld, an
+        //     dem es lag. Geprueft wird jetzt beim Abschicken.
+        //
+        // (b) Bei diesem Ruecksprung ging die eingetippte Beschreibung
+        //     verloren, ebenso Land und Stadt. Der Server schreibt sie jetzt
+        //     zurueck ins Formular (Beschreibung und Koordinaten direkt in die
+        //     Felder, Land und Stadt als data-Attribute); map.js holt daraus
+        //     Auswahl, Anzeige und Marker zurueck.
+
+        // --- (a) Die Pruefung beim Abschicken ---------------------------
+        {
+            const seite = baueSeite(false);
+            let angehalten = false;
+            const ereignis = { preventDefault() { angehalten = true; }, params: {} };
+
+            seite.jq('#location-form').trigger('submit', ereignis);
+            assert.strictEqual(angehalten, true,
+                'ohne Koordinaten wird das Formular trotzdem abgeschickt');
+            assert.ok(/Karte/.test(seite.felder['#location-hinweis'].text || ''),
+                'es wird kein Hinweis auf die Karte gezeigt');
+            // Der Hinweis steht oben, die Karte weiter unten: Ohne das
+            // Scrollen sieht der Nutzer je nach Fenstergroesse keines von
+            // beidem und haelt den Knopf fuer kaputt.
+            assert.strictEqual(seite.kartenBereich.gescrollt, 1,
+                'es wird nicht zur Karte gescrollt');
+            ok('ohne Punkt geht das Formular nicht raus');
+
+            // Mit gueltigem Punkt darf nichts im Weg stehen - und der Hinweis
+            // von eben muss weg sein, sonst steht eine Meldung da, die nicht
+            // mehr zutrifft.
+            angehalten = false;
+            seite.jq('#latitude').val('52.52');
+            seite.jq('#longitude').val('13.405');
+            seite.jq('#location-form').trigger('submit', ereignis);
+            assert.strictEqual(angehalten, false, 'mit Punkt wird das Absenden angehalten');
+            assert.strictEqual(seite.felder['#location-hinweis'].text, '',
+                'der alte Hinweis bleibt stehen');
+            ok('mit Punkt geht es durch, und der Hinweis verschwindet');
+
+            // Werte ausserhalb des gueltigen Bereichs sind so unbrauchbar wie
+            // gar keine - dieselben Grenzen wie im LocationController.
+            for (const [breite, laenge] of [['91', '0'], ['0', '181'], ['abc', '0']]) {
+                angehalten = false;
+                seite.jq('#latitude').val(breite);
+                seite.jq('#longitude').val(laenge);
+                seite.jq('#location-form').trigger('submit', ereignis);
+                assert.strictEqual(angehalten, true,
+                    'unbrauchbare Koordinaten ' + breite + '/' + laenge + ' gehen durch');
+            }
+            ok('unbrauchbare Koordinaten kommen nicht durch');
+        }
+
+        // --- (b) Der Ruecksprung mit gemerkten Eingaben ------------------
+        {
+            // So sieht das Formular aus, das der Server nach "Beschreibung zu
+            // kurz" zurueckschickt: Der Punkt stand schon, nur der Text war zu
+            // kurz. Genau hier ging vorher alles verloren.
+            const seite = baueSeite(false, {
+                land: '7', stadt: 'Berlin', latitude: '52.52', longitude: '13.405'
+            });
+
+            seite.karte.stelleKoordinatenWiederHer();
+            assert.strictEqual((seite.felder['#lat'] || {}).text, '52.520000',
+                'der Breitengrad wird nicht wieder angezeigt');
+            assert.strictEqual((seite.felder['#lon'] || {}).text, '13.405000',
+                'der Laengengrad wird nicht wieder angezeigt');
+            assert.ok(seite.karte.marker, 'der Marker fehlt nach dem Ruecksprung');
+            ok('Anzeige und Marker kommen zurueck');
+
+            // Und jetzt Land und Stadt - der Schritt, der die Koordinaten
+            // frueher wieder geloescht haette, weil er einen Landwechsel
+            // ausloest.
+            seite.karte.stelleLandUndStadtWiederHer();
+            assert.strictEqual(seite.felder['#countrySelect'].value, '7',
+                'das Land steht nicht wieder im Auswahlfeld');
+            const stadtOptionen = seite.felder['#citySelect'].angehaengt || [];
+            assert.ok(stadtOptionen.some(o => o && o.text === 'Berlin'),
+                'die Stadt wird nicht nachgereicht');
+            assert.strictEqual(String(seite.felder['#latitude'].value), '52.52',
+                'das Wiederherstellen des Landes loescht die Koordinaten');
+            assert.strictEqual((seite.felder['#lat'] || {}).text, '52.520000',
+                'das Wiederherstellen des Landes loescht die Anzeige');
+            ok('Land und Stadt kommen zurueck, ohne den Punkt zu loeschen');
+
+            // Bis hierher wurden die beiden Methoden von Hand gerufen. Sie
+            // muessen aber auch von selbst laufen: das Wiederherstellen von
+            // Land und Stadt haengt an der Laenderliste und kann erst
+            // loslaufen, wenn die da ist.
+            const echt = baueSeite(false, {
+                land: '7', stadt: 'Berlin', latitude: '52.52', longitude: '13.405'
+            });
+            echt.antwort.wert = [
+                { id: '7', country_name: 'Deutschland', iso2: 'DE' },
+                { id: '9', country_name: 'Frankreich',  iso2: 'FR' }
+            ];
+            echt.karte.loadCountries();
+            await sleep(10);
+            assert.strictEqual(echt.felder['#countrySelect'].value, '7',
+                'loadCountries() holt das Land nicht zurueck');
+            assert.strictEqual(String(echt.felder['#latitude'].value), '52.52',
+                'die Koordinaten ueberstehen das Laden der Laender nicht');
+            ok('das Wiederherstellen haengt an der geladenen Laenderliste');
+
+            // Danach muss das Formular auch wirklich rausgehen duerfen.
+            let angehalten = false;
+            seite.jq('#location-form').trigger('submit',
+                { preventDefault() { angehalten = true; }, params: {} });
+            assert.strictEqual(angehalten, false,
+                'das wiederhergestellte Formular laesst sich nicht abschicken');
+            ok('das wiederhergestellte Formular ist absendebereit');
+        }
+
+        // --- Ohne gemerkte Eingaben passiert nichts ----------------------
+        {
+            const seite = baueSeite(false);
+            seite.karte.stelleKoordinatenWiederHer();
+            seite.karte.stelleLandUndStadtWiederHer();
+
+            assert.strictEqual(seite.karte.marker, null,
+                'im leeren Formular steht ein Marker');
+            assert.strictEqual(seite.felder['#countrySelect'].value, '',
+                'im leeren Formular ist ein Land gewaehlt');
+            assert.ok(!(seite.felder['#citySelect'] || {}).angehaengt,
+                'im leeren Formular wird eine Stadt nachgereicht');
+            ok('ohne gemerkte Eingaben bleibt das Formular leer');
+        }
     }
 
     console.error('\n' + passed + ' Pruefungen bestanden.');

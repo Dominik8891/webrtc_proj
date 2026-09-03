@@ -29,6 +29,7 @@ require_once $ROOT . '/class/Model/ChatMessage.php';
 require_once $ROOT . '/class/Controller/ChatController.php';
 // Die Guide-Frage und die Stelle, die sie beim Standortformular stellt.
 require_once $ROOT . '/class/Controller/GuideController.php';
+require_once $ROOT . '/class/Controller/LocationController.php';
 
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
@@ -36,6 +37,7 @@ use App\Model\WebRTCHandler;
 use App\Controller\TurnController;
 use App\Controller\WebRTCController;
 use App\Controller\UserController;
+use App\Controller\LocationController;
 use App\Model\Location;
 use App\Model\GuideRole;
 use App\Helper\Role;
@@ -1028,6 +1030,10 @@ function platzhalter($datei) {
 $vorlagen = [
     'assets/html/guide_role.html' => 'class/Controller/GuideController.php',
     'assets/html/settings.html'   => 'class/Controller/SettingsController.php',
+    // Die fuenf Platzhalter, ueber die eine abgelehnte Eingabe zurueck ins
+    // Formular kommt. Bliebe einer unbesetzt, stuende ###DESCRIPTION### als
+    // Text im Beschreibungsfeld.
+    'assets/html/set_location.html' => 'class/Controller/LocationController.php',
 ];
 foreach ($vorlagen as $vorlage => $controller) {
     $code = file_get_contents($ROOT . '/' . $controller);
@@ -1036,7 +1042,7 @@ foreach ($vorlagen as $vorlage => $controller) {
             "$marke aus $vorlage wird in $controller nicht ersetzt");
     }
 }
-ok('guide_role.html und settings.html haben keinen unbesetzten Platzhalter');
+ok('guide_role.html, settings.html und set_location.html haben keinen unbesetzten Platzhalter');
 
 // ---------------------------------------------------------------------
 fwrite(STDERR, "\n12b) Veraltete Guide-Bedingungen greifen dort, wo die Rolle benutzt wird\n");
@@ -2055,5 +2061,124 @@ check(strpos(methodenRumpf($mailCode, 'sendVerification'), 'Auth::userId()') !==
 $routen = require $ROOT . '/config/routes.php';
 check($routen['send_email_verify'][1] === 'sendVerification', 'die Route zeigt woanders hin');
 ok('die Bestaetigungsmail geht an das angemeldete Konto, nicht an eine mitgeschickte ID');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n27) Eine abgelehnte Eingabe geht nicht verloren\n");
+
+// DER BEFUND
+// setLocation() antwortet auf eine Ablehnung mit einer Weiterleitung zurueck
+// aufs Formular. Der POST-Rumpf geht dabei verloren - der Nutzer stand vor
+// einem leeren Feld und musste die Beschreibung noch einmal tippen, obwohl
+// nur die Koordinaten gefehlt hatten. Land und Stadt traf es genauso: Beide
+// Listen baut erst map.js auf, eine Auswahl ueberlebte den Ruecksprung nicht.
+//
+// Die Werte reisen jetzt ueber die Sitzung mit. Nicht ueber die URL: Eine
+// Beschreibung gehoert nicht in die Adresszeile, ins Server-Log und in den
+// Verlauf.
+$_SESSION = [];
+$merke   = new ReflectionMethod(LocationController::class, 'merkeEingaben');
+$hole    = new ReflectionMethod(LocationController::class, 'holeEingaben');
+$vergiss = new ReflectionMethod(LocationController::class, 'vergissEingaben');
+$merke->setAccessible(true);
+$hole->setAccessible(true);
+$vergiss->setAccessible(true);
+
+$eingabe = [
+    'country' => '7', 'city' => 'Berlin', 'latitude' => '', 'longitude' => '',
+    'description' => 'Fuehrung durch die Altstadt',
+];
+$merke->invoke(null, $eingabe);
+check($hole->invoke(null) === $eingabe, 'die gemerkten Eingaben kommen nicht zurueck');
+
+// Das Loeschen gehoert zum Holen: Sonst haenge die alte Beschreibung beim
+// naechsten, voellig unabhaengigen Aufruf des Formulars wieder darin.
+check($hole->invoke(null) === [], 'die Eingaben bleiben nach dem Holen liegen');
+ok('die Eingaben ueberleben genau einen Ruecksprung');
+
+$merke->invoke(null, $eingabe);
+$vergiss->invoke(null);
+check($hole->invoke(null) === [], 'vergissEingaben() raeumt nicht weg');
+ok('der Erfolgsweg raeumt die gemerkten Eingaben weg');
+
+// Gemerkt wird VOR den Pruefungen, damit keine Ablehnung den Rueckweg
+// vergessen kann - und weggeraeumt auf dem Erfolgsweg, sonst stuende der eben
+// gespeicherte Standort beim naechsten Aufruf wieder im Formular.
+$rumpf = methodenRumpf($locCode, 'setLocation');
+check(strpos($rumpf, 'merkeEingaben') !== false, 'setLocation() merkt die Eingaben nicht');
+check(strpos($rumpf, 'merkeEingaben') < strpos($rumpf, 'header('),
+    'gemerkt wird erst nach der ersten Ablehnung');
+check(strpos($rumpf, 'vergissEingaben') > strpos($rumpf, 'setNewLocation'),
+    'der Erfolgsweg raeumt die Eingaben nicht weg');
+check(strpos(methodenRumpf($locCode, 'setLocationPage'), 'fuelleFormular') !== false,
+    'setLocationPage() setzt die Eingaben nicht ins Formular ein');
+ok('beide Wege durch setLocation() sind bedacht');
+
+// Und das Einsetzen selbst, gegen die echte Vorlage.
+$vorlage = ViewHelper::template($ROOT . '/assets/html/set_location.html');
+$gefuellt = LocationController::fuelleFormular($vorlage, $eingabe);
+
+check(strpos($gefuellt, 'value="Fuehrung durch die Altstadt"') !== false,
+    'die Beschreibung steht nicht wieder im Feld');
+check(strpos($gefuellt, 'data-vorher-land="7"') !== false, 'das Land fehlt');
+check(strpos($gefuellt, 'data-vorher-stadt="Berlin"') !== false, 'die Stadt fehlt');
+check(preg_match('/###[A-Z_]+###/', $gefuellt) === 0, 'es steht noch ein Platzhalter darin');
+ok('Beschreibung, Land und Stadt stehen wieder im Formular');
+
+// Die Beschreibung ist freier Text des Nutzers und landet in einem
+// value=""-Attribut. Ohne Maskierung beendete ein Anfuehrungszeichen dort das
+// Attribut - der naechste Aufruf des Formulars fuehrte den eigenen Text als
+// Markup aus. Geprueft wird das Ergebnis, nicht die Absicht.
+$boese = LocationController::fuelleFormular($vorlage, [
+    'description' => '"><script>alert(1)</script>',
+    'city'        => "Bad ' Ischl",
+]);
+check(strpos($boese, '<script>alert(1)</script>') === false,
+    'die Beschreibung kommt unmaskiert ins Dokument');
+check(strpos($boese, '&quot;&gt;&lt;script&gt;') !== false,
+    'die Beschreibung ist nicht maskiert');
+check(strpos($boese, "Bad &#039; Ischl") !== false,
+    'das einfache Anfuehrungszeichen ist nicht maskiert');
+ok('eingesetzte Werte koennen kein Markup oeffnen');
+
+// Ohne gemerkte Eingaben - der Normalfall - bleibt das Formular leer.
+$leer = LocationController::fuelleFormular($vorlage, []);
+check(preg_match('/###[A-Z_]+###/', $leer) === 0, 'im leeren Formular steht ein Platzhalter');
+check(strpos($leer, 'data-vorher-land=""') !== false, 'das Land ist nicht leer');
+check(strpos($leer, 'id="description"') !== false && strpos($leer, 'value=""') !== false,
+    'das Beschreibungsfeld ist nicht leer');
+ok('ohne gemerkte Eingaben bleibt das Formular leer');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n28) Die Koordinatenfelder tragen kein wirkungsloses required\n");
+
+// An #latitude und #longitude stand ein required. Ein <input type="hidden">
+// ist von der Pruefung des Browsers ausgenommen ("barred from constraint
+// validation") - das Formular ging also ohne Koordinaten raus, und erst der
+// Server wies es ab. Geprueft wird jetzt beim Abschicken in map.js; das
+// wirkungslose Attribut darf nicht zurueckkommen und den Eindruck erwecken,
+// es sei abgesichert.
+$rohVorlage = file_get_contents($ROOT . '/assets/html/set_location.html');
+foreach (['latitude', 'longitude'] as $feld) {
+    check(preg_match('/<input[^>]*id="' . $feld . '"[^>]*>/', $rohVorlage, $m) === 1,
+        "das Feld $feld fehlt in der Vorlage");
+    check(strpos($m[0], 'type="hidden"') !== false, "$feld ist nicht mehr versteckt");
+    check(strpos($m[0], 'required') === false,
+        "an $feld steht wieder ein wirkungsloses required");
+}
+ok('an den versteckten Koordinatenfeldern steht kein required mehr');
+
+// Die sichtbaren Pflichtfelder behalten ihres - dort greift es.
+foreach (['description', 'countrySelect', 'citySelect'] as $feld) {
+    check(preg_match('/<(?:input|select)[^>]*id="' . $feld . '"[^>]*>/', $rohVorlage, $m) === 1,
+        "das Feld $feld fehlt in der Vorlage");
+    check(strpos($m[0], 'required') !== false, "$feld hat sein required verloren");
+}
+ok('die sichtbaren Pflichtfelder behalten ihres');
+
+// Die verbindliche Pruefung bleibt der Server: Wer ohne JavaScript
+// abschickt, kommt an der Pruefung des Browsers ohnehin vorbei.
+check(strpos(methodenRumpf($locCode, 'setLocation'), 'is_numeric($latitude)') !== false,
+    'der Server prueft die Koordinaten nicht mehr selbst');
+ok('der Server prueft die Koordinaten weiterhin selbst');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

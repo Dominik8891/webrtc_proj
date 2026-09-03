@@ -62,6 +62,11 @@ window.webrtcApp.locationMap = {
         this.initCitySelect2();
         this.bindEvents();
 
+        // Koordinaten und Marker haengen an nichts, was noch geladen wird -
+        // die Werte stehen schon in den versteckten Feldern. Land und Stadt
+        // kommen spaeter, wenn die Laenderliste da ist (loadCountries).
+        this.stelleKoordinatenWiederHer();
+
         // Erfolgsmeldung nach Save
         const urlParams = new URLSearchParams(window.location.search);
         if(urlParams.get('success') === '1'){
@@ -85,6 +90,20 @@ window.webrtcApp.locationMap = {
             // Notnagel, falls der Meldungsbereich fehlt - besser als schweigen
             window.webrtcApp.notify.error(text);
         }
+    },
+
+    /**
+     * Blendet eine zuvor gezeigte Meldung wieder aus.
+     *
+     * Ohne das bliebe der Hinweis "es fehlt der Punkt auf der Karte" stehen,
+     * nachdem der Nutzer ihn befolgt hat - eine Meldung, die nicht mehr
+     * zutrifft, ist schlimmer als keine.
+     *
+     * @returns {void}
+     */
+    versteckeHinweis() {
+        const $box = $('#location-hinweis');
+        if ($box.length) $box.text('').hide();
     },
 
     /**
@@ -157,6 +176,10 @@ window.webrtcApp.locationMap = {
                     templateResult: this.formatCountryOption,
                     templateSelection: this.formatCountryOption
                 });
+
+                // Erst jetzt gibt es Optionen, in denen eine Auswahl stehen
+                // kann - vorher waere .val() ins Leere gelaufen.
+                this.stelleLandUndStadtWiederHer();
             })
             .catch(fehler => {
                 // Ohne diesen Zweig blieb das Dropdown bei jedem Fehler
@@ -242,6 +265,54 @@ window.webrtcApp.locationMap = {
 
         // Button für aktuellen Standort
         $('#current-location').on('click', () => this.onCurrentLocation());
+
+        // Absenden erst, wenn ein Punkt gesetzt ist
+        $('#location-form').on('submit', (e) => this.pruefeVorDemAbschicken(e));
+    },
+
+    /**
+     * Haelt das Formular an, solange kein gueltiger Punkt gesetzt ist.
+     *
+     * WARUM HIER UND NICHT PER required
+     * ---------------------------------
+     * An #latitude und #longitude stand ein required. Es hatte keine
+     * Wirkung: Ein <input type="hidden"> ist von der Pruefung des Browsers
+     * ausgenommen. Das Formular ging also ohne Koordinaten raus, der Server
+     * wies es ab, und der Nutzer landete eine Seite weiter bei einer Meldung,
+     * die nicht mehr neben dem Feld stand, an dem es lag.
+     *
+     * Die Grenzen sind dieselben wie im LocationController. Verbindlich
+     * bleibt die Pruefung dort: Diese hier kann jeder umgehen, der das
+     * Formular ohne JavaScript abschickt.
+     *
+     * @param {Object} e Das submit-Ereignis
+     * @returns {void}
+     */
+    pruefeVorDemAbschicken(e) {
+        const lat = parseFloat($('#latitude').val());
+        const lon = parseFloat($('#longitude').val());
+
+        const gueltig = Number.isFinite(lat) && Number.isFinite(lon)
+            && lat >= -90 && lat <= 90
+            && lon >= -180 && lon <= 180;
+
+        if (gueltig) {
+            this.versteckeHinweis();
+            return;
+        }
+
+        e.preventDefault();
+        this.zeigeHinweis(
+            'Es fehlt der Punkt auf der Karte. Bitte in die Karte klicken, ' +
+            'eine Stadt wählen oder "Aktuellen Standort verwenden" - erst ' +
+            'dann lässt sich der Standort speichern.'
+        );
+
+        // Der Hinweis steht oben im Formular, die Karte weiter unten. Ohne
+        // das Scrollen sieht der Nutzer je nach Fenstergroesse weder das eine
+        // noch das andere und haelt den Knopf fuer kaputt.
+        const karte = document.getElementById('map');
+        if (karte && karte.scrollIntoView) karte.scrollIntoView({ block: 'center' });
     },
 
     /**
@@ -327,13 +398,93 @@ window.webrtcApp.locationMap = {
         });
         if (!countryOption.length) return;
 
+        this.landOhneZuruecksetzenSetzen(countryOption.val());
+    },
+
+    /**
+     * Traegt ein Land ins Auswahlfeld ein, ohne die uebrigen Felder
+     * zurueckzusetzen.
+     *
+     * Das ist die einzige Stelle, an der countryJustSetByLocation gesetzt
+     * wird - jeder programmatische Landwechsel geht hier durch (Kartenklick,
+     * Standortknopf, Wiederherstellen nach einem Ruecksprung). An zwei
+     * Stellen nachgebaut wuerde die Markierung an einer davon fehlen, und
+     * genau daran krankte der Kartenklick.
+     *
+     * @param {string} id Wert der Option, also country.id
+     * @returns {void}
+     */
+    landOhneZuruecksetzenSetzen(id) {
         this.countryJustSetByLocation = true;
-        $('#countrySelect').val(countryOption.val()).trigger('change');
+        $('#countrySelect').val(id).trigger('change');
         // Notnagel: .trigger() laeuft sofort, onCountryChange() nimmt die
         // Markierung also gleich wieder zurueck. Bliebe sie doch einmal
         // stehen - weil der Handler noch nicht gebunden war -, verschluckte
         // sie den naechsten echten Landwechsel des Nutzers.
         this.countryJustSetByLocation = false;
+    },
+
+    /**
+     * Holt Land und Stadt zurueck, die der Server nach einer Ablehnung im
+     * Formular hinterlegt hat (data-vorher-land, data-vorher-stadt aus
+     * assets/html/set_location.html).
+     *
+     * Laeuft erst, wenn die Laenderliste steht - vorher gibt es keine Option,
+     * die gewaehlt werden koennte.
+     *
+     * @returns {void}
+     */
+    stelleLandUndStadtWiederHer() {
+        const $form = $('#location-form');
+        if (!$form.length) return;
+
+        // .attr() statt .data(): .data() macht aus einer Zahl im Attribut
+        // eine Zahl, und die Optionswerte sind Zeichenketten.
+        const land  = $form.attr('data-vorher-land');
+        const stadt = $form.attr('data-vorher-stadt');
+
+        // Ueber landOhneZuruecksetzenSetzen, nicht ueber .val().trigger():
+        // Letzteres liefe als Landwechsel des Nutzers durch und loeschte die
+        // Koordinaten, die gerade wiederhergestellt wurden.
+        if (land) this.landOhneZuruecksetzenSetzen(land);
+
+        // Die Stadt kommt sonst aus der Nominatim-Suche. Hier wird sie als
+        // einzelne Option nachgereicht - dieselbe Vorgehensweise wie beim
+        // Kartenklick.
+        if (stadt) {
+            const option = new Option(stadt, stadt, true, true);
+            $('#citySelect').append(option).trigger('change');
+        }
+    },
+
+    /**
+     * Holt Marker und Koordinatenanzeige zurueck.
+     *
+     * Die Werte selbst hat der Server schon in die versteckten Felder
+     * geschrieben - abgeschickt wuerde also auch ohne diese Methode das
+     * Richtige. Was fehlt, ist das Sichtbare: ohne Marker und ohne Zahlen
+     * unter der Karte saehe das Formular aus, als waere der Punkt weg, und
+     * der Nutzer setzte ihn ein zweites Mal.
+     *
+     * @returns {void}
+     */
+    stelleKoordinatenWiederHer() {
+        const lat = parseFloat($('#latitude').val());
+        const lon = parseFloat($('#longitude').val());
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        $('#lat').text(lat.toFixed(6));
+        $('#lon').text(lon.toFixed(6));
+        if (this.marker) this.map.removeLayer(this.marker);
+        this.marker = L.marker([lat, lon]).addTo(this.map);
+        this.map.setView([lat, lon], 12);
+
+        // Den Ortsnamen traegt der Server nicht mit zurueck - er ist nur
+        // Anzeige und stuende sonst als "-" neben einem gesetzten Marker.
+        fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon)
+            .then(resp => resp.json())
+            .then(data => { $('#osm_place').text(data.display_name || ''); })
+            .catch(() => { /* nur Anzeige - ein Fehlschlag darf nichts stoeren */ });
     },
 
     /**

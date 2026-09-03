@@ -26,6 +26,110 @@ use App\Helper\ViewHelper;
 class LocationController
 {
     /**
+     * Schluessel, unter dem die abgelehnten Formulareingaben bis zum
+     * naechsten Aufruf des Formulars in der Sitzung liegen.
+     */
+    private const EINGABEN = 'set_location_eingaben';
+
+    /**
+     * Legt die Eingaben eines abgelehnten Formulars in der Sitzung ab.
+     *
+     * WARUM UEBERHAUPT
+     * ----------------
+     * setLocation() antwortet auf eine Ablehnung mit einer Weiterleitung
+     * zurueck aufs Formular (Post/Redirect/Get - damit ein Neuladen den
+     * Standort nicht ein zweites Mal anlegt). Der Preis dieses Musters ist,
+     * dass der POST-Rumpf dabei verlorengeht: Der Nutzer stand vor einem
+     * leeren Formular und musste die Beschreibung noch einmal tippen, obwohl
+     * nur die Koordinaten gefehlt hatten. Land und Stadt traf es genauso -
+     * beide Listen baut erst assets/js/map.js auf, eine Auswahl ueberlebte
+     * den Ruecksprung nicht. Die Werte reisen deshalb ueber die Sitzung mit.
+     *
+     * Nicht ueber die URL: Eine Beschreibung gehoert nicht in die
+     * Adresszeile, ins Server-Log und in den Verlauf.
+     *
+     * @param array<string,string> $werte Die Felder des Formulars
+     * @return void
+     */
+    private static function merkeEingaben(array $werte): void
+    {
+        $_SESSION[self::EINGABEN] = $werte;
+    }
+
+    /**
+     * Verwirft die gemerkten Eingaben.
+     *
+     * Noetig auf dem ERFOLGSWEG: Gemerkt wird vor den Pruefungen, damit
+     * keine Ablehnung den Rueckweg vergessen kann. Ohne dieses Wegraeumen
+     * laege der eben gespeicherte Standort noch in der Sitzung und stuende
+     * beim naechsten, voellig unabhaengigen Aufruf des Formulars wieder
+     * darin.
+     *
+     * @return void
+     */
+    private static function vergissEingaben(): void
+    {
+        unset($_SESSION[self::EINGABEN]);
+    }
+
+    /**
+     * Holt die gemerkten Eingaben und loescht sie dabei.
+     *
+     * Das Loeschen gehoert zum Holen: Sonst haenge die alte Beschreibung
+     * beim naechsten, voellig unabhaengigen Aufruf des Formulars wieder
+     * darin - der Nutzer haette ein Feld vorbelegt, das er nie gefuellt hat.
+     *
+     * @return array<string,string> Leeres Array, wenn nichts gemerkt wurde
+     */
+    private static function holeEingaben(): array
+    {
+        $werte = $_SESSION[self::EINGABEN] ?? [];
+        unset($_SESSION[self::EINGABEN]);
+
+        return is_array($werte) ? $werte : [];
+    }
+
+    /**
+     * Setzt die gemerkten Eingaben in die Vorlage ein.
+     *
+     * Oeffentlich und ohne Seiteneffekte, damit sich die Ersetzung samt
+     * Maskierung pruefen laesst, ohne eine Seite auszuliefern
+     * (tests/server_test.php).
+     *
+     * Jeder Wert geht durch htmlspecialchars(): Er landet in einem
+     * value=""- bzw. data-""-Attribut, und dort beendet ein
+     * Anfuehrungszeichen sonst das Attribut. Die Beschreibung ist freier
+     * Text des Nutzers - genau der Fall, in dem das ausgenutzt wuerde.
+     * ENT_QUOTES fasst auch das einfache Anfuehrungszeichen.
+     *
+     * @param string               $vorlage Inhalt von set_location.html
+     * @param array<string,string> $werte   Rueckgabe von holeEingaben()
+     * @return string Die Vorlage ohne Platzhalter
+     */
+    public static function fuelleFormular(string $vorlage, array $werte): string
+    {
+        $marken = [
+            '###DESCRIPTION###' => 'description',
+            '###LATITUDE###'    => 'latitude',
+            '###LONGITUDE###'   => 'longitude',
+            '###COUNTRY_ID###'  => 'country',
+            '###CITY###'        => 'city',
+        ];
+
+        foreach ($marken as $marke => $feld) {
+            $wert = $werte[$feld] ?? '';
+            $wert = is_scalar($wert) ? (string)$wert : '';
+            $vorlage = str_replace(
+                $marke,
+                htmlspecialchars($wert, ENT_QUOTES, 'UTF-8'),
+                $vorlage
+            );
+        }
+
+        return $vorlage;
+    }
+
+    /**
      * Zeigt das Formular zum Setzen einer Location an.
      *
      * Zugang: Recht location.create, geprüft in index.php. Zusätzlich die
@@ -40,7 +144,10 @@ class LocationController
     {
         GuideController::requireCurrentTerms();
 
+        // Die Eingaben einer abgelehnten Eingabe zurueck ins Formular. Ist
+        // nichts gemerkt - der Normalfall -, bleiben alle Platzhalter leer.
         $out = ViewHelper::template('assets/html/set_location.html');
+        $out = self::fuelleFormular($out, self::holeEingaben());
         ViewHelper::output($out);
     }
 
@@ -70,6 +177,19 @@ class LocationController
             $latitude    = Request::g('latitude');
             $description = Request::g('description');
             $user_id     = Auth::userId();
+
+            // Die Eingaben fuer den Fall merken, dass gleich abgelehnt wird.
+            // Steht VOR den Pruefungen, damit keine davon den Rueckweg
+            // vergessen kann: Wer spaeter eine dritte Pruefung ergaenzt, muss
+            // dafuer nichts wissen. Der Erfolgsweg raeumt sie am Ende wieder
+            // weg (vergissEingaben).
+            self::merkeEingaben([
+                'country'     => $country_id,
+                'city'        => $city,
+                'latitude'    => $latitude,
+                'longitude'   => $longitude,
+                'description' => $description,
+            ]);
 
             if (strlen($description) < 5) {
                 header("Location: index.php?act=set_location_page&success=0");
@@ -110,6 +230,10 @@ class LocationController
             $location->setLatitude($latitude);
             $location->setDescription($description);
             $location->setNewLocation($user_id, $country_id);
+
+            // Gespeichert - die oben gemerkten Eingaben sind erledigt. Sonst
+            // stuenden sie beim naechsten Aufruf des Formulars wieder darin.
+            self::vergissEingaben();
 
             // MIT act. Ohne den Parameter landete die Weiterleitung bei
             // index.php ohne Aktion - und index.php leitet dann auf

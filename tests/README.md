@@ -35,7 +35,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (74 Prüfungen)
+## Was `client_test.js` prüft (82 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -109,7 +109,7 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     ist kein Guide), steht seine Begründung in der Meldung, der Call wird
     abgeräumt und es wird keine Rolle vergeben.
 
-### Standort anbieten (29)
+### Standort anbieten (29, 30)
 
 29. **Ein Klick auf die Karte setzt den Punkt und behält ihn** — auf
     `#countrySelect` hingen **zwei** `change`-Handler. `onMapClick()` füllt die
@@ -132,6 +132,29 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     Geltungsbereich mit einer jQuery-Attrappe, die Feldwerte und gebundene
     Handler mitschreibt. Weder `$` noch `window.webrtcApp` werden dabei global
     überschrieben; Leaflet und Nominatim sind Attrappen.
+
+30. **Kein Absenden ohne Punkt, und keine verlorene Eingabe** — zwei Befunde
+    aus demselben Formular.
+
+    (a) An `#latitude` und `#longitude` stand ein `required`. Es hatte **keine
+    Wirkung**: Ein `<input type="hidden">` ist von der Prüfung des Browsers
+    ausgenommen („barred from constraint validation"). Das Formular ging ohne
+    Koordinaten raus, der Server wies es ab — eine Seite weiter, weg von dem
+    Feld, an dem es lag. Geprüft wird jetzt beim Abschicken
+    (`pruefeVorDemAbschicken`), mit denselben Grenzen wie im
+    `LocationController`; verbindlich bleibt dessen Prüfung. Der Test deckt
+    ab: ohne Punkt wird angehalten, ein Hinweis erscheint und es wird zur
+    Karte gescrollt; mit Punkt geht es durch und der alte Hinweis verschwindet;
+    `91`, `181` und `abc` gelten als kein Punkt.
+
+    (b) Bei diesem Rücksprung gingen Beschreibung, Land und Stadt verloren. Der
+    Server schreibt sie jetzt zurück (Beschreibung und Koordinaten direkt in
+    die Felder, Land und Stadt als `data`-Attribute); `map.js` holt daraus
+    Anzeige, Marker und Auswahl zurück. Geprüft wird, dass Anzeige und Marker
+    wiederkommen, dass das Wiederherstellen des Landes die Koordinaten **nicht**
+    löscht (derselbe Landwechsel, an dem der Kartenklick krankte), dass das über
+    die echte `loadCountries()`-Kette läuft, dass das Formular danach absendbar
+    ist — und dass ohne gemerkte Eingaben nichts vorbelegt wird.
 
 ### Rolle und Standort-Button (23)
 
@@ -161,7 +184,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (131 Prüfungen)
+## Was `server_test.php` prüft (140 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -357,6 +380,33 @@ die Tests nicht an. Das ist Absicht.
     ist nur dort in Ordnung, wo bewusst ein *fremder* Datensatz gemeint ist
     (Benutzerverwaltung, Standortsperre, Chatpartner) — und dort steht eine
     eigene Prüfung daneben.
+
+27. **Eine abgelehnte Eingabe geht nicht verloren** — `setLocation()`
+    antwortet auf eine Ablehnung mit einer Weiterleitung zurück aufs Formular
+    (Post/Redirect/Get, damit ein Neuladen den Standort nicht ein zweites Mal
+    anlegt). Der POST-Rumpf geht dabei verloren: Der Nutzer stand vor einem
+    leeren Feld und musste die Beschreibung noch einmal tippen, obwohl nur die
+    Koordinaten gefehlt hatten. Land und Stadt traf es genauso — beide Listen
+    baut erst `map.js` auf.
+
+    Die Werte reisen jetzt über die **Sitzung** mit, nicht über die URL: Eine
+    Beschreibung gehört nicht in die Adresszeile, ins Server-Log und in den
+    Verlauf. Geprüft wird, dass sie genau **einen** Rücksprung überleben
+    (`holeEingaben()` löscht beim Lesen — sonst hinge die alte Beschreibung
+    beim nächsten, völlig unabhängigen Aufruf wieder darin), dass der
+    Erfolgsweg sie wegräumt, dass gemerkt wird **vor** der ersten Ablehnung,
+    und dass `fuelleFormular()` sie gegen die echte Vorlage einsetzt. Dazu die
+    Maskierung: Die Beschreibung ist freier Text und landet in einem
+    `value=""`-Attribut — `"><script>` darf dort kein Markup öffnen.
+
+28. **Die Koordinatenfelder tragen kein wirkungsloses `required`** — an
+    `#latitude` und `#longitude` stand eines. Ein `<input type="hidden">` ist
+    von der Prüfung des Browsers ausgenommen; das Attribut sah nach Absicherung
+    aus und war keine. Geprüft wird, dass es an beiden Feldern weg ist, dass
+    die *sichtbaren* Pflichtfelder (`description`, `countrySelect`,
+    `citySelect`) ihres behalten — dort greift es — und dass der Server die
+    Koordinaten weiterhin selbst prüft: Wer ohne JavaScript abschickt, kommt an
+    der Prüfung des Browsers ohnehin vorbei.
 
 ## Grenzen
 

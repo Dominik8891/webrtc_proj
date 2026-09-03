@@ -289,3 +289,89 @@ Nicht im echten Browser nachgestellt — das select2-CDN ist vom Proxy blockiert
 Nominatim. Das `required` auf `#latitude`/`#longitude` bleibt wirkungslos
 (verborgene Felder werden nicht validiert); aufgefangen wird das weiterhin
 serverseitig über `success=2`.
+
+---
+
+## 8. Nachtrag: Das wirkungslose `required` und die verlorene Eingabe
+
+Stand: 2026-09-03 · Branch `claude/quirky-wright-m099dt`
+
+Zwei Restpunkte aus Abschnitt 7, beide am selben Formular.
+
+### 8.1 Das `required` an den versteckten Feldern hatte keine Wirkung
+
+An `#latitude` und `#longitude` stand `required`. Ein `<input type="hidden">`
+ist von der Prüfung des Browsers ausgenommen (HTML-Standard, „barred from
+constraint validation") — das Attribut sah nach Absicherung aus und war keine.
+Das Formular ging ohne Koordinaten raus, der Server wies es ab, und der Nutzer
+landete eine Seite weiter bei einer Meldung, die nicht mehr neben dem Feld
+stand, an dem es lag.
+
+**Behebung:** Das Attribut ist an beiden Feldern weg. `map.js` prüft jetzt beim
+Abschicken (`pruefeVorDemAbschicken`), zeigt den Hinweis oben im Formular und
+scrollt zur Karte. Die Grenzen sind dieselben wie im `LocationController`;
+verbindlich bleibt dessen Prüfung, denn wer ohne JavaScript abschickt, kommt an
+der Prüfung des Browsers ohnehin vorbei. Die *sichtbaren* Pflichtfelder
+behalten ihr `required` — dort greift es.
+
+### 8.2 Der Rücksprung verlor die Eingaben
+
+`setLocation()` antwortet auf eine Ablehnung mit einer Weiterleitung zurück aufs
+Formular (Post/Redirect/Get, damit ein Neuladen den Standort nicht ein zweites
+Mal anlegt). Der Preis dieses Musters ist, dass der POST-Rumpf verlorengeht.
+
+Betroffen war nicht nur die Beschreibung:
+
+| Feld | vorher | jetzt |
+|---|---|---|
+| Beschreibung | leer, neu tippen | steht wieder im Feld |
+| Land | leer | wieder gewählt |
+| Stadt | leer | wieder gewählt |
+| Koordinaten | leer, Marker weg | Felder, Anzeige und Marker wieder da |
+
+Land und Stadt traf es aus einem eigenen Grund: Beide Listen baut erst `map.js`
+auf — das Land aus `index.php?act=get_country`, die Stadt aus der
+Nominatim-Suche. Eine `<option>`, die der Server ins Formular schreibt, würde
+davon überschrieben.
+
+**Behebung:** Die Eingaben liegen bis zum nächsten Aufruf des Formulars in der
+Sitzung (`merkeEingaben` / `holeEingaben` / `vergissEingaben`). Nicht in der
+URL: Eine Beschreibung gehört nicht in die Adresszeile, ins Server-Log und in
+den Verlauf. Gemerkt wird **vor** den Prüfungen, damit keine Ablehnung den
+Rückweg vergessen kann; der Erfolgsweg räumt sie weg, sonst stünde der eben
+gespeicherte Standort beim nächsten Aufruf wieder im Formular. `holeEingaben()`
+löscht beim Lesen — die Werte überleben genau einen Rücksprung.
+
+Ins Formular kommen sie über fünf Platzhalter, die `fuelleFormular()` besetzt:
+Beschreibung und Koordinaten direkt in die Felder, Land und Stadt als
+`data`-Attribute am Formular, aus denen `map.js` Auswahl, Anzeige und Marker
+zurückholt. Jeder Wert geht durch `htmlspecialchars(…, ENT_QUOTES)`: Die
+Beschreibung ist freier Text und landet in einem `value=""`-Attribut, wo ein
+Anfuehrungszeichen sonst das Attribut beendet.
+
+Das Wiederherstellen von Land und Stadt läuft über
+`landOhneZuruecksetzenSetzen()` — dieselbe Stelle, über die auch Kartenklick
+und Standortknopf gehen. Ein gewöhnliches `.val().trigger('change')` liefe als
+Landwechsel des Nutzers durch und löschte die eben wiederhergestellten
+Koordinaten; das ist genau der Fehler aus Abschnitt 7.
+
+### 8.3 Prüfung
+
+* `tests/client_test.js`, Abschnitt 30 (82 Prüfungen): Absenden ohne Punkt wird
+  angehalten, mit Punkt nicht; `91`, `181` und `abc` gelten als kein Punkt;
+  Anzeige, Marker, Land und Stadt kommen zurück, ohne die Koordinaten zu
+  löschen — auch über die echte `loadCountries()`-Kette; ohne gemerkte
+  Eingaben bleibt das Formular leer.
+* `tests/server_test.php`, Abschnitte 27 und 28 (140 Prüfungen): die Eingaben
+  überleben genau einen Rücksprung, der Erfolgsweg räumt sie weg, beide Wege
+  durch `setLocation()` sind bedacht, eingesetzte Werte können kein Markup
+  öffnen, und an den versteckten Feldern steht kein `required` mehr.
+
+Jede dieser Prüfungen schlägt gegen den Stand davor fehl.
+
+### 8.4 Nicht verifiziert
+
+Weiterhin nicht im echten Browser nachgestellt (select2-CDN vom Proxy
+blockiert, Nominatim nicht erreichbar). Der Ortsname aus OpenStreetMap wird
+nach einem Rücksprung neu abgefragt statt mitgeschickt — er ist reine Anzeige;
+schlägt die Abfrage fehl, bleibt das Feld leer und sonst nichts hängt daran.

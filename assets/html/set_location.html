@@ -1,9 +1,28 @@
 <!--
     Standort anbieten. Gefuellt und gesteuert von assets/js/map.js.
 
-    Die IDs countrySelect, citySelect, latitude, longitude, lat, lon,
-    osm_place, current-location, map und location-hinweis werden dort
-    gebraucht - sie muessen erhalten bleiben.
+    Die IDs location-form, countrySelect, citySelect, latitude, longitude,
+    lat, lon, osm_place, current-location, map und location-hinweis werden
+    dort gebraucht - sie muessen erhalten bleiben.
+
+    PLATZHALTER (gefuellt von App\Controller\LocationController)
+    ------------------------------------------------------------
+    Sie tragen die Eingaben zurueck ins Formular, wenn der Server den
+    Standort abgelehnt hat (zu kurze Beschreibung, fehlende Koordinaten).
+    Ohne sie stand der Nutzer nach dem Ruecksprung vor einem leeren Feld
+    und musste die Beschreibung noch einmal tippen.
+
+      ###DESCRIPTION###  die eingetippte Beschreibung
+      ###LATITUDE###     Breitengrad, direkt im versteckten Feld
+      ###LONGITUDE###    Laengengrad, ebenso
+      ###COUNTRY_ID###   das gewaehlte Land als country.id
+      ###CITY###         der gewaehlte Stadtname
+
+    Land und Stadt stehen als data-Attribute am Formular und nicht als
+    ausgewaehlte <option>: Beide Listen baut erst map.js auf - das Land aus
+    index.php?act=get_country, die Stadt aus der Nominatim-Suche. Eine
+    Option, die der Server hier hineinschreibt, wuerde davon ueberschrieben.
+    Bei einem leeren Formular bleiben alle fuenf Platzhalter leer.
 -->
 <div class="app-page app-page--narrow" style="max-width: 720px;">
     <div class="app-toolbar">
@@ -23,7 +42,10 @@
                  leer und unsichtbar, solange alles funktioniert. -->
             <div id="location-hinweis" class="alert alert-danger" style="display:none;" role="alert"></div>
 
-            <form action="index.php?act=set_location" method="post" autocomplete="off">
+            <form id="location-form" action="index.php?act=set_location" method="post"
+                  autocomplete="off"
+                  data-vorher-land="###COUNTRY_ID###"
+                  data-vorher-stadt="###CITY###">
                 <div class="app-field">
                     <label for="countrySelect" class="form-label">Land</label>
                     <select id="countrySelect" name="country" class="form-select" required>
@@ -42,11 +64,23 @@
                 <div class="app-field">
                     <label for="description" class="form-label">Beschreibung</label>
                     <input type="text" id="description" name="description" class="form-control"
-                           placeholder="Was gibt es dort zu sehen?" required>
+                           placeholder="Was gibt es dort zu sehen?"
+                           value="###DESCRIPTION###" required>
                 </div>
 
-                <input type="hidden" id="latitude" name="latitude" value="" required>
-                <input type="hidden" id="longitude" name="longitude" value="" required>
+                <!-- Hier stand an beiden Feldern ein "required". Es hatte KEINE
+                     Wirkung: Ein <input type="hidden"> ist von der Pruefung des
+                     Browsers ausgenommen (HTML-Standard, "barred from constraint
+                     validation"). Das Formular ging also ohne Koordinaten raus,
+                     und erst der Server wies es ab - eine Seite spaeter und ohne
+                     Bezug zum Feld, an dem es lag.
+
+                     Geprueft wird jetzt beim Abschicken in map.js
+                     (pruefeVorDemAbschicken). Verbindlich bleibt die Pruefung im
+                     LocationController: Wer ohne JavaScript abschickt, kommt an
+                     der Pruefung des Browsers ohnehin vorbei. -->
+                <input type="hidden" id="latitude"  name="latitude"  value="###LATITUDE###">
+                <input type="hidden" id="longitude" name="longitude" value="###LONGITUDE###">
                 <input type="hidden" name="country-iso2" id="country-iso2">
 
                 <div class="app-field">
