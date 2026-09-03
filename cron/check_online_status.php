@@ -33,6 +33,29 @@ try {
                       AND updated_at < (NOW() - INTERVAL $timeout SECOND)";
     $affected = $pdo::$connection->exec($sql_offline);
 
+    // ABGELAUFENE BEREITSCHAFT AUFRAEUMEN.
+    //
+    // Das ist AUFRAEUMEN UND KEINE PRUEFUNG. Ob ein Guide bereit ist,
+    // entscheidet nirgends dieser Cronjob, sondern der Vergleich mit NOW()
+    // in der Abfrage selbst (App\Model\Location::AVAILABILITY_SQL,
+    // App\Model\User::availableSeconds). Eine abgelaufene Bereitschaft wirkt
+    // also auch dann nicht mehr, wenn dieser Job gar nicht eingerichtet ist -
+    // ein Standort wird von selbst wieder grau.
+    //
+    // Geraeumt wird trotzdem, aus zwei Gruenden: Die Spalte traegt sonst
+    // dauerhaft alte Zeitpunkte herum, und "NULL heisst nicht bereit" ist die
+    // Aussage, die auch das Abmelden und der Schalter hinterlassen. Ein
+    // einziger Zustand fuer eine Sache ist leichter zu lesen als zwei.
+    //
+    // Getrennt vom Statement darueber, weil es eine ANDERE Frist ist: Der
+    // Status haengt am Heartbeat (Sekunden), die Bereitschaft an der
+    // Entscheidung des Guides (Stunden).
+    $pdo::$connection->exec(
+        "UPDATE user SET available_until = NULL
+         WHERE available_until IS NOT NULL
+           AND available_until <= NOW()"
+    );
+
     // Optional: Logging für Cronjobs (nur zur Überwachung/Debug)
     // error_log("Cron: $affected Nutzer auf offline gesetzt (" . date('c') . ")");
 

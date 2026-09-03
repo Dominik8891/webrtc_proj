@@ -23,7 +23,15 @@ function makeEl(id) {
         classList: {
             add(...names) { names.forEach(n => classes.add(n)); },
             remove(...names) { names.forEach(n => classes.delete(n)); },
-            contains(name) { return classes.has(name); }
+            contains(name) { return classes.has(name); },
+            // Zweites Argument wie im Browser: erzwingt an oder aus, statt zu
+            // wechseln. availability.js setzt darueber den Zustand des
+            // Bereitschaftsschalters.
+            toggle(name, an) {
+                const soll = (an === undefined) ? !classes.has(name) : !!an;
+                if (soll) classes.add(name); else classes.delete(name);
+                return soll;
+            }
         },
         children: [],
         appendChild(child) { this.children.push(child); },
@@ -72,8 +80,34 @@ global.document = {
         if (!(id in els)) els[id] = makeEl(id);
         return els[id];
     },
-    addEventListener() {}, querySelectorAll() { return []; },
+    // Mitgeschrieben statt verworfen: assets/js/availability.js haengt seine
+    // Erfassung echter Bedienung (Klick, Taste) am Dokument auf, und ohne
+    // ausloesbare Ereignisse waere gerade das nicht pruefbar - also genau die
+    // Stelle, an der entschieden wird, ob eine Bereitschaft verlaengert wird.
+    addEventListener(art, fn) {
+        (global.__docListeners[art] = global.__docListeners[art] || []).push(fn);
+    },
+    querySelectorAll() { return []; },
     createElement(tag) { return makeEl(tag); }
+};
+global.__docListeners = {};
+global.__winListeners = {};
+
+/** Loest ein am Dokument registriertes Ereignis aus. */
+global.__fireDoc = (art, ereignis) =>
+    (global.__docListeners[art] || []).forEach(fn => fn(ereignis || {}));
+
+/** Loest ein am Fenster registriertes Ereignis aus. */
+global.__fireWin = (art, ereignis) =>
+    (global.__winListeners[art] || []).forEach(fn => fn(ereignis || {}));
+
+// window.addEventListener wird hier ausdruecklich gesetzt: Node bringt am
+// globalen Objekt ein eigenes mit, und dessen Handler liessen sich von den
+// Pruefungen nicht ausloesen. availability.js haengt das Seitenende
+// ('pagehide') dort ein - der Weg, auf dem eine Bereitschaft beim Schliessen
+// des Tabs endet.
+global.addEventListener = (art, fn) => {
+    (global.__winListeners[art] = global.__winListeners[art] || []).push(fn);
 };
 // navigator MUSS ueber defineProperty gesetzt werden: Node bringt seit
 // Version 21 ein eigenes navigator mit, und das ist ein Getter ohne Setter.
@@ -81,8 +115,15 @@ global.document = {
 // blieb "Node.js/22", und jede Pruefung, die von einer Geraetekennung
 // abhaengt (etwa das Neuladen nach dem Call), lief am eigentlichen Zweig
 // vorbei.
+// sendBeacon schreibt mit, statt zu senden. Darueber beendet
+// availability.js die Bereitschaft beim Schliessen der Seite - eine der drei
+// Stellen, an denen sie enden muss.
+global.__beacons = [];
 Object.defineProperty(global, 'navigator', {
-    value: { userAgent: 'Mozilla/5.0 (Windows NT 10.0)' },
+    value: {
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0)',
+        sendBeacon(url, rumpf) { global.__beacons.push({ url, rumpf }); return true; }
+    },
     writable: true,
     configurable: true
 });
@@ -313,8 +354,26 @@ global.fetch = async (url, opts) => {
     if (String(url).includes('get_turn_credentials')) {
         return global.__turnResponse();
     }
+    // Bereitschaft und Heartbeat. Beide Routen schreiben mit, WAS geschickt
+    // wurde, und antworten mit den verbleibenden Sekunden - genau so wie der
+    // Server (App\Controller\UserController). __availableSeconds legt fest,
+    // was er sagt; __availabilityFail laesst die Anfrage scheitern, wie ein
+    // Netzausfall es tut.
+    if (String(url).includes('act=set_availability') || String(url).includes('act=heartbeat')) {
+        const rumpf = (opts && opts.body) ? JSON.parse(opts.body) : {};
+        global.__presenceCalls.push({ url: String(url), body: rumpf });
+        if (global.__availabilityFail) throw new Error('Netzwerkfehler');
+        const antwort = { status: 'ok', available_seconds: global.__availableSeconds };
+        return { ok: true, text: async () => JSON.stringify(antwort), json: async () => antwort };
+    }
     return { ok: true, text: async () => '', json: async () => ({}) };
 };
+/** Was an heartbeat und set_availability geschickt wurde. */
+global.__presenceCalls = [];
+/** Restzeit, die der Server in seiner Antwort meldet. */
+global.__availableSeconds = 0;
+/** Auf true: die Anfrage scheitert. */
+global.__availabilityFail = false;
 global.__turnResponse = async () => ({
     ok: true,
     json: async () => ({
@@ -331,10 +390,20 @@ global.window = global;
 global.updateCallIcons = () => {};
 global.isLoggedIn = true;
 
-global.Blob = global.Blob || function () {};
+// Der Blob bleibt der ECHTE - URL.createObjectURL() nimmt keinen anderen an,
+// und daran haengt die Dateiuebergabe im Chat. Ergaenzt wird nur ein Feld mit
+// dem Inhalt als Text: availability.js verpackt den Rumpf der
+// Beacon-Nachricht in einen Blob, und der echte gibt seinen Inhalt nur
+// asynchron heraus (text()). Die Pruefung liest ihn direkt.
+const EchterBlob = global.Blob;
+global.Blob = function (teile, opt) {
+    const blob = new EchterBlob(teile || [], opt || {});
+    blob.__text = (teile || []).join('');
+    return blob;
+};
 global.URL = global.URL || { createObjectURL: () => 'blob:x' };
 
-for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'media.js', 'signaling.js', 'chat.js', 'ui.js']) {
+for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'media.js', 'signaling.js', 'chat.js', 'ui.js', 'availability.js']) {
     eval(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 }
 

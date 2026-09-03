@@ -169,10 +169,18 @@ class LoginController
         // blieb er bis zum naechsten Durchlauf des Cronjobs
         // (cron/check_online_status.php) in der Standortuebersicht als online
         // stehen - und ohne eingerichteten Cron dauerhaft.
+        //
+        // ZWEI ZUSTAENDE, ZWEI SCHREIBVORGAENGE. Der Status sagt "kein
+        // Browser mehr erreichbar", die Bereitschaft sagt "will gerade
+        // fuehren" - und beides endet mit dem Abmelden. Die Bereitschaft
+        // wuerde sonst bis zum Ablauf ihrer Frist stehen bleiben und einen
+        // laengst abgemeldeten Guide anrufbar halten, sobald er sich das
+        // naechste Mal anmeldet.
         $user_id = (int)($_SESSION['user']['user_id'] ?? 0);
         if ($user_id > 0) {
             try {
                 (new User())->updateUserStatus($user_id, 'offline');
+                User::endAvailability($user_id);
             } catch (\Exception $e) {
                 // Ein Fehler beim Statuswechsel darf das Abmelden nicht
                 // verhindern - die Session wird in jedem Fall verworfen.

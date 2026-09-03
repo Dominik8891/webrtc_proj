@@ -129,6 +129,57 @@ class ViewHelper
     }
 
     /**
+     * Baut den Bereitschaftsschalter der Kopfleiste.
+     *
+     * WARUM IN DER KOPFLEISTE UND NICHT AUF DER KONTOSEITE
+     * ---------------------------------------------------
+     * Weil er zwei Aufgaben hat, und die zweite verlangt staendige
+     * Sichtbarkeit: Er SCHALTET die Bereitschaft, und er ZEIGT sie an. Ein
+     * Schalter in den Einstellungen koennte das Erste, aber nicht das Zweite -
+     * ein Guide, dessen Bereitschaft abgelaufen ist, wuerde es dort nie
+     * bemerken, weil er die Seite nicht aufhat. Die Kopfleiste steht auf jeder
+     * Seite der Anwendung; damit ist die Restzeit immer im Blick.
+     *
+     * ER STEHT AUSSERHALB DER SCHIEBBAREN AKTIONSZEILE, gleich neben dem
+     * Benutzermenue. Auf einem schmalen Geraet duerfen "Standort anbieten" und
+     * "Alle Standorte" weggeschoben werden - die Auskunft, ob man gerade
+     * anrufbar ist, nicht.
+     *
+     * ER WIRD SERVERSEITIG MIT SEINEM ZUSTAND AUSGELIEFERT und nicht erst von
+     * JavaScript gefuellt. Wer die Seite mit abgeschaltetem oder
+     * fehlgeschlagenem Skript oeffnet, sieht damit immer noch richtig, ob er
+     * bereit ist - nur der Sekundenzaehler steht dann still.
+     *
+     * Nur fuer Konten mit dem Recht user.availability. Ein Zuschauer haette
+     * hier einen Schalter, der nichts faerbt: Seine Bereitschaft haengt an
+     * keinem Standort.
+     *
+     * @param int $sekunden Verbleibende Bereitschaft; 0 heisst "nicht bereit"
+     * @return string HTML
+     */
+    private static function availabilitySwitch(int $sekunden): string
+    {
+        $bereit = $sekunden > 0;
+
+        // Der Zustand steht doppelt am Element: als Klasse fuer das Auge und
+        // als aria-pressed fuer Vorleseprogramme. Ein Punkt allein waere fuer
+        // sie nichts.
+        return '<button type="button" class="app-ready' . ($bereit ? ' app-ready--on' : '') . '"'
+             . ' id="availability-toggle"'
+             . ' aria-pressed="' . ($bereit ? 'true' : 'false') . '"'
+             . ' data-seconds="' . $sekunden . '"'
+             . ' title="' . ($bereit
+                 ? 'Sie sind als Guide anrufbar. Klicken beendet die Bereitschaft.'
+                 : 'Sie sind nicht anrufbar. Klicken stellt Sie auf bereit.') . '">'
+             .   '<span class="app-ready__dot" aria-hidden="true"></span>'
+             .   '<span class="app-ready__text" id="availability-text">'
+             .     ($bereit ? 'Bereit' : 'Nicht bereit')
+             .   '</span>'
+             .   '<span class="app-ready__rest" id="availability-rest"></span>'
+             . '</button>';
+    }
+
+    /**
      * Ersetzt die ###CONTENT###-Platzhalter im Hauptlayout mit dem übergebenen Content und gibt das HTML aus.
      * Ergänzt außerdem Benutzerstatus, Login/Logout-Links, Call- und Mediensteuerung sowie User-Infos.
      *
@@ -155,6 +206,9 @@ class ViewHelper
         $call      = "";
         $inner_call= "";
         $media     = "";
+        // Der Bereitschaftsschalter. Fuer Gaeste und fuer alle, die keine
+        // Standorte anbieten, bleibt er leer - siehe availabilitySwitch().
+        $ready     = "";
 
         // Das Farbprofil des ANGEMELDETEN Kontos - fuer Gaeste bleibt es
         // null. Das ist der Unterschied, den das Boot-Skript braucht:
@@ -230,6 +284,31 @@ class ViewHelper
             $presence = require __DIR__ . '/../../config/presence.php';
             $user_id_script .= '<script>window.heartbeatIntervalMs = '
                 . ((int)$presence['heartbeat_interval'] * 1000) . ';</script>';
+
+            // DIE BEREITSCHAFT. Sie ist etwas anderes als der Heartbeat
+            // darueber: Der meldet ein laufendes Programm, diese hier ist eine
+            // Entscheidung des Guides (siehe config/presence.php).
+            //
+            // Gefragt wird das Recht und nicht die Rolle - dasselbe Kriterium,
+            // ueber das ein Standort auf die Karte kommt. Wer keine Standorte
+            // anbietet, bekommt den Schalter nicht.
+            if (Auth::can(Permission::USER_AVAILABILITY)) {
+                // Der Zustand kommt aus der Datenbank und nicht aus der
+                // Sitzung: Er kann seit dem Anmelden abgelaufen sein, und die
+                // Frist laeuft an der Uhr der Datenbank.
+                $sekunden = User::availableSeconds(Auth::userId());
+                $ready    = self::availabilitySwitch($sekunden);
+
+                // Zwei Zahlen fuer den Browser: die Restzeit von jetzt an und
+                // die volle Frist. Die zweite braucht er, um den Balken nach
+                // dem Einschalten sofort richtig zu zeichnen, ohne auf den
+                // naechsten Heartbeat zu warten.
+                $user_id_script .= '<script>'
+                    . 'window.availableSeconds = ' . (int)$sekunden . ';'
+                    . 'window.availabilityTimeoutMs = '
+                    . ((int)$presence['availability_timeout'] * 1000) . ';'
+                    . '</script>';
+            }
         }
 
         // JavaScript-Variablen für Frontend bereitstellen (Login-Status, User-ID, Rolle)
@@ -244,6 +323,10 @@ class ViewHelper
         // wirklich aufgerufen wird.
         $can = [
             'offerLocation' => Auth::can(Permission::LOCATION_OFFER),
+            // Darf dieses Konto sich auf bereit stellen? Der Schalter selbst
+            // wird serverseitig gebaut; das Skript braucht die Auskunft, um
+            // sich bei allen anderen gar nicht erst einzuhaengen.
+            'setAvailability' => Auth::can(Permission::USER_AVAILABILITY),
             'becomeGuide'   => Role::mayBecomeGuide($user_role_id),
             'blockLocation' => Auth::can(Permission::LOCATION_BLOCK),
             'manageUsers'   => Auth::can(Permission::USER_MANAGE),
@@ -276,6 +359,7 @@ class ViewHelper
         $out = str_replace("###LOGOUT###"              , $text             , $out);
         $out = str_replace("###USER###"                , $menu_html        , $out);
         $out = str_replace("###REGISTER###"            , $sign             , $out);
+        $out = str_replace("###AVAILABILITY###"        , $ready            , $out);
         // Das Farbprofil. Zwei Stellen, und beide sind noetig:
         //
         //   ###THEME###      das Attribut am <html>-Element. Angemeldet steht

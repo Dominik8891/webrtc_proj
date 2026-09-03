@@ -296,6 +296,13 @@ window.addEventListener('DOMContentLoaded', function() {
         // pro Minute aus. Wer den Tab wieder nach vorn holt, soll nicht erst
         // den naechsten Takt abwarten muessen, um wieder als erreichbar zu
         // gelten.
+        //
+        // DAS IST KEINE BEDIENUNG. Einen Tab nach vorn zu holen verlaengert
+        // die Bereitschaft nicht - das taeten sonst auch ein Fensterwechsel
+        // und jedes Aufwachen des Rechners, und der ueber Nacht offene Tab
+        // waere am Morgen wieder anrufbar. Verlaengert wird nur, was
+        // assets/js/availability.js als echte Bedienung mitschreibt; dieser
+        // Aufruf meldet allein die Erreichbarkeit.
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) return;
             window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);

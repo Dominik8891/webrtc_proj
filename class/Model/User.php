@@ -24,6 +24,7 @@ class User
     private $totp_secret;
     private $totp_enabled;
     private $theme;
+    private $available_until;
 
     /**
      * Konstruktor: Lädt existierenden User oder legt neuen an.
@@ -54,6 +55,10 @@ class User
                     // 008 noch nicht eingespielt ist: Dann fehlt die Spalte,
                     // und das Konto bekommt einfach das Standardprofil.
                     $this->theme        = $result['theme'] ?? null;
+                    // Ebenso Migration 010. Fehlt die Spalte, ist das Konto
+                    // schlicht nie bereit - die Anwendung laeuft weiter, nur
+                    // ohne Bereitschaftsschalter.
+                    $this->available_until = $result['available_until'] ?? null;
                 } else {
                     throw new \Exception("Benutzer mit ID {$in_id} nicht gefunden.");
                 }
@@ -107,6 +112,14 @@ class User
 
     /**
      * Aktualisiert den Benutzer in der DB.
+     *
+     * `available_until` steht bewusst NICHT in diesem UPDATE. Die Bereitschaft
+     * ist ein fluechtiger Zustand mit eigenen Schreibstellen
+     * (startAvailability, extendAvailability, endAvailability); ein
+     * beilaeufiges save() - etwa aus dem Heartbeat, der ohnehin jede Sekunde
+     * laeuft - darf sie weder verlaengern noch loeschen. Aus demselben Grund
+     * fehlt hier auch `theme`.
+     *
      * @return bool Erfolg
      */
     private function update()
@@ -433,6 +446,170 @@ class User
         } catch (PDOException $e) {
             error_log("Fehler bei updateUserStatus: " . $e->getMessage());
         }
+    }
+
+    // ===================================================================
+    // Bereitschaft ("bereit zu fuehren")
+    //
+    // ANGEMELDET IST NICHT VERFUEGBAR. user_status sagt, ob ein Browser
+    // dieses Kontos erreichbar ist - mehr nicht. Ob der Guide auch fuehren
+    // WILL, steht allein in available_until, und dorthin kommt es nur durch
+    // eine ausdrueckliche Entscheidung: den Schalter in der Kopfleiste.
+    //
+    // Alle vier Methoden schreiben und lesen ausschliesslich diese eine
+    // Spalte. Sie rechnen mit NOW() der Datenbank und nicht mit time() aus
+    // PHP: Sonst entschiede die Uhr des Webservers ueber einen Wert, den die
+    // Datenbank spaeter gegen ihre eigene Uhr vergleicht.
+    // ===================================================================
+
+    /**
+     * Stellt ein Konto auf bereit - oder verlaengert eine laufende
+     * Bereitschaft auf die volle Frist.
+     *
+     * @param int $in_user_id
+     * @param int $in_seconds Dauer ab jetzt (config/presence.php)
+     * @return bool Erfolg
+     */
+    public static function startAvailability($in_user_id, $in_seconds): bool
+    {
+        $user_id = (int)$in_user_id;
+        $seconds = (int)$in_seconds;
+        if ($user_id < 1 || $seconds < 1) return false;
+
+        try {
+            // Die Dauer geht als gebundener Wert in INTERVAL ... SECOND und
+            // nicht als Textbaustein in die Abfrage - auch wenn sie aus einer
+            // Konfigurationsdatei stammt und nicht vom Aufrufer.
+            $stmt = PdoConnect::$connection->prepare(
+                "UPDATE user SET available_until = DATE_ADD(NOW(), INTERVAL :seconds SECOND)
+                 WHERE id = :id"
+            );
+            $stmt->bindParam(':seconds', $seconds, \PDO::PARAM_INT);
+            $stmt->bindParam(':id', $user_id, \PDO::PARAM_INT);
+            $stmt->execute();
+            return true;
+        } catch (PDOException $e) {
+            error_log("Fehler beim Einschalten der Bereitschaft: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Verlaengert eine LAUFENDE Bereitschaft.
+     *
+     * Der Unterschied zu startAvailability() steckt allein im WHERE: Eine
+     * abgelaufene oder ausgeschaltete Bereitschaft wird hier NICHT wieder
+     * angeschaltet. Sonst koennte ein Klick nach dem Ablauf einen Guide
+     * unbemerkt wieder auf die Karte holen - er hat den Ablauf womoeglich gar
+     * nicht bemerkt, und wieder bereit ist man nur auf Knopfdruck.
+     *
+     * Aufgerufen vom Heartbeat, wenn der Browser seit dem letzten Takt echte
+     * Bedienung oder ein laufendes Gespraech gemeldet hat.
+     *
+     * @param int $in_user_id
+     * @param int $in_seconds Neue Restdauer ab jetzt
+     * @return bool true, wenn tatsaechlich verlaengert wurde
+     */
+    public static function extendAvailability($in_user_id, $in_seconds): bool
+    {
+        $user_id = (int)$in_user_id;
+        $seconds = (int)$in_seconds;
+        if ($user_id < 1 || $seconds < 1) return false;
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                "UPDATE user SET available_until = DATE_ADD(NOW(), INTERVAL :seconds SECOND)
+                 WHERE id = :id
+                   AND available_until IS NOT NULL
+                   AND available_until > NOW()"
+            );
+            $stmt->bindParam(':seconds', $seconds, \PDO::PARAM_INT);
+            $stmt->bindParam(':id', $user_id, \PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->rowCount() > 0;
+        } catch (PDOException $e) {
+            error_log("Fehler beim Verlaengern der Bereitschaft: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Beendet die Bereitschaft sofort.
+     *
+     * Drei Anlaesse, und alle drei sind ein Ende und keine Pause: der Schalter
+     * in der Kopfleiste, das Schliessen der Seite (assets/js/availability.js
+     * schickt dafuer eine Beacon-Nachricht) und das Abmelden
+     * (App\Controller\LoginController::handleLogout).
+     *
+     * Geschrieben wird auf NULL und nicht auf einen vergangenen Zeitpunkt:
+     * NULL heisst "es liegt keine Entscheidung vor" und ist damit dasselbe wie
+     * bei einem Konto, das noch nie bereit war.
+     *
+     * @param int $in_user_id
+     * @return bool Erfolg
+     */
+    public static function endAvailability($in_user_id): bool
+    {
+        $user_id = (int)$in_user_id;
+        if ($user_id < 1) return false;
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                "UPDATE user SET available_until = NULL WHERE id = :id"
+            );
+            $stmt->bindParam(':id', $user_id, \PDO::PARAM_INT);
+            $stmt->execute();
+            return true;
+        } catch (PDOException $e) {
+            error_log("Fehler beim Beenden der Bereitschaft: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Wie lange steht dieses Konto noch auf bereit?
+     *
+     * Die Restzeit rechnet die DATENBANK aus (TIMESTAMPDIFF), nicht PHP: So
+     * wird derselbe Zeitpunkt gegen dieselbe Uhr gehalten, gegen die ihn auch
+     * jede Standortabfrage haelt (Location::AVAILABILITY_SQL).
+     *
+     * @param int $in_user_id
+     * @return int Verbleibende Sekunden; 0 heisst "nicht bereit"
+     */
+    public static function availableSeconds($in_user_id): int
+    {
+        $user_id = (int)$in_user_id;
+        if ($user_id < 1) return 0;
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                "SELECT GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), available_until)) AS rest
+                 FROM user
+                 WHERE id = :id AND available_until IS NOT NULL"
+            );
+            $stmt->bindParam(':id', $user_id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $row ? (int)$row['rest'] : 0;
+        } catch (PDOException $e) {
+            error_log("Fehler beim Lesen der Bereitschaft: " . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Ist dieses Konto gerade bereit?
+     *
+     * NUR die Bereitschaft, nicht die Erreichbarkeit. Wer wissen will, ob ein
+     * Standort gruen auf der Karte steht, braucht beides - und bekommt es
+     * fertig ausgewertet aus Location::AVAILABILITY_SQL.
+     *
+     * @param int $in_user_id
+     * @return bool
+     */
+    public static function isAvailable($in_user_id): bool
+    {
+        return self::availableSeconds($in_user_id) > 0;
     }
 
     /**

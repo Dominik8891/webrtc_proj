@@ -86,6 +86,20 @@ class Permission
     public const USER_SETTINGS = 'user.settings';
     /** Online-Status melden (Heartbeat). */
     public const USER_PRESENCE = 'user.presence';
+    /**
+     * Sich auf "bereit" stellen und die Bereitschaft wieder beenden.
+     *
+     * NICHT DASSELBE WIE user.presence. Der Heartbeat sagt "ein Browser
+     * dieses Kontos ist erreichbar" und gilt fuer jedes angemeldete Konto.
+     * Dieses Recht dagegen gehoert zu der Frage, ob jemand gerade FUEHREN
+     * will - und die stellt sich nur, wer ueberhaupt Standorte anbietet.
+     *
+     * Es steht deshalb bei denselben Rollen wie location.offer und nicht bei
+     * allen angemeldeten: Ein Zuschauer haette einen Schalter, der nichts
+     * schaltet - seine Bereitschaft steht an keinem Standort und faerbt keine
+     * Nadel.
+     */
+    public const USER_AVAILABILITY = 'user.availability';
     /** Benutzernamen zu einer ID nachschlagen. */
     public const USER_READ_NAME = 'user.read_name';
 
@@ -303,6 +317,7 @@ class Permission
             self::AUTH_TWOFACTOR_MANAGE,
             self::USER_SETTINGS,
             self::USER_PRESENCE,
+            self::USER_AVAILABILITY,
             self::USER_READ_NAME,
             self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
@@ -326,6 +341,11 @@ class Permission
         // -------------------------------------------------------------
         // Admin: Benutzerverwaltung und Moderation.
         //
+        // ZWISCHENSTAND: user.availability steht bei Guide und Admin - also
+        // genau dort, wo auch location.offer steht. Wer Standorte anbietet,
+        // entscheidet ueber seine Bereitschaft; wer keine anbietet, hat
+        // nichts zu schalten.
+        //
         // Der Admin hat KEIN location.delete_own für fremde Standorte - er
         // sperrt sie (location.block). Löschen bleibt beim Eigentümer.
         //
@@ -345,6 +365,7 @@ class Permission
             self::USER_DELETE,
             self::USER_SETTINGS,
             self::USER_PRESENCE,
+            self::USER_AVAILABILITY,
             self::USER_READ_NAME,
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,

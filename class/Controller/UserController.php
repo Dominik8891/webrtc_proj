@@ -176,27 +176,130 @@ class UserController
     }
 
     /**
-     * Heartbeat-Schnittstelle zum Setzen des Online-Status (AJAX).
-     * Erwartet POST mit "in_call".
+     * Heartbeat-Schnittstelle: "ein Browser dieses Kontos ist erreichbar".
+     *
+     * ER MELDET DIE ANMELDUNG, NICHT DIE BEREITSCHAFT. Das ist der Kern der
+     * Trennung: Frueher setzte dieser Aufruf den Nutzer auf 'online', und
+     * 'online' war zugleich das Kriterium, nach dem ein Standort gruen auf
+     * der Karte stand. Damit entschied ein offener Tab darueber, ob jemand
+     * angerufen wird - eine Aussage, die niemand getroffen hatte. Ueber die
+     * Bereitschaft entscheidet jetzt allein setAvailability().
+     *
+     * Erwartet POST mit zwei Angaben:
+     *
+     *   in_call  Laeuft gerade ein Gespraech? Bestimmt, ob der Status
+     *            'in_call' oder 'online' lautet.
+     *   active   Hat der Nutzer seit dem letzten Takt die Anwendung wirklich
+     *            BEDIENT - geklickt, getippt, gewischt - oder laeuft ein
+     *            Gespraech? Nur dann wird eine laufende Bereitschaft
+     *            verlaengert (assets/js/main.js sammelt das ein).
+     *
+     * Der Heartbeat allein verlaengert nichts. Ein Tab, der ueber Nacht offen
+     * steht, schickt zwar weiter Heartbeats - er meldet damit aber nur, dass
+     * der Browser laeuft, und laesst die Frist ablaufen.
+     *
+     * DIE ANTWORT TRAEGT DIE RESTZEIT. Der Schalter in der Kopfleiste zaehlt
+     * lokal herunter und wird mit jedem Takt gegen den Server nachgezogen -
+     * ohne eine zweite Abfrage. Damit merkt der Guide auch dann, dass seine
+     * Bereitschaft abgelaufen ist, wenn er die Seite nur offen liegen hat.
      *
      * @return void
      */
     public function heartbeat()
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $user_id = Auth::userId();
-            if (!$user_id) exit;
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return;
 
-            $data = json_decode(file_get_contents("php://input"), true);
-            $in_call = isset($data['in_call']) ? $data['in_call'] : false;
+        $user_id = Auth::userId();
+        if (!$user_id) exit;
 
-            $user_status = $in_call ? 'in_call' : 'online';
+        $data    = json_decode(file_get_contents("php://input"), true);
+        $in_call = !empty($data['in_call']);
+        $active  = !empty($data['active']);
 
-            $user = new User($user_id);
-            $user->setStatus($user_status);
-            $user->save();
-            exit;
+        $user = new User($user_id);
+        $user->setStatus($in_call ? 'in_call' : 'online');
+        $user->save();
+
+        // Bedienung ODER laufendes Gespraech verlaengert. Ein Gespraech zaehlt
+        // mit, weil ein fuehrender Guide gerade beide Haende voll hat und
+        // nicht mitten in einer Fuehrung von der Karte fallen soll.
+        //
+        // extendAvailability() schaltet NICHT ein: Ist die Frist bereits
+        // abgelaufen, bleibt sie abgelaufen. Ein Klick nach dem Ablauf wuerde
+        // den Guide sonst unbemerkt wieder anrufbar machen.
+        if ($active || $in_call) {
+            User::extendAvailability($user_id, self::availabilityTimeout());
         }
+
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status'            => 'ok',
+            'available_seconds' => User::availableSeconds($user_id),
+        ]);
+        exit;
+    }
+
+    /**
+     * Der Bereitschaftsschalter: "ich bin bereit zu fuehren" - und zurueck.
+     *
+     * EINE AUSDRUECKLICHE ENTSCHEIDUNG, und nur sie faerbt einen Standort auf
+     * der Karte gruen. Ohne sie ist ein Standort ein Angebot ohne Guide, auch
+     * wenn das Konto angemeldet ist.
+     *
+     * Erwartet POST mit "ready" (true = bereit, false = beenden). Beim
+     * Einschalten laeuft die Frist aus config/presence.php ab jetzt; beim
+     * Ausschalten wird sie sofort geloescht.
+     *
+     * DIESELBE ROUTE BEENDET AUCH BEIM SCHLIESSEN DER SEITE. Der Browser
+     * schickt dafuer eine Beacon-Nachricht (navigator.sendBeacon), die auch
+     * dann noch rausgeht, wenn der Tab schon zugeht. Beacons kommen ohne
+     * JSON-Content-Type an - gelesen wird deshalb der rohe Rumpf und nicht
+     * $_POST.
+     *
+     * @return void
+     */
+    public function setAvailability()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return;
+
+        $user_id = Auth::userId();
+        if (!$user_id) exit;
+
+        $data = json_decode(file_get_contents("php://input"), true);
+
+        // Fehlt die Angabe, wird BEENDET und nicht eingeschaltet. Eine
+        // unvollstaendige Anfrage darf niemanden auf die Karte stellen; sie
+        // von der Karte zu nehmen ist der harmlose Ausgang.
+        $ready = is_array($data) && !empty($data['ready']);
+
+        if ($ready) {
+            User::startAvailability($user_id, self::availabilityTimeout());
+        } else {
+            User::endAvailability($user_id);
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status'            => 'ok',
+            'available_seconds' => User::availableSeconds($user_id),
+        ]);
+        exit;
+    }
+
+    /**
+     * Die Dauer einer Bereitschaft in Sekunden.
+     *
+     * Holt sie aus config/presence.php - der einen Stelle, an der sie steht.
+     * Hier steht bewusst keine Zahl: Sonst waere die Frist im Controller eine
+     * andere als die, die der Browser fuer seine Restzeitanzeige bekommt
+     * (App\Helper\ViewHelper::output).
+     *
+     * @return int
+     */
+    private static function availabilityTimeout(): int
+    {
+        $presence = require __DIR__ . '/../../config/presence.php';
+        return (int)$presence['availability_timeout'];
     }
 
     /**
@@ -260,8 +363,14 @@ class UserController
                         . htmlspecialchars($tmp_user->getEmail()) . '</td>';
             }
 
-            $status   = $this->stateHtml($tmp_user->getUserStatus($tmp_user->getId()));
-            $call_btn = $this->createCallBtn($tmp_user->getId(), $tmp_user->getUserStatus($tmp_user->getId()));
+            // Einmal lesen, zweimal verwenden - vorher stand hier zweimal
+            // derselbe SELECT. Dazu die Bereitschaft: Sie ist eine ANDERE
+            // Auskunft als der Status und wird deshalb getrennt geholt.
+            $tmp_status = $tmp_user->getUserStatus($tmp_user->getId());
+            $tmp_bereit = User::isAvailable($tmp_user->getId());
+
+            $status   = $this->stateHtml($tmp_status, $tmp_bereit);
+            $call_btn = $this->createCallBtn($tmp_user->getId(), $tmp_status);
 
             $tmp_row = str_replace("###STATUS###"   , $status                                    , $row_html);
             $tmp_row = str_replace("###CALL###"     , $call_btn                                  , $tmp_row);
@@ -295,6 +404,15 @@ class UserController
         //
         // Wer nicht erreichbar ist, laesst sich auch nicht anrufen - der Knopf
         // sagt das, statt einen Anruf ins Leere anzubieten.
+        //
+        // GEPRUEFT WIRD DIE ERREICHBARKEIT, NICHT DIE BEREITSCHAFT. Das ist an
+        // dieser einen Stelle Absicht: Dieser Knopf loest einen Direktanruf
+        // der Verwaltung aus, und der ist keine Fuehrung - beide Seiten
+        // bekommen die Rolle "peer" und niemand wird gesteuert
+        // (WebRTCController::callRoles). Fuer eine Rueckfrage der Moderation
+        // muss sich niemand vorher auf bereit gestellt haben. Ueberall dort,
+        // wo es um FUEHRUNGEN geht - Karte, Standortliste, Anruf von einem
+        // Standort aus -, entscheidet dagegen die Bereitschaft.
         $erreichbar = ($status === 'online');
 
         // Den Akzent traegt nur der Knopf, der auch etwas tut. Ein gesperrter
@@ -315,10 +433,22 @@ class UserController
      * verfuegbar", "kein Guide vor Ort"). Die Gestaltung steht in
      * assets/css/theme.css unter .app-state.
      *
+     * ZWEI AUSKUENFTE, NICHT EINE. Der Punkt sagt, ob ein Browser des Kontos
+     * erreichbar ist; die Marke daneben sagt, ob der Guide sich auf bereit
+     * gestellt hat. Das sind verschiedene Dinge, und die Verwaltung ist die
+     * Stelle, an der man beide sehen will: "angemeldet, aber nicht bereit"
+     * ist die Antwort auf die Frage, warum ein Standort grau bleibt, obwohl
+     * der Guide erreichbar ist.
+     *
+     * Die Marke erscheint nur bei tatsaechlicher Bereitschaft. Ein zweites
+     * Etikett "nicht bereit" in jeder zweiten Zeile waere Laerm - das Fehlen
+     * der Marke sagt dasselbe.
+     *
      * @param string|null $status Wert aus user.user_status
+     * @param bool        $bereit Laeuft eine Bereitschaft? (user.available_until)
      * @return string HTML
      */
-    private function stateHtml($status)
+    private function stateHtml($status, $bereit = false)
     {
         if ($status === 'online') {
             $art = 'online';  $text = 'Online';
@@ -333,10 +463,14 @@ class UserController
         // Punkt die Auskunft allein (assets/css/theme.css, .app-state__text).
         // Ausgeblendet wird sie nur fuer das AUGE: Vorleseprogramme lesen sie
         // weiter, sonst bliebe vom Zustand gar nichts uebrig.
+        $marke = $bereit
+            ? '<span class="app-tag app-tag--ready" title="Hat sich auf bereit gestellt">Bereit</span>'
+            : '';
+
         return '<span class="app-state app-state--' . $art . '" title="' . $text . '">'
              . '<span class="app-state__dot" aria-hidden="true"></span>'
              . '<span class="app-state__text">' . $text . '</span>'
-             . '</span>';
+             . '</span>' . $marke;
     }
 
     /**

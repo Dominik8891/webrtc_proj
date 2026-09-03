@@ -65,6 +65,14 @@ return [
     'list_user'             => [UserController::class               , 'listUser'                , Permission::USER_LIST              , 'html'],
     'delete_user'           => [UserController::class               , 'deleteUser'              , Permission::USER_DELETE            , 'html'],
     'heartbeat'             => [UserController::class               , 'heartbeat'               , Permission::USER_PRESENCE          , 'json'],
+    // Der Bereitschaftsschalter der Kopfleiste. NICHT der Heartbeat:
+    // Angemeldet zu sein und fuehren zu wollen sind zwei verschiedene
+    // Aussagen, und deshalb sind es zwei Routen mit zwei Rechten. Die eine
+    // meldet ein laufendes Programm, die andere trifft eine Entscheidung.
+    //
+    // Dieselbe Route schaltet ein und aus (POST mit "ready") und wird auch
+    // beim Schliessen der Seite noch einmal als Beacon aufgerufen.
+    'set_availability'      => [UserController::class               , 'setAvailability'         , Permission::USER_AVAILABILITY      , 'json'],
     'get_username'          => [UserController::class               , 'getUsername'             , Permission::USER_READ_NAME         , 'json'],
     // Die Route 'save_location' ist entfallen. Sie schrieb die per
     // Browser-Geolocation gemeldete Position nach user.latitude/longitude -

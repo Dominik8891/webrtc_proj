@@ -58,9 +58,21 @@ window.webrtcApp.locationsTable = {
     visibilityHooked: false,
 
     /**
-     * Anzeige und Anrufbarkeit zu einem user_status.
+     * Anzeige und Anrufbarkeit zu einer Verfuegbarkeit.
      *
-     * KEINE EMOJI UND KEINE KARTENFARBEN MEHR.
+     * SIE BEKOMMT KEINEN ROHEN KONTOSTATUS MEHR, sondern 'live', 'busy' oder
+     * 'idle'. Der Server wertet das aus - an genau einer Stelle
+     * (App\Model\Location::AVAILABILITY_SQL) und aus zwei Angaben: Ist ein
+     * Browser des Guides erreichbar, UND hat er sich auf bereit gestellt?
+     *
+     * Vorher stand hier ein Vergleich auf 'online', und 'online' setzte der
+     * Heartbeat schon dann, wenn irgendein Tab offen war. Ein Guide, der
+     * nachts die Seite offen liess, war damit anrufbar. Die Unterscheidung
+     * gehoert nicht in diese Tabelle, sondern an die Stelle, an der die Daten
+     * herkommen - hier wird nur noch angezeigt, was der Server entschieden
+     * hat.
+     *
+     * KEINE EMOJI UND KEINE KARTENFARBEN.
      *
      * Hier standen 🟢, 🟠 und 🔴 - dieselben drei Farben, die auf der Karte
      * "Guide verfuegbar", "im Gespraech" und "kein Guide vor Ort" bedeuten.
@@ -68,24 +80,31 @@ window.webrtcApp.locationsTable = {
      * Ausserdem sieht ein Emoji auf jedem System anders aus und laesst sich
      * nicht gestalten.
      *
-     * Unterschieden wird jetzt ueber Form und Gewicht - gefuellt, geringelt,
-     * hohl - genau wie in der Benutzerliste (assets/css/theme.css,
+     * Unterschieden wird ueber Form und Gewicht - gefuellt, geringelt, hohl.
+     * Die CSS-Klassen heissen weiterhin online/busy/offline: Sie beschreiben
+     * die FORM des Punktes und werden von der Benutzerverwaltung mitbenutzt,
+     * wo sie tatsaechlich die Anmeldung meinen (assets/css/theme.css,
      * .app-state).
      *
-     * @param {string} status - Wert aus der Spalte user.user_status
+     * Die Beschriftung nennt dagegen das, worum es in DIESER Liste geht:
+     * "Verfügbar" statt "Online". Hier steht ein Angebot, und die Frage lautet
+     * "kann ich hier jetzt eine Führung bekommen" - nicht "ist dieses Konto
+     * angemeldet".
+     *
+     * @param {string} availability - 'live', 'busy' oder 'idle'
      * @returns {{icon: string, text: string, callable: boolean}}
      */
-    statusView(status) {
-        if (status === "in_call") {
+    statusView(availability) {
+        if (availability === "busy") {
             return { icon: this.stateHtml('busy', 'Im Gespräch'),
                      text: "Im Gespräch", callable: false };
         }
-        if (status === "online") {
-            return { icon: this.stateHtml('online', 'Online'),
-                     text: "Online", callable: true };
+        if (availability === "live") {
+            return { icon: this.stateHtml('online', 'Verfügbar'),
+                     text: "Verfügbar", callable: true };
         }
-        return { icon: this.stateHtml('offline', 'Offline'),
-                 text: "Offline", callable: false };
+        return { icon: this.stateHtml('offline', 'Nicht verfügbar'),
+                 text: "Nicht verfügbar", callable: false };
     },
 
     /**
@@ -126,7 +145,7 @@ window.webrtcApp.locationsTable = {
      * @returns {string} HTML
      */
     callButtonHtml(item) {
-        const view = this.statusView(item.user_status);
+        const view = this.statusView(item.availability);
         // Der Akzent statt Gruen, und gesperrt in Grau: Gruen heisst auf der
         // Karte "Guide gerade verfuegbar". Die frueheren Inline-Styles fuer
         // den gesperrten Zustand entfallen - das macht .btn:disabled selbst.
@@ -277,7 +296,7 @@ window.webrtcApp.locationsTable = {
      * @returns {string} HTML einer <tr>
      */
     rowHtml(item, index, options) {
-        const view = this.statusView(item.user_status);
+        const view = this.statusView(item.availability);
 
         // Beschreibung als klickbaren Text (für Popup/Modal)
         // Die Beschreibung stammt von einem anderen Nutzer und ging hier
@@ -291,7 +310,7 @@ window.webrtcApp.locationsTable = {
             ${this.blockedNoticeHtml(item)}
         `;
 
-        return `<tr data-locationid="${item.id}" data-status="${item.user_status ?? ''}">
+        return `<tr data-locationid="${item.id}" data-status="${item.availability ?? ''}">
             <td>${index + 1}</td>
             <td>${view.icon}</td>
             ${options.onlyOwn ? "" : `<td>${this.esc(item.username ?? '')}</td>`}
@@ -767,11 +786,11 @@ window.webrtcApp.locationsTable = {
                 dt.rows().every(function () {
                     const node = this.node();
                     const item = byId[String(node.getAttribute('data-locationid'))];
-                    const status = item.user_status ?? '';
+                    const status = item.availability ?? '';
                     if (node.getAttribute('data-status') === status) return;
 
                     node.setAttribute('data-status', status);
-                    const view = self.statusView(item.user_status);
+                    const view = self.statusView(item.availability);
 
                     dt.cell(node, cols.status).data(view.icon);
                     // Die Benutzerspalte traegt keinen Zustand mehr - er steht

@@ -25,6 +25,47 @@ namespace App\Model;
  */
 class Location
 {
+    /**
+     * Die Verfuegbarkeit eines Standorts als SQL-Ausdruck.
+     *
+     * DIE EINZIGE STELLE, an der steht, was "ein Guide ist jetzt da" heisst.
+     * Jede Abfrage dieser Klasse setzt genau diesen Ausdruck ein; keine
+     * Lesestelle bekommt user_status mehr roh in die Hand.
+     *
+     * ANGEMELDET UND BEREIT SIND ZWEI DINGE, und der Ausdruck fragt beide ab:
+     *
+     *   user.available_until  Der Guide hat sich ausdruecklich auf bereit
+     *                         gestellt und die Frist laeuft noch. Ohne das ist
+     *                         der Standort ein Angebot ohne Guide - auch wenn
+     *                         das Konto angemeldet ist.
+     *   user.user_status      Es ist tatsaechlich ein Browser erreichbar. Ohne
+     *                         das haette ein abgestuerzter Client seine
+     *                         Bereitschaft noch stundenlang stehen, obwohl ihn
+     *                         niemand mehr erreicht.
+     *
+     * Die Reihenfolge ist Absicht: Die Bereitschaft wird ZUERST geprueft.
+     * Damit ist "grau" die Vorgabe und "gruen" der Sonderfall, der beide
+     * Bedingungen erfuellt.
+     *
+     * Drei Ergebniswerte, dieselben wie bisher - assets/js/home_map.js und
+     * assets/js/locations_table.js kennen genau diese:
+     *
+     *   'live'  Guide ist da und anrufbar
+     *   'busy'  Guide ist da, aber gerade im Gespraech
+     *   'idle'  kein Guide vor Ort
+     *
+     * Der Ausdruck rechnet gegen NOW() der Datenbank. Damit entscheidet
+     * dieselbe Uhr ueber den Ablauf, gegen die auch
+     * App\Model\User::availableSeconds() die Restzeit rechnet.
+     */
+    public const AVAILABILITY_SQL = "CASE
+                                 WHEN user.available_until IS NULL
+                                   OR user.available_until <= NOW()  THEN 'idle'
+                                 WHEN user.user_status = 'online'    THEN 'live'
+                                 WHEN user.user_status = 'in_call'   THEN 'busy'
+                                 ELSE 'idle'
+                             END";
+
     private $id;
     private $user_id;
     private $country;
@@ -317,7 +358,13 @@ class Location
         $blocked_filter = $in_with_blocked ? '' : ' AND location.blocked = 0';
 
         try {
-            $query = "SELECT user.id AS user_id, user.username, user.user_status, 
+            // KEIN user_status mehr. Die Liste bekommt die fertig
+            // ausgewertete Verfuegbarkeit - dieselbe, die auch die Karte
+            // bekommt. Wer den rohen Status herausgibt, laedt dazu ein, ihn
+            // an der naechsten Lesestelle wieder mit "verfuegbar"
+            // gleichzusetzen; genau das war der alte Fehler.
+            $query = "SELECT user.id AS user_id, user.username,
+                             " . self::AVAILABILITY_SQL . " AS availability,
                              country.country_name, city.city_name, location.id,
                              location.latitude, location.longitude, location.description,
                              location.blocked, location.blocked_reason
@@ -379,11 +426,7 @@ class Location
                              location.latitude,
                              location.longitude,
                              location.description,
-                             CASE
-                                 WHEN user.user_status = 'online'  THEN 'live'
-                                 WHEN user.user_status = 'in_call' THEN 'busy'
-                                 ELSE 'idle'
-                             END AS availability
+                             " . self::AVAILABILITY_SQL . " AS availability
                       FROM location
                       JOIN user    ON location.user_id = user.id
                       LEFT JOIN city    ON location.city_id = city.id
@@ -406,7 +449,12 @@ class Location
     public function selectAllLocationsOfOneUser($in_user_id)
     {
         try {
-            $query = "SELECT user.id AS user_id, user.username, user.user_status, 
+            // Auch die eigene Liste bekommt die ausgewertete Verfuegbarkeit
+            // und nicht den rohen Status. Fuer den Guide ist gerade das die
+            // nuetzliche Auskunft: Steht hier 'idle', obwohl er angemeldet
+            // ist, sieht ihn auf der Karte niemand - er ist nicht auf bereit.
+            $query = "SELECT user.id AS user_id, user.username,
+                             " . self::AVAILABILITY_SQL . " AS availability,
                              country.country_name, city.city_name, location.id,
                              location.latitude, location.longitude, location.description,
                              location.blocked, location.blocked_reason

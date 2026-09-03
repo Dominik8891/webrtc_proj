@@ -29,13 +29,22 @@ verändern nichts — sie sind gefahrlos jederzeit ausführbar.
 |---|---|
 | `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `navigator.mediaDevices`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Die Medien-Attrappe schreibt mit, welche Spuren angefordert wurden, kennt eine Geräteliste (`__devices`) samt `enumerateDevices` und `getSettings().deviceId` und lässt sich über `__mediaError` (alles) oder `__mediaErrorFor.video` / `.audio` (eine Spurart) zu einer Ablehnung zwingen. Die PeerConnection-Attrappe bildet Transceiver samt Richtung nach: `setRemoteDescription` eines Angebots legt sie als `recvonly` an, und `replaceTrack` weist eine Spur der falschen Art mit `TypeError` ab — so wie der Browser. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. `navigator` wird über `Object.defineProperty` gesetzt: Node bringt seit Version 21 ein eigenes mit, und das ist ein Getter ohne Setter — eine einfache Zuweisung lief still ins Leere. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `media.js`, `signaling.js`, `chat.js` und `ui.js` aus `assets/js`. Allein nicht ausführbar. |
 | `client_test.js` | Die eigentlichen Client-Prüfungen. |
+
+Für den Bereitschaftsschalter kommt im Harness dazu: `classList.toggle` mit
+zweitem Argument, mitgeschriebene Ereignisse am Dokument und am Fenster
+(`__fireDoc` / `__fireWin` lösen sie aus — ohne das wäre nicht prüfbar, was als
+Bedienung zählt), eine `navigator.sendBeacon`-Attrappe (`__beacons`) und
+Antworten für `heartbeat` und `set_availability` (`__presenceCalls`,
+`__availableSeconds`, `__availabilityFail`). `window.addEventListener` wird
+ausdrücklich gesetzt: Node bringt am globalen Objekt ein eigenes mit, und
+dessen Handler ließen sich nicht auslösen.
 | `server_test.php` | Die Serverprüfungen. Ersetzt `PdoConnect::$connection` durch eine Attrappe, die abgesetzte SQL-Statements nur mitschreibt statt sie auszuführen. |
 
 Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (99 Prüfungen)
+## Was `client_test.js` prüft (141 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -222,6 +231,47 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     Formular dahinter ohnehin zur Frage weiterleitet. Ohne offenen Punkt
     bleibt es beim Anlege-Knopf.
 
+### Bereitschaft des Guides (40)
+
+40. **Angemeldet ist nicht bereit** — der Kern der Verfügbarkeitsregel. Ein
+    Guide war „online", solange irgendein Tab offen stand; wer die Seite über
+    Nacht offen ließ, wurde nachts angerufen. Geprüft wird die Trennung von
+    beiden Seiten:
+
+    *Der Schalter:* Er startet aus, auch bei angemeldetem Konto. Ein Klick
+    schickt `ready:true` an `set_availability`, ein zweiter `ready:false` —
+    derselbe Knopf. Übernommen wird, was der **Server** antwortet, nicht was
+    angefragt wurde: Bleibt seine Restzeit 0, steht der Schalter danach auf
+    „Nicht bereit". Ein Netzausfall lässt den Zustand stehen, meldet es und
+    sperrt den Knopf nicht dauerhaft.
+
+    *Die Restzeit ist sichtbar* — am Knopf und im Tooltip, in jeder
+    Größenordnung lesbar (Sekunden, Minuten, `1:45 Std`). In den letzten fünf
+    Minuten hebt sich der Schalter ab. **Der Ablauf wird gemeldet**, und zwar
+    genau einmal: Der Übergang von „läuft" auf 0 löst den Hinweis aus, nicht
+    der Zustand — sonst käme bei jedem Heartbeat einer.
+
+    *Was verlängert:* Ein Heartbeat ohne Bedienung meldet `active: 0` — ein
+    offener Tab verlängert nichts. Ein Zeigerdruck wird in der Erfassungsphase
+    am Dokument eingesammelt, geht als `active: 1` mit dem nächsten Heartbeat
+    raus und zählt **einmal** (der Merker wird beim Abholen geleert). Ein
+    laufendes Gespräch zählt ebenfalls.
+
+    *Das Seitenende:* `pagehide` schickt per `sendBeacon` ein `ready:false` an
+    `set_availability`. Eine zwischengespeicherte Seite (`persisted`) nicht —
+    das ist ein Seitenwechsel innerhalb der Anwendung —, und ohne laufende
+    Bereitschaft geht gar nichts raus.
+
+    *Die Standortliste* liest `availability` (`live`/`busy`/`idle`) und nicht
+    mehr den Kontostatus. Anrufbar ist genau `live`; der Anrufknopf ist sonst
+    gesperrt. Ausdrücklich geprüft wird, dass der **alte** Wert `online`
+    **nicht** mehr anrufbar macht — sonst gälte weiter „offener Tab =
+    anrufbar", nur an einer Stelle mehr.
+
+    *Die Frist steht an einer Stelle:* `availability_timeout` in
+    `config/presence.php`. Weder `availability.js` noch `UserController.php`
+    dürfen die Zahl selbst enthalten.
+
 ### Zeitkonstanten im Test
 
 `client_test.js` setzt die Fristen aus `rtc.js` zu Beginn auf kurze Werte
@@ -230,7 +280,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (140 Prüfungen)
+## Was `server_test.php` prüft (149 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -453,6 +503,27 @@ die Tests nicht an. Das ist Absicht.
     `citySelect`) ihres behalten — dort greift es — und dass der Server die
     Koordinaten weiterhin selbst prüft: Wer ohne JavaScript abschickt, kommt an
     der Prüfung des Browsers ohnehin vorbei.
+
+29. **Ohne Bereitschaft keine Führung** — Konto 6 ist Guide, hat
+    `location.offer` und einen eigenen Standort, steht aber nicht auf bereit.
+    Weder der Weg über den Standort noch der ohne Standort kommt zustande, und
+    der Angerufene bekommt keine Guide-Rolle. Danebengestellt der bereite
+    Guide mit demselben Recht: Der Unterschied liegt allein in
+    `available_until`, nicht in der Rolle.
+
+    Der **Direktanruf der Verwaltung bleibt möglich** — auch zu einem nicht
+    bereiten Guide, auch mit Standortkennung, und zwar als `peer`/`peer`. Für
+    eine Rückfrage der Moderation muss sich niemand bereit gemeldet haben, und
+    geführt wird dabei ohnehin nicht.
+
+    Dazu eine Quelltextprüfung: `User::update()` darf `available_until`
+    **nicht** mitschreiben. Sonst verlängerte jeder `save()` — und der
+    Heartbeat löst einen pro Takt aus — die Bereitschaft, und die Kopplung von
+    „Tab offen" und „anrufbar" wäre durch die Hintertür zurück.
+
+    Die PDO-Attrappe bildet dafür die Bereitschaftsabfrage nach: eine Spalte
+    `rest` statt einer Benutzerzeile, und `available_until IS NOT NULL` im
+    `WHERE`. Ohne das prüfte der Test gegen eine Antwort, die es so nie gibt.
 
 ## Grenzen
 

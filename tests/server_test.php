@@ -199,6 +199,17 @@ class FakeUserStatement {
     public function bindParam($k, &$v) { $this->params[$k] = $v; }
     public function execute() { return true; }
     public function fetch($mode = null) {
+        // Die Bereitschaft hat eine eigene Abfrage mit eigener Antwortform
+        // (App\Model\User::availableSeconds): eine Spalte "rest" statt einer
+        // Benutzerzeile, und die Bedingung "available_until IS NOT NULL"
+        // steckt im WHERE. Beides bildet die Attrappe nach, sonst pruefte der
+        // Test die Bereitschaftssperre gegen eine Antwort, die es so nie gibt.
+        if (strpos($this->sql, 'TIMESTAMPDIFF') !== false) {
+            $id   = (int)($this->params[':id'] ?? 0);
+            $user = $this->users[$id] ?? null;
+            if (!$user || empty($user['available_until'])) return false;
+            return ['rest' => 3600];
+        }
         if (strpos($this->sql, 'FROM location') !== false) {
             $id = (int)($this->params[':id'] ?? 0);
             return $this->locations[$id] ?? false;
@@ -216,11 +227,19 @@ class FakeUserConnection {
     }
 }
 
-/** Baut eine Benutzerzeile, wie sie aus der Tabelle user kaeme. */
-function fakeUser($id, $typeId) {
+/**
+ * Baut eine Benutzerzeile, wie sie aus der Tabelle user kaeme.
+ *
+ * $bereit steht fuer user.available_until: ein Zeitpunkt in der Zukunft
+ * heisst "hat sich auf bereit gestellt", null heisst "nicht bereit". Die
+ * Vorgabe ist bereit, damit die uebrigen Pruefungen dieses Abschnitts weiter
+ * die Rollenvergabe pruefen und nicht die Bereitschaft.
+ */
+function fakeUser($id, $typeId, $bereit = true) {
     return [
         'id' => $id, 'username' => 'u' . $id, 'email' => 'u' . $id . '@example.org',
-        'pwd' => 'x', 'type_id' => $typeId, 'deleted' => 0
+        'pwd' => 'x', 'type_id' => $typeId, 'deleted' => 0,
+        'available_until' => $bereit ? '2999-01-01 00:00:00' : null
     ];
 }
 
@@ -242,12 +261,15 @@ $userDb->users = [
     3 => fakeUser(3,  2),  // Guide
     4 => fakeUser(4,  1),  // User
     5 => fakeUser(5,  0),  // Trial
+    6 => fakeUser(6,  2, false),  // Guide, NICHT auf bereit gestellt
 ];
-// Standorte: 10 gehoert dem Guide 2, 11 dem Admin 1, 12 ist gesperrt.
+// Standorte: 10 gehoert dem Guide 2, 11 dem Admin 1, 12 ist gesperrt,
+// 13 gehoert dem Guide 6, der nicht auf bereit steht.
 $userDb->locations = [
     10 => fakeLocation(10, 2),
     11 => fakeLocation(11, 1),
     12 => fakeLocation(12, 2, 1),
+    13 => fakeLocation(13, 6),
 ];
 PdoConnect::$connection = $userDb;
 
@@ -337,6 +359,59 @@ foreach ([[Role::GUIDE, 2, true], [Role::USER, 4, false], [Role::TRIAL, 5, false
         'anrufbar genau dann, wenn das Recht da ist (Konto ' . $konto . ')');
 }
 ok('Anrufbarkeit und location.offer sind dieselbe Aussage');
+
+// OHNE BEREITSCHAFT KEINE FUEHRUNG. Das ist der Kern der Aenderung: Konto 6
+// ist Guide, hat das Recht location.offer und einen eigenen Standort (13) -
+// aber es hat sich nicht auf bereit gestellt. Vorher genuegte ein offener Tab,
+// um angerufen zu werden; jetzt ist die Bereitschaft eine eigene Aussage.
+check(WebRTCController::callRoles(5, 6) === null,
+    'ein nicht bereiter Guide kommt ueber den Weg ohne Standort zustande');
+check(WebRTCController::callRoles(4, 6, 13) === null,
+    'ein nicht bereiter Guide fuehrt auch am eigenen Standort nicht');
+check(WebRTCController::callAllowed(5, 6) === false,
+    'der Anruf bei einem nicht bereiten Guide ist nicht erlaubt');
+check(WebRTCController::callAllowed(4, 6, 13) === false,
+    'auch vom Standort aus nicht');
+check(WebRTCController::roleForCall(4, 6, 6, 13) === null,
+    'der nicht bereite Guide bekommt keine Guide-Rolle');
+ok('wer sich nicht auf bereit gestellt hat, ist nicht anrufbar');
+
+// DAS RECHT ALLEIN GENUEGT NICHT MEHR. Beide Konten sind Guide und haben
+// dasselbe Recht - der Unterschied liegt allein in der Bereitschaft. Damit ist
+// festgehalten, dass die Sperre nicht versehentlich an der Rolle haengt.
+check(Permission::has(Role::GUIDE, Permission::LOCATION_OFFER) === true,
+    'der nicht bereite Guide hat location.offer weiterhin');
+check(WebRTCController::callAllowed(5, 2) === true,  'der bereite Guide ist anrufbar');
+check(WebRTCController::callAllowed(5, 6) === false, 'der nicht bereite nicht');
+ok('angemeldet und bereit sind zwei verschiedene Aussagen');
+
+// EIN DIREKTANRUF DER VERWALTUNG BLEIBT MOEGLICH. Fuer eine Rueckfrage der
+// Moderation muss sich niemand bereit gemeldet haben, und gefuehrt wird dabei
+// ohnehin nicht - beide bekommen 'peer'. Waere die Bereitschaft hier Pflicht,
+// koennte der Admin einen Guide nicht mehr erreichen, um genau darueber zu
+// sprechen.
+$r = WebRTCController::callRoles(1, 6);
+check($r !== null, 'der Admin erreicht auch einen nicht bereiten Guide');
+check($r['caller'] === 'peer' && $r['callee'] === 'peer',
+    'und zwar als Gespraech unter Gleichen, nicht als Fuehrung');
+$r = WebRTCController::callRoles(1, 6, 13);
+check($r['callee'] === 'peer',
+    'auch mit Standortkennung wird daraus keine Fuehrung, solange er nicht bereit ist');
+ok('die Bereitschaft sperrt Fuehrungen, nicht die Moderation');
+
+// DIE BEREITSCHAFT WIRD MIT GEZIELTEN UPDATES GESCHRIEBEN, nicht beilaeufig
+// beim Speichern eines Benutzers. Sonst wuerde der Heartbeat, der ohnehin
+// jeden Takt ein save() ausloest, die Bereitschaft mitschreiben - und damit
+// waere genau die Kopplung wieder da, die aufgeloest werden sollte.
+$userQuellcode = file_get_contents(__DIR__ . '/../class/Model/User.php');
+$von = strpos($userQuellcode, 'private function update()');
+$bis = strpos($userQuellcode, 'public function save()');
+check($von !== false && $bis !== false && $bis > $von,
+    'User::update() und save() stehen nicht mehr in dieser Reihenfolge - die Pruefung greift ins Leere');
+$updateBlock = substr($userQuellcode, $von, $bis - $von);
+check(strpos($updateBlock, 'available_until') === false,
+    'User::update() schreibt available_until mit - dann verlaengert jedes save() die Bereitschaft');
+ok('kein beilaeufiges Speichern der Bereitschaft');
 
 // Zwei Guides: Der Angerufene ist der Guide. Wer anruft, schaut zu - auch wenn
 // er selbst Standorte anbietet.
@@ -2135,7 +2210,7 @@ $eigenesKonto = [
     'class/Controller/SettingsController.php'          => ['showSettingsPage', 'setTheme'],
     'class/Controller/TwoFactorController.php'         => ['handle2FAActivate', 'disable2FA'],
     'class/Controller/EmailVerificationController.php' => ['sendVerification'],
-    'class/Controller/UserController.php'              => ['heartbeat'],
+    'class/Controller/UserController.php'              => ['heartbeat', 'setAvailability'],
     'class/Controller/GuideController.php'             => ['handleGuideRole'],
 ];
 foreach ($eigenesKonto as $datei => $methoden) {

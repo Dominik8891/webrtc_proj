@@ -645,8 +645,11 @@ function ackLastMove(status = 'executed', reason) {
         // leeres Kaestchen. Diese Pruefung haelt das fest, damit ein spaeter
         // ergaenzter Knopf nicht ohne durchrutscht.
         const tabelle = app.locationsTable;
+        // 'availability' und nicht mehr 'user_status': Die Auswertung
+        // "erreichbar UND bereit" macht der Server (Location::AVAILABILITY_SQL)
+        // und liefert 'live', 'busy' oder 'idle'.
         const eintrag = {
-            id: 7, user_id: 3, user_status: 'online', blocked: 0,
+            id: 7, user_id: 3, availability: 'live', blocked: 0,
             country_name: 'Portugal', city_name: 'Lissabon',
             description: 'Alfama.'
         };
@@ -1903,7 +1906,7 @@ function ackLastMove(status = 'executed', reason) {
         // Die Standortliste haengt die Kennung an ihren Anrufknopf. Ohne sie
         // wuesste der Klickhandler nicht, von welchem Ort aus angerufen wird.
         const zelle = app.locationsTable.actionCellHtml(
-            { id: 7, user_id: 3, user_status: 'online', blocked: 0,
+            { id: 7, user_id: 3, availability: 'live', blocked: 0,
               country_name: 'Portugal', city_name: 'Lissabon', description: 'Alfama.' },
             { showActions: ['call'] });
         assert.ok(/start-call-btn[^>]*data-locationid="7"/.test(zelle),
@@ -2012,6 +2015,266 @@ function ackLastMove(status = 'executed', reason) {
         assert.ok(!/call-(invite-)?purpose/.test(js),
             'der Hinweis wird irgendwo im Code direkt angefasst - er gehoert der Rollenklasse');
         ok('sichtbar wird der Hinweis allein ueber die Rollenklasse');
+    }
+
+    console.error('\n40) Bereitschaft ist nicht dasselbe wie angemeldet');
+    {
+        // WORUM ES GEHT: Ein Guide war "online", solange irgendein Tab offen
+        // stand - ein Nebeneffekt des Heartbeats. Wer die Seite ueber Nacht
+        // offen liess, wurde nachts angerufen. Diese Pruefungen halten die
+        // Trennung fest: Der Heartbeat meldet die Anmeldung, der Schalter die
+        // Bereitschaft, und nur die zweite macht anrufbar.
+        const bereit = app.availability;
+        // getElementById und nicht __el: Die Attrappe legt ein Element beim
+        // ersten Zugriff an - __el gibt nur zurueck, was es schon gibt.
+        const knopf  = document.getElementById('availability-toggle');
+        const text   = document.getElementById('availability-text');
+        const rest   = document.getElementById('availability-rest');
+
+        // Ein frischer Seitenaufbau: Der Server liefert den Schalter mit
+        // seinem Zustand, und init() haengt ihn ein. Die Ereignisse, die
+        // availability.js dabei registriert, werden vorher geleert - sonst
+        // haengen nach dem dritten Aufruf drei Handler an demselben Ereignis
+        // und eine Nachricht ginge dreimal raus. Im Browser laeuft init()
+        // genau einmal je Seitenaufbau.
+        const zuruecksetzen = (sekunden) => {
+            ['pointerdown', 'keydown', 'touchstart', 'wheel']
+                .forEach(art => { delete global.__docListeners[art]; });
+            delete global.__winListeners['pagehide'];
+
+            global.__presenceCalls.length = 0;
+            global.__availabilityFail = false;
+            global.__availableSeconds = sekunden;
+            knopf.setAttribute('data-seconds', String(sekunden));
+            bereit.busy = false;
+            bereit.hadActivity = false;
+            bereit.init();
+        };
+
+        // --- Einschalten und Ausschalten ---------------------------------
+        zuruecksetzen(0);
+        assert.strictEqual(knopf.getAttribute('aria-pressed'), 'false',
+            'der Schalter startet eingeschaltet');
+        assert.ok(!knopf.classList.contains('app-ready--on'),
+            'der ausgeschaltete Schalter traegt die Ein-Klasse');
+        ok('ohne Entscheidung ist der Schalter aus - auch angemeldet');
+
+        global.__availableSeconds = 7200;
+        bereit.toggle();
+        await new Promise(r => setTimeout(r, 0));
+        assert.strictEqual(global.__presenceCalls.length, 1, 'genau eine Anfrage erwartet');
+        assert.ok(global.__presenceCalls[0].url.includes('set_availability'),
+            'das Einschalten laeuft nicht ueber set_availability');
+        assert.strictEqual(global.__presenceCalls[0].body.ready, true,
+            'geschickt wurde nicht "ready"');
+        assert.strictEqual(knopf.getAttribute('aria-pressed'), 'true', 'aria-pressed steht falsch');
+        assert.ok(knopf.classList.contains('app-ready--on'), 'die Ein-Klasse fehlt');
+        assert.ok(text.textContent === 'Bereit',
+            'die Beschriftung nennt den Zustand nicht');
+        ok('ein Klick stellt auf bereit und die Anzeige folgt');
+
+        // DIE RESTZEIT MUSS SICHTBAR SEIN - sonst merkt der Guide nicht, wenn
+        // sie ablaeuft. Sie steht am Knopf, nicht in einem Untermenue.
+        assert.ok(/noch 2:00 Std/.test(rest.textContent),
+            'die Restzeit steht nicht am Schalter: ' + rest.textContent);
+        assert.ok(/noch/.test(knopf.getAttribute('title')),
+            'auch der Tooltip nennt die Restzeit nicht');
+        ok('der Schalter zeigt, wie lange die Bereitschaft noch laeuft');
+
+        // Ausschalten ist derselbe Knopf und schickt ready:false.
+        global.__presenceCalls.length = 0;
+        global.__availableSeconds = 0;
+        global.__alerts.length = 0;
+        bereit.toggle();
+        await new Promise(r => setTimeout(r, 0));
+        assert.strictEqual(global.__presenceCalls[0].body.ready, false,
+            'das Ausschalten schickt nicht "ready:false"');
+        assert.strictEqual(knopf.getAttribute('aria-pressed'), 'false',
+            'der Schalter blieb eingeschaltet');
+        // GENAU EINE Rueckmeldung, und sie sagt "beendet" und nicht
+        // "abgelaufen": Auch das Ausschalten laesst die Restzeit auf 0 fallen,
+        // aber wer den Schalter selbst umlegt, hat nichts verpasst.
+        assert.strictEqual(global.__alerts.length, 1,
+            'das Ausschalten meldet sich nicht genau einmal: '
+            + JSON.stringify(global.__alerts));
+        assert.ok(/beendet/.test(global.__alerts[0]) && !/abgelaufen/.test(global.__alerts[0]),
+            'das gewollte Ausschalten wird als Ablauf gemeldet: ' + global.__alerts[0]);
+        ok('derselbe Knopf beendet die Bereitschaft, ohne von Ablauf zu reden');
+
+        // --- Der Server hat das letzte Wort ------------------------------
+        // Weist er ab - fehlendes Recht, abgelaufene Sitzung -, darf der
+        // Schalter nicht auf dem gewuenschten Zustand stehen bleiben.
+        zuruecksetzen(0);
+        global.__availableSeconds = 0;   // der Server bleibt bei "nicht bereit"
+        bereit.toggle();
+        await new Promise(r => setTimeout(r, 0));
+        assert.strictEqual(knopf.getAttribute('aria-pressed'), 'false',
+            'der Schalter glaubt sich bereit, obwohl der Server das nicht sagt');
+        ok('angezeigt wird, was der Server sagt, nicht was angefragt wurde');
+
+        // --- Der Ablauf wird gemeldet ------------------------------------
+        // Punkt 4 der Anforderung: Der Guide muss merken, wenn es abgelaufen
+        // ist. Faellt die Restzeit von "laeuft" auf 0, kommt ein Hinweis.
+        zuruecksetzen(120);
+        global.__alerts.length = 0;
+        bereit.sync(0);
+        assert.strictEqual(knopf.getAttribute('aria-pressed'), 'false',
+            'nach dem Ablauf steht der Schalter noch auf bereit');
+        assert.strictEqual(global.__alerts.length, 1,
+            'der Ablauf wurde nicht gemeldet (oder mehrfach): '
+            + JSON.stringify(global.__alerts));
+        assert.ok(/abgelaufen/.test(global.__alerts[0]),
+            'die Meldung sagt nicht, dass die Bereitschaft abgelaufen ist');
+        ok('ein Ablauf bleibt nicht unbemerkt');
+
+        // Und er wird genau EINMAL gemeldet. Der Heartbeat liefert alle zehn
+        // Sekunden weiter 0 - daraus darf keine Meldungskette werden.
+        global.__alerts.length = 0;
+        bereit.sync(0);
+        bereit.sync(0);
+        assert.strictEqual(global.__alerts.length, 0,
+            'der Ablauf wird bei jedem Heartbeat erneut gemeldet');
+        ok('gemeldet wird der Uebergang, nicht der Zustand');
+
+        // --- Die letzten Minuten sind zu sehen ---------------------------
+        zuruecksetzen(60);
+        assert.ok(knopf.classList.contains('app-ready--soon'),
+            'die letzte Minute wird nicht hervorgehoben');
+        zuruecksetzen(7200);
+        assert.ok(!knopf.classList.contains('app-ready--soon'),
+            'zwei Stunden gelten schon als knapp');
+        ok('kurz vor dem Ablauf hebt sich der Schalter ab');
+
+        // --- Was die Frist verlaengert -----------------------------------
+        // NUR ECHTE BEDIENUNG. Der Heartbeat allein verlaengert nichts, sonst
+        // waere genau der alte Fehler zurueck.
+        zuruecksetzen(7200);
+        global.__presenceCalls.length = 0;
+        app.state.isCallActive = false;
+        app.signaling.sendHeartbeat(false);
+        await new Promise(r => setTimeout(r, 0));
+        assert.strictEqual(global.__presenceCalls[0].body.active, 0,
+            'ein Heartbeat ohne Bedienung meldet trotzdem Aktivitaet');
+        ok('ein offener Tab allein verlaengert die Bereitschaft nicht');
+
+        // Ein Klick oder Tastendruck dagegen schon - eingesammelt in der
+        // Erfassungsphase am Dokument.
+        global.__presenceCalls.length = 0;
+        global.__fireDoc('pointerdown', {});
+        assert.ok(bereit.hadActivity, 'ein Zeigerdruck wurde nicht als Bedienung gezaehlt');
+        app.signaling.sendHeartbeat(false);
+        await new Promise(r => setTimeout(r, 0));
+        assert.strictEqual(global.__presenceCalls[0].body.active, 1,
+            'die gemeldete Bedienung kam nicht am Heartbeat an');
+        assert.ok(!bereit.hadActivity,
+            'der Merker wurde nach dem Abholen nicht zurueckgesetzt');
+        ok('Klick und Tastendruck verlaengern, und zaehlen nur einmal');
+
+        // Ein laufendes Gespraech zaehlt ebenfalls: Wer fuehrt, soll nicht
+        // mitten dabei von der Karte fallen.
+        global.__presenceCalls.length = 0;
+        bereit.hadActivity = false;
+        app.signaling.sendHeartbeat(true);
+        await new Promise(r => setTimeout(r, 0));
+        assert.strictEqual(global.__presenceCalls[0].body.active, 1,
+            'ein laufendes Gespraech verlaengert die Bereitschaft nicht');
+        assert.strictEqual(global.__presenceCalls[0].body.in_call, 1,
+            'der Heartbeat meldet das Gespraech nicht');
+        ok('ein laufendes Gespraech haelt die Bereitschaft');
+
+        // --- Das Schliessen der Seite beendet sie ------------------------
+        zuruecksetzen(7200);
+        global.__beacons.length = 0;
+        global.__fireWin('pagehide', { persisted: false });
+        assert.strictEqual(global.__beacons.length, 1,
+            'beim Schliessen der Seite ging keine Nachricht raus');
+        assert.ok(global.__beacons[0].url.includes('set_availability'),
+            'die Nachricht geht an die falsche Route');
+        assert.ok(/"ready":false/.test(global.__beacons[0].rumpf.__text),
+            'die Nachricht beendet die Bereitschaft nicht: '
+            + global.__beacons[0].rumpf.__text);
+        ok('das Schliessen der Seite beendet die Bereitschaft');
+
+        // Ein Seitenwechsel INNERHALB der Anwendung nicht: Dort geht die Seite
+        // in den Zwischenspeicher (persisted) und kommt wieder.
+        global.__beacons.length = 0;
+        global.__fireWin('pagehide', { persisted: true });
+        assert.strictEqual(global.__beacons.length, 0,
+            'eine zwischengespeicherte Seite beendet die Bereitschaft');
+        // Und wer nicht bereit ist, schickt gar nichts.
+        zuruecksetzen(0);
+        global.__beacons.length = 0;
+        global.__fireWin('pagehide', { persisted: false });
+        assert.strictEqual(global.__beacons.length, 0,
+            'ohne laufende Bereitschaft wird trotzdem etwas geschickt');
+        ok('nur ein echtes Seitenende beendet, und nur eine laufende Bereitschaft');
+
+        // --- Ein Netzausfall laesst den Zustand stehen -------------------
+        zuruecksetzen(7200);
+        global.__availabilityFail = true;
+        global.__alerts.length = 0;
+        bereit.toggle();
+        await new Promise(r => setTimeout(r, 0));
+        assert.strictEqual(knopf.getAttribute('aria-pressed'), 'true',
+            'ein fehlgeschlagener Versuch hat den Schalter umgelegt');
+        assert.strictEqual(global.__alerts.length, 1, 'der Fehlschlag wurde nicht gemeldet');
+        assert.ok(!bereit.busy, 'der Schalter bleibt nach einem Fehler gesperrt');
+        ok('ein Fehlschlag aendert nichts und sagt es');
+
+        global.__availabilityFail = false;
+
+        // --- Die Restzeit in Worten --------------------------------------
+        // Die Einheit wechselt mit der Groessenordnung: Bei zwei Stunden
+        // interessiert die Stunde, in der letzten Minute die Sekunde.
+        for (const [s, muster] of [[0, /nicht bereit/], [40, /40 Sek/],
+                                   [700, /11 Min/], [7200, /2:00 Std/],
+                                   [6300, /1:45 Std/]]) {
+            bereit.seconds = s;
+            assert.ok(muster.test(bereit.restText()),
+                'Restzeit fuer ' + s + ' s: ' + bereit.restText());
+        }
+        ok('die Restzeit ist in jeder Groessenordnung lesbar');
+
+        // --- Die Standortliste liest die Verfuegbarkeit, nicht den Status --
+        // Sie bekommt vom Server 'live'/'busy'/'idle'. Anrufbar ist genau
+        // 'live' - ein angemeldeter, aber nicht bereiter Guide ist 'idle' und
+        // damit ein Standort ohne Guide.
+        const tabelle = app.locationsTable;
+        assert.strictEqual(tabelle.statusView('live').callable, true,  'live ist nicht anrufbar');
+        assert.strictEqual(tabelle.statusView('busy').callable, false, 'busy ist anrufbar');
+        assert.strictEqual(tabelle.statusView('idle').callable, false, 'idle ist anrufbar');
+        assert.strictEqual(tabelle.statusView(undefined).callable, false,
+            'eine fehlende Angabe gilt als anrufbar');
+        // Und der alte Wert darf NICHT mehr wirken: Wer 'online' schickt,
+        // bekommt keinen Anrufknopf. Das haelt fest, dass die Umstellung
+        // vollstaendig ist und nicht beides nebeneinander gilt.
+        assert.strictEqual(tabelle.statusView('online').callable, false,
+            'der alte user_status wirkt noch - dann gilt weiter "offener Tab = anrufbar"');
+        ok('anrufbar ist allein, wer als verfuegbar gemeldet wird');
+
+        // Der Anrufknopf folgt derselben Auskunft.
+        const ort = { id: 7, user_id: 3, blocked: 0, country_name: 'Portugal',
+                      city_name: 'Lissabon', description: 'Alfama.' };
+        const anKnopf  = tabelle.callButtonHtml({ ...ort, availability: 'live' });
+        const ausKnopf = tabelle.callButtonHtml({ ...ort, availability: 'idle' });
+        assert.ok(!/disabled/.test(anKnopf),  'der Knopf ist beim verfuegbaren Guide gesperrt');
+        assert.ok(/disabled/.test(ausKnopf),  'der Knopf ist beim nicht verfuegbaren Guide offen');
+        ok('der Anrufknopf ist nur beim verfuegbaren Guide bedienbar');
+
+        // --- Die eine Zahl steht an einer Stelle -------------------------
+        // Die Frist gehoert in config/presence.php. Steht sie zusaetzlich im
+        // Code, laufen zwei Werte auseinander, die niemand zusammen pflegt.
+        const fsB = require('fs'), pathB = require('path');
+        const liesB = (...t) => fsB.readFileSync(pathB.join(__dirname, '..', ...t), 'utf8');
+        const presence = liesB('config', 'presence.php');
+        assert.ok(/availability_timeout/.test(presence),
+            'die Frist steht nicht in config/presence.php');
+        for (const datei of [['assets', 'js', 'availability.js'],
+                             ['class', 'Controller', 'UserController.php']]) {
+            assert.ok(!/7200/.test(liesB(...datei)),
+                datei.join('/') + ': die Frist steht als Zahl im Code');
+        }
+        ok('die Dauer der Bereitschaft steht an genau einer Stelle');
     }
 
     console.error('\n' + passed + ' Pruefungen bestanden.');

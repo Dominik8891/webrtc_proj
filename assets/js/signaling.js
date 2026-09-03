@@ -201,16 +201,48 @@ window.webrtcApp.signaling = {
     },
 
     /**
-     * Sendet regelmäßig einen Heartbeat (User online, ggf. im Call).
+     * Sendet regelmäßig einen Heartbeat.
+     *
+     * ER MELDET DIE ANMELDUNG, NICHT DIE BEREITSCHAFT. Der Heartbeat sagt
+     * "ein Browser dieses Kontos laeuft" - nicht mehr. Ob der Guide fuehren
+     * will, entscheidet allein der Schalter in der Kopfleiste
+     * (assets/js/availability.js). Vorher war beides dasselbe, und deshalb
+     * machte ein offener Tab jemanden anrufbar.
+     *
+     * MITGESCHICKT WIRD, OB DER NUTZER SEIT DEM LETZTEN TAKT BEDIENT HAT.
+     * Nur das verlaengert eine laufende Bereitschaft - der Takt selbst nicht.
+     * Ein Gespraech zaehlt ebenfalls als Bedienung: Wer gerade fuehrt, soll
+     * nicht mitten dabei von der Karte fallen.
+     *
+     * ZURUECK KOMMT DIE RESTZEIT. Damit haelt sich der Schalter am Server
+     * nach, ohne dafuer eine zweite Anfrage zu brauchen - und der Guide merkt
+     * es, wenn seine Bereitschaft abgelaufen ist.
+     *
      * @param {boolean} inCall - Ist der User aktuell in einem Call?
      */
     sendHeartbeat(inCall) {
+        // Die Bedienung holt sich der Heartbeat beim Schalter ab, weil der sie
+        // sammelt. Fehlt das Modul - etwa in der Testumgebung, oder bei einem
+        // Konto ohne Schalter -, gilt "keine Bedienung": Dann verlaengert
+        // dieser Takt nichts, und das ist der harmlose Ausgang.
+        const bereitschaft = window.webrtcApp.availability;
+        const bedient = bereitschaft ? bereitschaft.takeActivity() : false;
+
         fetch('index.php?act=heartbeat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                in_call: inCall ? 1 : 0
+                in_call: inCall ? 1 : 0,
+                active:  (bedient || inCall) ? 1 : 0
             })
-        });
+        })
+        .then(antwort => antwort.json())
+        .then(daten => {
+            if (bereitschaft && daten) bereitschaft.sync(daten.available_seconds);
+        })
+        // Ein ausgefallener Heartbeat aendert nichts: Der naechste Takt kommt,
+        // und bis dahin laeuft die Anzeige lokal weiter. Ohne diesen Zweig
+        // stuende bei jedem Netzaussetzer ein Fehler in der Konsole.
+        .catch(() => {});
     }
 };

@@ -377,12 +377,16 @@ CREATE TABLE IF NOT EXISTS `user` (
   `totp_enabled` tinyint(4) DEFAULT 0,
   `deleted` tinyint(4) DEFAULT 0,
 
-  -- Online-Status des Nutzers. Der Code kennt genau drei Werte:
-  --   'online'  - gesetzt vom Heartbeat  (UserController.php:134)
+  -- ANGEMELDET, NICHT VERFUEGBAR. Diese Spalte beantwortet genau eine Frage:
+  -- Ist gerade ein Browser dieses Kontos erreichbar? Ob der Guide auch
+  -- FUEHREN will, steht in `available_until` weiter unten - das sind zwei
+  -- verschiedene Dinge, und sie wurden frueher verwechselt.
+  --
+  -- Der Code kennt genau drei Werte:
+  --   'online'  - gesetzt vom Heartbeat  (UserController::heartbeat)
   --   'in_call' - gesetzt vom Heartbeat, wenn ein Call läuft (ebenda)
-  --   'offline' - gesetzt vom Cronjob    (cron/check_online_status.php:26)
-  -- Gelesen wird der Wert per Stringvergleich in UserController.php:224/227
-  -- und in assets/js/locations_table.js:34/37/62.
+  --   'offline' - gesetzt vom Cronjob    (cron/check_online_status.php)
+  --               und beim Abmelden      (LoginController::handleLogout)
   -- Typ varchar(20) statt ENUM: setUserStatus()/setStatus() nehmen beliebige
   -- Strings entgegen, und User::update() schreibt die Spalte bei jedem
   -- Speichern mit. Ein ENUM würde hier bei einem unerwarteten Wert im
@@ -391,6 +395,26 @@ CREATE TABLE IF NOT EXISTS `user` (
   -- Objekts (noch NULL) mitschreiben kann. Die Lesestellen behandeln NULL
   -- korrekt als "nicht online".
   `user_status` varchar(20) DEFAULT 'offline',
+
+  -- BEREITSCHAFT des Guides (Migration 010). Bis zu diesem Zeitpunkt hat er
+  -- sich ausdruecklich auf "bereit" gestellt; NULL oder ein Zeitpunkt in der
+  -- Vergangenheit heisst "nicht bereit".
+  --
+  -- Gruen auf der Karte und anrufbar ist nur, wo BEIDES zutrifft: ein
+  -- erreichbarer Browser (`user_status`) UND eine laufende Bereitschaft. Die
+  -- Auswertung steht an genau einer Stelle im Code, als
+  -- App\Model\Location::AVAILABILITY_SQL.
+  --
+  -- Geschrieben wird die Spalte von App\Model\User::startAvailability()
+  -- (Schalter in der Kopfleiste), ::extendAvailability() (Heartbeat mit
+  -- gemeldeter Bedienung) und ::endAvailability() (Schalter aus, Seite
+  -- geschlossen, Abmelden). Ein Zeitpunkt statt eines Ja/Nein-Feldes: So ist
+  -- "abgelaufen" allein aus der Zeile ablesbar und braucht keinen Cronjob.
+  --
+  -- Bewusst NICHT in User::update(): Die Bereitschaft ist ein fluechtiger
+  -- Zustand und wird ausschliesslich mit gezielten UPDATEs gesetzt. Ein
+  -- beilaeufiges save() darf sie weder verlaengern noch loeschen.
+  `available_until` datetime DEFAULT NULL,
 
   -- UNGENUTZT. Zuletzt per Browser-Geolocation gemeldete Position des
   -- Nutzers. Es gibt weder eine schreibende noch eine lesende Stelle mehr:

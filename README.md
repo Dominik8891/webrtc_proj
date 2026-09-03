@@ -45,9 +45,12 @@ mariadb -u <user> -p <datenbank> < migrations/006_location_sperre.sql
 mariadb -u <user> -p <datenbank> < migrations/007_guide_rolle.sql
 mariadb -u <user> -p <datenbank> < migrations/008_farbprofil.sql
 mariadb -u <user> -p <datenbank> < migrations/009_call_standort.sql
+mariadb -u <user> -p <datenbank> < migrations/010_verfuegbarkeit.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call. Alle sind idempotent und löschen nichts. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)). Alle sind idempotent und löschen nichts.
+
+**Nach `010` steht kein Guide mehr auf bereit.** Das ist Absicht: Die Bereitschaft ist eine Entscheidung, und die hat vorher niemand getroffen. Jeder Guide legt den Schalter in der Kopfleiste um, sobald er die Seite das nächste Mal öffnet. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
 
 ### 2. Umgebungsvariablen (`.env`)
 Erstelle eine `.env`-Datei im Root-Verzeichnis und hinterlege deine Zugangsdaten:
@@ -148,9 +151,15 @@ das ausdrueckliche Abmelden ueber den Logout-Button und der Cronjob
 `cron/check_online_status.php`. Ein geschlossener Tab, ein abgestuerzter Browser
 oder ein Netzausfall melden sich nicht ab.
 
+**Der Heartbeat sagt "angemeldet", nicht "verfuegbar".** Ob ein Guide gerade
+fuehren will, entscheidet allein sein Bereitschaftsschalter — siehe
+[Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit). Gruen auf der
+Karte steht ein Standort nur, wenn BEIDES zutrifft.
+
 **Laeuft der Cronjob nicht, bleibt jeder jemals eingeloggte Nutzer dauerhaft
-`online`.** Die Standortuebersicht zeigt dann lauter gruene Punkte und
-anwaehlbare Call-Buttons fuer Guides, die niemand erreicht.
+`online`.** Die Standortuebersicht zeigt dann Guides als erreichbar an, die
+niemand mehr erreicht. Anrufbar werden sie dadurch nicht — dafuer braucht es
+zusaetzlich eine laufende Bereitschaft —, aber die Anzeige stimmt nicht mehr.
 
 Der Cronjob setzt alle Nutzer offline, deren letzter Heartbeat laenger als 45
 Sekunden zurueckliegt (`config/presence.php`). Er braucht dieselbe `.env` und
@@ -213,8 +222,13 @@ Danach in der Datenbank nachsehen. Ein Nutzer, der laenger als 45 Sekunden
 keinen Heartbeat geschickt hat, muss `offline` stehen:
 
 ```sql
-SELECT id, username, user_status, updated_at FROM user ORDER BY updated_at DESC;
+SELECT id, username, user_status, available_until, updated_at
+FROM user ORDER BY updated_at DESC;
 ```
+
+`user_status` ist die Erreichbarkeit, `available_until` die Bereitschaft. Ein
+Guide ist genau dann anrufbar, wenn `user_status` `online` lautet **und**
+`available_until` in der Zukunft liegt.
 
 #### Taktung anpassen
 
@@ -236,6 +250,106 @@ erscheinen; sobald der Tab wieder sichtbar wird, meldet sich der Client
 sofort zurueck. Waehrend eines laufenden Calls tritt das nicht auf. Wer
 Guides dauerhaft im Hintergrund erreichbar halten will, erhoeht den
 `offline_timeout` auf mindestens 90 Sekunden.
+
+---
+
+## 🟢 Verfügbarkeit: angemeldet ist nicht bereit
+
+### Das Problem
+
+Ein Guide war „online", solange **irgendein Tab der Anwendung offen stand**.
+Das war ein Nebeneffekt des Heartbeats und keine Entscheidung. Wer die Seite
+über Nacht offen ließ, stand am nächsten Morgen grün auf der Karte — und wurde
+nachts angerufen. Ein Kunde rief damit Leute an, die gar nicht führen wollten.
+
+### Zwei Zustände statt einem
+
+| Frage | Spalte | Wer schreibt sie |
+|---|---|---|
+| Ist ein Browser dieses Kontos erreichbar? | `user.user_status` | Heartbeat (`online`/`in_call`), Cronjob und Logout (`offline`) |
+| Will dieser Guide gerade führen? | `user.available_until` | ausschließlich der Bereitschaftsschalter |
+
+**Grün auf der Karte und anrufbar ist nur, wo beides zutrifft.** Ausgewertet
+wird das an genau einer Stelle: `App\Model\Location::AVAILABILITY_SQL`. Jede
+Standortabfrage setzt diesen Ausdruck ein und liefert `live`, `busy` oder
+`idle` — keine Lesestelle bekommt `user_status` mehr roh in die Hand.
+
+Ohne Bereitschaft ist ein Standort **ein Angebot ohne Guide**: Er bleibt auf
+der Karte sichtbar, aber grau und nicht anwählbar. Der Server weist einen
+Anruf darauf ab, auch wenn er an der Oberfläche vorbei geschickt wird
+(`App\Controller\WebRTCController::callRoles`).
+
+### Der Schalter
+
+Er sitzt in der **Kopfleiste**, neben dem Benutzermenü, und ist damit auf jeder
+Seite der Anwendung zu sehen — Karte, Standortliste, Konto, Chat.
+
+```
+[W WebRTC-App]   [Neue Lokation] [Alle Standorte]   [● Bereit · noch 1:47 Std] [DK Dominik ▾]
+```
+
+Das ist Absicht und keine Platzfrage: Der Schalter hat zwei Aufgaben, und die
+zweite verlangt ständige Sichtbarkeit. Er **schaltet** die Bereitschaft, und er
+**zeigt sie samt Restzeit an**. In den Einstellungen könnte er nur das Erste —
+ein Guide würde dort nie bemerken, dass seine Bereitschaft abgelaufen ist.
+
+Ausgeliefert wird er fertig vom Server (`App\Helper\ViewHelper`), inklusive
+Zustand. Wer die Seite ohne JavaScript öffnet, sieht immer noch richtig, ob er
+bereit ist — nur der Sekundenzähler steht dann still. Sichtbar ist er für
+Konten mit dem Recht `user.availability`, also dieselben, die auch Standorte
+anbieten dürfen (Guide und Admin).
+
+### Wie die Bereitschaft endet
+
+1. **Der Guide legt den Schalter um.** Sofort, ohne Rückfrage.
+2. **Die Seite wird geschlossen.** `assets/js/availability.js` schickt beim
+   `pagehide` eine `navigator.sendBeacon`-Nachricht — die geht auch dann noch
+   raus, wenn der Tab schon zugeht. Ein Seitenwechsel innerhalb der Anwendung
+   zählt nicht.
+3. **Die Frist läuft ab.** Vorgabe zwei Stunden, einstellbar als
+   `availability_timeout` in `config/presence.php` — der **einen** Stelle, an
+   der die Zahl steht. Von dort geht sie an den Controller, an den Browser
+   (Restzeitanzeige) und an den Cronjob.
+4. **Das Abmelden.** `App\Controller\LoginController::handleLogout` setzt
+   `available_until` auf `NULL`, gemeinsam mit dem Status.
+
+Fällt ein Browser weg, ohne sich abzumelden — Absturz, Netzausfall —, fängt das
+die UND-Bedingung auf: Ohne frischen Heartbeat wird der Standort binnen 45
+Sekunden grau, ganz ohne Schreibvorgang.
+
+### Was die Frist verlängert
+
+Nur **echte Bedienung**: Klick, Tastendruck, Berührung, Radbewegung — oder ein
+laufendes Gespräch, damit ein führender Guide nicht mitten in der Arbeit von
+der Karte fällt.
+
+Der **Heartbeat allein verlängert nichts**, und ein wieder nach vorn geholter
+Tab ebenso wenig. Genau das war der alte Fehler. Der Browser sammelt die
+Bedienung und hängt sie als `active` an den nächsten Heartbeat; der Server
+verlängert daraufhin eine **laufende** Bereitschaft. Eine abgelaufene schaltet
+er nicht wieder ein — sonst würde ein Klick nach dem Ablauf den Guide unbemerkt
+wieder anrufbar machen.
+
+### Dass es abgelaufen ist, sieht der Guide
+
+Jede Heartbeat-Antwort trägt die verbleibenden Sekunden. Der Schalter zählt
+dazwischen lokal herunter, damit die Anzeige jede Sekunde stimmt; verbindlich
+ist die Uhr des Servers. Fällt die Restzeit von „läuft" auf 0, wechselt der
+Schalter auf „Nicht bereit" **und es kommt eine Meldung** — einmal, für den
+Übergang, nicht bei jedem Takt. In den letzten fünf Minuten hebt sich der
+Schalter zusätzlich ab.
+
+### Was die Bereitschaft *nicht* sperrt
+
+Den **Direktanruf der Verwaltung**. Ein Admin erreicht einen Guide auch dann,
+wenn dieser nicht bereit ist — beide bekommen die Rolle `peer`, niemand wird
+gesteuert. Für eine Rückfrage der Moderation muss sich niemand vorher bereit
+gemeldet haben, und geführt wird dabei ohnehin nicht.
+
+In der Benutzerverwaltung stehen deshalb **beide** Auskünfte nebeneinander: der
+Zustandspunkt für die Erreichbarkeit und die Marke „Bereit" für die
+Bereitschaft. „Angemeldet, aber nicht bereit" ist dort die Antwort auf die
+Frage, warum ein Standort grau bleibt, obwohl der Guide erreichbar ist.
 
 ---
 

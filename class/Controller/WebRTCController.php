@@ -97,14 +97,14 @@ class WebRTCController
                     // diese Pruefung bereits bestanden hat.
                     if ($type === 'offer' && !self::callAllowed($sender, $target, $location)) {
                         error_log('WebRTCController: Anruf abgewiesen - Benutzer #'
-                            . (int)$target . ' bietet nichts an, der Anrufer #'
+                            . (int)$target . ' bietet nichts an oder steht nicht auf'
+                            . ' bereit, der Anrufer #'
                             . (int)$sender . ' ist kein Admin, und der Anruf kam'
                             . ' von keinem gueltigen Standort ('
                             . ($location === null ? 'ohne Angabe' : '#' . $location) . ').');
                         echo json_encode([
                             'status' => 'error',
-                            'msg'    => 'Dieser Benutzer bietet keine Führungen an und kann '
-                                      . 'deshalb nicht angerufen werden.',
+                            'msg'    => self::callRejectedMessage($target),
                         ]);
                         exit;
                     }
@@ -198,6 +198,20 @@ class WebRTCController
      *   peer/peer       Ein Gespräch unter Gleichen. Niemand führt, niemand
      *                   steuert, beide senden Ton und Bild.
      *
+     * VORGESCHALTET: OHNE BEREITSCHAFT KEINE FÜHRUNG.
+     *
+     *    Beide Wege in eine Führung - über einen Standort (1) und ohne
+     *    Standort an einen Guide (3) - setzen voraus, dass der Angerufene
+     *    sich ausdrücklich auf "bereit" gestellt hat und die Frist noch
+     *    läuft (siehe readyToGuide). Angemeldet zu sein genügt nicht: Ein
+     *    offener Tab ist keine Zusage, jemanden herumzuführen. Genau hier
+     *    endete das alte Verhalten, bei dem ein über Nacht offener Browser
+     *    einen Guide anrufbar hielt.
+     *
+     *    Der Direktanruf der Verwaltung (2) bleibt davon unberührt: Für eine
+     *    Rückfrage der Moderation muss sich niemand bereit gemeldet haben,
+     *    und geführt wird dabei ohnehin nicht.
+     *
      * ENTSCHEIDEND IST, WOHER DER ANRUF KAM. Eine Führung beginnt an einem
      * Standort: Der Zuschauer sucht sich auf der Karte oder in der Liste
      * einen Ort aus und ruft den an, der dort ist. Ein Direktanruf aus der
@@ -263,15 +277,89 @@ class WebRTCController
     {
         $fuehrung = ['caller' => self::ROLE_VIEWER, 'callee' => self::ROLE_GUIDE];
 
-        if (self::guidedFromLocation($locationId, $calleeId)) return $fuehrung;
+        // OHNE BEREITSCHAFT KEINE FUEHRUNG - egal auf welchem der beiden Wege
+        // sie zustande kaeme. Das ist die eigentliche Sperre: Ein Standort,
+        // dessen Guide nicht auf bereit steht, ist ein Angebot ohne Guide,
+        // und wer trotzdem darauf anruft (eine veraltete Kartenansicht, ein
+        // nachgebauter Aufruf), kommt hier nicht durch.
+        $bereit = self::readyToGuide($calleeId);
+
+        if ($bereit && self::guidedFromLocation($locationId, $calleeId)) return $fuehrung;
 
         if (self::isAdminAccount($callerId) || self::isAdminAccount($calleeId)) {
             return ['caller' => self::ROLE_PEER, 'callee' => self::ROLE_PEER];
         }
 
+        if (!$bereit) return null;
+
         if (!self::offersLocations($calleeId)) return null;
 
         return $fuehrung;
+    }
+
+    /**
+     * Steht dieses Konto gerade auf "bereit"?
+     *
+     * Die Bereitschaft ist eine ausdrueckliche Entscheidung des Guides und
+     * laeuft nach einer Frist ohne Bedienung von selbst ab
+     * (App\Model\User, config/presence.php). Sie ist damit etwas anderes als
+     * die Anmeldung: Ein offener Tab sagt nichts darueber, ob jemand fuehren
+     * will - und genau diese Verwechslung wurde hier aufgeloest.
+     *
+     * NICHT GEPRUEFT WIRD DER ONLINE-STATUS. Wer ein Offer schickt, hat den
+     * Angerufenen auf der Karte gruen gesehen, und dort steht er nur, wenn
+     * auch der Heartbeat frisch ist (App\Model\Location::AVAILABILITY_SQL).
+     * Zwischen Klick und Offer koennte der Heartbeat einen Takt aussetzen -
+     * daran soll ein Anruf nicht scheitern; der Klingelton laeuft ohnehin ins
+     * Leere, wenn wirklich niemand da ist.
+     *
+     * Der Zwischenspeicher lebt nur fuer die Dauer der Anfrage. Ohne ihn
+     * waeren es je Offer bis zu drei gleiche SELECTs: aus callAllowed(), aus
+     * roleForCall() und aus der Meldung im Ablehnungsfall.
+     *
+     * @param int $userId
+     * @return bool
+     */
+    private static function readyToGuide($userId)
+    {
+        static $bekannt = [];
+
+        $id = (int)$userId;
+        if ($id < 1) return false;
+
+        if (!array_key_exists($id, $bekannt)) {
+            $bekannt[$id] = User::isAvailable($id);
+        }
+        return $bekannt[$id];
+    }
+
+    /**
+     * Warum kam dieser Anruf nicht zustande?
+     *
+     * Nur fuer die Meldung an den Anrufer. Die Entscheidung selbst faellt in
+     * callRoles(); hier wird sie lediglich in einen Satz uebersetzt, der dem
+     * Anrufer weiterhilft.
+     *
+     * Der Unterschied ist fuer ihn wesentlich: "bietet nichts an" heisst
+     * "such dir jemand anderen", "gerade nicht bereit" heisst "versuch es
+     * spaeter noch einmal". Vorher bekam er in beiden Faellen denselben Satz.
+     *
+     * Verraten wird damit nichts, was nicht ohnehin auf der Karte steht: Dass
+     * an einem Standort gerade kein Guide bereit ist, ist genau die Auskunft,
+     * die die graue Nadel gibt.
+     *
+     * @param int $calleeId
+     * @return string
+     */
+    private static function callRejectedMessage($calleeId)
+    {
+        if (self::offersLocations($calleeId) && !self::readyToGuide($calleeId)) {
+            return 'Dieser Guide ist gerade nicht bereit für eine Führung. '
+                 . 'Bitte versuchen Sie es später noch einmal.';
+        }
+
+        return 'Dieser Benutzer bietet keine Führungen an und kann '
+             . 'deshalb nicht angerufen werden.';
     }
 
     /**

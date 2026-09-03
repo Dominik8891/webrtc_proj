@@ -965,6 +965,121 @@ a:hover {
     border: 1px solid var(--app-text-faint);
 }
 
+/* Marke "Bereit" in der Benutzerverwaltung.
+
+   Sie steht neben dem Zustandspunkt und beantwortet eine ANDERE Frage: Der
+   Punkt sagt, ob ein Browser erreichbar ist, die Marke, ob der Guide sich auf
+   bereit gestellt hat. Deshalb traegt sie hier die Live-Farbe - sie meint
+   genau das, was auch die gruene Nadel auf der Karte meint. */
+.app-tag--ready {
+    background: var(--app-live-soft);
+    color: var(--app-live-strong);
+    margin-left: var(--app-space-2);
+}
+
+/* ===========================================================================
+   Bereitschaftsschalter der Kopfleiste
+   ---------------------------------------------------------------------------
+   Der Guide stellt sich hier auf "bereit" - und nur dann steht sein Standort
+   gruen auf der Karte und ist anrufbar. Gebaut wird der Knopf von
+   App\Helper\ViewHelper::availabilitySwitch(), bedient von
+   assets/js/availability.js.
+
+   HIER IST GRUEN RICHTIG. In Listen und auf Knoepfen wird die Live-Farbe
+   sonst vermieden, weil sie auf der Karte eine feste Bedeutung hat: "ein Guide
+   ist jetzt verfuegbar". Dieser Schalter sagt genau das, nur ueber die eigene
+   Person - dieselbe Aussage darf dieselbe Farbe tragen. Ein eingeschalteter
+   Schalter und eine gruene Nadel gehoeren zusammen, und der Guide soll das
+   sehen.
+
+   Der ausgeschaltete Zustand ist bewusst leise: hohler Punkt, gedaempfte
+   Schrift, kein Rahmen in Signalfarbe. "Nicht bereit" ist der Normalfall und
+   kein Fehler.
+   =========================================================================== */
+
+.app-ready {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    padding: 4px var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-pill);
+    background: var(--app-surface);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    line-height: 1.5;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--app-transition), border-color var(--app-transition),
+                color var(--app-transition);
+}
+
+.app-ready:hover {
+    border-color: var(--app-text-faint);
+    color: var(--app-text);
+}
+
+.app-ready__dot {
+    width: 9px;
+    height: 9px;
+    flex: none;
+    border-radius: 50%;
+    box-sizing: border-box;
+    /* Ausgeschaltet: hohl - dieselbe Form wie "offline" in den Listen. */
+    background: transparent;
+    border: 1px solid currentColor;
+}
+
+/* Eingeschaltet. */
+.app-ready--on {
+    background: var(--app-live-soft);
+    border-color: transparent;
+    color: var(--app-live-strong);
+}
+
+.app-ready--on:hover {
+    border-color: var(--app-live);
+    color: var(--app-live-strong);
+}
+
+.app-ready--on .app-ready__dot {
+    background: var(--app-live);
+    border-color: var(--app-live);
+}
+
+/* Die Restzeit. Sie steht in einem eigenen Element, weil sie sich jede
+   Sekunde aendert - so wird nur dieser Text neu gesetzt und nicht die
+   Beschriftung daneben. Ausgeschaltet ist sie leer und nimmt keinen Platz. */
+.app-ready__rest {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.8;
+}
+
+.app-ready__rest:empty { display: none; }
+
+/* Die letzten Minuten. Kein Rot und kein Blinken: Es ist kein Fehler, dass
+   eine Frist ablaeuft. Der Hinweis kommt ueber Gewicht und die Warnfarbe,
+   damit der Guide nachlegen kann, bevor er von der Karte verschwindet. */
+.app-ready--soon {
+    background: var(--app-warn-soft);
+    color: var(--app-warn);
+}
+
+.app-ready--soon .app-ready__dot {
+    background: var(--app-warn);
+    border-color: var(--app-warn);
+}
+
+@media (max-width: 700px) {
+    /* Enger, aber vollstaendig: Auf einem schmalen Geraet darf die Auskunft,
+       ob man anrufbar ist, nicht als erstes wegfallen. */
+    .app-ready {
+        padding: 3px var(--app-space-2);
+        font-size: var(--app-text-xs);
+    }
+}
+
 /* Spalten, die auf schmalen Geraeten entfallen. Die Regel stand frueher in
    call.css in einer Medienabfrage fuer die Call-Ansicht - dort hatte sie
    nichts zu suchen und ging beim Umbau der Call-Ansicht verloren. */

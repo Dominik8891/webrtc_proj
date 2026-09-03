@@ -63,6 +63,9 @@
 
     <script src="assets/js/utils.js"></script>
     <script src="assets/js/main.js"></script>
+    <!-- Der Bereitschaftsschalter der Kopfleiste. Nach main.js, weil er sich
+         in dessen Heartbeat einhaengt. -->
+    <script src="assets/js/availability.js"></script>
     <script src="assets/js/locations_table.js"></script>
     <script src="assets/js/map.js"></script>
     <script src="assets/js/home_map.js"></script>
@@ -108,8 +111,15 @@
 
         <!-- Das Konto steht ausserhalb der schiebbaren Zeile: Es muss immer
              erreichbar sein, auch auf einem schmalen Geraet - dahinter liegt
-             das Abmelden. -->
+             das Abmelden.
+
+             Davor der Bereitschaftsschalter des Guides. Er steht aus demselben
+             Grund hier und nicht in der schiebbaren Aktionszeile daneben: Ob
+             man gerade anrufbar ist, darf auf keinem Geraet aus dem Blick
+             geraten. Gebaut wird er von App\Helper\ViewHelper; wer keine
+             Standorte anbietet, bekommt an dieser Stelle nichts. -->
         <div class="app-topbar__account">
+            ###AVAILABILITY###
             ###USER###
             ###REGISTER###
             ###LOGOUT###

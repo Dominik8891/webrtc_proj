@@ -306,11 +306,23 @@ window.webrtcApp.homeMap = {
      */
     fromList(item, mine) {
         const gesperrt = (item.blocked == 1);
-        let status;
-        if (gesperrt)                            status = 'idle';
-        else if (item.user_status === 'online')  status = 'live';
-        else if (item.user_status === 'in_call') status = 'busy';
-        else                                     status = 'idle';
+
+        // DIE VERFUEGBARKEIT KOMMT FERTIG VOM SERVER - hier steht keine
+        // eigene Auswertung mehr. Vorher wurde an dieser Stelle 'online' zu
+        // 'live' gemacht, und 'online' setzte der Heartbeat schon dann, wenn
+        // irgendein Tab offen war. Damit stand ein Guide gruen auf der Karte,
+        // der davon nichts wusste.
+        //
+        // Jetzt entscheidet App\Model\Location::AVAILABILITY_SQL, und zwar
+        // aus zwei Angaben: erreichbarer Browser UND eingeschaltete
+        // Bereitschaft. Dieselbe Auswertung liefert auch die oeffentliche
+        // Karte - siehe fromPublic() darueber, das damit dieselbe Form hat.
+        //
+        // Ein gesperrter Standort bleibt grau, unabhaengig davon: Die Sperre
+        // ist eine Massnahme der Moderation und schlaegt jede Bereitschaft.
+        const gemeldet = item.availability;
+        const bekannt  = (gemeldet === 'live' || gemeldet === 'busy');
+        const status   = (gesperrt || !bekannt) ? 'idle' : gemeldet;
 
         return {
             id         : String(item.id),
