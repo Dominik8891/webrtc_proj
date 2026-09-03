@@ -1516,4 +1516,84 @@ check(preg_match('/\.form-select\s*\{[^}]*--bs-form-select-bg-img:\s*var\(--app-
     'das Auswahlfeld benutzt die eigene Pfeilgrafik nicht');
 ok('der Pfeil traegt in beiden Profilen die Farbe von --app-text-muted');
 
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n22) Die Standortlisten brechen rechtzeitig um\n");
+
+$tabJs = file_get_contents($ROOT . '/assets/js/locations_table.js');
+
+// Kommentare heraus: Dort wird "autoWidth: false" ja gerade ERKLAERT. Ohne
+// dieses Entfernen bestuende die Pruefung auch dann, wenn die Einstellung
+// selbst wieder auf true stuende - der Erklaertext allein wuerde sie
+// erfuellen. (Genau das ist beim Gegenpruefen aufgefallen.)
+$tabCode = preg_replace('#/\*.*?\*/#s', '', $tabJs);
+$tabCode = preg_replace('#^\s*//.*$#m', '', $tabCode);
+
+// DER KERN DES FEHLERS
+// Mit autoWidth (Vorgabe: an) misst DataTables die Tabelle EINMAL beim
+// Aufbau und schreibt das Ergebnis als feste Breite ins style-Attribut -
+// gemessen waren das 1202px. Diese Zahl blieb stehen, auch bei 400px
+// Fensterbreite: Die Tabelle ragte um 850px aus ihrem Bereich heraus,
+// waehrend die Responsive-Erweiterung nichts einklappte.
+check(preg_match('/autoWidth:\s*false/', $tabCode) === 1,
+    'autoWidth ist nicht abgeschaltet - DataTables schreibt dann wieder eine '
+    . 'feste Tabellenbreite, die beim Verkleinern stehen bleibt');
+ok('DataTables schreibt keine feste Tabellenbreite mehr');
+
+// DIE MINDESTBREITEN GEHOEREN AN DIE KOERPERZELLE
+// Die Erweiterung baut die Tabelle zum Messen in einem 1px breiten
+// Behaelter nach und setzt dabei auf den geklonten KOPFZELLEN ausdruecklich
+// min-width auf 0 (dataTables.responsive.js, _resizeAuto:
+// .css('min-width', 0)). Eine Angabe am <th> ist deshalb wirkungslos.
+// Diese Pruefung haelt fest, worauf das beim naechsten Mal hinauslaeuft.
+check(preg_match('/table\.dataTable\s+td\.col-description\s*\{[^}]*min-width/', $themeCss) === 1,
+    'die Mindestbreite der Beschreibung steht nicht an der Koerperzelle');
+check(preg_match('/table\.dataTable\s+td\.col-actions\s*\{[^}]*min-width/', $themeCss) === 1,
+    'die Mindestbreite der Aktionsspalte steht nicht an der Koerperzelle');
+check(preg_match('/table\.dataTable\s+th\.col-\w+\s*\{[^}]*min-width/', $themeCss) === 0,
+    'eine Mindestbreite steht an der KOPFzelle - die Erweiterung setzt sie dort auf 0');
+ok('die Mindestbreiten stehen an der Koerperzelle, wo sie wirken');
+
+// Die Klassen dafuer kommen aus columnKeys, damit beide Tabellen (alle
+// Standorte und eigene Standorte) dieselbe Quelle haben.
+check(strpos($tabCode, "'col-' + key") !== false,
+    'die Spaltenklassen werden nicht aus den Spaltenkennungen gebildet');
+ok('die Spaltenklassen stammen aus columnKeys');
+
+// DIE REIHENFOLGE DES EINKLAPPENS
+// Ohne Angabe raeumt die Erweiterung von rechts nach links ab - und rechts
+// steht die Aktionsspalte. Bei 800px verschwand als Erstes der Knopf
+// "Anrufen", also genau das, wofuer die Liste da ist.
+check(preg_match('/COLUMN_PRIORITY:\s*\{(.*?)\}/s', $tabCode, $mPrio) === 1,
+    'es gibt keine Reihenfolge fuers Einklappen');
+preg_match_all('/(\w+):\s*(\d+)/', $mPrio[1], $mPaare, PREG_SET_ORDER);
+$prio = [];
+foreach ($mPaare as $paar) $prio[$paar[1]] = (int)$paar[2];
+
+check(isset($prio['actions']) && isset($prio['description']),
+    'Aktionen oder Beschreibung fehlen in der Reihenfolge');
+// Kleinere Zahl heisst: bleibt laenger stehen.
+check($prio['actions'] === min($prio),
+    'die Aktionsspalte ist nicht die wichtigste - der Anruf wuerde zuerst verschwinden');
+check($prio['description'] === max($prio),
+    'die Beschreibung weicht nicht als Erstes');
+check($prio['status'] < $prio['description'],
+    'der Zustand weicht vor der Beschreibung');
+ok('der Anruf bleibt am laengsten, die Beschreibung weicht zuerst');
+
+// Auf sehr schmalen Schirmen faellt nur die BESCHRIFTUNG des Zustands weg,
+// nicht die Spalte. Sie bleibt fuer Vorleseprogramme im Dokument - ein
+// display:none haette den Zustand fuer sie ersatzlos entfernt.
+check(preg_match('/@media[^{]*max-width:\s*560px[^{]*\{\s*\.app-state__text\s*\{([^}]*)\}/', $themeCss, $mText) === 1,
+    'die Beschriftung des Zustands wird auf schmalen Schirmen nicht ausgeblendet');
+check(strpos($mText[1], 'display: none') === false && strpos($mText[1], 'display:none') === false,
+    'die Beschriftung wird mit display:none entfernt - dann fehlt sie auch dem Vorleseprogramm');
+check(strpos($mText[1], 'clip-path') !== false || strpos($mText[1], 'position: absolute') !== false,
+    'die Beschriftung wird nicht nur optisch ausgeblendet');
+// Und beide Stellen, die eine Zustandsanzeige bauen, muessen sie kapseln.
+foreach (['class/Controller/UserController.php', 'assets/js/locations_table.js'] as $datei) {
+    check(strpos(file_get_contents($ROOT . '/' . $datei), 'app-state__text') !== false,
+        "$datei kapselt die Beschriftung des Zustands nicht");
+}
+ok('die Beschriftung weicht nur fuer das Auge, nicht fuer Vorleseprogramme');
+
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

@@ -352,9 +352,14 @@ class UserController
             $art = 'offline'; $text = 'Offline';
         }
 
-        return '<span class="app-state app-state--' . $art . '">'
+        // Die Beschriftung steht in einem eigenen Element, damit sie auf
+        // sehr schmalen Schirmen ausgeblendet werden kann - dort traegt der
+        // Punkt die Auskunft allein (assets/css/theme.css, .app-state__text).
+        // Ausgeblendet wird sie nur fuer das AUGE: Vorleseprogramme lesen sie
+        // weiter, sonst bliebe vom Zustand gar nichts uebrig.
+        return '<span class="app-state app-state--' . $art . '" title="' . $text . '">'
              . '<span class="app-state__dot" aria-hidden="true"></span>'
-             . $text
+             . '<span class="app-state__text">' . $text . '</span>'
              . '</span>';
     }
 

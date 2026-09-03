@@ -96,9 +96,9 @@ window.webrtcApp.locationsTable = {
      * @returns {string} HTML
      */
     stateHtml(art, text) {
-        return '<span class="app-state app-state--' + art + '">'
+        return '<span class="app-state app-state--' + art + '" title="' + this.esc(text) + '">'
              + '<span class="app-state__dot" aria-hidden="true"></span>'
-             + this.esc(text)
+             + '<span class="app-state__text">' + this.esc(text) + '</span>'
              + '</span>';
     },
 
@@ -482,7 +482,67 @@ window.webrtcApp.locationsTable = {
         }
 
         $table.find('tbody').html(rows);
-        $table.DataTable(this.dataTablesOptions());
+        $table.DataTable(this.dataTablesOptions(options));
+    },
+
+    /**
+     * Gibt jeder Spalte eine Klasse aus ihrer Kennung.
+     *
+     * WOZU
+     * ----
+     * Die Responsive-Erweiterung entscheidet ueber das Einklappen anhand
+     * einer Mindestbreite je Spalte. Diese Breite misst sie NICHT am Inhalt
+     * der Zellen, sondern an der KOPFZELLE: Sie baut die Tabelle in einem
+     * 1px breiten, unsichtbaren Behaelter noch einmal auf und nimmt die
+     * Breite jedes <th> als Minimum (dataTables.responsive.js,
+     * _columnsMinWidth).
+     *
+     * Fuer die meisten Spalten stimmt das ungefaehr - "Land" ist so breit
+     * wie "Portugal". Fuer zwei Spalten nicht:
+     *
+     *   Beschreibung  Der Kopf ist 123px breit, ein brauchbarer Freitext
+     *                 braucht mehr. Ohne Angabe quetscht die Erweiterung ihn
+     *                 auf vier Zeilen, statt die Spalte einzuklappen.
+     *   Aktionen      Der Kopf ist 92px breit, darin stehen aber der Knopf
+     *                 "Anrufen" und bis zu drei Symbolknoepfe nebeneinander.
+     *
+     * Ueber die Klasse laesst sich in theme.css eine Mindestbreite setzen.
+     * Die Erweiterung misst sie beim Nachbau mit und klappt dann ein, sobald
+     * es wirklich eng wird - und nicht erst, wenn der Inhalt schon zerdrueckt
+     * ist.
+     *
+     * @param {Object} options
+     * @returns {Array} columnDefs fuer DataTables
+     */
+    columnDefs(options) {
+        return this.columnKeys(this.withDefaults(options)).map((key, i) => ({
+            targets: i,
+            className: 'col-' + key,
+            responsivePriority: this.COLUMN_PRIORITY[key] ?? 100
+        }));
+    },
+
+    /**
+     * In welcher Reihenfolge Spalten weichen, wenn es eng wird.
+     *
+     * Kleinere Zahl heisst: bleibt laenger stehen. Ohne diese Angabe raeumt
+     * die Responsive-Erweiterung von RECHTS nach links ab - und rechts steht
+     * die Aktionsspalte. Bei 800px Fensterbreite verschwand dadurch als
+     * Erstes der Knopf "Anrufen", also genau das, wofuer die Liste da ist.
+     *
+     * Die Reihenfolge ergibt sich aus der Frage, was man in dieser Liste
+     * tut: anrufen. Dafuer braucht man den Knopf, den Zustand (ist jemand
+     * da?) und den Ort. Der Freitext ist das Erste, worauf man verzichten
+     * kann - er steht nach dem Aufklappen weiterhin vollstaendig da.
+     */
+    COLUMN_PRIORITY: {
+        actions:     1,   // der Anruf - bleibt am laengsten
+        status:      2,   // ist gerade jemand da?
+        city:        3,
+        country:     4,
+        user:        5,   // der Name des Guides
+        nr:          6,
+        description: 10   // weicht als Erstes
     },
 
     /**
@@ -510,9 +570,35 @@ window.webrtcApp.locationsTable = {
      *
      * @returns {Object}
      */
-    dataTablesOptions() {
+    dataTablesOptions(options) {
         return {
             responsive: true,
+
+            // Jede Spalte bekommt ihre Kennung als Klasse. Damit steht in
+            // assets/css/theme.css, wie schmal eine Spalte werden darf -
+            // siehe columnDefs weiter unten und die Erklaerung dort.
+            columnDefs: this.columnDefs(options),
+
+            // WARUM autoWidth AUS IST
+            // -----------------------
+            // Mit der Vorgabe (true) misst DataTables die Tabelle EINMAL beim
+            // Aufbau und schreibt das Ergebnis als feste Breite in das
+            // style-Attribut - hier waren das 1202px. Diese Zahl bleibt
+            // stehen, auch wenn das Fenster kleiner wird: Die Tabelle war bei
+            // 400px Fensterbreite immer noch 1202px breit und ragte aus ihrem
+            // Bereich heraus.
+            //
+            // Die Responsive-Erweiterung merkt davon nichts. Sie rechnet mit
+            // einer ganz anderen Groesse - der Summe der KOPFZELLEN-Breiten
+            // (hier 623px) gegen die Breite des Behaelters. Solange die
+            // Kopfzeilen passen, klappt sie nichts ein, auch wenn die Tabelle
+            // laengst 450px uebersteht. Genau das war der Fehler.
+            //
+            // Mit autoWidth: false schreibt DataTables keine feste Breite
+            // mehr. Die Tabelle bleibt bei 100% ihres Behaelters, die Spalten
+            // schrumpfen mit, und die Rechnung der Erweiterung stimmt wieder
+            // mit dem ueberein, was man sieht.
+            autoWidth: false,
             // l = Laengenauswahl, f = Suchfeld, t = Tabelle,
             // i = Anzahlangabe, p = Blaetterleiste
             dom: '<"app-dt-top"lf>t<"app-dt-bottom"ip>',

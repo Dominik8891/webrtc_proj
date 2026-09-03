@@ -2620,3 +2620,69 @@ html div.dtr-modal div.dtr-modal-background {
     --bs-form-select-bg-img: var(--app-select-chevron);
     background-image: var(--app-select-chevron);
 }
+
+/* ---------------------------------------------------------------------------
+   Mindestbreiten der Standortlisten
+   ---------------------------------------------------------------------------
+   Die Klassen kommen aus columnDefs() in assets/js/locations_table.js und
+   heissen wie die Spaltenkennungen aus columnKeys().
+
+   WOZU DAS NOETIG IST
+   Die Responsive-Erweiterung baut die Tabelle zum Messen in einem 1px
+   breiten Behaelter nach und nimmt die Breite jeder Spalte als deren
+   Minimum (dataTables.responsive.js, _resizeAuto). In einem so schmalen
+   Behaelter bricht jeder Text auf sein LAENGSTES WORT um. Fuer die
+   Beschreibung kam dabei 123px heraus - die Breite von
+   "Aussichtspunkte.". Die Erweiterung hielt eine Spalte also fuer
+   ausreichend, in der ein Satz auf vier Zeilen steht.
+
+   WARUM DIE ANGABE AM <td> STEHT UND NICHT AM <th>
+   Die Erweiterung setzt auf den geklonten KOPFZELLEN ausdruecklich
+   min-width auf 0 (dieselbe Methode, .css('min-width', 0)). Eine Angabe am
+   <th> ist damit wirkungslos - das war der erste, fehlgeschlagene Versuch.
+   Die geklonten Koerperzellen fasst sie nicht an; dort greift die Angabe.
+
+   Betroffen sind zwei Spalten:
+     Beschreibung  Freitext. Ohne Untergrenze schrumpft er auf ein Wort.
+     Aktionen      Enthaelt den Knopf "Anrufen" und bis zu drei
+                   Symbolknoepfe nebeneinander (.app-actions-cell ist
+                   nowrap, damit sie eine Gruppe bleiben).
+
+   Die Werte sind bewusst knapp: Sie sollen den Zeitpunkt des Einklappens
+   richtig stellen, nicht die Spalten aufblaehen.
+   --------------------------------------------------------------------------- */
+
+table.dataTable td.col-description { min-width: 200px; }
+table.dataTable td.col-actions     { min-width: 130px; }
+
+/* ---------------------------------------------------------------------------
+   Zustandsanzeige auf sehr schmalen Schirmen
+   ---------------------------------------------------------------------------
+   Die Benutzerliste ist eine gewoehnliche Tabelle ohne DataTables; sie kann
+   keine Spalten einklappen. Ihr schmalstmoegliches Mass lag bei 517px, vor
+   allem wegen der Zustandsspalte ("Im Gespräch") und der beiden Knopfgruppen,
+   die nicht umbrechen duerfen. Darunter schob sie sich aus ihrem Bereich.
+
+   Statt eine ganze Spalte zu verstecken - und damit eine Auskunft ganz zu
+   verlieren - faellt hier nur die BESCHRIFTUNG weg. Der Punkt bleibt, und
+   der unterscheidet die drei Zustaende ohnehin durch seine Form
+   (gefuellt / Ring / hohl), nicht durch die Beschriftung.
+
+   Ausgeblendet wird nur fuer das Auge: Das Element bleibt im Dokument und
+   messbar gross, damit Vorleseprogramme "Online" weiterhin vorlesen. Ein
+   display:none haette den Zustand fuer sie ersatzlos entfernt. Zusaetzlich
+   traegt die Anzeige ein title-Attribut - so laesst sich die Bedeutung auch
+   mit der Maus nachschlagen. */
+@media (max-width: 560px) {
+    .app-state__text {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+        border: 0;
+    }
+}
