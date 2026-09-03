@@ -24,8 +24,10 @@ use App\Model\User;
  *   1. Über die Einstellungsseite (App\Controller\SettingsController).
  *   2. Über den Knopf der Kopfleiste, der für einen Zuschauer "Jetzt
  *      Tour-Guide werden!" heißt (assets/js/ui.js).
+ *   3. Vor dem Standortformular, wenn die Zustimmung zu den Bedingungen
+ *      fehlt oder veraltet ist - siehe requireCurrentTerms().
  *
- * Beide Wege zeigen dieselbe Seite, nur mit anderen Knöpfen - der Text, der
+ * Alle Wege zeigen dieselbe Seite, nur mit anderen Knöpfen - der Text, der
  * die Rolle erklärt, steht damit an genau einer Stelle.
  *
  * NICHT MEHR NACH DEM LOGIN. Die Frage stand früher als ganzseitiger Dialog
@@ -52,10 +54,27 @@ class GuideController
         $role      = Auth::roleId();
         $is_guide  = Role::isGuide($role);
         $undecided = Role::isUndecided($role);
+        // Guide, dessen Zustimmung eine ältere Fassung trägt oder ganz fehlt.
+        // Er ist hier meist nicht freiwillig, sondern weil ihn das
+        // Standortformular hergeschickt hat (requireCurrentTerms).
+        $terms_open = $is_guide && GuideRole::needsDecision(Auth::userId(), $role);
 
-        // Der Hinweis auf die Kosten steht im Template und gilt für alle drei
+        // Der Hinweis auf die Kosten steht im Template und gilt für alle
         // Fälle. Hier unterscheiden sich nur Statuszeile und Knöpfe.
-        if ($is_guide) {
+        if ($terms_open) {
+            // OHNE DIESEN ZWEIG WÄRE DIE WEITERLEITUNG EINE SACKGASSE: Ein
+            // Guide bekam bisher nur "Guide-Rolle zurückgeben" zu sehen - also
+            // keine Möglichkeit, das zu tun, wozu er hergeschickt wurde.
+            // GuideRole::accept() kann den Fall längst (es frischt bei einem
+            // Guide nur das Profil auf und lässt die Rolle stehen), es fehlte
+            // allein der Knopf.
+            $status  = 'Sie sind <strong>Guide</strong>. Die Bedingungen haben sich '
+                     . 'geändert - bitte bestätigen Sie die neue Fassung. Bis dahin '
+                     . 'können Sie keine weiteren Standorte anlegen; Ihre '
+                     . 'bestehenden bleiben unberührt.';
+            $actions = self::button('accept', 'Neue Bedingungen bestätigen', 'btn-success')
+                     . self::button('resign', 'Guide-Rolle zurückgeben', 'btn-outline-danger');
+        } elseif ($is_guide) {
             $status  = 'Sie sind <strong>Guide</strong> und können Standorte anbieten.';
             $actions = self::button('resign', 'Guide-Rolle zurückgeben', 'btn-outline-danger');
         } else {
@@ -77,7 +96,7 @@ class GuideController
             ? '<div class="mt-3"><a href="index.php?act=home" class="link-secondary">Später entscheiden</a></div>'
             : '';
 
-        $hint = self::hintFor($role);
+        $hint = self::hintFor($role, $terms_open);
 
         $out = str_replace('###GUIDE_STATUS###',  $status,  $out);
         $out = str_replace('###GUIDE_ACTIONS###', $actions, $out);
@@ -85,6 +104,41 @@ class GuideController
         $out = str_replace('###GUIDE_HINT###',    $hint,    $out);
 
         ViewHelper::output($out);
+    }
+
+    /**
+     * Haelt an, solange die Zustimmung zu den Guide-Bedingungen fehlt oder
+     * veraltet ist - und fuehrt in dem Fall zur Frage.
+     *
+     * WO DAS GILT UND WARUM GENAU DORT
+     * --------------------------------
+     * Aufgerufen wird das aus App\Controller\LocationController, also dort,
+     * wo ein Guide seine Rolle tatsaechlich benutzt: Er stellt ein Angebot in
+     * die Welt. Das ist der einzige guide-eigene Vorgang, der NICHT in
+     * Echtzeit laeuft - man kann dort anhalten und fragen, ohne dass jemand
+     * am anderen Ende wartet.
+     *
+     * Im Signalweg waere die Pruefung fachlich naeher dran (dort entsteht die
+     * Leistung, an der spaeter Geld haengt), praktisch aber die schlechteste
+     * Stelle: Waehrend es klingelt, kann der Guide nichts entscheiden, und
+     * der Anrufer bekaeme "bietet keine Fuehrungen an" - was nicht stimmt.
+     * Eine Frage, die der Betroffene nicht beantworten kann, ist keine Frage.
+     *
+     * DER ADMIN KOMMT HIER NICHT HAENGEN. GuideRole::needsDecision() meldet
+     * sich nur fuer Trial und fuer Guides mit veralteter Zustimmung. Der
+     * Admin ist beides nicht - und das ist wesentlich: Er darf Standorte
+     * anlegen (location.create), hat aber kein user.guide_role. Eine
+     * Weiterleitung auf die Dialogseite endete fuer ihn in einer Absage von
+     * index.php.
+     *
+     * @return void kehrt nur zurueck, wenn nichts offen ist
+     */
+    public static function requireCurrentTerms(): void
+    {
+        if (!GuideRole::needsDecision(Auth::userId(), Auth::roleId())) return;
+
+        header('Location: index.php?act=guide_role_page');
+        exit;
     }
 
     /**
@@ -194,10 +248,15 @@ class GuideController
      * Zusätzlicher Hinweis unter den Knöpfen, je nach Zustand des Kontos.
      *
      * @param mixed $in_role
+     * @param bool  $in_terms_open Zustimmung fehlt oder ist veraltet
      * @return string
      */
-    private static function hintFor($in_role): string
+    private static function hintFor($in_role, bool $in_terms_open = false): string
     {
+        if ($in_terms_open) {
+            return '<p class="text-muted small mb-0">Die Bestätigung gilt ab sofort. An Ihren '
+                 . 'bestehenden Standorten ändert sich dadurch nichts.</p>';
+        }
         if (Role::isGuide($in_role)) {
             return '<p class="text-muted small mb-0">Solange Sie noch Standorte anbieten, '
                  . 'lässt sich die Rolle nicht zurückgeben - löschen Sie diese zuerst unter '

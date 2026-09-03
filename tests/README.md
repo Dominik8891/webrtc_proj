@@ -35,7 +35,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (67 Prüfungen)
+## Was `client_test.js` prüft (69 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -118,11 +118,16 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     Entschieden wird über `window.userCan` aus `ViewHelper::output`; `ui.js`
     kennt selbst keine Rollennamen mehr.
 
-    Geprüft wird zusätzlich das **Ziel** der beiden Beschriftungen: Der Guide
+    Geprüft wird zusätzlich das **Ziel** der Beschriftungen: Der Guide
     kommt zum Standortformular (`act=set_location_page`), der Zuschauer zur
     Frage nach der Guide-Rolle (`act=guide_role_page`) — und ausdrücklich
     *nicht* mehr zum Formular. Früher führten beide dorthin, und wer es
     ausfüllte, war anschließend Guide, ohne je gefragt worden zu sein.
+
+    Und der dritte Fall: `termsOutdated` geht dem Anlege-Knopf **vor** —
+    „Neue Bedingungen bestätigen" statt „Neue Lokation hinzufügen", weil das
+    Formular dahinter ohnehin zur Frage weiterleitet. Ohne offenen Punkt
+    bleibt es beim Anlege-Knopf.
 
 ### Zeitkonstanten im Test
 
@@ -132,7 +137,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (127 Prüfungen)
+## Was `server_test.php` prüft (131 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -263,6 +268,24 @@ die Tests nicht an. Das ist Absicht.
 12. **Jeder Platzhalter im Template wird auch gefüllt** — jedes `###MARKE###`
     in `guide_role.html` und `settings.html` kommt im zugehörigen Controller
     vor. Ein vergessener Platzhalter steht sonst wörtlich auf der Seite.
+
+12b. **Veraltete Guide-Bedingungen greifen dort, wo die Rolle benutzt wird** —
+    `GuideRole::needsDecision()` stand eine Weile ohne Aufrufer da (der Login
+    stellt die Frage nicht mehr), eine erhöhte `TERMS_VERSION` wirkte dadurch
+    überhaupt nicht. Geprüft wird jetzt, dass `requireCurrentTerms()` existiert
+    und nach der Zustimmung fragt, und dass **beide** Methoden des
+    `LocationController` sie aufrufen — auch `setLocation()`, denn ein POST
+    erreicht sie ohne den Umweg über das Formular.
+
+    Dazu drei Bedingungen, die leicht zu übersehen sind: Der **Admin** darf
+    Standorte anlegen, hat aber kein `user.guide_role` — `needsDecision()` muss
+    für ihn `false` bleiben (und tut es ohne Datenbankzugriff), sonst liefe er
+    in eine Weiterleitung auf eine Seite, die ihn abweist. Die Dialogseite muss
+    dem Guide ein **`accept`** anbieten, sonst ist die Weiterleitung eine
+    Sackgasse — vorher sah er dort nur „Guide-Rolle zurückgeben". Und der
+    offene Punkt muss **sichtbar** sein, bevor jemand am gesperrten Formular
+    ankommt: in `SettingsController` und über `termsOutdated` in
+    `window.userCan` bis in `ui.js`.
 
 24. **Chat: die Beteiligung wird geprüft** — ein Unbeteiligter schreibt nicht
     in einen fremden Chat, nimmt keine fremde Einladung an und setzt keine

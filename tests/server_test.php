@@ -27,6 +27,8 @@ require_once $ROOT . '/class/Helper/Url.php';
 require_once $ROOT . '/class/Model/Chat.php';
 require_once $ROOT . '/class/Model/ChatMessage.php';
 require_once $ROOT . '/class/Controller/ChatController.php';
+// Die Guide-Frage und die Stelle, die sie beim Standortformular stellt.
+require_once $ROOT . '/class/Controller/GuideController.php';
 
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
@@ -1035,6 +1037,65 @@ foreach ($vorlagen as $vorlage => $controller) {
     }
 }
 ok('guide_role.html und settings.html haben keinen unbesetzten Platzhalter');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n12b) Veraltete Guide-Bedingungen greifen dort, wo die Rolle benutzt wird\n");
+
+// GuideRole::needsDecision() stand eine Weile ohne Aufrufer da - der Login
+// stellte die Frage nicht mehr, und eine erhoehte TERMS_VERSION wirkte
+// dadurch ueberhaupt nicht. Die Pruefung sitzt jetzt dort, wo ein Guide seine
+// Rolle tatsaechlich benutzt: beim Anlegen eines Standorts.
+$guideCode = file_get_contents($ROOT . '/class/Controller/GuideController.php');
+$locCode   = file_get_contents($ROOT . '/class/Controller/LocationController.php');
+
+check(method_exists('App\\Controller\\GuideController', 'requireCurrentTerms'),
+    'GuideController::requireCurrentTerms fehlt');
+check(strpos(methodenRumpf($guideCode, 'requireCurrentTerms'), 'needsDecision') !== false,
+    'requireCurrentTerms fragt gar nicht nach der Zustimmung');
+
+// BEIDE Methoden, nicht nur die Seite: Ein POST erreicht setLocation() auch
+// ohne den Umweg ueber das Formular. Eine Pruefung, die sich durch
+// Ueberspringen der Seite umgehen laesst, ist keine.
+foreach (['setLocationPage', 'setLocation'] as $methode) {
+    check(strpos(methodenRumpf($locCode, $methode), 'requireCurrentTerms') !== false,
+        "LocationController::$methode() prueft die Zustimmung nicht");
+}
+ok('das Standortformular haelt an, solange die Zustimmung offen ist');
+
+// Der Admin darf Standorte anlegen (location.create), hat aber kein
+// user.guide_role. Wuerde ihn requireCurrentTerms zur Dialogseite schicken,
+// endete das in einer Absage von index.php - deshalb muss needsDecision()
+// fuer ihn falsch bleiben. Ohne Datenbankzugriff, denn seine Rolle genuegt.
+$adminDb = new FakeConnection();
+PdoConnect::$connection = $adminDb;
+check(GuideRole::needsDecision(1, Role::ADMIN) === false, 'der Admin wird nicht gefragt');
+check(count($adminDb->statements) === 0, 'und dafuer wird nichts abgefragt');
+check(Permission::has(Role::ADMIN, Permission::LOCATION_CREATE) === true, 'er legt aber an');
+check(Permission::has(Role::ADMIN, Permission::USER_GUIDE_ROLE) === false,
+    'und kaeme auf der Dialogseite nicht durch');
+ok('der Admin laeuft nicht in eine Weiterleitung, die er nicht aufrufen darf');
+
+// Die Weiterleitung darf keine Sackgasse sein: Ein Guide mit veralteter
+// Zustimmung braucht auf der Dialogseite einen Knopf zum Zustimmen. Vorher
+// sah er dort ausschliesslich "Guide-Rolle zurueckgeben".
+$dialog = methodenRumpf($guideCode, 'showGuideRolePage');
+check(strpos($dialog, 'needsDecision') !== false,
+    'die Dialogseite unterscheidet den Fall gar nicht');
+check(preg_match("/button\('accept'/", $dialog) === 1,
+    'die Dialogseite bietet dem Guide kein Zustimmen an');
+ok('wer hergeschickt wird, kann dort auch zustimmen');
+
+// Sichtbar, nicht nur sperrend: Einstellungsseite und Kopfleiste sagen es,
+// bevor jemand am gesperrten Formular ankommt.
+check(strpos(methodenRumpf(file_get_contents($ROOT . '/class/Controller/SettingsController.php'),
+    'showSettingsPage'), 'needsDecision') !== false,
+    'die Einstellungen zeigen den offenen Punkt nicht');
+$viewCode = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
+check(strpos($viewCode, "'termsOutdated'") !== false,
+    'window.userCan meldet den offenen Punkt nicht an den Client');
+check(strpos(file_get_contents($ROOT . '/assets/js/ui.js'), 'termsOutdated') !== false,
+    'der Knopf der Kopfleiste wertet ihn nicht aus');
+ok('Einstellungen und Kopfleiste melden offene Bedingungen');
 
 // ---------------------------------------------------------------------
 fwrite(STDERR, "\n13) Die oeffentliche Karte gibt keine Personendaten heraus\n");

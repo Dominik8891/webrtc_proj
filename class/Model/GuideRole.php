@@ -45,27 +45,39 @@ class GuideRole
      * werden -, gilt jede aeltere Zustimmung als ueberholt: needsDecision()
      * meldet sich dann fuer diesen Guide.
      *
-     * ACHTUNG, DAS FRAGT DERZEIT NIEMAND AB. Bis vor Kurzem stellte der Login
-     * die Frage von selbst; dieser Dialog ist entfallen, weil er einen frisch
-     * registrierten Nutzer vor die Rollenfrage stellte, bevor er die
-     * Anwendung gesehen hatte (LoginController::continueAfterLogin). Damit
-     * hat needsDecision() heute keinen Aufrufer mehr: Eine erhoehte
-     * Fassungsnummer wirkt sich von allein NICHT aus.
+     * WO SICH DAS AUSWIRKT
+     * --------------------
+     *   1. SPERREND beim Anlegen eines Standorts. Das Formular fuehrt zur
+     *      Frage, statt sich zu oeffnen
+     *      (App\Controller\GuideController::requireCurrentTerms, aufgerufen
+     *      aus App\Controller\LocationController). Das ist die Stelle, an
+     *      der ein Guide seine Rolle wirklich benutzt - und die einzige, die
+     *      nicht in Echtzeit laeuft.
+     *   2. SICHTBAR in den Einstellungen ("Aktiv - neue Bedingungen offen")
+     *      und auf dem Knopf der Kopfleiste ("Neue Bedingungen bestaetigen",
+     *      ueber window.userCan.termsOutdated aus ViewHelper::output).
      *
-     * Beim Hochzaehlen ist deshalb dreierlei zu tun:
+     * NICHT im Signalweg: Waehrend es klingelt, kann der Guide nichts
+     * entscheiden, und der Anrufer bekaeme eine Absage, die nicht stimmt.
+     * Bestehende Standorte bleiben ebenfalls stehen - sie aus der Karte zu
+     * nehmen waere still, der Guide merkte nur, dass niemand mehr anruft.
+     * Das ist der richtige Schritt erst, wenn wirklich abgerechnet wird.
+     *
+     * Beim Hochzaehlen ist zweierlei zu tun:
      *   1. diese Konstante erhoehen,
-     *   2. den Text in assets/html/guide_role.html anpassen,
-     *   3. einen Weg schaffen, auf dem der betroffene Guide die neue Fassung
-     *      auch vorgelegt bekommt - ein Hinweis auf der Startseite oder in
-     *      den Einstellungen, nicht wieder eine Sperre nach dem Login.
+     *   2. den Text in assets/html/guide_role.html anpassen.
+     * Der Rest stellt sich von selbst ein - aber siehe den Hinweis bei
+     * rememberAcceptance(): Vor der ersten neuen Fassung gehoert die
+     * Verlaufstabelle angelegt, sonst geht die alte Zustimmung verloren.
      */
     public const TERMS_VERSION = 1;
 
     /**
      * Muss diesem Konto die Guide-Frage gestellt werden?
      *
-     * Die Frage beantwortet diese Methode weiterhin richtig, aber es fragt
-     * sie zurzeit niemand - siehe den Hinweis bei TERMS_VERSION.
+     * Gefragt wird von GuideController::requireCurrentTerms (sperrend, vor dem
+     * Standortformular) sowie von SettingsController und ViewHelper fuer die
+     * Anzeige - siehe TERMS_VERSION.
      *
      * Zwei Faelle:
      *   1. Die Rolle ist Trial. Trial heisst "hat sich noch nicht
@@ -241,6 +253,17 @@ class GuideRole
      *
      * Legt das Profil an oder frischt es auf. `resigned_at` wird dabei
      * geleert - wer die Rolle erneut annimmt, ist wieder aktiver Guide.
+     *
+     * ES BLEIBT EINE ZEILE JE KONTO, und sie wird ueberschrieben. Stimmt ein
+     * Guide einer neuen Fassung zu, sind die alte Fassungsnummer, ihr
+     * Zeitpunkt und das urspruengliche `guide_since` danach weg. Fuer die
+     * heutige Frage ("hat er der geltenden Fassung zugestimmt") reicht das.
+     * Fuer eine Abrechnung reicht es NICHT: Dort muss nachvollziehbar sein,
+     * unter welchen Bedingungen eine bestimmte Fuehrung stattfand. Wer die
+     * Abrechnung baut, braucht davor eine Verlaufstabelle
+     * (guide_terms_acceptance: user_id, terms_version, accepted_at) - und
+     * zwar bevor die erste neue Fassung erscheint, nicht danach: Was hier
+     * ueberschrieben wurde, laesst sich nicht wiederherstellen.
      *
      * @param int $in_user_id
      * @return bool

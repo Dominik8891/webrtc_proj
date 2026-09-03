@@ -612,6 +612,25 @@ function ackLastMove(status = 'executed', reason) {
         assert.strictEqual(show(true, undefined), '');
         ok('fehlendes window.userCan blendet aus, statt zu scheitern');
 
+        // Ein Guide, dessen Zustimmung eine aeltere Fassung der Bedingungen
+        // traegt: Der offene Punkt geht dem Anlege-Knopf VOR. Das Formular
+        // dahinter wuerde ihn ohnehin zur Frage weiterleiten
+        // (GuideController::requireCurrentTerms) - dann soll der Knopf nicht
+        // so tun, als ginge es um einen Standort.
+        const offen = show(true, { offerLocation: true, becomeGuide: false, termsOutdated: true });
+        assert.ok(offen.includes('Neue Bedingungen'), 'der offene Punkt steht nicht auf dem Knopf');
+        assert.ok(offen.includes('act=guide_role_page'), 'und fuehrt nicht zur Frage');
+        assert.ok(!offen.includes('act=set_location_page'),
+            'der Knopf fuehrt weiter an ein Formular, das ihn wegschickt');
+        assert.strictEqual(btn().style.display, '');
+        ok('offene Bedingungen gehen dem Anlege-Knopf vor');
+
+        // Und nur dann: Ohne offenen Punkt bleibt es beim Anlege-Knopf.
+        const normal = show(true, { offerLocation: true, becomeGuide: false, termsOutdated: false });
+        assert.ok(normal.includes('Neue Lokation hinzuf'), 'der Regelfall hat sich veraendert');
+        assert.ok(!normal.includes('Neue Bedingungen'), 'die Warnung erscheint ohne Anlass');
+        ok('ohne offenen Punkt bleibt es beim Anlege-Knopf');
+
         window.isLoggedIn = true;
     }
 

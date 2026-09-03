@@ -1,6 +1,7 @@
 <?php
 namespace App\Helper;
 
+use App\Model\GuideRole;
 use App\Model\User;
 use App\Helper\Theme;
 
@@ -246,6 +247,18 @@ class ViewHelper
             'becomeGuide'   => Role::mayBecomeGuide($user_role_id),
             'blockLocation' => Auth::can(Permission::LOCATION_BLOCK),
             'manageUsers'   => Auth::can(Permission::USER_MANAGE),
+            // Guide, dessen Zustimmung eine aeltere Fassung der Bedingungen
+            // traegt (App\Model\GuideRole::TERMS_VERSION). Er darf weiterhin
+            // alles, was ein Guide darf - nur sein naechster Standort geht
+            // erst durch, wenn er zugestimmt hat
+            // (GuideController::requireCurrentTerms). Der Knopf der Kopfleiste
+            // sagt ihm das, bevor er am gesperrten Formular ankommt.
+            //
+            // Nur fuer Guides: Ein Trial-Konto meldet needsDecision() ebenfalls,
+            // aber bei ihm ist nichts "veraltet" - es hat die Frage schlicht
+            // noch nicht beantwortet, und dafuer gibt es becomeGuide.
+            'termsOutdated' => Role::isGuide($user_role_id)
+                && GuideRole::needsDecision(Auth::userId(), $user_role_id),
         ];
 
         $logged_in_script = '<script>window.isLoggedIn = ' . $logged_in . ';</script>' . $user_id_script;

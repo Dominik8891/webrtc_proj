@@ -16,11 +16,18 @@ window.webrtcApp.ui = {
      * und 'tourist' gibt es dort überhaupt nicht. Der Button war dadurch für
      * jede Rolle unsichtbar (Befund F-5).
      *
-     * Die beiden Beschriftungen führen an verschiedene Stellen, und das ist
-     * der Kern der Sache: "Neue Lokation hinzufügen" öffnet das
-     * Standortformular, "Jetzt Tour-Guide werden!" dagegen die Frage nach der
-     * Guide-Rolle. Früher führten beide zum Formular - und wer es ausfüllte,
-     * war anschließend Guide, ohne je gefragt worden zu sein.
+     * Die Beschriftungen führen an verschiedene Stellen, und das ist der Kern
+     * der Sache: "Neue Lokation hinzufügen" öffnet das Standortformular,
+     * "Jetzt Tour-Guide werden!" dagegen die Frage nach der Guide-Rolle.
+     * Früher führten beide zum Formular - und wer es ausfüllte, war
+     * anschließend Guide, ohne je gefragt worden zu sein.
+     *
+     * DER DRITTE FALL geht dem ersten vor: Ein Guide, dessen Zustimmung eine
+     * ältere Fassung der Bedingungen trägt (userCan.termsOutdated), bekommt
+     * "Neue Bedingungen bestätigen" statt des Anlege-Knopfes. Das Formular
+     * dahinter würde ihn ohnehin zur Frage weiterleiten
+     * (GuideController::requireCurrentTerms) - dann soll der Knopf ihn auch
+     * gleich dorthin führen und nicht so tun, als ginge es um einen Standort.
      */
     showLocationButton: function() {
         // Beide Beschriftungen sitzen auf einem Sekundaerknopf. Der Akzent
@@ -33,7 +40,10 @@ window.webrtcApp.ui = {
         let text = '';
         let target = '';
         if (window.isLoggedIn && window.userCan) {
-            if (window.userCan.offerLocation) {
+            if (window.userCan.termsOutdated) {
+                text = 'Neue Bedingungen bestätigen';
+                target = 'index.php?act=guide_role_page';
+            } else if (window.userCan.offerLocation) {
                 text = 'Neue Lokation hinzufügen';
                 target = 'index.php?act=set_location_page';
             } else if (window.userCan.becomeGuide) {

@@ -27,11 +27,19 @@ class LocationController
 {
     /**
      * Zeigt das Formular zum Setzen einer Location an.
-     * Zugang: Recht location.create, geprüft in index.php.
+     *
+     * Zugang: Recht location.create, geprüft in index.php. Zusätzlich die
+     * Zustimmung zu den geltenden Guide-Bedingungen - das kann eine
+     * Rechtetabelle nicht wissen, weil es nicht an der Rolle hängt, sondern
+     * an der Fassung, der dieses Konto zugestimmt hat
+     * (GuideController::requireCurrentTerms).
+     *
      * @return void
      */
     public function setLocationPage()
     {
+        GuideController::requireCurrentTerms();
+
         $out = ViewHelper::template('assets/html/set_location.html');
         ViewHelper::output($out);
     }
@@ -44,10 +52,17 @@ class LocationController
      * Guide und Admin. Die Rolle ändert sich hier NICHT mehr; darüber
      * entscheidet der Dialog in App\Controller\GuideController.
      *
+     * Die Zustimmung wird auch hier geprüft und nicht nur beim Anzeigen des
+     * Formulars: Ein POST erreicht diese Methode auch ohne den Umweg über die
+     * Seite davor. Eine Prüfung, die sich umgehen lässt, indem man das
+     * Formular überspringt, ist keine.
+     *
      * @return void
      */
     public function setLocation()
     {
+        GuideController::requireCurrentTerms();
+
         if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $country_id  = Request::g('country');
             $city        = Request::g('city');

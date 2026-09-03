@@ -7,6 +7,7 @@ use App\Helper\Request;
 use App\Helper\Role;
 use App\Helper\Theme;
 use App\Helper\ViewHelper;
+use App\Model\GuideRole;
 use App\Model\User;
 
 /**
@@ -40,12 +41,32 @@ class SettingsController
         // das Recht user.guide_role: Der Admin sieht seinen Status, aber
         // keinen Knopf - er wuerde beim Wechsel seine Adminrechte verlieren.
         // Der erklaerende Text steht auf der Dialogseite, nicht hier.
+        //
+        // DRITTER ZUSTAND: "Aktiv, neue Bedingungen offen". Ein Guide, dessen
+        // Zustimmung eine aeltere Fassung traegt (GuideRole::TERMS_VERSION),
+        // ist weiterhin Guide - aber sein naechster Standort geht erst
+        // durch, wenn er der neuen Fassung zugestimmt hat
+        // (GuideController::requireCurrentTerms). Das gehoert hierhin
+        // geschrieben, statt ihn erst am gesperrten Formular davon erfahren
+        // zu lassen.
         $isGuide     = Role::isGuide(Auth::roleId());
+        $termsOpen   = $isGuide && GuideRole::needsDecision(Auth::userId(), Auth::roleId());
         $guideStatus = $isGuide ? 'Aktiv' : 'Nicht aktiv';
+        if ($termsOpen) {
+            $guideStatus = 'Aktiv <span class="text-warning">&ndash; neue Bedingungen offen</span>';
+        }
         $guideBtn    = '';
         if (Auth::can(Permission::USER_GUIDE_ROLE)) {
-            $guideLabel = $isGuide ? 'Guide-Rolle ändern' : 'Guide werden';
-            $guideBtn   = "<a href='index.php?act=guide_role_page' class='btn btn-outline-primary btn-sm'>"
+            if ($termsOpen) {
+                $guideLabel = 'Neue Bedingungen bestätigen';
+            } else {
+                $guideLabel = $isGuide ? 'Guide-Rolle ändern' : 'Guide werden';
+            }
+            // Der offene Punkt traegt den Akzent, der Normalfall nicht: Ein
+            // Knopf, der etwas erledigen soll, muss sich von einem
+            // unterscheiden, der nur eine Seite oeffnet.
+            $guideCss   = $termsOpen ? 'btn-primary' : 'btn-outline-primary';
+            $guideBtn   = "<a href='index.php?act=guide_role_page' class='btn $guideCss btn-sm'>"
                         . $guideLabel . '</a>';
         }
 
