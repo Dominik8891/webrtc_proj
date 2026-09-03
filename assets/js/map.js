@@ -245,26 +245,49 @@ window.webrtcApp.locationMap = {
     },
 
     /**
-     * Wird ausgelöst, wenn ein Land gewählt wurde.
+     * Wird ausgeloest, wenn sich das Land geaendert hat - der EINZIGE Handler
+     * dafuer.
+     *
+     * Er muss zwei Faelle auseinanderhalten, sonst loescht er Arbeit, die
+     * gerade erst entstanden ist:
+     *
+     *   Der Nutzer waehlt ein Land. Dann ist alles bisher Eingetragene
+     *   hinfaellig: Stadt, Koordinaten und Ortsname werden geleert und die
+     *   Karte auf das Land zentriert.
+     *
+     *   Ein Klick auf die Karte (oder der Standortknopf) hat das Land aus den
+     *   Koordinaten abgeleitet und hier eingetragen. Dann sind die
+     *   Koordinaten das Ergebnis und duerfen nicht angeruehrt werden - sonst
+     *   loescht die Seite genau den Punkt wieder, den der Nutzer eben gesetzt
+     *   hat. Diesen Fall meldet landAusKoordinatenSetzen() ueber
+     *   countryJustSetByLocation an.
      */
     onCountryChange() {
+        const selectedOption = $('#countrySelect').find('option:selected');
+        const iso2 = selectedOption.data('iso2');
+        this.selectedCountryCode = selectedOption.val();
+
+        // Das Stadtfeld haengt allein am Land und wird in BEIDEN Faellen
+        // nachgezogen: die Staedtesuche ruft Nominatim mit countrycodes=<iso2>
+        // auf, ohne Land gibt es keinen Code. Bliebe das Feld nach einem
+        // Kartenklick gesperrt, schickte der Browser es beim Speichern gar
+        // nicht erst mit - gesperrte Felder werden nicht abgeschickt - und der
+        // Standort landete ohne Stadt in der Datenbank.
+        this.setzeStadtfeldZustand(!!iso2);
+
         if (this.countryJustSetByLocation) {
             this.countryJustSetByLocation = false;
             return;
         }
-        let selectedOption = $('#countrySelect').find('option:selected');
-        let countryName = selectedOption.data('country-name');
-        this.selectedCountryCode = selectedOption.val();
-        let iso2 = selectedOption.data('iso2');
 
-        if (!this.selectedCountryCode) {
-            // Alle Felder resetten
-            $('#citySelect').val('').trigger('change');
-            this.clearCoordsAndOsmPlace();
-            return;
-        }
+        // Ab hier: der Nutzer hat selbst gewaehlt.
+        $('#citySelect').val('').trigger('change');
+        this.clearCoordsAndOsmPlace();
+
+        if (!this.selectedCountryCode) return;
 
         // Map auf das gewählte Land zentrieren
+        const countryName = selectedOption.data('country-name');
         fetch('https://nominatim.openstreetmap.org/search?country=' + encodeURIComponent(countryName) + '&format=json')
             .then(resp => resp.json())
             .then(data => {
@@ -275,9 +298,42 @@ window.webrtcApp.locationMap = {
                     $('#countrySelect').val('').trigger('change');
                 }
             });
+    },
 
-        $('#citySelect').val('').trigger('change');
-        this.clearCoordsAndOsmPlace();
+    /**
+     * Traegt das Land ins Auswahlfeld ein, das zu einem Punkt auf der Karte
+     * gehoert - ohne die Koordinaten dieses Punktes zu verwerfen.
+     *
+     * Der Aufruf ist absichtlich an einer Stelle gebuendelt: Kartenklick und
+     * Standortknopf brauchen beide dasselbe, und beide muessen dabei die
+     * Markierung countryJustSetByLocation setzen. Wer das an zwei Stellen
+     * nachbaut, vergisst sie an einer.
+     *
+     * Passiert nichts, wenn kein Kuerzel kommt, das Land ohnehin schon
+     * gewaehlt ist oder in der Liste gar nicht vorkommt (die Liste ist auf
+     * die von OpenStreetMap unterstuetzten Laender begrenzt).
+     *
+     * @param {string} iso2 Zweibuchstabiges Laenderkuerzel aus dem Geocoding
+     * @returns {void}
+     */
+    landAusKoordinatenSetzen(iso2) {
+        if (typeof iso2 !== 'string' || !iso2) return;
+
+        const cc = iso2.toUpperCase();
+        if (this.getCurrentCountryIso2() === cc) return;
+
+        const countryOption = $('#countrySelect option').filter(function () {
+            return $(this).data('iso2') && $(this).data('iso2').toUpperCase() === cc;
+        });
+        if (!countryOption.length) return;
+
+        this.countryJustSetByLocation = true;
+        $('#countrySelect').val(countryOption.val()).trigger('change');
+        // Notnagel: .trigger() laeuft sofort, onCountryChange() nimmt die
+        // Markierung also gleich wieder zurueck. Bliebe sie doch einmal
+        // stehen - weil der Handler noch nicht gebunden war -, verschluckte
+        // sie den naechsten echten Landwechsel des Nutzers.
+        this.countryJustSetByLocation = false;
     },
 
     /**
@@ -331,16 +387,22 @@ window.webrtcApp.locationMap = {
             }, 100);
         });
 
-        // Nach Landwechsel alles zurücksetzen
-        $('#countrySelect').on('change', () => {
-            $('#citySelect').val('').trigger('change');
-            $('#latitude, #longitude, #lat, #lon, #osm_place').val('').text('');
-            // Stadtfeld nur freigeben, wenn tatsaechlich ein Land mit
-            // Laendercode gewaehlt ist - der Code ist Pflichtparameter der
-            // Nominatim-Suche.
-            const iso2 = $('#countrySelect option:selected').data('iso2');
-            this.setzeStadtfeldZustand(!!iso2);
-        });
+        // HIER STAND EIN ZWEITER change-HANDLER AUF #countrySelect.
+        //
+        // Er leerte bei jedem Landwechsel #latitude, #longitude, #lat, #lon
+        // und #osm_place - ohne jede Abfrage. Das war der Grund, warum sich
+        // der Punkt nicht per Mausklick auf die Karte setzen liess:
+        // onMapClick() fuellt die Koordinatenfelder, holt danach den Ortsnamen
+        // bei Nominatim und setzt aus der Antwort das erkannte Land. Dieses
+        // Setzen loeste 'change' aus - und der Handler hier loeschte die
+        // gerade gesetzten Koordinaten wieder. Zurueck blieb ein Formular, das
+        // vollstaendig aussah (Marker, Land, Stadt), aber ohne Koordinaten
+        // abgeschickt wurde; der Server wies es mit success=2 ab.
+        //
+        // onCountryChange() macht dieselbe Arbeit und kennt den Unterschied
+        // zwischen einem Landwechsel des Nutzers und einem, der aus einem
+        // Kartenklick folgt. Beides an einer Stelle, damit es nicht wieder
+        // auseinanderlaeuft.
 
         // Stadt gewählt → Felder & Marker setzen
         $('#citySelect').on('select2:select', (e) => {
@@ -491,16 +553,10 @@ window.webrtcApp.locationMap = {
             .then(data => {
                 $('#osm_place').text(data.display_name || '');
 
-                // Land im Select2 setzen, falls erkannt
-                if (data.address && data.address.country_code) {
-                    let cc = data.address.country_code.toUpperCase();
-                    let countryOption = $('#countrySelect option').filter(function () {
-                        return $(this).data('iso2') && $(this).data('iso2').toUpperCase() === cc;
-                    });
-                    if (countryOption.length && this.getCurrentCountryIso2() !== cc) {
-                        this.countryJustSetByLocation = true;
-                        $('#countrySelect').val(countryOption.val()).trigger('change');
-                    }
+                // Land im Select2 setzen, falls erkannt. Die Koordinaten
+                // oben ueberstehen das - siehe landAusKoordinatenSetzen().
+                if (data.address) {
+                    this.landAusKoordinatenSetzen(data.address.country_code);
                 }
                 let place = '';
                 if (data.address) {
@@ -541,31 +597,32 @@ window.webrtcApp.locationMap = {
                     if (!found) {
                         found = 'keine Stadt am Standort';
                     }
-                    if ($('#countrySelect').length && data.address && data.address.country_code) {
-                        let cc = data.address.country_code.toUpperCase();
-                        let countryOption = $('#countrySelect option').filter(function () {
-                            return $(this).data('iso2') && $(this).data('iso2').toUpperCase() === cc;
-                        });
-                        if (countryOption.length && this.getCurrentCountryIso2() !== cc) {
-                            this.countryJustSetByLocation = true;
-                            $('#countrySelect').val(countryOption.val()).trigger('change');
-                        }
+                    if ($('#countrySelect').length && data.address) {
+                        this.landAusKoordinatenSetzen(data.address.country_code);
                     }
-                    setTimeout(() => {
-                        $('#lat').text(lat.toFixed(6));
-                        $('#lon').text(lon.toFixed(6));
-                        $('#latitude').val(lat);
-                        $('#longitude').val(lon);
-                        if (this.marker) this.map.removeLayer(this.marker);
-                        this.marker = L.marker([lat, lon]).addTo(this.map);
-                        this.map.setView([lat, lon], 14);
 
-                        // Stadt im Select2 programmatisch wählen
-                        if (found) {
-                            let option = new Option(found, found, true, true);
-                            $('#citySelect').append(option).trigger('change');
-                        }
-                    }, 500);
+                    // HIER STAND EIN setTimeout(..., 500).
+                    //
+                    // Es war kein Warten auf irgendetwas, sondern ein Pflaster:
+                    // Der Landwechsel eine Zeile darueber loeschte die
+                    // Koordinatenfelder (siehe initCitySelect2), also wurden
+                    // sie eine halbe Sekunde spaeter noch einmal gesetzt - erst
+                    // dann standen sie wieder da. Das Loeschen gibt es nicht
+                    // mehr, damit auch keinen Grund zu warten. Marker und
+                    // Koordinaten erscheinen jetzt sofort.
+                    $('#lat').text(lat.toFixed(6));
+                    $('#lon').text(lon.toFixed(6));
+                    $('#latitude').val(lat);
+                    $('#longitude').val(lon);
+                    if (this.marker) this.map.removeLayer(this.marker);
+                    this.marker = L.marker([lat, lon]).addTo(this.map);
+                    this.map.setView([lat, lon], 14);
+
+                    // Stadt im Select2 programmatisch wählen
+                    if (found) {
+                        let option = new Option(found, found, true, true);
+                        $('#citySelect').append(option).trigger('change');
+                    }
                 });
         }, function (err) {
             window.webrtcApp.notify.error('Standort konnte nicht ermittelt werden: ' + err.message);

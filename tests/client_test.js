@@ -870,6 +870,198 @@ function ackLastMove(status = 'executed', reason) {
         ok('eine Absage des Servers wird sofort weitergegeben');
     }
 
+    console.error('\n29) Ein Klick auf die Karte setzt den Punkt und behaelt ihn');
+    {
+        // Der Befund: Auf "Standort anbieten" liess sich der Punkt nicht per
+        // Mausklick setzen. Der Klick-Handler war gebunden und feuerte auch -
+        // nur hingen auf #countrySelect ZWEI change-Handler. onMapClick()
+        // fuellt die Koordinatenfelder, holt danach den Ortsnamen bei
+        // Nominatim und traegt aus der Antwort das erkannte Land ein. Das
+        // loeste 'change' aus, und der zweite Handler (aus initCitySelect2)
+        // leerte #latitude, #longitude, #lat, #lon und #osm_place wieder -
+        // ungefragt, waehrend onCountryChange() sich per Markierung
+        // zurueckhielt. Zurueck blieb ein Formular, das mit Marker, Land und
+        // Stadt vollstaendig aussah, aber ohne Koordinaten abgeschickt wurde;
+        // der Server wies es mit success=2 ab.
+        //
+        // Sichtbar wurde es nur beim Landwechsel: Wer vorher Deutschland
+        // waehlte und dann nach Deutschland klickte, blieb verschont - beim
+        // allerersten Klick ist noch gar kein Land gewaehlt, der schlug immer
+        // fehl. Deshalb wird hier BEIDES geprueft, und dazu die Gegenprobe:
+        // waehlt der Nutzer selbst ein Land, muss weiterhin geleert werden.
+        const fs = require('fs'), path = require('path');
+        const mapQuelle = fs.readFileSync(
+            path.join(__dirname, '..', 'assets', 'js', 'map.js'), 'utf8');
+
+        // Der Harness laedt map.js in einem eigenen Block mit einer sehr
+        // kargen jQuery-Attrappe (fuer die Flaggenpruefung in 26 reicht sie).
+        // Hier wird dieselbe Datei ein zweites Mal geladen - mit einer
+        // Attrappe, die Feldwerte und Handler mitschreibt, und in einem
+        // eigenen Geltungsbereich, damit weder $ noch window.webrtcApp global
+        // ueberschrieben werden.
+        function ladeKarte(umgebung) {
+            const bauen = new Function(
+                'window', '$', 'jQuery', 'document', 'L', 'fetch', 'Option',
+                mapQuelle + '\nreturn window.webrtcApp.locationMap;');
+            return bauen(
+                umgebung.fenster, umgebung.jq, umgebung.jq, { ready() {} },
+                umgebung.L, umgebung.fetch, umgebung.Option);
+        }
+
+        // Kleine jQuery-Attrappe: genug, dass der echte Code durchlaeuft.
+        // Sie merkt sich Feldwerte, Beschriftungen und die gebundenen
+        // Handler - mehr braucht diese Pruefung nicht.
+        function baueSeite(landVorgewaehlt) {
+            const felder = {};
+            const handler = {};
+            const gewaehlt = landVorgewaehlt
+                ? { value: '7', daten: { iso2: 'de', 'country-name': 'Deutschland' } }
+                : { value: '', daten: {} };
+            felder['#countrySelect option:selected'] = gewaehlt;
+            felder['#countrySelect'] = { value: gewaehlt.value, daten: {} };
+            felder['#dieLandOption'] = { value: '7', daten: { iso2: 'de', 'country-name': 'Deutschland' } };
+
+            const zerlege = (sel) => sel.split(',').map(t => t.trim()).filter(Boolean);
+            function huelle(ids) {
+                return {
+                    length: ids.length,
+                    val(v) {
+                        if (v === undefined) return felder[ids[0]] ? felder[ids[0]].value : undefined;
+                        ids.forEach(i => {
+                            (felder[i] = felder[i] || {}).value = v;
+                            // Im echten DOM zieht eine neue Auswahl die
+                            // Option:selected mit. Ohne das liefe der Zweig
+                            // "kein Landeszentrum gefunden" endlos im Kreis:
+                            // Er setzt das Feld zurueck und loest wieder
+                            // 'change' aus - und die Attrappe meldete weiter
+                            // das alte Land.
+                            if (i === '#countrySelect') {
+                                felder['#countrySelect option:selected'] = v
+                                    ? { value: v, daten: { iso2: 'de', 'country-name': 'Deutschland' } }
+                                    : { value: '', daten: {} };
+                            }
+                        });
+                        return this;
+                    },
+                    text(t) {
+                        if (t === undefined) return felder[ids[0]] ? felder[ids[0]].text : '';
+                        ids.forEach(i => { (felder[i] = felder[i] || {}).text = t; });
+                        return this;
+                    },
+                    on(evt, fn) {
+                        ids.forEach(i => { (handler[i + '|' + evt] = handler[i + '|' + evt] || []).push(fn); });
+                        return this;
+                    },
+                    trigger(evt) {
+                        ids.forEach(i => (handler[i + '|' + evt] || []).slice().forEach(fn => fn({ params: {} })));
+                        return this;
+                    },
+                    find(s) { return huelle([ids[0] + ' ' + s]); },
+                    // Gefiltert wird immer nach dem Laenderkuerzel; hier steht
+                    // genau eine Option zur Auswahl.
+                    filter() { return huelle(['#dieLandOption']); },
+                    data(k) { const f = felder[ids[0]]; return f && f.daten ? f.daten[k] : undefined; },
+                    prop() { return this; }, next() { return huelle([]); },
+                    append() { return this; }, empty() { return this; },
+                    show() { return this; }, hide() { return this; },
+                    select2() { return this; }, each() { return this; },
+                    attr() { return undefined; }
+                };
+            }
+            const jq = (sel) => typeof sel === 'string'
+                ? huelle(zerlege(sel))
+                : Object.assign(huelle([]), { ready() { return this; } });
+            jq.fn = { select2() {} };
+
+            // Was das Reverse-Geocoding antwortet, wechselt je Pruefung.
+            const antwort = { wert: {
+                display_name: 'Berlin, Deutschland',
+                address: { country_code: 'de', city: 'Berlin' }
+            } };
+
+            const fenster = { webrtcApp: { notify: {
+                error: (t) => global.__alerts.push(String(t)), success() {}, info() {}
+            } } };
+
+            const karte = ladeKarte({
+                fenster, jq,
+                L: { marker: () => ({ addTo() { return this; } }) },
+                Option: function (text, value) { return { text, value }; },
+                fetch: () => Promise.resolve({ ok: true, json: () => Promise.resolve(antwort.wert) })
+            });
+
+            // Statt initMap(): Leaflet wird hier nicht geladen.
+            karte.map = { on() {}, removeLayer() {}, setView() {}, addLayer() {} };
+            karte.initCitySelect2();
+            karte.bindEvents();
+
+            return { felder, handler, jq, karte, antwort,
+                     handlerAnzahl: (handler['#countrySelect|change'] || []).length };
+        }
+
+        // Genau EIN change-Handler. Ein zweiter, ungeschuetzter waere der
+        // Rueckfall in den Befund - deshalb wird die Zahl selbst geprueft und
+        // nicht nur ihre Wirkung.
+        const ohneLand = baueSeite(false);
+        assert.strictEqual(ohneLand.handlerAnzahl, 1,
+            'auf #countrySelect haengt mehr als ein change-Handler');
+        ok('das Land hat genau einen change-Handler');
+
+        ohneLand.karte.onMapClick({ latlng: { lat: 52.52, lng: 13.405 } });
+        assert.strictEqual(String(ohneLand.felder['#latitude'].value), '52.52',
+            'der Klick fuellt den Breitengrad nicht');
+        await sleep(10);   // das Reverse-Geocoding abwarten
+
+        assert.strictEqual(String(ohneLand.felder['#latitude'].value), '52.52',
+            'der Breitengrad ueberlebt das Setzen des Landes nicht');
+        assert.strictEqual(String(ohneLand.felder['#longitude'].value), '13.405',
+            'der Laengengrad ueberlebt das Setzen des Landes nicht');
+        assert.strictEqual(ohneLand.felder['#lat'].text, '52.520000',
+            'die Anzeige des Breitengrads ist leer');
+        assert.strictEqual(ohneLand.felder['#osm_place'].text, 'Berlin, Deutschland',
+            'der Ortsname aus OpenStreetMap ist leer');
+        ok('ohne vorgewaehltes Land bleibt der geklickte Punkt stehen');
+
+        // Derselbe Klick mit bereits gewaehltem Land. Das ging auch vorher
+        // schon, weil dann kein Landwechsel stattfindet - es muss weiter gehen.
+        const mitLand = baueSeite(true);
+        mitLand.karte.onMapClick({ latlng: { lat: 52.52, lng: 13.405 } });
+        await sleep(10);
+        assert.strictEqual(String(mitLand.felder['#latitude'].value), '52.52',
+            'mit vorgewaehltem Land geht der Breitengrad verloren');
+        assert.strictEqual(String(mitLand.felder['#longitude'].value), '13.405',
+            'mit vorgewaehltem Land geht der Laengengrad verloren');
+        ok('mit vorgewaehltem Land ebenso');
+
+        // Gegenprobe: Waehlt der NUTZER ein Land, muss weiterhin alles
+        // zurueckgesetzt werden. Ein Punkt in Deutschland darf nicht an einer
+        // Auswahl "Frankreich" haengenbleiben.
+        {
+            const seite = baueSeite(true);
+            seite.antwort.wert = [];   // Nominatim findet kein Landeszentrum
+            seite.jq('#latitude, #longitude').val('52.52');
+            seite.jq('#lat, #lon, #osm_place').text('irgendwas');
+
+            seite.jq('#countrySelect').trigger('change');
+            await sleep(10);
+
+            assert.strictEqual(seite.felder['#latitude'].value, '',
+                'ein Landwechsel des Nutzers loescht die alten Koordinaten nicht');
+            assert.strictEqual(seite.felder['#osm_place'].text, '',
+                'ein Landwechsel des Nutzers loescht den alten Ortsnamen nicht');
+            ok('waehlt der Nutzer selbst ein Land, wird weiterhin geleert');
+        }
+
+        // Der Standortknopf setzt die Koordinaten jetzt sofort und nicht mehr
+        // erst nach einer halben Sekunde: Das setTimeout(..., 500) war nur ein
+        // Pflaster auf demselben Loeschen.
+        const ohneKommentare = mapQuelle
+            .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        assert.ok(!/setTimeout\([\s\S]{0,400}?\}, 500\)/.test(ohneKommentare),
+            'die Wartezeit von 500 ms steht noch im Code');
+        ok('kein Warten mehr auf ein Loeschen, das es nicht mehr gibt');
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

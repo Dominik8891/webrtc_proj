@@ -209,3 +209,83 @@ Meldung nennt also einen Grund, den sie gar nicht prüft.
 * Ob der Browser das Formular bei leerem `#citySelect` wegen `required`
   überhaupt absendet, konnte nicht getestet werden: Das Playwright-Modul
   ist nicht installiert und das select2-CDN vom Proxy blockiert (HTTP 403).
+
+---
+
+## 7. Nachtrag: Der Punkt ließ sich nicht per Mausklick auf die Karte setzen
+
+Stand: 2026-09-03 · Branch `claude/quirky-wright-m099dt`
+
+### 7.1 Symptom
+
+Auf „Standort anbieten" blieb ein Klick auf die Karte wirkungslos — als Guide
+wie als Admin. Einmal hatte es funktioniert, danach nicht mehr. Die Eingabe
+über Land und Stadt funktionierte durchgehend.
+
+### 7.2 Ursache
+
+Der Klick-Handler war gebunden (`initMap()`, `this.map.on('click', …)`) und
+feuerte auch. Gelöscht wurde erst danach.
+
+Auf `#countrySelect` hingen **zwei** `change`-Handler:
+
+| # | registriert in | Verhalten |
+|---|---|---|
+| 1 | `initCitySelect2()` | leerte `#latitude, #longitude, #lat, #lon, #osm_place` — **ohne jede Abfrage** |
+| 2 | `bindEvents()` → `onCountryChange()` | leerte ebenfalls, war aber durch `countryJustSetByLocation` geschützt |
+
+Ablauf eines Klicks (`onMapClick()`):
+
+1. Marker setzen, `#latitude`/`#longitude` füllen — das ging.
+2. Reverse-Geocoding bei Nominatim (asynchron).
+3. In der Antwort: erkanntes Land ≠ gewähltes Land → `$('#countrySelect').val(…).trigger('change')`.
+4. Handler 1 lief zuerst und leerte die eben gesetzten Felder. Handler 2 sah
+   die Markierung und hielt sich zurück — sie schützte nur einen von beiden.
+
+Der Marker blieb liegen, Land und Stadt waren gefüllt: Das Formular *sah*
+vollständig aus. `required` auf den `hidden`-Feldern greift nicht (verborgene
+Felder sind von der HTML-Validierung ausgenommen), also ging es ohne
+Koordinaten an den Server, der es mit `success=2` abwies.
+
+**Warum es „einmal geklappt" hat:** Schritt 3 findet nur bei einem
+Landwechsel statt. Wer vorher Deutschland wählte und dann nach Deutschland
+klickte, behielt seinen Punkt. Beim allerersten Klick ist noch kein Land
+gewählt (`''` ≠ `DE`) — der schlug immer fehl. Mit der Rolle hatte es nichts
+zu tun; der Fehler steckte ausschließlich im Client.
+
+Der Knopf „Aktuellen Standort verwenden" entging dem nur durch ein
+`setTimeout(…, 500)`, das die Koordinaten *nach* dem Löschen noch einmal
+setzte — ein Pflaster auf demselben Fehler.
+
+### 7.3 Behebung
+
+* Handler 1 entfernt. Das Freigeben des Stadtfelds
+  (`setzeStadtfeldZustand()`) ist nach `onCountryChange()` gewandert, wo es
+  in **beiden** Fällen läuft — bliebe das Feld nach einem Kartenklick
+  gesperrt, schickte der Browser es gar nicht erst mit und der Standort
+  landete ohne Stadt in der Datenbank.
+* `onCountryChange()` ist jetzt der einzige `change`-Handler und unterscheidet
+  den Landwechsel des Nutzers (leeren, Karte zentrieren) von einem, der aus
+  Koordinaten folgt (nichts anfassen).
+* Neu: `landAusKoordinatenSetzen(iso2)`. Kartenklick und Standortknopf
+  benutzen beide diese eine Stelle, statt die Logik samt Markierung doppelt
+  nachzubauen.
+* Das `setTimeout(…, 500)` ist entfernt; Marker und Koordinaten erscheinen
+  sofort.
+
+### 7.4 Prüfung
+
+`tests/client_test.js`, Abschnitt 29 (`node tests/client_test.js`, 74
+Prüfungen). Geprüft werden die Zahl der Handler, der überlebende Punkt mit und
+ohne vorgewähltes Land, die Gegenprobe (wählt der Nutzer selbst ein Land, wird
+weiterhin geleert) und das Verschwinden der 500 ms. Gegen den alten Stand von
+`map.js` schlägt der Abschnitt fehl.
+
+### 7.5 Nicht verifiziert
+
+Nicht im echten Browser nachgestellt — das select2-CDN ist vom Proxy blockiert
+(HTTP 403) und Nominatim von hier nicht erreichbar. Der Nachweis läuft über
+`assets/js/map.js` selbst, geladen in einer Attrappe von jQuery, Leaflet und
+Nominatim. Das `required` auf `#latitude`/`#longitude` bleibt wirkungslos
+(verborgene Felder werden nicht validiert); aufgefangen wird das weiterhin
+serverseitig über `success=2`.

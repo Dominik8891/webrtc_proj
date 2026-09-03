@@ -35,7 +35,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (69 Prüfungen)
+## Was `client_test.js` prüft (74 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -108,6 +108,30 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     raus und es läuft keine Annahmefrist. Weist der Server den Anruf ab (Ziel
     ist kein Guide), steht seine Begründung in der Meldung, der Call wird
     abgeräumt und es wird keine Rolle vergeben.
+
+### Standort anbieten (29)
+
+29. **Ein Klick auf die Karte setzt den Punkt und behält ihn** — auf
+    `#countrySelect` hingen **zwei** `change`-Handler. `onMapClick()` füllt die
+    Koordinatenfelder, holt danach den Ortsnamen bei Nominatim und trägt aus
+    der Antwort das erkannte Land ein; dieses Eintragen löste `change` aus, und
+    der zweite Handler (aus `initCitySelect2`) leerte `#latitude`,
+    `#longitude`, `#lat`, `#lon` und `#osm_place` ungefragt wieder —
+    `onCountryChange()` hielt sich per Markierung zurück, der andere kannte sie
+    nicht. Zurück blieb ein Formular, das mit Marker, Land und Stadt
+    vollständig aussah, aber ohne Koordinaten abgeschickt wurde; der Server
+    wies es mit `success=2` ab. Wer vorher dasselbe Land wählte, in das er
+    klickte, blieb verschont — beim ersten Klick ist noch gar kein Land
+    gewählt, der schlug immer fehl. Geprüft wird deshalb die **Zahl** der
+    Handler (genau einer), dass der geklickte Punkt beide Fälle übersteht, die
+    Gegenprobe (wählt der *Nutzer* ein Land, wird weiterhin geleert) und dass
+    das `setTimeout(..., 500)` im Standortknopf verschwunden ist — es war nur
+    ein Pflaster auf demselben Löschen.
+
+    Dafür wird `assets/js/map.js` ein zweites Mal geladen, in einem eigenen
+    Geltungsbereich mit einer jQuery-Attrappe, die Feldwerte und gebundene
+    Handler mitschreibt. Weder `$` noch `window.webrtcApp` werden dabei global
+    überschrieben; Leaflet und Nominatim sind Attrappen.
 
 ### Rolle und Standort-Button (23)
 
