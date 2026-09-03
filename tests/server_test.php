@@ -227,27 +227,42 @@ check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'Zuschauer ruft Gui
 check(WebRTCController::callAllowed(5, 2) === true, 'Anruf beim Guide ist erlaubt');
 ok('Anrufer wird Zuschauer, angerufener Guide wird Guide');
 
-// Der Angerufene ist KEIN Guide: Der Anruf kommt nicht zustande. Vorher wurde
-// er hier stillschweigend zum Guide erklaert - eine Rolle, der er nie
-// zugestimmt hatte, samt Steuerkreuz auf der Gegenseite.
+// Der Angerufene darf keine Standorte anbieten: Der Anruf kommt nicht
+// zustande. Vorher wurde er hier stillschweigend zum Guide erklaert - eine
+// Rolle, der er nie zugestimmt hatte, samt Steuerkreuz auf der Gegenseite.
 foreach ([[2, 5, 'Guide ruft Trial an'],
           [4, 5, 'Zuschauer ruft Trial an'],
           [5, 4, 'Trial ruft Zuschauer an'],
-          [2, 1, 'Guide ruft Admin an'],
           [5, 99, 'Anruf bei einem unbekannten Konto']] as [$caller, $callee, $was]) {
     check(WebRTCController::callRoles($caller, $callee) === null, $was . ': keine Rollen');
     check(WebRTCController::callAllowed($caller, $callee) === false, $was . ': nicht erlaubt');
     check(WebRTCController::roleForCall($caller, $callee, $caller) === null, $was . ': keine Anruferrolle');
     check(WebRTCController::roleForCall($caller, $callee, $callee) === null, $was . ': keine Rolle fuer den Angerufenen');
 }
-ok('wer nicht als Guide registriert ist, wird durch einen Anruf auch keiner');
+ok('wer keine Standorte anbieten darf, wird durch einen Anruf auch kein Guide');
 
-// Der Admin ist kein Guide - die beiden Kontotypen duerfen nicht verwechselt
-// werden (Befunde F-7/F-8 der Bestandsaufnahme). Er darf anrufen, aber nicht
-// angerufen werden.
-check(WebRTCController::callAllowed(1, 2) === true , 'Admin ruft Guide an');
-check(WebRTCController::callAllowed(2, 1) === false, 'Admin ist kein Anrufziel');
-ok('Admin gilt nicht als Guide');
+// Anrufbar ist, wer location.offer hat - das ist dasselbe Kriterium, ueber das
+// ein Standort auf die Karte kommt. Der Admin darf anlegen, also muss sein
+// Standort auch anwaehlbar sein; eine Rollenabfrage haette ihn ausgeschlossen.
+check(Permission::has(Role::ADMIN, Permission::LOCATION_OFFER) === true,
+    'der Admin darf Standorte anbieten');
+check(WebRTCController::callAllowed(2, 1) === true, 'ein Admin-Standort ist anrufbar');
+check(WebRTCController::callAllowed(1, 2) === true, 'Admin ruft Guide an');
+$r = WebRTCController::callRoles(2, 1);
+check($r['callee'] === 'guide' && $r['caller'] === 'viewer',
+    'der angerufene Admin fuehrt, der anrufende Guide schaut zu');
+ok('anrufbar ist, wer Standorte anbieten darf - Guide wie Admin');
+
+// Und zwar genau die: Wer das Recht nicht hat, ist auch kein Anrufziel. Die
+// Bedingung steht damit an einer Stelle - in der Rechtetabelle.
+foreach ([[Role::GUIDE, 2, true], [Role::ADMIN, 1, true],
+          [Role::USER, 4, false], [Role::TRIAL, 5, false]] as [$rolle, $konto, $erwartet]) {
+    check(Permission::has($rolle, Permission::LOCATION_OFFER) === $erwartet,
+        'location.offer fuer Rolle ' . var_export($rolle, true));
+    check(WebRTCController::callAllowed(5, $konto) === $erwartet,
+        'anrufbar genau dann, wenn das Recht da ist (Konto ' . $konto . ')');
+}
+ok('Anrufbarkeit und location.offer sind dieselbe Aussage');
 
 // Zwei Guides: Der Angerufene ist der Guide. Wer anruft, schaut zu - auch wenn
 // er selbst Standorte anbietet.
@@ -256,7 +271,7 @@ check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'zwei Guides');
 ok('bei zwei Guides ist der Angerufene der Guide');
 
 // Beide Seiten fragen unabhaengig - und muessen zusammenpassen.
-foreach ([[5, 2], [4, 2], [2, 3], [1, 2]] as [$caller, $callee]) {
+foreach ([[5, 2], [4, 2], [2, 3], [1, 2], [2, 1]] as [$caller, $callee]) {
     $a = WebRTCController::roleForCall($caller, $callee, $caller);
     $b = WebRTCController::roleForCall($caller, $callee, $callee);
     check($a !== $b, "Rollen muessen sich unterscheiden ($caller -> $callee)");

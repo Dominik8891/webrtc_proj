@@ -5,6 +5,7 @@ use App\Model\User;
 use App\Model\WebRTCHandler;
 use App\Helper\Auth;
 use App\Helper\Request;
+use App\Helper\Permission;
 use App\Helper\Role;
 
 /**
@@ -16,12 +17,16 @@ class WebRTCController
     /**
      * usertype.id des Guides.
      *
-     * Der Wert steht jetzt in App\Helper\Role, der zentralen Stelle fuer
-     * Rollen. Die Konstante bleibt als Name erhalten, damit die Aufrufe im
-     * Signaling lesbar bleiben. Verglichen wird weiterhin die ID und nicht
-     * der Name: Der Name kommt als 'Guide' aus der Datenbank, und genau
-     * dieser Vergleich gegen kleingeschriebene Literale ist an anderer Stelle
-     * schon schiefgegangen (Befunde F-5/F-6 der Bestandsaufnahme).
+     * NICHT MEHR DAS KRITERIUM FUER EINEN ANRUF. Wer angerufen werden kann,
+     * entscheidet das Recht location.offer (siehe offersLocations) - eine
+     * Rollennummer wuerde den Admin ausschliessen und jede kuenftige
+     * anbietende Rolle uebersehen.
+     *
+     * Die Konstante bleibt als Name stehen, weil die Rolle 'guide' im
+     * Steuerprotokoll (PROTOKOLL.md) genau dieses Konto meint, und weil
+     * tests/server_test.php darueber festhaelt, dass Signaling und
+     * App\Helper\Role sich ueber die ID einig sind. Der Wert kommt aus
+     * App\Helper\Role, der zentralen Stelle fuer Rollen.
      */
     public const USERTYPE_GUIDE = Role::GUIDE;
 
@@ -151,8 +156,16 @@ class WebRTCController
      * hat und welchen Kontotyp die beiden haben. Der Client hat darauf keinen
      * Einfluss.
      *
-     * ES GIBT NUR EINE REGEL: Der Angerufene muss als Guide registriert sein.
-     * Dann ist er der Guide und der Anrufer der Zuschauer.
+     * ES GIBT NUR EINE REGEL: Der Angerufene muss Standorte anbieten dürfen
+     * (Recht location.offer). Dann ist er der Guide und der Anrufer der
+     * Zuschauer.
+     *
+     * Gefragt wird das Recht und nicht die Rolle - das ist dasselbe Kriterium,
+     * über das ein Standort überhaupt erst auf die Karte kommt. Wer dort
+     * steht, ist anrufbar; wer nicht anbieten darf, ist es nicht. Ein
+     * Rollenvergleich hätte den Admin ausgeschlossen, obwohl er Standorte
+     * anlegen darf, und eine künftige anbietende Rolle stillschweigend
+     * übergangen (siehe offersLocations).
      *
      * Vorher fiel die Vergabe auf "im Zweifel ist der Angerufene der Guide"
      * zurück, wenn keiner der beiden ein Guide war. Damit genügte ein Anruf,
@@ -161,7 +174,7 @@ class WebRTCController
      * der Gegenseite, das ihn herumschickt. Die Guide-Rolle ist eine
      * ausdrückliche Entscheidung (App\Model\GuideRole); ein Anruf ist keine.
      *
-     * Wer kein Guide ist, wird deshalb nicht zum Guide erklärt - der Anruf
+     * Wer nichts anbietet, wird deshalb nicht zum Guide erklärt - der Anruf
      * kommt gar nicht erst zustande (siehe getSignal, Zweig 'offer').
      *
      * Beide Seiten rufen diese Funktion mit demselben Paar (Anrufer,
@@ -171,11 +184,11 @@ class WebRTCController
      * @param int $callerId Wer angerufen hat
      * @param int $calleeId Wer angerufen wurde
      * @return array|null ['caller' => 'viewer', 'callee' => 'guide'] oder null,
-     *                    wenn der Angerufene kein Guide ist
+     *                    wenn der Angerufene keine Standorte anbieten darf
      */
     public static function callRoles($callerId, $calleeId)
     {
-        if (!self::isGuideAccount($calleeId)) return null;
+        if (!self::offersLocations($calleeId)) return null;
 
         return ['caller' => 'viewer', 'callee' => 'guide'];
     }
@@ -184,9 +197,9 @@ class WebRTCController
      * Darf dieser Anruf zustande kommen?
      *
      * Genau dann, wenn sich für das Paar Rollen vergeben lassen - also wenn
-     * der Angerufene ein Guide ist. Die Frage steht bewusst neben callRoles()
-     * und nicht daneben nachgebaut: Es gibt eine Bedingung, und sie steht an
-     * einer Stelle.
+     * der Angerufene Standorte anbieten darf. Die Frage steht bewusst neben
+     * callRoles() und nicht daneben nachgebaut: Es gibt eine Bedingung, und
+     * sie steht an einer Stelle.
      *
      * @param int $callerId Wer angerufen hat
      * @param int $calleeId Wer angerufen wurde
@@ -241,25 +254,37 @@ class WebRTCController
     }
 
     /**
-     * Ist dieses Konto als Guide registriert?
+     * Darf dieses Konto Standorte anbieten - und ist damit anrufbar?
      *
-     * Ein unbekannter oder nicht ladbarer Benutzer gilt als kein Guide. Die
-     * Rollenvergabe fällt dadurch auf die zweite Regel zurück und bleibt
-     * eindeutig, statt mit einer Ausnahme den Anruf zu verhindern.
+     * GEFRAGT WIRD DAS RECHT location.offer, NICHT DIE ROLLE. Anrufbar ist,
+     * wer ein Angebot auf der Karte stehen haben darf: heute Guide und Admin.
+     * Ein Rollenvergleich (Role::isGuide) haette den Admin ausgeschlossen,
+     * obwohl er Standorte anlegen darf - sein Standort waere auf der Karte
+     * sichtbar und der Anruf dorthin trotzdem abgewiesen worden. Und er
+     * haette eine kuenftige Rolle, die Standorte anbietet, ohne "Guide" zu
+     * heissen, still uebergangen.
+     *
+     * Damit steht die Bedingung an genau einer Stelle: Wer in
+     * App\Helper\Permission location.offer bekommt, ist anrufbar - ohne
+     * dass hier etwas nachzuziehen waere.
+     *
+     * Ein unbekannter oder nicht ladbarer Benutzer ist nicht anrufbar. Der
+     * Anruf wird dann abgewiesen, statt jemanden zum Guide zu erklaeren, ueber
+     * den nichts bekannt ist.
      *
      * @param int $userId
      * @return bool
      */
-    private static function isGuideAccount($userId)
+    private static function offersLocations($userId)
     {
         $id = (int)$userId;
         if ($id < 1) return false;
 
         try {
             $user = new User($id);
-            return Role::isGuide($user->getRoleId());
+            return Permission::has(Role::id($user->getRoleId()), Permission::LOCATION_OFFER);
         } catch (\Exception $e) {
-            error_log('WebRTCController::isGuideAccount: ' . $e->getMessage());
+            error_log('WebRTCController::offersLocations: ' . $e->getMessage());
             return false;
         }
     }

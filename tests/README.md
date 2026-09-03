@@ -132,7 +132,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (126 Prüfungen)
+## Was `server_test.php` prüft (127 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -148,14 +148,16 @@ die Tests nicht an. Das ist Absicht.
    IDs werden aussortiert; eine leere Liste erzeugt keinen DB-Zugriff; das
    Aufräumen abgelaufener Signale löscht nie innerhalb des 15-Sekunden-Lesefensters.
 5. **Rollenvergabe für den Call** — ein Anruf kommt nur zustande, wenn der
-   Angerufene als Guide registriert ist; dann ist er der Guide und der Anrufer
-   der Zuschauer. Ist er es nicht — Trial, User, Admin oder ein unbekanntes
-   Konto —, gibt es *keine* Rollen und der Anruf wird abgewiesen, statt den
-   Angerufenen stillschweigend zum Guide zu erklären. Bei zwei Guides ist der
-   Angerufene der Guide; ein Admin gilt nicht als Guide (Befunde F-7/F-8), er
-   darf anrufen, aber nicht angerufen werden; beide Seiten bekommen zueinander
-   passende Rollen und Dritte gar keine; gestempelt wird ausschließlich das
-   Offer.
+   Angerufene Standorte anbieten darf (Recht `location.offer`); dann ist er
+   der Guide und der Anrufer der Zuschauer. Darf er es nicht — Trial, User
+   oder ein unbekanntes Konto —, gibt es *keine* Rollen und der Anruf wird
+   abgewiesen, statt den Angerufenen stillschweigend zum Guide zu erklären.
+   Geprüft wird dabei ausdrücklich, dass Anrufbarkeit und `location.offer`
+   **dieselbe Aussage** sind: Guide und Admin ja, Trial und User nein — eine
+   Rollenabfrage hätte den Admin ausgeschlossen, obwohl sein Standort auf der
+   Karte steht. Bei zwei Guides ist der Angerufene der Guide; beide Seiten
+   bekommen zueinander passende Rollen und Dritte gar keine; gestempelt wird
+   ausschließlich das Offer.
 
    Die Prüfung ersetzt die Benutzertabelle durch eine Attrappe im Speicher —
    auch hier ohne Datenbank.
