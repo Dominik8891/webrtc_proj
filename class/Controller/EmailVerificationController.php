@@ -2,7 +2,9 @@
 
 namespace App\Controller;
 
+use App\Helper\Auth;
 use App\Helper\Request;
+use App\Helper\Url;
 use App\Helper\ViewHelper;
 use App\Model\PdoConnect;
 use App\Model\Email;
@@ -65,6 +67,15 @@ class EmailVerificationController
     public function sendVerificationMail($user_id)
     {
         try {
+            // Die Basisadresse zuerst: Ohne sie gaebe es nur einen Link, der
+            // ins Leere fuehrt - dann soll auch kein Token angelegt werden
+            // (App\Helper\Url, Konfiguration APP_BASE_URL).
+            if (Url::base() === null) {
+                error_log("Bestaetigungsmail fuer UserID {$user_id} nicht verschickt: "
+                    . 'APP_BASE_URL fehlt oder ist unbrauchbar.');
+                return;
+            }
+
             $token = bin2hex(random_bytes(32));
             $expires = date('Y-m-d H:i:s', time() + 86400); // z.B. 24 Stunden gültig
 
@@ -88,8 +99,10 @@ class EmailVerificationController
             $stmt->bindParam(":exp", $expires);
             $stmt->execute();
 
-            // Mail senden
-            $verifyLink = "https://localhost/rctprojnew/index.php?act=verify_email&token=$token";
+            // Mail senden. Die Adresse kommt aus der Konfiguration und
+            // ausdruecklich NICHT aus dem Host-Header der Anfrage
+            // (App\Helper\Url).
+            $verifyLink = Url::to("index.php?act=verify_email&token=$token");
             Email::sendMail($email, 
                 "Hallo,\n\nBitte bestätige deine E-Mail durch Klick auf diesen Link:\n\n$verifyLink\n\nDieser Link ist 24 Stunden gültig.",
                 "E-Mail-Adresse bestätigen");
@@ -99,12 +112,32 @@ class EmailVerificationController
     }
 
     /**
-     * Hilfsmethode: Sendet eine Verifikationsmail und zeigt Bestätigungsseite an.
-     * @param int $user_id
+     * Sendet eine Verifikationsmail und zeigt die Bestätigungsseite an.
+     *
+     * Zwei Aufrufwege, deshalb der optionale Parameter:
+     *   - als Route send_email_verify (index.php ruft ohne Argument auf);
+     *     dann gilt das ANGEMELDETE Konto. Vorher hatte der Parameter keinen
+     *     Vorgabewert - der Aufruf ueber die Route endete zwingend mit einem
+     *     ArgumentCountError, also HTTP 500.
+     *   - direkt aus dem Registrierungsablauf mit der frisch angelegten ID.
+     *
+     * Die Kennung kommt bewusst NICHT aus der Anfrage: Sonst liesse sich mit
+     * einer fremden ID beliebig oft eine Mail an eine fremde Adresse
+     * ausloesen.
+     *
+     * @param  int|null $user_id null = das angemeldete Konto
      * @return void
      */
-    public function sendVerification($user_id)
+    public function sendVerification($user_id = null)
     {
+        $user_id = ($user_id === null) ? Auth::userId() : (int)$user_id;
+
+        if ($user_id < 1) {
+            error_log('sendVerification: keine Benutzerkennung - weder uebergeben noch angemeldet.');
+            header('Location: index.php?act=login_page');
+            exit;
+        }
+
         $this->sendVerificationMail($user_id);
         $out = ViewHelper::template('assets/html/signup_complete.html');
         ViewHelper::output($out);

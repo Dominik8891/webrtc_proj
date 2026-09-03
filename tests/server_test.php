@@ -21,6 +21,12 @@ require_once $ROOT . '/class/Model/Location.php';
 require_once $ROOT . '/class/Model/GuideRole.php';
 require_once $ROOT . '/class/Helper/Theme.php';
 require_once $ROOT . '/class/Helper/ViewHelper.php';
+require_once $ROOT . '/class/Helper/Auth.php';
+require_once $ROOT . '/class/Helper/Request.php';
+require_once $ROOT . '/class/Helper/Url.php';
+require_once $ROOT . '/class/Model/Chat.php';
+require_once $ROOT . '/class/Model/ChatMessage.php';
+require_once $ROOT . '/class/Controller/ChatController.php';
 
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
@@ -31,9 +37,12 @@ use App\Controller\UserController;
 use App\Model\Location;
 use App\Model\GuideRole;
 use App\Helper\Role;
+use App\Helper\Auth;
 use App\Helper\Permission;
 use App\Helper\Theme;
 use App\Helper\ViewHelper;
+use App\Helper\Url;
+use App\Controller\ChatController;
 
 $passed = 0;
 function ok($name) { global $passed; fwrite(STDERR, "  ok  $name\n"); $passed++; }
@@ -1638,5 +1647,317 @@ ok('die Angleichung wartet, bis die Erweiterung fertig ist');
 check(preg_match('/thead[^{]*th:first-child\s*\{[^}]*padding-left/', $themeCss) === 0,
     'der Abstand haengt an th:first-child - das trifft oft eine ausgeblendete Zelle');
 ok('der Abstand haengt an der Marke, nicht an der Stellung der Spalte');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n24) Chat: die Beteiligung wird geprueft\n");
+
+/**
+ * Attrappe fuer die Chat-Pruefungen.
+ *
+ * Liefert auf jede Abfrage der Tabelle `chat` dieselbe vorbereitete Zeile
+ * und schreibt alles mit, was sonst abgesetzt wird. Damit laesst sich
+ * pruefen, was der Controller bei einem unerlaubten Zugriff NICHT tut -
+ * und genau darauf kommt es hier an: Eine Fehlermeldung nuetzt nichts,
+ * wenn die Nachricht trotzdem in der Datenbank landet.
+ */
+class ChatAttrappeStatement {
+    public $sql; public $params = []; private $zeile;
+    public function __construct($sql, $zeile) { $this->sql = $sql; $this->zeile = $zeile; }
+    public function bindParam($k, &$v, $type = null) { $this->params[$k] = $v; }
+    public function execute($params = null) { if ($params !== null) $this->params = $params; return true; }
+    public function fetch($mode = null) { return $this->zeile; }
+    public function fetchAll($mode = null) { return []; }
+    public function rowCount() { return 1; }
+}
+class ChatAttrappe {
+    public $statements = [];
+    /** Zeile, die eine Abfrage auf `chat` liefert; false = gibt es nicht. */
+    public $chat = false;
+    public function prepare($sql) {
+        $zeile = preg_match('/^\s*SELECT\s.*\sFROM\s+chat\s/i', $sql) ? $this->chat : false;
+        $s = new ChatAttrappeStatement($sql, $zeile);
+        $this->statements[] = $s;
+        return $s;
+    }
+    public function lastInsertId() { return 42; }
+    /** Alle abgesetzten Statements, die etwas veraendern. */
+    public function schreibend(): array {
+        $treffer = [];
+        foreach ($this->statements as $s) {
+            if (preg_match('/^\s*(INSERT|UPDATE|DELETE)\s/i', $s->sql)) $treffer[] = $s;
+        }
+        return $treffer;
+    }
+    public function vergessen() { $this->statements = []; }
+}
+
+$chatDb = new ChatAttrappe();
+PdoConnect::$connection = $chatDb;
+
+// Ein Chat zwischen 2 und 3. Gefragt ist die 3 - sie hat noch nicht
+// geantwortet. Die 9 hat mit dem Chat nichts zu tun.
+$chatZeile = ['id' => 5, 'user1_id' => 2, 'user2_id' => 3, 'is_active' => 1,
+              'last_msg_at' => null, 'pending_for' => 3, 'deleted' => 0];
+
+/** Ruft eine Controller-Methode als Benutzer $wer auf und liest die JSON-Antwort. */
+$alsBenutzer = function ($wer, array $anfrage, string $methode) use ($chatDb) {
+    $_SESSION = $wer === null ? [] : ['user' => ['user_id' => $wer, 'role_id' => Role::USER]];
+    $_REQUEST = $anfrage;
+    $chatDb->vergessen();
+    ob_start();
+    (new ChatController())->$methode();
+    return json_decode(ob_get_clean(), true);
+};
+
+// --- sendMessage: der Kern des Befundes -----------------------------------
+// Vorher wurde nur geprueft, DASS jemand angemeldet ist. Die chat_id ging
+// ungeprueft ins INSERT: Jeder Angemeldete konnte in jeden fremden Chat
+// schreiben.
+$chatDb->chat = $chatZeile;
+$antwort = $alsBenutzer(9, ['chat_id' => 5, 'msg' => 'Hallo'], 'sendMessage');
+check($antwort['success'] === false, 'Unbeteiligter darf nicht schreiben');
+check($chatDb->schreibend() === [], 'trotz Fehlermeldung wurde geschrieben: '
+    . implode(' | ', array_map(fn($s) => $s->sql, $chatDb->schreibend())));
+ok('ein Unbeteiligter schreibt nicht in einen fremden Chat');
+
+$fremdeAntwort = $antwort;
+$chatDb->chat = false; // Chat gibt es gar nicht
+$antwort = $alsBenutzer(9, ['chat_id' => 5, 'msg' => 'Hallo'], 'sendMessage');
+check($antwort === $fremdeAntwort,
+    '"gibt es nicht" und "geht dich nichts an" sind unterscheidbar - damit '
+    . 'liessen sich die fortlaufenden Chat-IDs abklopfen');
+ok('die Ablehnung verraet nicht, ob es den Chat gibt');
+
+$chatDb->chat = $chatZeile;
+$antwort = $alsBenutzer(2, ['chat_id' => 5, 'msg' => 'Hallo'], 'sendMessage');
+check($antwort['success'] === true, 'ein Teilnehmer darf schreiben');
+$geschrieben = $chatDb->schreibend();
+check(count($geschrieben) > 0 && preg_match('/INSERT INTO chat_message/i', $geschrieben[0]->sql) === 1,
+    'die Nachricht wird nicht gespeichert');
+check($geschrieben[0]->params[1] === 2, 'der Absender kommt nicht aus der Sitzung');
+ok('ein Teilnehmer schreibt weiterhin, als er selbst');
+
+// --- acceptChat: annehmen darf nur der Gefragte ---------------------------
+// Vorher las diese Methode $_SESSION gar nicht und setzte den Chat ohne
+// jeden Datenbankzugriff aktiv.
+$antwort = $alsBenutzer(9, ['chat_id' => 5], 'acceptChat');
+check($antwort['success'] === false, 'ein Unbeteiligter nimmt an');
+check($chatDb->schreibend() === [], 'ein Unbeteiligter aktiviert den Chat');
+ok('ein Unbeteiligter nimmt keine fremde Einladung an');
+
+$antwort = $alsBenutzer(2, ['chat_id' => 5], 'acceptChat');
+check($antwort['success'] === false, 'der Fragende nimmt seine eigene Einladung an');
+check($chatDb->schreibend() === [], 'der Fragende aktiviert den Chat selbst');
+ok('wer gefragt hat, beantwortet die Frage nicht selbst');
+
+$antwort = $alsBenutzer(3, ['chat_id' => 5], 'acceptChat');
+check($antwort['success'] === true, 'der Gefragte darf annehmen');
+$geschrieben = $chatDb->schreibend();
+check(count($geschrieben) === 1 && preg_match('/UPDATE chat SET is_active/i', $geschrieben[0]->sql) === 1,
+    'der Chat wird nicht aktiv gesetzt');
+ok('der Gefragte nimmt an - dieselbe Bedingung wie beim Ablehnen');
+
+// Annehmen und Ablehnen sind dieselbe Entscheidung und pruefen dasselbe.
+$antwort = $alsBenutzer(2, ['chat_id' => 5], 'declineChat');
+check($antwort['success'] === false, 'der Fragende lehnt seine eigene Einladung ab');
+$antwort = $alsBenutzer(9, ['chat_id' => 5], 'declineChat');
+check($antwort['success'] === false, 'ein Unbeteiligter lehnt ab');
+ok('Annehmen und Ablehnen haengen an derselben Bedingung');
+
+// --- setMessagesSeen: der Leser steht in der Sitzung ----------------------
+// Vorher kam sender_id aus dem Formular, und es gab keine Pruefung: In einem
+// fremden Chat liess sich der Ungelesen-Zaehler des anderen zuruecksetzen.
+$antwort = $alsBenutzer(9, ['chat_id' => 5, 'sender_id' => 9], 'setMessagesSeen');
+check($antwort['success'] === false, 'ein Unbeteiligter markiert als gelesen');
+check($chatDb->schreibend() === [], 'in einem fremden Chat wurde etwas markiert');
+ok('ein Unbeteiligter setzt keine fremden Nachrichten auf gelesen');
+
+// Auch mit einer fremden Kennung im Formular gilt die Sitzung.
+$antwort = $alsBenutzer(2, ['chat_id' => 5, 'sender_id' => 3], 'setMessagesSeen');
+check($antwort['success'] === true, 'ein Teilnehmer darf markieren');
+$geschrieben = $chatDb->schreibend();
+check(count($geschrieben) === 1 && preg_match('/UPDATE chat_message SET seen/i', $geschrieben[0]->sql) === 1,
+    'nichts wurde markiert');
+check($geschrieben[0]->params === [5, 2],
+    'die Kennung kommt aus dem Formular statt aus der Sitzung: '
+    . var_export($geschrieben[0]->params, true));
+ok('markiert wird aus Sicht des Angemeldeten, nicht aus Sicht der Anfrage');
+
+// --- getMessages: die Pruefung, an der sich die anderen orientieren -------
+$antwort = $alsBenutzer(9, ['chat_id' => 5], 'getMessages');
+check($antwort['success'] === false, 'ein Unbeteiligter liest mit');
+$antwort = $alsBenutzer(3, ['chat_id' => 5], 'getMessages');
+check($antwort['success'] === true, 'ein Teilnehmer liest');
+ok('Lesen bleibt auf die Teilnehmer beschraenkt');
+
+// --- Und die Regel fuer alles, was noch dazukommt -------------------------
+// Wer eine chat_id aus der Anfrage entgegennimmt, muss die Sitzung
+// hinzuziehen. Ohne diese Pruefung faellt eine spaeter ergaenzte Methode
+// still in dieselbe Luecke zurueck.
+$chatCode = file_get_contents($ROOT . '/class/Controller/ChatController.php');
+$chatCode = preg_replace('#/\*.*?\*/#s', '', $chatCode);   // Kommentare weg
+$chatCode = preg_replace('#//[^\n]*#', '', $chatCode);
+preg_match_all('/public function (\w+)\(\).*?(?=\n    public function |\z)/s', $chatCode, $mMethoden, PREG_SET_ORDER);
+check(count($mMethoden) >= 9, 'die Methoden des ChatControllers wurden nicht gefunden');
+$geprueft = 0;
+foreach ($mMethoden as $methode) {
+    if (strpos($methode[0], "Request::g('chat_id')") === false) continue;
+    $geprueft++;
+    check(strpos($methode[0], 'Auth::userId()') !== false,
+        "ChatController::{$methode[1]}() nimmt eine chat_id entgegen, fragt aber "
+        . 'nicht, wer angemeldet ist');
+    check(preg_match('/getUser1Id\(\)|getPendingFor\(\)/', $methode[0]) === 1,
+        "ChatController::{$methode[1]}() prueft die Beteiligung nicht");
+}
+check($geprueft >= 5, "nur $geprueft Methoden mit chat_id gefunden - erwartet werden mindestens 5");
+ok("alle $geprueft Methoden mit chat_id aus der Anfrage pruefen die Beteiligung");
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n25) Die Adresse in E-Mail-Links kommt aus der Konfiguration\n");
+
+// Passwort-Reset und E-Mail-Bestaetigung verschickten Links auf
+// "https://localhost/rctprojnew/" - die Adresse eines Entwicklungsrechners.
+// Auf jedem echten Server verwies der Link ins Leere.
+foreach (['class/Controller/PasswordController.php',
+          'class/Controller/EmailVerificationController.php'] as $datei) {
+    $code = file_get_contents($ROOT . '/' . $datei);
+    check(stripos($code, 'localhost') === false, "$datei enthaelt weiterhin eine feste localhost-Adresse");
+    check(preg_match('#["\']https?://#', $code) === 0, "$datei baut weiterhin eine Adresse im Code zusammen");
+    // Und ausdruecklich nicht aus dem Request: Der Host-Header kommt vom
+    // Aufrufer. Wer den Reset anstoesst, koennte den Link sonst auf einen
+    // eigenen Server umbiegen - die Mail ginge an den richtigen Empfaenger,
+    // der Klick an den Angreifer.
+    check(strpos($code, 'HTTP_HOST') === false, "$datei liest den Host aus der Anfrage");
+    check(strpos($code, 'Url::to(') !== false, "$datei baut den Link nicht ueber App\\Helper\\Url");
+}
+ok('die Basisadresse steht nicht mehr im Code und kommt nicht aus der Anfrage');
+
+$_ENV['APP_BASE_URL'] = 'https://example.org/rctproj';
+check(Url::base() === 'https://example.org/rctproj', 'Basisadresse: ' . var_export(Url::base(), true));
+check(Url::to('index.php?act=verify_email&token=abc') === 'https://example.org/rctproj/index.php?act=verify_email&token=abc',
+    'Link: ' . var_export(Url::to('index.php?act=verify_email&token=abc'), true));
+$_ENV['APP_BASE_URL'] = 'https://example.org/';
+check(Url::base() === 'https://example.org', 'Schraegstrich am Ende faellt weg');
+check(Url::to('/index.php') === 'https://example.org/index.php', 'kein doppelter Schraegstrich');
+ok('aus Basisadresse und Ziel wird genau eine Adresse');
+
+// Unbrauchbares darf keinen Link ergeben - ein falscher Link ist schlimmer
+// als keine Mail.
+foreach (['', '   ', 'example.org', 'javascript:alert(1)', 'https://',
+          'https://example.org/?x=1', "https://example.org/a\nb", 'https://example.org/a#b'] as $mist) {
+    $_ENV['APP_BASE_URL'] = $mist;
+    check(Url::base() === null, 'unbrauchbare Adresse durchgelassen: ' . var_export($mist, true));
+    check(Url::to('index.php') === null, 'trotzdem ein Link gebaut fuer: ' . var_export($mist, true));
+}
+unset($_ENV['APP_BASE_URL']);
+check(Url::base() === null, 'ohne Konfiguration gibt es keine Adresse');
+ok('fehlt oder taugt die Adresse nichts, entsteht kein Link');
+
+// Der Schluessel ist in .env.example erklaert - sonst faellt er beim
+// Einrichten unter den Tisch und die Mails bleiben stumm aus.
+$envBeispiel = file_get_contents($ROOT . '/.env.example');
+check(preg_match('/^APP_BASE_URL=\S+/m', $envBeispiel) === 1, 'APP_BASE_URL fehlt in .env.example');
+check(substr_count($envBeispiel, 'APP_BASE_URL') >= 3, 'APP_BASE_URL ist in .env.example nicht erklaert');
+ok('der Schluessel steht mit Erklaerung in .env.example');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n26) Passwortwechsel: das Konto kommt aus der Sitzung\n");
+
+/** Der Rumpf einer Methode, ohne Kommentare. */
+function methodenRumpf(string $code, string $name): string {
+    $pos = strpos($code, "function $name(");
+    check($pos !== false, "Methode $name nicht gefunden");
+    $rest = substr($code, $pos);
+    $ende = preg_match('/\n    (?:public|private|protected) function /', $rest, $m, PREG_OFFSET_CAPTURE, 10)
+          ? $m[0][1] : strlen($rest);
+    $rumpf = substr($rest, 0, $ende);
+    $rumpf = preg_replace('#/\*.*?\*/#s', '', $rumpf);
+    return preg_replace('#//[^\n]*#', '', $rumpf);
+}
+
+// DER BEFUND
+// handleChangePassword() nahm den Benutzernamen aus dem Formular. Die Route
+// verlangt zwar eine Anmeldung, aber WELCHES Konto geaendert werden sollte,
+// bestimmte damit die Anfrage. Wer angemeldet war, konnte einen fremden
+// Namen eintragen und Passwoerter durchprobieren; die Meldung "Das alte
+// Passwort ist nicht korrekt!" ist die Auskunft, ob geraten wurde.
+//
+// Der Lockout aus LoginController::handleLogin() greift dort nicht: Er
+// steht in $_SESSION und zaehlt nur Anmeldeversuche. Ueber diese Route
+// liess sich also unbegrenzt und ohne Sperre raten.
+$pwCode = file_get_contents($ROOT . '/class/Controller/PasswordController.php');
+$aendern = methodenRumpf($pwCode, 'handleChangePassword');
+check(strpos($aendern, "Request::g('username')") === false,
+    'der Benutzername kommt weiterhin aus der Anfrage');
+check(strpos($aendern, 'Auth::userId()') !== false,
+    'das Konto kommt nicht aus der Sitzung');
+check(preg_match('/FROM user WHERE id = :id/', $aendern) === 1,
+    'gesucht wird weiterhin ueber den Benutzernamen statt ueber die Kennung');
+check(preg_match('/WHERE username/i', $aendern) === 0,
+    'der Benutzername steht weiterhin in der Bedingung');
+ok('geaendert wird das Konto aus der Sitzung, nicht das aus dem Formular');
+
+// Das Formular zeigt den Namen nur noch an. Ein verstecktes Feld waere die
+// Ruecktuer zum selben Befund.
+$formular = file_get_contents($ROOT . '/assets/html/change_pw.html');
+check(preg_match('/name=["\']username["\']/', $formular) === 0,
+    'change_pw.html schickt weiterhin einen Benutzernamen mit');
+check(preg_match('/type=["\']hidden["\']/', $formular) === 0,
+    'change_pw.html hat wieder ein verstecktes Feld');
+$einstellungen = file_get_contents($ROOT . '/assets/html/settings.html');
+check(preg_match('/change_pw_page[^"\']*username=/', $einstellungen) === 0,
+    'settings.html haengt den Benutzernamen wieder an den Link');
+ok('das Formular schickt keine Kennung mehr mit');
+
+// Auch die Anzeige des Formulars nimmt den Namen nicht mehr aus der Adresse.
+$anzeigen = methodenRumpf($pwCode, 'showChangePwForm');
+check(strpos($anzeigen, "Request::g('username')") === false,
+    'der angezeigte Name kommt weiterhin aus der Adresse');
+check(strpos($anzeigen, 'Auth::username()') !== false,
+    'der angezeigte Name kommt nicht ueber den zentralen Helfer aus der Sitzung');
+check(strpos($anzeigen, 'htmlspecialchars') !== false,
+    'der angezeigte Name wird nicht maskiert');
+$_SESSION = ['user' => ['user_id' => 7, 'username' => 'anna', 'role_id' => Role::USER]];
+check(Auth::username() === 'anna', 'Auth::username() liefert den Namen aus der Sitzung');
+$_SESSION = [];
+check(Auth::username() === '', 'ohne Anmeldung gibt es keinen Namen');
+ok('auch die Anzeige nimmt den Namen aus der Sitzung');
+
+// DIE REGEL DAHINTER, projektweit: Wer etwas am EIGENEN Konto tut, nimmt die
+// Kennung aus der Sitzung. Eine Kennung aus der Anfrage ist nur dort in
+// Ordnung, wo bewusst ein FREMDER Datensatz gemeint ist (Benutzerverwaltung,
+// Standortsperre, Chatpartner) - und dort steht eine eigene Pruefung daneben.
+$eigenesKonto = [
+    'class/Controller/PasswordController.php'          => ['handleChangePassword', 'showChangePwForm'],
+    'class/Controller/SettingsController.php'          => ['showSettingsPage', 'setTheme'],
+    'class/Controller/TwoFactorController.php'         => ['handle2FAActivate', 'disable2FA'],
+    'class/Controller/EmailVerificationController.php' => ['sendVerification'],
+    'class/Controller/UserController.php'              => ['heartbeat', 'saveLocation'],
+    'class/Controller/GuideController.php'             => ['handleGuideRole'],
+];
+foreach ($eigenesKonto as $datei => $methoden) {
+    $code = file_get_contents($ROOT . '/' . $datei);
+    foreach ($methoden as $name) {
+        $rumpf = methodenRumpf($code, $name);
+        check(preg_match("/Request::g\('(user_?id|username|id)'/", $rumpf) === 0,
+            "$datei::$name() nimmt eine Kennung aus der Anfrage");
+        check(preg_match('/\$_(REQUEST|GET|POST)\[/', $rumpf) === 0,
+            "$datei::$name() liest direkt aus der Anfrage");
+    }
+}
+ok('keine Methode am eigenen Konto nimmt die Kennung aus der Anfrage');
+
+// Die Bestaetigungsmail ist der Grenzfall: Die Route ruft ohne Argument auf,
+// der Registrierungsablauf mit der frisch angelegten ID. Vorher hatte der
+// Parameter keinen Vorgabewert - der Aufruf ueber die Route endete zwingend
+// mit einem ArgumentCountError, also HTTP 500.
+$mailCode = file_get_contents($ROOT . '/class/Controller/EmailVerificationController.php');
+check(preg_match('/function sendVerification\(\$user_id = null\)/', $mailCode) === 1,
+    'sendVerification() laesst sich ueber die Route nicht ohne Argument aufrufen');
+check(strpos(methodenRumpf($mailCode, 'sendVerification'), 'Auth::userId()') !== false,
+    'sendVerification() faellt ohne Argument nicht auf das angemeldete Konto zurueck');
+$routen = require $ROOT . '/config/routes.php';
+check($routen['send_email_verify'][1] === 'sendVerification', 'die Route zeigt woanders hin');
+ok('die Bestaetigungsmail geht an das angemeldete Konto, nicht an eine mitgeschickte ID');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

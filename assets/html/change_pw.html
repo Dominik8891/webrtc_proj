@@ -2,7 +2,8 @@
     Passwort aendern (angemeldet). Gefuellt von App\Controller\PasswordController.
 
     Platzhalter:
-      ###USERNAME###       Der Benutzer, dessen Passwort geaendert wird
+      ###USERNAME###       Name des angemeldeten Benutzers (nur Anzeige;
+                           geaendert wird immer das Konto aus der Sitzung)
       ###PW_CHANGE_MSG###  Meldung; leer, wenn es keine gibt.
 -->
 <div class="app-auth">
@@ -11,10 +12,16 @@
             <div class="app-panel__body">
                 <div class="app-auth__head">
                     <h1 class="app-auth__title">Passwort ändern</h1>
+                    <!--
+                        Der Name steht hier zur Auskunft, nicht zur Auswahl:
+                        Geaendert wird immer das angemeldete Konto. Frueher
+                        stand er in einem versteckten Feld und entschied,
+                        WESSEN Passwort geprueft wurde.
+                    -->
+                    <p class="app-auth__sub">Angemeldet als <strong>###USERNAME###</strong></p>
                 </div>
 
                 <form action="index.php?act=change_pw" method="post" autocomplete="off">
-                    <input type="hidden" name="username" value="###USERNAME###">
                     <div class="app-field">
                         <label for="pw-old" class="form-label">Altes Passwort</label>
                         <input type="password" id="pw-old" name="pw-old" class="form-control" required>

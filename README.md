@@ -63,6 +63,13 @@ DB_NAME=
 APP_ENV=
 PEPPER=dein_geheimer_pepper_string
 
+# Oeffentliche Adresse der Installation, ohne Schraegstrich am Ende.
+# Daraus baut der Server die Links fuer Passwort-Reset und
+# E-Mail-Bestaetigung. Ohne diesen Wert wird keine solche Mail verschickt.
+# Bewusst aus der Konfiguration und nicht aus dem Host-Header der Anfrage:
+# Sonst liesse sich der Reset-Link auf einen fremden Server umbiegen.
+APP_BASE_URL=https://example.org/rctproj
+
 # WebRTC TURN-Server (Metered.ca)
 METERED_API_KEY=dein_api_key
 METERED_APP_NAME=dein_api_name

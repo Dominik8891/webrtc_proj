@@ -1,9 +1,11 @@
 <?php
 namespace App\Controller;
 
+use App\Helper\Auth;
 use App\Helper\ViewHelper;
 use App\Helper\Request;
 use App\Helper\LogHelper;
+use App\Helper\Url;
 use App\Model\User;
 use App\Model\Email;
 use App\Model\PdoConnect;
@@ -40,6 +42,25 @@ class PasswordController
         $stmt->execute();
         $user = $stmt->fetch(\PDO::FETCH_ASSOC);
 
+        // Die Basisadresse steht in der Konfiguration (APP_BASE_URL, siehe
+        // .env.example) und wird VOR dem Anlegen des Tokens geholt: Fehlt
+        // sie, gibt es keinen brauchbaren Link - dann soll auch kein Token in
+        // die Datenbank, das den bestehenden ueberschreibt und niemandem
+        // nutzt. Nach aussen bleibt die Antwort dieselbe wie immer, der Grund
+        // steht im Log.
+        if ($user && Url::base() === null) {
+            error_log("Passwort-Reset fuer UserID {$user['id']} nicht verschickt: "
+                . 'APP_BASE_URL fehlt oder ist unbrauchbar.');
+            // Hier endet der Vorgang - und nicht im Else-Zweig weiter unten,
+            // der eine nicht vorhandene Adresse protokollieren wuerde. Nach
+            // aussen ist kein Unterschied zu sehen: Die Seite mit der immer
+            // gleichen Meldung kommt wie sonst auch.
+            $html = ViewHelper::template('assets/html/forgot_pw.html');
+            $html = str_replace('###PW_FORGOT_MSG###', $msg, $html);
+            ViewHelper::output($html);
+            return;
+        }
+
         if ($user) {
             $token = bin2hex(random_bytes(32));
             $expires = date('Y-m-d H:i:s', time() + 3600);
@@ -55,8 +76,11 @@ class PasswordController
             $ins->bindParam(":exp", $expires);
             $ins->execute();
 
-            // Mail verschicken (ersetze durch dein Mail-Utility)
-            $resetLink = "https://localhost/rctprojnew/index.php?act=reset_pw_page&token=$token";
+            // Mail verschicken. Die Adresse kommt aus der Konfiguration und
+            // ausdruecklich NICHT aus dem Host-Header der Anfrage - sonst
+            // koennte der Anstossende den Link auf einen eigenen Server
+            // umbiegen (App\Helper\Url).
+            $resetLink = Url::to("index.php?act=reset_pw_page&token=$token");
             Email::sendMail($email, 
                 "Hallo,\n\nKlicke auf den folgenden Link, um dein Passwort zu ändern:\n\n$resetLink\n\nDieser Link ist 1 Stunde gültig.", "Passwort zurücksetzen");
             // E-Mail-Adresse NICHT loggen - die UserID identifiziert den Vorgang eindeutig.
@@ -154,13 +178,19 @@ class PasswordController
 
     /**
      * Zeigt das Passwort-Ändern-Formular für eingeloggte User an.
+     *
+     * Der angezeigte Name kommt aus der Sitzung. Vorher stand er in der
+     * Adresse (index.php?act=change_pw_page&username=...) und wurde
+     * ungeprüft in die Seite geschrieben - wer den Link verschickte,
+     * bestimmte damit, welcher Name im Formular stand.
+     *
      * @return void
      */
-    public function showChangePwForm() 
+    public function showChangePwForm()
     {
-        $username = Request::g('username');
+        $username = Auth::username();
         $html = ViewHelper::template('assets/html/change_pw.html');
-        $html = str_replace('###USERNAME###', $username, $html);
+        $html = str_replace('###USERNAME###', htmlspecialchars($username), $html);
         $html = str_replace('###PW_CHANGE_MSG###', '', $html);
         ViewHelper::output($html);
     }
@@ -168,20 +198,50 @@ class PasswordController
     /**
      * Verarbeitet die Änderung des Passworts durch den User.
      * Prüft altes Passwort, setzt neues, zeigt Fehler oder Erfolg.
+     *
+     * WER SEIN PASSWORT ÄNDERT, STEHT IN DER SITZUNG
+     * ----------------------------------------------
+     * Vorher kam der Benutzername aus dem Formular. Die Route verlangt zwar
+     * eine Anmeldung (Recht auth.password_change), aber welches Konto
+     * geändert werden sollte, bestimmte damit die Anfrage - nicht die
+     * Sitzung. Wer angemeldet war, konnte einen fremden Benutzernamen
+     * eintragen und Passwörter durchprobieren: Die Antwort "Das alte
+     * Passwort ist nicht korrekt!" ist die Auskunft, ob geraten wurde.
+     *
+     * Der Zähler aus LoginController::handleLogin() greift hier nicht - er
+     * steht in $_SESSION und zählt nur Anmeldeversuche. Ein Angreifer mit
+     * eigener, gültiger Sitzung konnte über diese Route also unbegrenzt und
+     * ohne Sperre raten, während dasselbe am Login nach fünf Versuchen für
+     * fünf Minuten endet.
+     *
+     * Jetzt entscheidet die Sitzung, welches Konto gemeint ist. Der
+     * Benutzername aus dem Formular wird nicht mehr gelesen; das versteckte
+     * Feld in assets/html/change_pw.html ist deshalb entfallen. Geraten
+     * werden kann damit nur noch das eigene Passwort - und das kennt man.
+     *
      * @return void
      */
     public function handleChangePassword()
     {
-        $username   = Request::g('username');
+        $userId     = Auth::userId();
         $pw_old     = Request::g('pw-old');
         $pwd1       = Request::g('pwd1');
         $pwd2       = Request::g('pwd2');
         $msg = "";
-        
-        $stmt = PdoConnect::$connection->prepare("SELECT * FROM user WHERE username = :username");
-        $stmt->bindParam(":username", $username);
+
+        if (!$userId) {
+            header("Location: index.php?act=login_page");
+            exit;
+        }
+
+        $stmt = PdoConnect::$connection->prepare("SELECT * FROM user WHERE id = :id AND deleted = 0");
+        $stmt->bindParam(":id", $userId, \PDO::PARAM_INT);
         $stmt->execute();
         $result = $stmt->fetch();
+
+        // Der Name fuer die Anzeige stammt aus dem geladenen Datensatz, nicht
+        // aus dem Formular.
+        $username = $result ? htmlspecialchars($result['username']) : '';
 
         $pepper = $_ENV['PEPPER'];
         if (!$pepper) {
@@ -190,13 +250,16 @@ class PasswordController
         }
         $pwd_peppered = hash_hmac("sha256", $pw_old, $pepper);
 
-        // Kein Benutzer gefunden: $result ist dann false, und der Zugriff auf
-        // $result['pwd'] loeste bisher eine Warning und damit HTTP 500 aus.
-        // Die Pruefung steht bewusst VOR password_verify() und liefert
-        // dieselbe Meldung wie ein falsches Passwort - so ist von aussen
-        // nicht erkennbar, ob es den Benutzernamen ueberhaupt gibt.
+        // Kein Datensatz: Das kann jetzt nur noch heissen, dass das Konto
+        // waehrend der laufenden Sitzung geloescht wurde. Der Zugriff auf
+        // $result['pwd'] loeste sonst eine Warning und damit HTTP 500 aus.
         if (!$result || !password_verify($pwd_peppered, $result['pwd'])) {
             $msg = "Das alte Passwort ist nicht korrekt!";
+            // Nur noch das eigene Konto ist erreichbar - trotzdem ins Log:
+            // Haeufige Fehlversuche auf dem eigenen Konto sind ein Hinweis
+            // auf eine uebernommene Sitzung.
+            error_log("Fehlgeschlagene Passwortaenderung fuer UserID {$userId} von IP "
+                . "{$_SERVER['REMOTE_ADDR']} um " . date('c'));
             $html = ViewHelper::template('assets/html/change_pw.html');
             $html = str_replace('###USERNAME###', $username, $html);
             $html = str_replace('###PW_CHANGE_MSG###', $msg, $html);

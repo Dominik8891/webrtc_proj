@@ -35,7 +35,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (50 Prüfungen)
+## Was `client_test.js` prüft (63 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -119,7 +119,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (65 Prüfungen)
+## Was `server_test.php` prüft (127 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -238,6 +238,53 @@ die Tests nicht an. Das ist Absicht.
 12. **Jeder Platzhalter im Template wird auch gefüllt** — jedes `###MARKE###`
     in `guide_role.html` und `settings.html` kommt im zugehörigen Controller
     vor. Ein vergessener Platzhalter steht sonst wörtlich auf der Seite.
+
+24. **Chat: die Beteiligung wird geprüft** — ein Unbeteiligter schreibt nicht
+    in einen fremden Chat, nimmt keine fremde Einladung an und setzt keine
+    fremden Nachrichten auf gelesen. Geprüft wird dabei nicht nur die
+    Fehlermeldung, sondern dass **gar kein schreibendes Statement** abgesetzt
+    wird — eine Meldung nützt nichts, wenn die Nachricht trotzdem in der
+    Datenbank landet. Die Ablehnung fällt für „gibt es nicht" und „geht dich
+    nichts an" wörtlich gleich aus: Die Chat-IDs sind fortlaufend, ein
+    Unterschied verriete beim Durchzählen, welche Chats existieren.
+    `setMessagesSeen()` bindet die Kennung aus der **Sitzung**, auch wenn im
+    Formular eine andere steht.
+
+    Dazu die Regel für alles, was noch dazukommt: Jede Methode des
+    `ChatController`, die eine `chat_id` aus der Anfrage entgegennimmt, muss
+    `Auth::userId()` heranziehen und die Beteiligung prüfen. Ohne diese
+    Prüfung fiele eine später ergänzte Methode still in dieselbe Lücke zurück.
+
+25. **Die Adresse in E-Mail-Links kommt aus der Konfiguration** — weder aus
+    dem Code (dort stand `https://localhost/rctprojnew/`, die Adresse eines
+    Entwicklungsrechners) noch aus dem Host-Header der Anfrage: Wer den Reset
+    anstößt, könnte den Link sonst auf einen eigenen Server umbiegen. Die
+    Mail ginge an den richtigen Empfänger, der Klick an den Angreifer.
+    `App\Helper\Url` setzt Basis und Ziel zu genau einer Adresse zusammen
+    und weist Unbrauchbares ab (kein Schema, `javascript:`, Anfrage- oder
+    Fragmentteil, Zeilenumbruch) — dann entsteht **kein** Link und es wird
+    nichts verschickt. Der Schlüssel `APP_BASE_URL` muss in `.env.example`
+    stehen und erklärt sein.
+
+26. **Passwortwechsel: das Konto kommt aus der Sitzung** — der Benutzername
+    aus dem Formular wird nicht mehr gelesen, gesucht wird über die Kennung
+    (`WHERE id = :id`), und weder `change_pw.html` noch der Link in
+    `settings.html` schicken eine Kennung mit.
+
+    Der Grund: Vorher bestimmte die Anfrage, welches Konto geprüft wird. Wer
+    angemeldet war, konnte einen fremden Namen eintragen und Passwörter
+    durchprobieren — die Meldung „Das alte Passwort ist nicht korrekt!" ist
+    die Auskunft, ob geraten wurde. Der Lockout aus
+    `LoginController::handleLogin()` greift dort nicht: Er steht in
+    `$_SESSION` und zählt nur Anmeldeversuche.
+
+    Dieselbe Regel wird projektweit geprüft: Keine Methode, die am **eigenen**
+    Konto arbeitet (Einstellungen, Farbprofil, 2FA, Heartbeat, eigene
+    Position, Guide-Rolle, Bestätigungsmail), nimmt eine Kennung aus der
+    Anfrage oder liest direkt aus `$_REQUEST`. Eine Kennung aus der Anfrage
+    ist nur dort in Ordnung, wo bewusst ein *fremder* Datensatz gemeint ist
+    (Benutzerverwaltung, Standortsperre, Chatpartner) — und dort steht eine
+    eigene Prüfung daneben.
 
 ## Grenzen
 

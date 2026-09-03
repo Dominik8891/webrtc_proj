@@ -99,6 +99,21 @@ class Auth
     }
 
     /**
+     * Name des angemeldeten Benutzers.
+     *
+     * Nur für die Anzeige gedacht. Wer ein Konto ADRESSIERT - laden,
+     * ändern, löschen -, nimmt userId(): Der Name ist zwar eindeutig, aber
+     * die Kennung ist der Schlüssel, an dem die Daten hängen.
+     *
+     * @return string Leerstring, wenn niemand angemeldet ist
+     */
+    public static function username(): string
+    {
+        $name = $_SESSION['user']['username'] ?? '';
+        return is_scalar($name) ? (string)$name : '';
+    }
+
+    /**
      * Rolle des angemeldeten Benutzers.
      * @return int|null null, wenn niemand angemeldet oder die Rolle unbekannt ist
      */

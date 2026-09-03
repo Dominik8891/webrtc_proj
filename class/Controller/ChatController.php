@@ -11,6 +11,29 @@ use App\Helper\ViewHelper;
 
 /**
  * Controller für Chat-Funktionen (Starten, Nachrichten, Einladungen, etc.).
+ *
+ * WER DARF WAS - DIE ZWEITE PRÜFUNG
+ * ---------------------------------
+ * Über den Zugang zu den Routen entscheidet index.php anhand der Rechte aus
+ * config/routes.php. Ein Recht sagt aber nur "diese Rolle darf Chats lesen",
+ * nicht "dieser Chat gehört diesem Nutzer". Deshalb prüft jede Methode, die
+ * eine chat_id aus der Anfrage entgegennimmt, zusätzlich die Beteiligung:
+ *
+ *   acceptChat()      nur der Gefragte (pending_for)
+ *   declineChat()     nur der Gefragte (pending_for)
+ *   getMessages()     nur die beiden Teilnehmer
+ *   sendMessage()     nur die beiden Teilnehmer
+ *   setMessagesSeen() nur die beiden Teilnehmer
+ *   showChat()        nur die beiden Teilnehmer
+ *
+ * Die übrigen Methoden nehmen gar keine chat_id entgegen: startChat(),
+ * getChats(), getChatInvitations() und getAllChats() arbeiten
+ * ausschließlich mit der Kennung aus der Sitzung.
+ *
+ * Die Antwort auf einen unerlaubten Zugriff unterscheidet nirgends zwischen
+ * "gibt es nicht" und "geht dich nichts an". Die Chat-IDs sind fortlaufend;
+ * eine unterschiedliche Antwort verriete beim Durchzählen, welche Chats es
+ * gibt.
  */
 class ChatController
 {
@@ -57,16 +80,42 @@ class ChatController
 
     /**
      * Akzeptiert eine Chat-Einladung und setzt Chat auf aktiv.
+     *
+     * Zugang: Recht chat.answer, geprueft in index.php. Zusaetzlich darf nur
+     * annehmen, wer auch gefragt wurde - das kann keine Rechtetabelle wissen.
+     *
+     * Vorher las diese Methode $_SESSION ueberhaupt nicht. Sie baute aus der
+     * uebergebenen ID ein Chat-Objekt ohne jeden Datenbankzugriff und setzte
+     * es aktiv: Ein Aufruf mit einer beliebigen chat_id nahm eine fremde
+     * Einladung an. Der Chat zweier Fremder war damit aktiv, ohne dass der
+     * Gefragte je zugestimmt haette. Da die IDs fortlaufend sind, genuegte
+     * ein Durchzaehlen. ChatController::declineChat() prueft dieselbe
+     * Bedingung seit jeher - Annehmen und Ablehnen sind dieselbe
+     * Entscheidung und pruefen jetzt dasselbe.
+     *
      * @return void
      */
     public function acceptChat(): void
     {
-        $chatId = (int)Request::g('chat_id');
-        if (!$chatId) {
+        $currentUserId = Auth::userId();
+        $chatId        = (int)Request::g('chat_id');
+        if (!$chatId || !$currentUserId) {
             echo json_encode(['success' => false, 'error' => 'Invalid chat']);
             return;
         }
-        $chat = new Chat(['id' => $chatId]);
+
+        $chat = Chat::findById($chatId);
+
+        // Annehmen darf ausschliesslich der, fuer den die Einladung offen
+        // steht. Die Antwort unterscheidet nicht zwischen "gibt es nicht" und
+        // "geht dich nichts an", damit sich ueber diese Route keine fremden
+        // Chat-IDs abklopfen lassen.
+        if (!$chat || $chat->getPendingFor() != $currentUserId) {
+            error_log("acceptChat: Benutzer #$currentUserId darf Chat #$chatId nicht annehmen");
+            echo json_encode(['success' => false, 'error' => 'Nicht erlaubt']);
+            return;
+        }
+
         $chat->setActive();
         echo json_encode(['success' => true]);
     }
@@ -173,6 +222,20 @@ class ChatController
 
     /**
      * Sendet eine Nachricht in einen Chat.
+     *
+     * Zugang: Recht chat.write, geprueft in index.php. Zusaetzlich muss der
+     * Absender an diesem Chat beteiligt sein - das kann keine Rechtetabelle
+     * wissen.
+     *
+     * Vorher wurde nur geprueft, DASS jemand angemeldet ist. Die chat_id kam
+     * ungeprueft aus der Anfrage und ging direkt in das INSERT: Jeder
+     * Angemeldete konnte in jeden fremden Chat schreiben, unter seinem
+     * eigenen Namen und ohne je eingeladen worden zu sein. Beim naechsten
+     * Abruf stand die Nachricht im Verlauf der beiden Fremden.
+     *
+     * Es ist dieselbe Pruefung wie in getMessages(): Lesen und Schreiben
+     * betreffen denselben Verlauf.
+     *
      * @return void
      */
     public function sendMessage(): void
@@ -184,6 +247,18 @@ class ChatController
             echo json_encode(['success' => false, 'error' => 'Invalid data']);
             return;
         }
+
+        $chat = Chat::findById($chatId);
+
+        // Beteiligung pruefen. Die Antwort unterscheidet nicht zwischen
+        // "gibt es nicht" und "geht dich nichts an", damit sich ueber diese
+        // Route keine fremden Chat-IDs abklopfen lassen.
+        if (!$chat || ($chat->getUser1Id() != $currentUserId && $chat->getUser2Id() != $currentUserId)) {
+            error_log("sendMessage: Benutzer #$currentUserId ist nicht an Chat #$chatId beteiligt");
+            echo json_encode(['success' => false, 'error' => 'Kein Zugriff']);
+            return;
+        }
+
         $newMsg = ChatMessage::add($chatId, $currentUserId, $msg);
         echo json_encode(['success' => true, 'message' => [
             'id' => $newMsg->getId(),
@@ -233,20 +308,50 @@ class ChatController
 
     /**
      * Setzt alle empfangenen Nachrichten eines Chats auf 'gesehen'.
+     *
+     * Zugang: Recht chat.read, geprueft in index.php. Zusaetzlich muss der
+     * Aufrufer an diesem Chat beteiligt sein - das kann keine Rechtetabelle
+     * wissen.
+     *
+     * ZWEI AENDERUNGEN GEGENUEBER VORHER
+     * 1. Wer der Leser ist, sagt die Sitzung und nicht mehr die Anfrage. Das
+     *    Feld sender_id kam aus dem Formular; mit einer fremden ID darin
+     *    liessen sich die Nachrichten eines Chats aus Sicht eines anderen
+     *    als gelesen markieren. Der Browser schickt es weiterhin mit (siehe
+     *    assets/js/ui_chat.js) - es wird hier nur nicht mehr gelesen.
+     * 2. Die Beteiligung wird geprueft. Vorher genuegte eine beliebige
+     *    chat_id, um in einem fremden Chat den Ungelesen-Zaehler des anderen
+     *    zurueckzusetzen: Der Empfaenger sah nicht mehr, dass etwas Neues da
+     *    war.
+     *
      * @return void
      */
     public function setMessagesSeen(): void
     {
         $chatId = (int)Request::g('chat_id');
-        $senderId = (int)Request::g('sender_id');
-        if (!$chatId || !$senderId) {
+        // Der Leser ist immer der Angemeldete. Markiert werden die
+        // Nachrichten der GEGENSEITE, deshalb steht er im "sender_id !="
+        // der Bedingung.
+        $currentUserId = Auth::userId();
+        if (!$chatId || !$currentUserId) {
             echo json_encode(['success' => false, 'error' => 'Invalid data']);
             return;
         }
+
+        $chat = Chat::findById($chatId);
+
+        // Beteiligung pruefen - dieselbe Bedingung und dieselbe
+        // nichtssagende Antwort wie in getMessages().
+        if (!$chat || ($chat->getUser1Id() != $currentUserId && $chat->getUser2Id() != $currentUserId)) {
+            error_log("setMessagesSeen: Benutzer #$currentUserId ist nicht an Chat #$chatId beteiligt");
+            echo json_encode(['success' => false, 'error' => 'Kein Zugriff']);
+            return;
+        }
+
         $stmt = PdoConnect::$connection->prepare(
             "UPDATE chat_message SET seen = 1 WHERE chat_id = ? AND sender_id != ? AND seen = 0"
         );
-        $stmt->execute([$chatId, $senderId]);
+        $stmt->execute([$chatId, $currentUserId]);
         echo json_encode(['success' => true]);
     }
 
