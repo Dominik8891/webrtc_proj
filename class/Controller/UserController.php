@@ -220,36 +220,6 @@ class UserController
     }
 
     /**
-     * API: Speichert die übermittelte Location für den aktuellen User (Latitude/Longitude).
-     * Erwartet POST mit JSON {"lat":..., "lon":...}
-     *
-     * @return void
-     */
-    public function saveLocation()
-    {
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
-        $lat = isset($data['lat']) ? $data['lat'] : null;
-        $lon = isset($data['lon']) ? $data['lon'] : null;
-
-        if ($lat !== null && $lon !== null && is_numeric($lat) && is_numeric($lon)) {
-            $user = new User(Auth::userId());
-            $result = $user->saveLocation($lat, $lon);
-            if ($result) {
-                http_response_code(200);
-                echo 'ok';
-            } else {
-                http_response_code(500);
-                echo 'Fehler beim Speichern.';
-            }
-        } else {
-            http_response_code(400);
-            echo 'Ungültige Daten.';
-        }
-        exit;
-    }
-
-    /**
      * Generiert die HTML-Zeilen für die Benutzerliste (private Hilfsmethode).
      *
      * @param User $in_user

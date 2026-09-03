@@ -768,6 +768,89 @@ function ackLastMove(status = 'executed', reason) {
         document.documentElement.setAttribute('data-theme', 'indigo');
     }
 
+    // -----------------------------------------------------------------
+    console.error('\n28) Der Anruf des Zuschauers: nur Ton, und Fehler sofort');
+    {
+        // Der Zuschauer schaut zu. Beim Anrufen wird deshalb nur das Mikrofon
+        // angefordert; frueher verlangte startCall unbedingt Video UND Audio,
+        // und wer keine Kamera freigab, kam gar nicht erst ins Gespraech.
+        resetAll();
+        global.__mediaRequests.length = 0;
+        global.__mediaError = null;
+        app.refs.iceServersLoaded = true;
+        app.refs.iceServersDegraded = false;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+
+        await app.rtc.startCall(42);
+
+        assert.strictEqual(global.__mediaRequests.length, 1, 'genau eine Medienanforderung');
+        assert.strictEqual(global.__mediaRequests[0].audio, true, 'Ton wird angefordert');
+        assert.ok(!global.__mediaRequests[0].video, 'die Kamera wird NICHT angefordert');
+        assert.deepStrictEqual(app.refs.localStream.getVideoTracks(), [],
+            'es wird keine Videospur gesendet');
+        ok('der Anrufer wird nur nach dem Mikrofon gefragt');
+
+        // Die Kamera bleibt trotzdem zuschaltbar: Dafuer steht ein leerer
+        // Videosender in der Aushandlung bereit. Ohne ihn liesse sich das Bild
+        // spaeter nur mit einer Neuaushandlung dazuschalten.
+        const platz = app.refs.localPeerConnection.getTransceivers()
+            .filter(t => t.receiver && t.receiver.track && t.receiver.track.kind === 'video');
+        assert.strictEqual(platz.length, 1, 'genau ein Platzhalter fuer die Kamera');
+        assert.strictEqual(platz[0].sender.track, null, 'der Platzhalter sendet nichts');
+        assert.strictEqual(app.state.callTimeout !== null, true, 'die Annahmefrist laeuft');
+        app.rtc.endCall(false);
+        ok('die Kamera bleibt zuschaltbar, ohne beim Anrufen gefragt zu werden');
+
+        // Kein Mikrofon: Der Fehler wird SOFORT gemeldet und benannt. Vorher
+        // verschluckte ihn ein console.error, und 25 Sekunden spaeter kam die
+        // falsche Meldung "Der Anruf wurde nicht angenommen".
+        resetAll();
+        global.__mediaRequests.length = 0;
+        app.refs.iceServersLoaded = true;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+        const abgelehnt = new Error('Permission denied');
+        abgelehnt.name = 'NotAllowedError';
+        global.__mediaError = abgelehnt;
+
+        await app.rtc.startCall(42);
+        global.__mediaError = null;
+
+        assert.strictEqual(global.__alerts.length, 1, 'genau eine Meldung');
+        assert.ok(/Mikrofon/.test(global.__alerts[0]), 'die Meldung nennt das Mikrofon');
+        assert.ok(!/nicht angenommen/.test(global.__alerts[0]),
+            'gemeldet wird der Fehler, nicht eine ausgebliebene Annahme');
+        assert.strictEqual(app.state.isCallActive, false, 'der Call laeuft nicht weiter');
+        assert.strictEqual(app.state.callTimeout, null, 'es laeuft keine Annahmefrist');
+        assert.deepStrictEqual(global.__signals, [], 'es geht kein Offer raus');
+        ok('ein Medienfehler wird sofort und benannt gemeldet');
+
+        // Der Server weist einen Anruf ab, dessen Ziel kein Guide ist. Auch das
+        // ist eine Antwort und keine Stille: Sie wird durchgereicht.
+        resetAll();
+        app.refs.iceServersLoaded = true;
+        app.refs.meteredIceServers = [{ urls: 'stun:x' }];
+        const echterFetch = global.fetch;
+        global.fetch = async (url, opts) => {
+            if (String(url).includes('getSignal') && opts && opts.method === 'POST') {
+                global.__signals.push(JSON.parse(opts.body));
+                return { ok: true, text: async () => JSON.stringify({
+                    status: 'error', msg: 'Dieser Benutzer bietet keine Führungen an.'
+                }) };
+            }
+            return echterFetch(url, opts);
+        };
+
+        await app.rtc.startCall(7);
+        global.fetch = echterFetch;
+
+        assert.strictEqual(global.__alerts.length, 1, 'genau eine Meldung');
+        assert.ok(/Führungen/.test(global.__alerts[0]), 'die Absage des Servers steht in der Meldung');
+        assert.strictEqual(app.state.isCallActive, false, 'der Call wird abgeraeumt');
+        assert.strictEqual(app.state.callTimeout, null, 'keine Frist auf einen Anruf, den es nicht gibt');
+        assert.ok(!app.state.callRole, 'ohne Anruf auch keine Rolle');
+        ok('eine Absage des Servers wird sofort weitergegeben');
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

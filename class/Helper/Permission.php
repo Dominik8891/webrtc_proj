@@ -63,7 +63,20 @@ class Permission
     /** Zweiten Faktor einrichten oder abschalten. */
     public const AUTH_TWOFACTOR_MANAGE = 'auth.twofactor_manage';
 
-    /** Benutzerliste sehen. */
+    /**
+     * Benutzerliste sehen.
+     *
+     * Nur noch der Admin. Die Liste war der einzige Ort in der Anwendung, an
+     * dem sich ein beliebiges Konto ohne jeden Ortsbezug anrufen liess - und
+     * genau darueber wurde die Guide-Zustimmung ausgehebelt: Wer angerufen
+     * wurde, galt im Call als Guide, ganz gleich ob er der Rolle je
+     * zugestimmt hatte. Der Weg ins Gespraech fuehrt jetzt ueber einen
+     * Standort auf der Karte, also ueber einen Guide, der sich dafuer
+     * entschieden hat.
+     *
+     * Fuer den Admin bleibt sie: Er verwaltet darueber Konten
+     * (user.manage, user.delete), und dafuer muss er sie sehen.
+     */
     public const USER_LIST = 'user.list';
     /** Benutzer anlegen und bearbeiten (fremde Konten). */
     public const USER_MANAGE = 'user.manage';
@@ -75,16 +88,6 @@ class Permission
     public const USER_PRESENCE = 'user.presence';
     /** Benutzernamen zu einer ID nachschlagen. */
     public const USER_READ_NAME = 'user.read_name';
-    /**
-     * Eigene Koordinaten übermitteln.
-     *
-     * Nur für Rollen, die Standorte anbieten. Für einen Zuschauer ist die
-     * eigene Position ohne Bedeutung - er sucht sich einen Standort auf der
-     * Karte aus, er wird nicht gefunden. Deshalb fragt der Login sie auch
-     * nicht mehr bei jedem ab, sondern nur noch bei denen, die dieses Recht
-     * haben (LoginController::continueAfterLogin).
-     */
-    public const USER_POSITION = 'user.position';
 
     /**
      * Über die eigene Guide-Rolle entscheiden.
@@ -183,8 +186,9 @@ class Permission
      * Trial und User haben heute dieselben Rechte. Der Unterschied liegt
      * nicht in den Rechten, sondern in der Bedeutung: Trial heißt "die
      * Guide-Frage ist noch offen", User heißt "hat sich gegen die Guide-Rolle
-     * entschieden". Nur ein Trial-Konto bekommt den Dialog beim Login
-     * (App\Model\GuideRole::needsDecision).
+     * entschieden". Gefragt wird niemand mehr von selbst - die Frage liegt in
+     * den Einstellungen und auf dem Knopf der Kopfleiste, wer sie stellen
+     * darf, sagt user.guide_role.
      *
      * Die beiden Listen bleiben getrennt, damit sich Trial später
      * einschränken lässt, ohne dass irgendwo im Code etwas anderes
@@ -213,10 +217,13 @@ class Permission
         // -------------------------------------------------------------
         // Trial: frisch registriert, Guide-Frage noch offen.
         //
-        // Kein location.create und kein user.position: Beides setzt voraus,
-        // dass jemand Standorte anbietet - und genau das ist noch nicht
-        // entschieden. Stattdessen user.guide_role, also der Zugang zu der
-        // Frage.
+        // Kein location.create: Standorte anzubieten setzt voraus, dass
+        // jemand Guide sein will - und genau das ist noch nicht entschieden.
+        // Stattdessen user.guide_role, also der Zugang zu der Frage.
+        //
+        // Kein user.list: Die Benutzerliste erlaubte Anrufe ohne jeden
+        // Ortsbezug. Wer angerufen wurde, galt im Call als Guide, auch wenn
+        // er der Rolle nie zugestimmt hatte.
         // -------------------------------------------------------------
         Role::TRIAL => [
             self::SYSTEM_HOME,
@@ -224,7 +231,6 @@ class Permission
             self::AUTH_PASSWORD_CHANGE,
             self::AUTH_EMAIL_VERIFY_SEND,
             self::AUTH_TWOFACTOR_MANAGE,
-            self::USER_LIST,
             self::USER_SETTINGS,
             self::USER_PRESENCE,
             self::USER_READ_NAME,
@@ -248,9 +254,11 @@ class Permission
         // -------------------------------------------------------------
         // User: Zuschauer, hat sich gegen die Guide-Rolle entschieden.
         //
-        // Die eigene Position ist für ihn ohne Bedeutung (user.position
-        // fehlt), Standorte legt er keine an (location.create fehlt). Seine
-        // Entscheidung kann er jederzeit ändern - dafür user.guide_role.
+        // Standorte legt er keine an (location.create fehlt), und die
+        // Benutzerliste sieht er nicht (user.list fehlt): Er sucht sich einen
+        // Standort auf der Karte aus, statt ein beliebiges Konto anzurufen.
+        // Seine Entscheidung kann er jederzeit ändern - dafür
+        // user.guide_role.
         // -------------------------------------------------------------
         Role::USER => [
             self::SYSTEM_HOME,
@@ -258,7 +266,6 @@ class Permission
             self::AUTH_PASSWORD_CHANGE,
             self::AUTH_EMAIL_VERIFY_SEND,
             self::AUTH_TWOFACTOR_MANAGE,
-            self::USER_LIST,
             self::USER_SETTINGS,
             self::USER_PRESENCE,
             self::USER_READ_NAME,
@@ -284,6 +291,9 @@ class Permission
         //
         // Er hat der Rolle ausdrücklich zugestimmt (App\Model\GuideRole) und
         // kann sie über user.guide_role auch wieder zurückgeben.
+        //
+        // Auch er sieht keine Benutzerliste: Angerufen wird er über seinen
+        // Standort, nicht über eine Namensliste.
         // -------------------------------------------------------------
         Role::GUIDE => [
             self::SYSTEM_HOME,
@@ -291,11 +301,9 @@ class Permission
             self::AUTH_PASSWORD_CHANGE,
             self::AUTH_EMAIL_VERIFY_SEND,
             self::AUTH_TWOFACTOR_MANAGE,
-            self::USER_LIST,
             self::USER_SETTINGS,
             self::USER_PRESENCE,
             self::USER_READ_NAME,
-            self::USER_POSITION,
             self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
@@ -338,7 +346,6 @@ class Permission
             self::USER_SETTINGS,
             self::USER_PRESENCE,
             self::USER_READ_NAME,
-            self::USER_POSITION,
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
             self::LOCATION_LIST,

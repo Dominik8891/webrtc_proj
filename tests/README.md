@@ -27,7 +27,7 @@ verändern nichts — sie sind gefahrlos jederzeit ausführbar.
 
 | Datei | Inhalt |
 |---|---|
-| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `signaling.js`, `chat.js` und `ui.js` aus `assets/js`. Allein nicht ausführbar. |
+| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `navigator.mediaDevices`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Die Medien-Attrappe schreibt mit, welche Spuren angefordert wurden, und lässt sich über `__mediaError` zu einer Ablehnung zwingen. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `signaling.js`, `chat.js` und `ui.js` aus `assets/js`. Allein nicht ausführbar. |
 | `client_test.js` | Die eigentlichen Client-Prüfungen. |
 | `server_test.php` | Die Serverprüfungen. Ersetzt `PdoConnect::$connection` durch eine Attrappe, die abgesetzte SQL-Statements nur mitschreibt statt sie auszuführen. |
 
@@ -35,7 +35,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (63 Prüfungen)
+## Was `client_test.js` prüft (67 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -96,6 +96,19 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
 22. **Die Rolle kommt vom Server** — sie hängt am ausgelieferten Offer, und die
     Antwort auf das eigene Offer wird bis zum Aufrufer durchgereicht.
 
+### Der Anruf des Zuschauers (28)
+
+28. **Nur Ton, und Fehler sofort** — `startCall` fordert genau eine
+    Medienspur an, und zwar das Mikrofon; die Kamera wird nicht angefragt und
+    keine Videospur gesendet. Für sie steht ein leerer Videosender in der
+    Aushandlung bereit, damit der Kamera-Knopf sie später ohne
+    Neuaushandlung zuschalten kann. Ein abgelehntes Mikrofon erzeugt genau
+    *eine* Meldung, die das Mikrofon benennt — nicht die frühere Meldung „Der
+    Anruf wurde nicht angenommen" 25 Sekunden später —, es geht kein Offer
+    raus und es läuft keine Annahmefrist. Weist der Server den Anruf ab (Ziel
+    ist kein Guide), steht seine Begründung in der Meldung, der Call wird
+    abgeräumt und es wird keine Rolle vergeben.
+
 ### Rolle und Standort-Button (23)
 
 23. **Der Standort-Button richtet sich nach der Rolle** (Befund F-5) — Guide und
@@ -119,7 +132,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (127 Prüfungen)
+## Was `server_test.php` prüft (126 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -134,13 +147,15 @@ die Tests nicht an. Das ist Absicht.
    ausschließlich die gelesene Menge, gebunden an den Empfänger; nicht-numerische
    IDs werden aussortiert; eine leere Liste erzeugt keinen DB-Zugriff; das
    Aufräumen abgelaufener Signale löscht nie innerhalb des 15-Sekunden-Lesefensters.
-5. **Rollenvergabe für den Call** — der Zuschauer wird Zuschauer und der
-   angerufene Guide wird Guide; beim Rückruf bleibt der Guide der Guide; bei
-   zwei Guides und bei gar keinem Guide gilt der Angerufene als Guide; ein
-   Admin gilt nicht als Guide (Befunde F-7/F-8); ein unbekannter Benutzer führt
-   zu einer eindeutigen Rolle statt zu einem Fehler; beide Seiten bekommen
-   zueinander passende Rollen und Dritte gar keine; gestempelt wird
-   ausschließlich das Offer.
+5. **Rollenvergabe für den Call** — ein Anruf kommt nur zustande, wenn der
+   Angerufene als Guide registriert ist; dann ist er der Guide und der Anrufer
+   der Zuschauer. Ist er es nicht — Trial, User, Admin oder ein unbekanntes
+   Konto —, gibt es *keine* Rollen und der Anruf wird abgewiesen, statt den
+   Angerufenen stillschweigend zum Guide zu erklären. Bei zwei Guides ist der
+   Angerufene der Guide; ein Admin gilt nicht als Guide (Befunde F-7/F-8), er
+   darf anrufen, aber nicht angerufen werden; beide Seiten bekommen zueinander
+   passende Rollen und Dritte gar keine; gestempelt wird ausschließlich das
+   Offer.
 
    Die Prüfung ersetzt die Benutzertabelle durch eine Attrappe im Speicher —
    auch hier ohne Datenbank.
@@ -214,6 +229,14 @@ die Tests nicht an. Das ist Absicht.
     war. Die Spaltenzahl stand dabei an drei Stellen gleichzeitig
     (`<thead>`, Zeilenaufbau, feste Zellennummern), die
     Tabellenkonfiguration ebenfalls an drei.
+
+11a. **Die GPS-Abfrage ist entfallen** — die Route `save_location`, das Recht
+    `user.position`, `UserController::saveLocation()`, `User::saveLocation()`,
+    der Dialog und sein Skript sind weg, und das Layout lädt kein Skript mehr,
+    das es nicht gibt. Die Spalten `user.latitude/longitude/location_updated_at`
+    bleiben in `database.sql` stehen, dort aber als **UNGENUTZT** vermerkt.
+    Die Guide-Frage wird nach dem Login nicht mehr gestellt; erreichbar bleibt
+    sie über die Einstellungen und den Knopf der Kopfleiste.
 
 11. **Die Guide-Rolle wird angenommen, nicht vergeben** — gefragt wird, wessen
     Entscheidung noch aussteht: ein `Trial`-Konto ohne jeden Datenbankzugriff,
@@ -293,7 +316,8 @@ Nicht abgedeckt sind insbesondere:
 
 - der echte Wechsel zwischen WLAN und Mobilfunk auf zwei Geräten,
 - das tatsächliche Timing eines ICE-Restarts über einen TURN-Server,
-- Medienwiedergabe, Kamera- und Mikrofonwechsel,
+- Medienwiedergabe, Kamera- und Mikrofonwechsel (geprüft wird nur, *welche*
+  Spuren beim Anrufen angefordert werden, nicht was der Browser daraus macht),
 - das Aussehen der Richtungsanzeige und der Sperranzeige (geprüft wird nur,
   dass sie ein- und ausgeblendet werden, nicht wie sie aussehen),
 - alles außerhalb von Verbindungsstabilität, Steuerprotokoll und

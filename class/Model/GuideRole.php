@@ -43,18 +43,29 @@ class GuideRole
      * DER HEBEL FUER DIE SPAETERE ABRECHNUNG. Wird diese Zahl hochgezaehlt,
      * weil sich die Bedingungen aendern - etwa weil Fuehrungen kostenpflichtig
      * werden -, gilt jede aeltere Zustimmung als ueberholt: needsDecision()
-     * meldet sich, und der Guide bekommt den Dialog beim naechsten Login
-     * erneut, diesmal mit dem neuen Text.
+     * meldet sich dann fuer diesen Guide.
      *
-     * Beim Hochzaehlen ist genau dreierlei zu tun:
+     * ACHTUNG, DAS FRAGT DERZEIT NIEMAND AB. Bis vor Kurzem stellte der Login
+     * die Frage von selbst; dieser Dialog ist entfallen, weil er einen frisch
+     * registrierten Nutzer vor die Rollenfrage stellte, bevor er die
+     * Anwendung gesehen hatte (LoginController::continueAfterLogin). Damit
+     * hat needsDecision() heute keinen Aufrufer mehr: Eine erhoehte
+     * Fassungsnummer wirkt sich von allein NICHT aus.
+     *
+     * Beim Hochzaehlen ist deshalb dreierlei zu tun:
      *   1. diese Konstante erhoehen,
      *   2. den Text in assets/html/guide_role.html anpassen,
-     *   3. sonst nichts - die Wirkung stellt sich von selbst ein.
+     *   3. einen Weg schaffen, auf dem der betroffene Guide die neue Fassung
+     *      auch vorgelegt bekommt - ein Hinweis auf der Startseite oder in
+     *      den Einstellungen, nicht wieder eine Sperre nach dem Login.
      */
     public const TERMS_VERSION = 1;
 
     /**
      * Muss diesem Konto die Guide-Frage gestellt werden?
+     *
+     * Die Frage beantwortet diese Methode weiterhin richtig, aber es fragt
+     * sie zurzeit niemand - siehe den Hinweis bei TERMS_VERSION.
      *
      * Zwei Faelle:
      *   1. Die Rolle ist Trial. Trial heisst "hat sich noch nicht

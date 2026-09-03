@@ -74,6 +74,23 @@ class ViewHelper
      * dahinter wirklich erlaubt ist, entscheidet weiterhin index.php - ein
      * Eintrag hier ist Anzeige, keine Berechtigung.
      *
+     * WAS HIER NICHT MEHR STEHT
+     * -------------------------
+     * "Alle Chats" und "Benutzerliste". Beide fuehrten an der Karte vorbei
+     * zu einer Liste von Konten - und die Benutzerliste bot dort zu jedem
+     * Konto einen Anruf-Knopf an. Ein so zustande gekommener Anruf hatte
+     * keinen Ortsbezug, und der Angerufene wurde im Call zum Guide erklaert,
+     * ohne der Rolle je zugestimmt zu haben (App\Controller\WebRTCController).
+     * Der Weg ins Gespraech fuehrt jetzt ausschliesslich ueber einen Standort
+     * auf der Karte.
+     *
+     * Ein bestehender Chat geht dadurch nicht verloren: Eine Einladung oeffnet
+     * sich weiterhin von selbst als Fenster (assets/js/ui_chat.js).
+     *
+     * Die Benutzerliste bleibt fuer den Admin stehen - er verwaltet darueber
+     * Konten und braucht den Einstieg. Entschieden wird das ueber das Recht
+     * user.list, das nur noch er hat, und nicht ueber eine Rollenabfrage.
+     *
      * @param string $username Der anzuzeigende Name (wird maskiert)
      * @return string HTML
      */
@@ -82,10 +99,11 @@ class ViewHelper
         $name = htmlspecialchars($username);
 
         $eintraege = [
-            'index.php?act=settings'       => 'Mein Konto',
-            'index.php?act=get_all_chats'  => 'Alle Chats',
-            'index.php?act=list_user'      => 'Benutzerliste',
+            'index.php?act=settings' => 'Mein Konto',
         ];
+        if (Auth::can(Permission::USER_LIST)) {
+            $eintraege['index.php?act=list_user'] = 'Benutzerliste';
+        }
 
         $links = '';
         foreach ($eintraege as $ziel => $titel) {

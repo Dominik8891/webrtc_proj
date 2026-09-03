@@ -392,10 +392,19 @@ CREATE TABLE IF NOT EXISTS `user` (
   -- korrekt als "nicht online".
   `user_status` varchar(20) DEFAULT 'offline',
 
-  -- Zuletzt per Browser-Geolocation gemeldete Position des Nutzers.
-  -- Geschrieben von User::saveLocation() (User.php:494), aufgerufen über
-  -- die Route save_location. Nicht zu verwechseln mit der Tabelle
-  -- `location`, die die angebotenen Führungen enthält.
+  -- UNGENUTZT. Zuletzt per Browser-Geolocation gemeldete Position des
+  -- Nutzers. Es gibt weder eine schreibende noch eine lesende Stelle mehr:
+  -- Der Dialog nach dem Login und die Route save_location sind entfallen,
+  -- weil sie eine Umkreissuche begruendeten, die es in dieser Anwendung nie
+  -- gab. Gesucht wird ueber die Karte, und die zeigt die Tabelle `location`
+  -- - also angebotene Fuehrungen, nicht Nutzer.
+  --
+  -- Die Spalten bleiben vorerst stehen, damit bestehende Installationen
+  -- nichts verlieren und ein spaeteres Umkreis-Feature nicht bei null
+  -- anfaengt. Wer sie wieder benutzt, braucht dafuer eine ausdrueckliche
+  -- Einwilligung: Der Aufenthaltsort einer Person ist ein personenbezogenes
+  -- Datum, kein Nebenprodukt einer Anmeldung.
+  --
   -- Genauigkeit wie in `location`: 8 Nachkommastellen (~1,1 mm).
   `latitude` decimal(10,8) DEFAULT NULL,
   `longitude` decimal(11,8) DEFAULT NULL,

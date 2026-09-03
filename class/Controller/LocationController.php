@@ -96,7 +96,12 @@ class LocationController
             $location->setDescription($description);
             $location->setNewLocation($user_id, $country_id);
 
-            header("Location: index.php?success=1");
+            // MIT act. Ohne den Parameter landete die Weiterleitung bei
+            // index.php ohne Aktion - und index.php leitet dann auf
+            // index.php?act=home weiter, wobei success=1 verlorengeht. Die
+            // Erfolgsmeldung, die assets/js/main.js daran haengt, erschien
+            // deshalb nie.
+            header("Location: index.php?act=home&success=1");
             exit;
         }
     }

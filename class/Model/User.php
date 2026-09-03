@@ -547,26 +547,12 @@ class User
         return true;
     }
 
-    /**
-     * Speichert den Standort (Latitude/Longitude) für den User.
-     * @param float $latitude
-     * @param float $longitude
-     * @return bool Erfolg
-     */
-    public function saveLocation($latitude, $longitude)
-    {
-        try {
-            $sql = "UPDATE user SET latitude = :lat, longitude = :lon, location_updated_at = CURRENT_TIMESTAMP WHERE id = :id";
-            $stmt = PdoConnect::$connection->prepare($sql);
-            $stmt->bindParam(':lat', $latitude);
-            $stmt->bindParam(':lon', $longitude);
-            $stmt->bindParam(':id', $this->id, \PDO::PARAM_INT);
-            return $stmt->execute();
-        } catch (\Exception $e) {
-            error_log("Aktuelle Position konnte nicht gespeichert werden Fehler: " . $e);
-            return false;
-        }
-    }
+    // saveLocation() ist entfallen. Die Methode schrieb nach
+    // user.latitude/longitude/location_updated_at - drei Spalten, die keine
+    // einzige Abfrage im Projekt liest. Der Dialog, der sie fuellte, warb mit
+    // einer Umkreissuche, die es nicht gibt. Die Spalten bleiben vorerst in
+    // der Datenbank stehen (database.sql, dort als ungenutzt vermerkt);
+    // geschrieben werden sie nicht mehr.
 
     /**
      * Verschlüsselt das Passwort mit Pepper und Argon2i.

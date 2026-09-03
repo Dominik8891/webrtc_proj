@@ -21,14 +21,19 @@ use App\Model\User;
  *
  * WO DER DIALOG AUFTAUCHT
  * -----------------------
- *   1. Nach dem Login, solange die Frage offen ist (Rolle Trial) - siehe
- *      LoginController::handleLogin.
- *   2. Jederzeit über die Einstellungsseite. Die Entscheidung ist keine
- *      Einbahnstraße: Ein Guide kann die Rolle zurückgeben, ein Zuschauer sie
- *      annehmen.
+ *   1. Über die Einstellungsseite (App\Controller\SettingsController).
+ *   2. Über den Knopf der Kopfleiste, der für einen Zuschauer "Jetzt
+ *      Tour-Guide werden!" heißt (assets/js/ui.js).
  *
  * Beide Wege zeigen dieselbe Seite, nur mit anderen Knöpfen - der Text, der
  * die Rolle erklärt, steht damit an genau einer Stelle.
+ *
+ * NICHT MEHR NACH DEM LOGIN. Die Frage stand früher als ganzseitiger Dialog
+ * direkt hinter der ersten Anmeldung - gestellt, bevor der Nutzer die
+ * Anwendung überhaupt gesehen hatte. Wer sich für eine Rolle entscheiden
+ * soll, in der er sich von Fremden vor Ort steuern lässt, muss vorher wissen,
+ * worum es geht. Die Entscheidung ist keine Einbahnstraße und lässt sich
+ * jederzeit ändern; sie muss nicht am ersten Tag fallen.
  *
  * Zugang: Recht user.guide_role, geprüft in index.php. Der Admin hat es
  * nicht - er würde beim Annehmen der Guide-Rolle seine Adminrechte verlieren.
@@ -66,8 +71,8 @@ class GuideController
         }
 
         // "Später entscheiden" führt einfach zur Startseite: Die Rolle bleibt
-        // Trial, die Frage kommt beim nächsten Login wieder. Der Dialog ist
-        // eine Frage, keine Sperre.
+        // Trial, und die Frage steht weiter in den Einstellungen und auf dem
+        // Knopf der Kopfleiste. Der Dialog ist eine Frage, keine Sperre.
         $later = $undecided
             ? '<div class="mt-3"><a href="index.php?act=home" class="link-secondary">Später entscheiden</a></div>'
             : '';
@@ -113,11 +118,14 @@ class GuideController
                 }
                 Auth::refreshRole(Role::GUIDE);
 
-                // Frisch gebackener Guide: Jetzt ist die eigene Position
-                // interessant, vorher war sie es nicht. Deshalb schließt sich
-                // die Standortabfrage genau hier an - und nur hier.
-                $this->askForPositionOrGoHome();
-                break;
+                // Hier schloss sich früher die Standortabfrage an. Sie schrieb
+                // nach user.latitude/longitude - Spalten, die keine Lesestelle
+                // haben - und ist mitsamt der Route save_location entfallen.
+                // Was ein Guide wirklich angibt, ist ein Standort in
+                // App\Controller\LocationController, und den legt er an, wenn
+                // er ihn anbieten will.
+                header('Location: index.php?act=home');
+                exit;
 
             case 'decline':
                 // Aus Trial wird User: die Frage ist beantwortet und wird
@@ -159,25 +167,6 @@ class GuideController
                 header('Location: index.php?act=guide_role_page');
                 exit;
         }
-    }
-
-    /**
-     * Standortabfrage anbieten, falls sie in dieser Sitzung noch nicht kam.
-     *
-     * Dieselbe Bedingung wie im LoginController, damit ein Nutzer die Frage
-     * nicht zweimal in einer Sitzung bekommt.
-     *
-     * @return never
-     */
-    private function askForPositionOrGoHome(): void
-    {
-        if (!isset($_SESSION['location_prompt_shown'])) {
-            $_SESSION['location_prompt_shown'] = true;
-            $html = ViewHelper::template('assets/html/location_prompt.html');
-            ViewHelper::output($html);
-        }
-        header('Location: index.php?act=home');
-        exit;
     }
 
     /**

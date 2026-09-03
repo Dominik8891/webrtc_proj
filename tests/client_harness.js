@@ -62,6 +62,38 @@ global.document = {
     createElement(tag) { return makeEl(tag); }
 };
 global.navigator = { userAgent: 'Mozilla/5.0 (Windows NT 10.0)' };
+
+// Medienzugriff. Die Attrappe schreibt mit, WELCHE Spuren angefordert wurden -
+// genau daran haengt die Zusage, dass der Zuschauer beim Anrufen nicht mehr
+// nach seiner Kamera gefragt wird. __mediaError erzwingt eine Ablehnung, wie
+// sie ein Browser bei fehlendem oder gesperrtem Mikrofon liefert.
+global.__mediaRequests = [];
+global.__mediaError = null;
+function makeTrack(kind) {
+    return { kind, readyState: 'live', stopped: false, stop() { this.stopped = true; } };
+}
+function makeStream(tracks) {
+    return {
+        tracks,
+        getTracks()      { return this.tracks.slice(); },
+        getAudioTracks() { return this.tracks.filter(t => t.kind === 'audio'); },
+        getVideoTracks() { return this.tracks.filter(t => t.kind === 'video'); },
+        addTrack(t)      { this.tracks.push(t); },
+        removeTrack(t)   { this.tracks = this.tracks.filter(x => x !== t); }
+    };
+}
+global.makeTrack  = makeTrack;
+global.makeStream = makeStream;
+global.navigator.mediaDevices = {
+    async getUserMedia(constraints) {
+        global.__mediaRequests.push(constraints);
+        if (global.__mediaError) throw global.__mediaError;
+        const tracks = [];
+        if (constraints && constraints.audio) tracks.push(makeTrack('audio'));
+        if (constraints && constraints.video) tracks.push(makeTrack('video'));
+        return makeStream(tracks);
+    }
+};
 global.alert = (msg) => { global.__alerts.push(msg); };
 global.__alerts = [];
 global.__signals = [];
@@ -82,6 +114,8 @@ class FakePeerConnection {
         this.closed = false;
         this.offersCreated = 0;
         this.iceRestarts = 0;
+        this.senders = [];
+        this.transceivers = [];
         FakePeerConnection.last = this;
     }
     createDataChannel(label) { return makeChannel(label); }
@@ -94,7 +128,21 @@ class FakePeerConnection {
     async setLocalDescription(d) { this.localDescription = d; }
     async setRemoteDescription(d) { this.remoteDescription = d; }
     async addIceCandidate() {}
-    getSenders() { return []; }
+    addTrack(track) {
+        const sender = { track, replaceTrack: async (t) => { sender.track = t; } };
+        this.senders.push(sender);
+        this.transceivers.push({ sender, receiver: { track: { kind: track.kind } } });
+        return sender;
+    }
+    addTransceiver(kind, init) {
+        const sender = { track: null, replaceTrack: async (t) => { sender.track = t; } };
+        const tr = { sender, receiver: { track: { kind } }, direction: (init && init.direction) || 'sendrecv', kind };
+        this.senders.push(sender);
+        this.transceivers.push(tr);
+        return tr;
+    }
+    getTransceivers() { return this.transceivers.slice(); }
+    getSenders() { return this.senders.slice(); }
     close() { this.closed = true; this.connectionState = 'closed'; }
     // Zustandswechsel simulieren
     setState(cs, ics) {

@@ -66,7 +66,13 @@ return [
     'delete_user'           => [UserController::class               , 'deleteUser'              , Permission::USER_DELETE            , 'html'],
     'heartbeat'             => [UserController::class               , 'heartbeat'               , Permission::USER_PRESENCE          , 'json'],
     'get_username'          => [UserController::class               , 'getUsername'             , Permission::USER_READ_NAME         , 'json'],
-    'save_location'         => [UserController::class               , 'saveLocation'            , Permission::USER_POSITION          , 'json'],
+    // Die Route 'save_location' ist entfallen. Sie schrieb die per
+    // Browser-Geolocation gemeldete Position nach user.latitude/longitude -
+    // zwei Spalten, die keine einzige Lesestelle haben. Begruendet war die
+    // Abfrage mit einer Umkreissuche, die es in dieser Anwendung nicht gibt:
+    // Gesucht wird ueber die Karte, und die zeigt Standorte, keine Nutzer.
+    // Mit der Route sind der Dialog (assets/html/location_prompt.html),
+    // sein Skript und das Recht user.position entfallen.
 
     // Standortverwaltung
     'set_location_page'     => [LocationController::class           , 'setLocationPage'         , Permission::LOCATION_CREATE        , 'html'],

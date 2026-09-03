@@ -219,41 +219,44 @@ $userDb->users = [
 ];
 PdoConnect::$connection = $userDb;
 
-// Regelfall: Der Zuschauer sucht einen Standort und ruft den Guide an.
+// Regelfall und einziger zulaessiger Fall: Der Zuschauer sucht einen Standort
+// und ruft den Guide an.
 $r = WebRTCController::callRoles(5, 2);
+check($r !== null, 'Anruf beim Guide kommt zustande');
 check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'Zuschauer ruft Guide an');
+check(WebRTCController::callAllowed(5, 2) === true, 'Anruf beim Guide ist erlaubt');
 ok('Anrufer wird Zuschauer, angerufener Guide wird Guide');
 
-// Umgekehrter Anruf: Der Guide meldet sich beim Zuschauer.
-$r = WebRTCController::callRoles(2, 5);
-check($r['caller'] === 'guide' && $r['callee'] === 'viewer', 'Guide ruft Zuschauer an');
-ok('auch beim Rueckruf bleibt der Guide der Guide');
+// Der Angerufene ist KEIN Guide: Der Anruf kommt nicht zustande. Vorher wurde
+// er hier stillschweigend zum Guide erklaert - eine Rolle, der er nie
+// zugestimmt hatte, samt Steuerkreuz auf der Gegenseite.
+foreach ([[2, 5, 'Guide ruft Trial an'],
+          [4, 5, 'Zuschauer ruft Trial an'],
+          [5, 4, 'Trial ruft Zuschauer an'],
+          [2, 1, 'Guide ruft Admin an'],
+          [5, 99, 'Anruf bei einem unbekannten Konto']] as [$caller, $callee, $was]) {
+    check(WebRTCController::callRoles($caller, $callee) === null, $was . ': keine Rollen');
+    check(WebRTCController::callAllowed($caller, $callee) === false, $was . ': nicht erlaubt');
+    check(WebRTCController::roleForCall($caller, $callee, $caller) === null, $was . ': keine Anruferrolle');
+    check(WebRTCController::roleForCall($caller, $callee, $callee) === null, $was . ': keine Rolle fuer den Angerufenen');
+}
+ok('wer nicht als Guide registriert ist, wird durch einen Anruf auch keiner');
 
-// Zwei Guides: Es gibt keinen Grund, einen davon zu bevorzugen - also gilt
-// die zweite Regel, der Angerufene ist vor Ort.
+// Der Admin ist kein Guide - die beiden Kontotypen duerfen nicht verwechselt
+// werden (Befunde F-7/F-8 der Bestandsaufnahme). Er darf anrufen, aber nicht
+// angerufen werden.
+check(WebRTCController::callAllowed(1, 2) === true , 'Admin ruft Guide an');
+check(WebRTCController::callAllowed(2, 1) === false, 'Admin ist kein Anrufziel');
+ok('Admin gilt nicht als Guide');
+
+// Zwei Guides: Der Angerufene ist der Guide. Wer anruft, schaut zu - auch wenn
+// er selbst Standorte anbietet.
 $r = WebRTCController::callRoles(2, 3);
 check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'zwei Guides');
 ok('bei zwei Guides ist der Angerufene der Guide');
 
-// Kein Guide beteiligt: dieselbe zweite Regel, damit die Steuerung ueberhaupt
-// funktioniert statt auf beiden Seiten tot zu sein.
-$r = WebRTCController::callRoles(4, 5);
-check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'kein Guide beteiligt');
-ok('ohne Guide-Konto ist der Angerufene der Guide');
-
-// Admin ist kein Guide - die beiden Kontotypen duerfen nicht verwechselt
-// werden (Befunde F-7/F-8 der Bestandsaufnahme).
-$r = WebRTCController::callRoles(1, 2);
-check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'Admin ruft Guide an');
-ok('Admin gilt nicht als Guide');
-
-// Unbekannter Benutzer darf die Vergabe nicht sprengen.
-$r = WebRTCController::callRoles(99, 5);
-check($r['caller'] === 'viewer' && $r['callee'] === 'guide', 'unbekannter Anrufer');
-ok('unbekannter Benutzer fuehrt zu einer eindeutigen Rolle statt zu einem Fehler');
-
 // Beide Seiten fragen unabhaengig - und muessen zusammenpassen.
-foreach ([[5, 2], [2, 5], [2, 3], [4, 5], [1, 2]] as [$caller, $callee]) {
+foreach ([[5, 2], [4, 2], [2, 3], [1, 2]] as [$caller, $callee]) {
     $a = WebRTCController::roleForCall($caller, $callee, $caller);
     $b = WebRTCController::roleForCall($caller, $callee, $callee);
     check($a !== $b, "Rollen muessen sich unterscheiden ($caller -> $callee)");
@@ -439,26 +442,43 @@ foreach ([Role::TRIAL, Role::USER, Permission::GUEST] as $rolle) {
 ok('Standorte anlegen setzt die angenommene Guide-Rolle voraus');
 
 // ---------------------------------------------------------------------
-// Die Guide-Frage: wer sie beantworten darf und wer die eigene Position
-// melden soll.
+// Die Guide-Frage und die entfallene GPS-Abfrage.
 // ---------------------------------------------------------------------
 
-// Die eigene Position ist nur fuer den von Belang, der Standorte anbietet.
-// Ein Zuschauer sucht sich einen Standort auf der Karte aus, er wird nicht
-// gefunden - deshalb fragt der Login ihn nicht mehr danach
-// (LoginController::continueAfterLogin) und die Route save_location weist ihn
-// ab.
-foreach ([Role::GUIDE, Role::ADMIN] as $rolle) {
-    check(Permission::has($rolle, Permission::USER_POSITION) === true,
-        'wer Standorte anbietet, meldet seine Position');
-}
-foreach ([Role::TRIAL, Role::USER, Permission::GUEST] as $rolle) {
-    check(Permission::has($rolle, Permission::USER_POSITION) === false,
-        'ein Zuschauer wird nicht nach seiner Position gefragt');
-}
-check($routes['save_location'][2] === Permission::USER_POSITION,
-    'save_location haengt an genau diesem Recht');
-ok('nach der Position wird nur gefragt, wer Standorte anbietet');
+// Die GPS-Abfrage ist weg, und zwar vollstaendig: Route, Controllermethode,
+// Modellmethode, Dialog und Recht. Sie schrieb nach user.latitude/longitude -
+// Spalten ohne eine einzige Lesestelle - und begruendete das mit einer
+// Umkreissuche, die es nie gab.
+check(!isset($routes['save_location']), 'die Route save_location gibt es nicht mehr');
+check(!in_array('user.position', Permission::allRights(), true),
+    'das Recht user.position ist entfallen');
+check(!method_exists('App\\Controller\\UserController', 'saveLocation'),
+    'UserController::saveLocation ist entfallen');
+check(!method_exists('App\\Model\\User', 'saveLocation'),
+    'User::saveLocation ist entfallen');
+check(!file_exists($ROOT . '/assets/html/location_prompt.html'), 'der Dialog ist geloescht');
+check(!file_exists($ROOT . '/assets/js/location_prompt.js'),     'sein Skript ist geloescht');
+check(strpos(file_get_contents($ROOT . '/assets/html/index.html'), 'location_prompt.js') === false,
+    'das Layout laedt kein Skript mehr, das es nicht gibt');
+// Die Spalten selbst bleiben stehen - aber im Schema als ungenutzt vermerkt,
+// damit niemand sie fuer gepflegte Daten haelt.
+check(strpos(file_get_contents($ROOT . '/database.sql'), 'UNGENUTZT') !== false,
+    'die Spalten sind in database.sql als ungenutzt gekennzeichnet');
+ok('die GPS-Abfrage ist samt Route und Recht entfallen, die Spalten bleiben vermerkt stehen');
+
+// Die Guide-Frage wird nach dem Login nicht mehr gestellt. Sie steht in den
+// Einstellungen und auf dem Knopf der Kopfleiste - erreichbar, aber nicht
+// mehr als Sperre vor der ersten Benutzung.
+$loginQuelle = file_get_contents($ROOT . '/class/Controller/LoginController.php');
+check(strpos($loginQuelle, 'showGuideRolePage') === false,
+    'der Login zeigt die Guide-Frage nicht mehr');
+check(strpos($loginQuelle, 'location_prompt') === false,
+    'der Login zeigt die Standortabfrage nicht mehr');
+check(strpos(file_get_contents($ROOT . '/class/Controller/SettingsController.php'),
+    'act=guide_role_page') !== false, 'die Einstellungen fuehren zur Guide-Frage');
+check(strpos(file_get_contents($ROOT . '/assets/js/ui.js'),
+    'act=guide_role_page') !== false, 'der Knopf der Kopfleiste fuehrt zur Guide-Frage');
+ok('die Guide-Frage liegt in den Einstellungen, nicht hinter der Anmeldung');
 
 // Ueber die eigene Guide-Rolle entscheiden duerfen alle angemeldeten Rollen
 // ausser dem Admin: Er wuerde beim Annehmen der Guide-Rolle seine
@@ -476,8 +496,8 @@ check($routes['guide_role'][2]      === Permission::USER_GUIDE_ROLE, 'die Antwor
 ok('die Guide-Frage stellt sich jedem ausser dem Admin');
 
 // Trial heisst "Frage noch offen", User heisst "hat sich entschieden".
-// Beide haben dieselben Rechte - der Unterschied liegt allein darin, wem der
-// Dialog nach dem Login gezeigt wird.
+// Beide haben dieselben Rechte - der Unterschied ist die Bedeutung, nicht das
+// Duerfen.
 check(Role::isUndecided(Role::TRIAL) === true , 'Trial ist unentschieden');
 check(Role::isUndecided(Role::USER)  === false, 'User hat sich entschieden');
 check(Role::isUndecided(Role::GUIDE) === false, 'Guide hat sich entschieden');
@@ -1932,7 +1952,7 @@ $eigenesKonto = [
     'class/Controller/SettingsController.php'          => ['showSettingsPage', 'setTheme'],
     'class/Controller/TwoFactorController.php'         => ['handle2FAActivate', 'disable2FA'],
     'class/Controller/EmailVerificationController.php' => ['sendVerification'],
-    'class/Controller/UserController.php'              => ['heartbeat', 'saveLocation'],
+    'class/Controller/UserController.php'              => ['heartbeat'],
     'class/Controller/GuideController.php'             => ['handleGuideRole'],
 ];
 foreach ($eigenesKonto as $datei => $methoden) {

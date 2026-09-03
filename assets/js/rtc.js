@@ -215,6 +215,25 @@ window.webrtcApp.rtc = {
 
     /**
      * Startet einen neuen Call mit dem angegebenen Ziel-User.
+     *
+     * DER ANRUFER IST DER ZUSCHAUER, und der schaut zu. Deshalb wird hier nur
+     * das Mikrofon angefordert, nicht die Kamera: Er soll mit dem Guide
+     * sprechen koennen, sein eigenes Bild braucht dafuer niemand. Frueher
+     * verlangte diese Stelle Video UND Audio - wer keine Kamera hatte oder
+     * sie nicht freigab, kam gar nicht erst ins Gespraech.
+     *
+     * Seine Kamera bleibt trotzdem erreichbar: Der Kamera-Knopf der
+     * Bedienleiste holt den Videotrack bei Bedarf nach (assets/js/main.js).
+     *
+     * DER ABLAUF IST DURCHGEHEND AWAIT. Vorher lief die Medien- und
+     * Offer-Kette als unbeobachtete Promise nebenher, waehrend die
+     * Call-Ansicht und das 25-Sekunden-Timeout schon starteten. Ein Fehler
+     * landete in console.error, und der Nutzer bekam eine halbe Minute
+     * spaeter "Der Anruf wurde nicht angenommen" - eine Meldung ueber etwas,
+     * das nie stattgefunden hat. Jetzt bricht jeder Fehler den Anruf sofort
+     * ab und wird benannt, und das Timeout laeuft erst, wenn das Offer
+     * tatsaechlich beim Server liegt.
+     *
      * @param {number} targetUserId - Die ID des Gesprächspartners
      */
     startCall: async function(targetUserId) {
@@ -226,6 +245,8 @@ window.webrtcApp.rtc = {
         // für Auflegen und ICE-Restart gebraucht.
         window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IN_CALL);
 
+        window.webrtcApp.state.activeTargetUserId = targetUserId;
+
         // 1. ICE-Server laden (für PeerConnection)
         //    Bei einer Notfallliste (kein TURN) wird erneut geladen, damit ein
         //    vorübergehender Ausfall des TURN-Dienstes nicht dauerhaft
@@ -233,55 +254,160 @@ window.webrtcApp.rtc = {
         if (!window.webrtcApp.refs.iceServersLoaded || window.webrtcApp.refs.iceServersDegraded) {
             await window.webrtcApp.rtc.loadIceServers();
         }
-        // 2. PeerConnection-Init (Dummy/Selbstanruf für Chrome-Bugfix)
+
+        // 2. Mikrofon holen. Ohne Ton gibt es kein Gespraech - das ist der
+        //    einzige harte Abbruchgrund an dieser Stelle.
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (fehler) {
+            window.webrtcApp.rtc.abortCall(window.webrtcApp.rtc.mediaErrorText(fehler));
+            return;
+        }
+        window.webrtcApp.refs.localStream = stream;
+
+        // 3. PeerConnection-Init (Dummy/Selbstanruf für Chrome-Bugfix). Sie
+        //    bekommt den eben geholten Strom - sie fordert keine eigenen
+        //    Medien mehr an.
         await window.webrtcApp.rtc.initFakeSelfCall();
-        window.webrtcApp.state.activeTargetUserId = targetUserId;
-        window.webrtcApp.state.targetUsername     = await window.webrtcApp.uiRtc.getUsername(targetUserId);
+        window.webrtcApp.rtc.createPeerConnection(true);
+        window.webrtcApp.rtc.addLocalTracks();
+        window.webrtcApp.rtc.reserveVideoSender();
+        updateCallIcons();
 
-        // 3. Medien holen (Webcam/Mikro)
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then(stream => {
-                window.webrtcApp.refs.localStream = stream;
-                updateCallIcons();
-                document.getElementById('local-video').srcObject = stream;
-                window.webrtcApp.rtc.createPeerConnection(true);
-                window.webrtcApp.sound.play('call_ringtone');
-                return new Promise(resolve => setTimeout(resolve, 100));
-            })
-            .then(() => {
-                window.webrtcApp.rtc.addLocalTracks();
-                updateCallIcons();
-                return window.webrtcApp.refs.localPeerConnection.createOffer();
-            })
-            .then(offer => {
-                return window.webrtcApp.refs.localPeerConnection.setLocalDescription(offer).then(() => offer);
-            })
-            .then(offer => {
-                return window.webrtcApp.signaling.sendSignalMessage({
-                    type: 'offer',
-                    sdp: offer.sdp,
-                    target: targetUserId
-                });
-            })
-            .then(response => {
-                // Die Rolle in diesem Call vergibt der Server (siehe
-                // WebRTCController::roleForCall). Sie haengt an der Antwort
-                // auf das Offer, damit es dafuer keine zweite Anfrage und
-                // kein Zeitfenster ohne Rolle braucht. Bleibt sie aus, gilt
-                // die Rolle als unbekannt - dann steuert niemand.
-                window.webrtcApp.control.applyRole(response ? response.role : null);
-            })
-            .catch(console.error);
+        const localVideo = document.getElementById('local-video');
+        if (localVideo) localVideo.srcObject = stream;
 
+        // 4. Call-Ansicht zeigen. Ab hier laeuft ein Anruf, den der Nutzer
+        //    auch selbst wieder beenden kann.
+        window.webrtcApp.state.targetUsername = await window.webrtcApp.uiRtc.getUsername(targetUserId);
         window.webrtcApp.uiRtc.setEndCallButtonVisible(true);
         window.webrtcApp.state.isCallActive = true;
         window.webrtcApp.uiChat.updatePollingState();
         document.body.classList.add('call-active');
         document.getElementById('call-view').style.display = '';
-        console.log('Geladener Username:', window.webrtcApp.state.targetUsername);
-        document.getElementById('remote-username').textContent = 'Rufe ' + window.webrtcApp.state.targetUsername + ' an';
+        document.getElementById('remote-username').textContent =
+            'Rufe ' + window.webrtcApp.state.targetUsername + ' an';
+        window.webrtcApp.sound.play('call_ringtone');
 
+        // 5. Offer bauen und abschicken.
+        let antwort;
+        try {
+            const offer = await window.webrtcApp.refs.localPeerConnection.createOffer();
+            await window.webrtcApp.refs.localPeerConnection.setLocalDescription(offer);
+            antwort = await window.webrtcApp.signaling.sendSignalMessage({
+                type: 'offer',
+                sdp: offer.sdp,
+                target: targetUserId
+            });
+        } catch (fehler) {
+            window.webrtcApp.rtc.abortCall('Der Anruf konnte nicht aufgebaut werden: '
+                + (fehler && fehler.message ? fehler.message : 'unbekannter Fehler'));
+            return;
+        }
+
+        // Der Server weist einen Anruf ab, dessen Ziel kein Guide ist
+        // (WebRTCController::callAllowed). Das ist kein Netzfehler, sondern
+        // eine Antwort - und sie gehoert dem Nutzer gesagt, statt ihn 25
+        // Sekunden warten zu lassen.
+        if (!antwort || antwort.status === 'error') {
+            window.webrtcApp.rtc.abortCall(
+                (antwort && antwort.msg)
+                    ? antwort.msg
+                    : 'Der Anruf konnte nicht zugestellt werden. Bitte später erneut versuchen.'
+            );
+            return;
+        }
+
+        // Die Rolle in diesem Call vergibt der Server (siehe
+        // WebRTCController::roleForCall). Sie haengt an der Antwort auf das
+        // Offer, damit es dafuer keine zweite Anfrage und kein Zeitfenster
+        // ohne Rolle braucht. Bleibt sie aus, gilt die Rolle als unbekannt -
+        // dann steuert niemand.
+        window.webrtcApp.control.applyRole(antwort.role || null);
+
+        // Erst jetzt laeuft die Frist bis "wurde nicht angenommen": Das Offer
+        // liegt beim Server, es kann also tatsaechlich jemand abnehmen.
         window.webrtcApp.rtc.startTimeout();
+    },
+
+    /**
+     * Haelt in der Aushandlung einen Platz fuer die Kamera frei, ohne sie
+     * einzuschalten.
+     *
+     * DAS IST DER UNTERSCHIED ZWISCHEN "AUS" UND "GIBT ES NICHT". Der
+     * Zuschauer ruft ohne Kamera an. Waere im Angebot gar keine Videospur
+     * vorgesehen, liesse sich die Kamera spaeter nicht mehr zuschalten, ohne
+     * die Verbindung neu auszuhandeln - und eine Neuaushandlung mitten im
+     * Gespraech kann diese Anwendung nur fuer den ICE-Restart. Ein leerer
+     * Transceiver kostet nichts, sendet nichts und macht den Kamera-Knopf der
+     * Bedienleiste zu einem Schalter, der sofort wirkt
+     * (assets/js/main.js, replaceTrack).
+     */
+    reserveVideoSender() {
+        const pc = window.webrtcApp.refs.localPeerConnection;
+        if (!pc || typeof pc.addTransceiver !== 'function') return;
+
+        // Schon eine Videospur ausgehandelt? Dann nichts tun - sonst stuende
+        // eine zweite, tote Spur im Angebot.
+        const schonDa = pc.getTransceivers().some(t =>
+            (t.sender   && t.sender.track   && t.sender.track.kind   === 'video') ||
+            (t.receiver && t.receiver.track && t.receiver.track.kind === 'video')
+        );
+        if (schonDa) return;
+
+        try {
+            pc.addTransceiver('video', { direction: 'sendrecv' });
+        } catch (e) {
+            // Kein Abbruchgrund: Der Anruf kommt auch ohne den Platzhalter
+            // zustande, nur laesst sich die Kamera dann nicht nachtraeglich
+            // zuschalten.
+            console.warn('Videospur konnte nicht vorbereitet werden:', e);
+        }
+    },
+
+    /**
+     * Bricht einen gerade aufgebauten Anruf ab und sagt dem Nutzer, warum.
+     *
+     * Gedacht fuer die Fehler VOR dem Zustandekommen des Gespraechs: kein
+     * Mikrofon, kein Offer, eine Absage des Servers. Der Gegenseite wird
+     * nichts geschickt - sie hat in keinem dieser Faelle ein Offer bekommen.
+     *
+     * @param {string} text - Meldung fuer den Nutzer
+     */
+    abortCall(text) {
+        window.webrtcApp.rtc.stopTimeout();
+        window.webrtcApp.sound.stop('call_ringtone');
+        window.webrtcApp.rtc.endCall(false);
+        window.webrtcApp.notify.error(text);
+    },
+
+    /**
+     * Uebersetzt einen Fehler von getUserMedia in einen Satz, der dem Nutzer
+     * sagt, was zu tun ist.
+     *
+     * Die Namen sind die der DOMException aus der Media-Capture-Spezifikation.
+     * Ohne diese Uebersetzung stand dort zuletzt gar nichts - der Fehler ging
+     * in console.error unter.
+     *
+     * @param {Error} fehler - Was getUserMedia abgelehnt hat
+     * @returns {string}
+     */
+    mediaErrorText(fehler) {
+        const name = fehler && fehler.name ? fehler.name : '';
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
+            return 'Der Zugriff auf das Mikrofon wurde abgelehnt. Bitte erlauben Sie ihn '
+                 + 'in den Einstellungen des Browsers und rufen Sie erneut an.';
+        }
+        if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+            return 'Es wurde kein Mikrofon gefunden. Ohne Mikrofon lässt sich kein Gespräch führen.';
+        }
+        if (name === 'NotReadableError') {
+            return 'Das Mikrofon lässt sich nicht öffnen. Vermutlich benutzt es gerade ein '
+                 + 'anderes Programm.';
+        }
+        return 'Das Mikrofon konnte nicht verwendet werden: '
+             + (fehler && fehler.message ? fehler.message : 'unbekannter Fehler');
     },
 
     /**
@@ -454,15 +580,19 @@ window.webrtcApp.rtc = {
 
     /**
      * Chrome-Workaround: Dummy-PeerConnection erzeugen, um MediaDevices zu aktivieren.
+     *
+     * Die Medien holt diese Methode NICHT mehr selbst. Sie tat es frueher mit
+     * {video:true, audio:true} - und weil sie vor startCall lief und die
+     * PeerConnection samt Tracks stehen liess, waren das auch die Spuren, die
+     * am Ende gesendet wurden. Die Konstanten in startCall hatten darauf gar
+     * keine Wirkung mehr. Jetzt benutzt der Workaround den Strom, den
+     * startCall bereits geholt hat.
      */
     initFakeSelfCall: async function() {
         try {
             if (!window.webrtcApp.refs.localPeerConnection) {
                 window.webrtcApp.rtc.createPeerConnection(true);
                 await new Promise(resolve => setTimeout(resolve, 100));
-                const stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-                window.webrtcApp.refs.localStream = stream;
-                updateCallIcons();
 
                 window.webrtcApp.rtc.addLocalTracks();
                 updateCallIcons();

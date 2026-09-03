@@ -2,9 +2,7 @@
 namespace App\Controller;
 
 use App\Model\User;
-use App\Model\GuideRole;
 use App\Helper\Auth;
-use App\Helper\Permission;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 
@@ -86,10 +84,9 @@ class LoginController
             Auth::establish($user);
 
             // Der Login war erfolgreich - der Fehlversuchszaehler gehoert
-            // weg, bevor irgendein Weg diese Methode verlaesst. Die
-            // Standortabfrage darunter beendet das Skript (ViewHelper::output
-            // ruft die()), die beiden Zeilen wurden hinter ihr sonst nie
-            // erreicht.
+            // weg, bevor irgendein Weg diese Methode verlaesst.
+            // continueAfterLogin() kehrt nicht zurueck, hinter dem Aufruf
+            // duerfen also keine noetigen Zeilen mehr stehen.
             unset($_SESSION['login_attempts'][$username]);
             unset($_SESSION['login_blocked_until'][$username]);
 
@@ -119,46 +116,33 @@ class LoginController
      *
      * Steht hier und nicht zweimal ausgeschrieben, weil es zwei Wege in die
      * angemeldete Sitzung gibt: das Loginformular und - bei eingeschaltetem
-     * zweitem Faktor - TwoFactorController::handle2FAVerify. Der zweite Weg
-     * hatte die Standortabfrage bisher schlicht nicht; wer 2FA benutzte,
-     * wurde nie gefragt.
+     * zweitem Faktor - TwoFactorController::handle2FAVerify. Beide sollen
+     * dasselbe tun, und das ist heute: auf die Startseite fuehren.
      *
-     * Zwei Fragen, in dieser Reihenfolge:
+     * WAS HIER FRUEHER STAND, UND WARUM ES WEG IST
+     * --------------------------------------------
+     * Zwei ganzseitige Fragen, noch bevor der Nutzer die Anwendung ueberhaupt
+     * gesehen hatte.
      *
-     *   1. DIE GUIDE-FRAGE, solange sie offen ist. Wer sie mit "Ja"
-     *      beantwortet, bekommt die Standortabfrage anschliessend vom
-     *      GuideController - er ist dann Guide, und erst dann ist seine
-     *      Position von Belang.
+     *   1. DIE GUIDE-FRAGE. "Moechten Sie Guide werden?" ist eine
+     *      Entscheidung ueber eine Rolle, in der man sich von Fremden vor Ort
+     *      steuern laesst - und kuenftig haengt daran eine Abrechnung. Diese
+     *      Frage direkt nach der ersten Anmeldung zu stellen, heisst sie zu
+     *      stellen, bevor jemand weiss, worum es geht. Sie liegt jetzt dort,
+     *      wo man sie sucht, wenn man sie sich stellt: in den Einstellungen
+     *      und auf dem Knopf der Kopfleiste ("Jetzt Tour-Guide werden!",
+     *      assets/js/ui.js). Die Seite selbst ist unveraendert
+     *      (App\Controller\GuideController).
      *
-     *   2. DIE STANDORTABFRAGE fuer alle uebrigen. Sie galt bisher fuer jeden
-     *      eingeloggten Nutzer; fuer einen Zuschauer ist die eigene Position
-     *      aber ohne Bedeutung - er sucht sich einen Standort auf der Karte
-     *      aus, er wird nicht gefunden. Wer gefragt wird, entscheidet deshalb
-     *      das Recht user.position, dieselbe Angabe, ueber die index.php auch
-     *      die Route save_location absichert.
-     *
-     * Beide Fragen kommen hoechstens einmal je Sitzung, und beide lassen sich
-     * uebergehen. Diese Methode kehrt nie zurueck.
+     *   2. DIE STANDORTABFRAGE. Sie schrieb ueber die Route save_location
+     *      nach user.latitude/longitude - Spalten, die keine einzige
+     *      Lesestelle hat. Begruendet war sie mit einer Umkreissuche, die es
+     *      nicht gibt. Dialog und Route sind entfallen.
      *
      * @return never
      */
     public static function continueAfterLogin(): void
     {
-        if (!isset($_SESSION['guide_prompt_shown'])
-            && GuideRole::needsDecision(Auth::userId(), Auth::roleId())) {
-            $_SESSION['guide_prompt_shown'] = true;
-            (new GuideController())->showGuideRolePage();
-            exit;
-        }
-
-        if (Auth::can(Permission::USER_POSITION)
-            && !isset($_SESSION['location_prompt_shown'])) {
-            $_SESSION['location_prompt_shown'] = true;
-            $html = ViewHelper::template('assets/html/location_prompt.html');
-            ViewHelper::output($html);
-            exit;
-        }
-
         header('Location: index.php?act=home');
         exit;
     }

@@ -49,6 +49,30 @@ class WebRTCController
                         (is_array($data['candidate']) ? json_encode($data['candidate']) : $data['candidate'])
                         : null;
 
+                    // DER ANRUF WIRD HIER ZUGELASSEN ODER GAR NICHT.
+                    //
+                    // Ein Offer erreicht den Angerufenen nur, wenn er als
+                    // Guide registriert ist. Frueher wurde jedes Offer
+                    // gespeichert und der Empfaenger dabei zum Guide erklaert
+                    // - also durfte ein Anruf ueber eine Rolle entscheiden,
+                    // der der Betroffene nie zugestimmt hatte. Abgewiesen
+                    // wird VOR dem Speichern: Ein liegengebliebenes Offer
+                    // wuerde beim naechsten Poll trotzdem klingeln.
+                    //
+                    // Nur 'offer' wird geprueft. Answer, Kandidaten, Hangup
+                    // und die Restart-Nachrichten gehoeren zu einem Call, der
+                    // diese Pruefung bereits bestanden hat.
+                    if ($type === 'offer' && !self::callAllowed($sender, $target)) {
+                        error_log('WebRTCController: Anruf abgewiesen, Benutzer #'
+                            . (int)$target . ' ist kein Guide (Anrufer #' . (int)$sender . ').');
+                        echo json_encode([
+                            'status' => 'error',
+                            'msg'    => 'Dieser Benutzer bietet keine Führungen an und kann '
+                                      . 'deshalb nicht angerufen werden.',
+                        ]);
+                        exit;
+                    }
+
                     $rtc_handler = new WebRTCHandler();
                     $rtc_handler->setSender($sender);
                     $rtc_handler->setReceiver($target);
@@ -127,11 +151,18 @@ class WebRTCController
      * hat und welchen Kontotyp die beiden haben. Der Client hat darauf keinen
      * Einfluss.
      *
-     * Regel:
-     *   1. Ist genau einer der beiden als Guide registriert, ist er der Guide.
-     *   2. Sonst - beide oder keiner - ist der Angerufene der Guide. Das ist
-     *      der Regelfall der Anwendung: Der Zuschauer sucht einen Standort und
-     *      ruft den Guide an, der dort vor Ort ist.
+     * ES GIBT NUR EINE REGEL: Der Angerufene muss als Guide registriert sein.
+     * Dann ist er der Guide und der Anrufer der Zuschauer.
+     *
+     * Vorher fiel die Vergabe auf "im Zweifel ist der Angerufene der Guide"
+     * zurück, wenn keiner der beiden ein Guide war. Damit genügte ein Anruf,
+     * um ein beliebiges Konto zum Guide zu erklären - ohne dass der
+     * Betroffene der Rolle je zugestimmt hätte, und mit einem Steuerkreuz auf
+     * der Gegenseite, das ihn herumschickt. Die Guide-Rolle ist eine
+     * ausdrückliche Entscheidung (App\Model\GuideRole); ein Anruf ist keine.
+     *
+     * Wer kein Guide ist, wird deshalb nicht zum Guide erklärt - der Anruf
+     * kommt gar nicht erst zustande (siehe getSignal, Zweig 'offer').
      *
      * Beide Seiten rufen diese Funktion mit demselben Paar (Anrufer,
      * Angerufener) auf und bekommen deshalb zwingend zueinander passende
@@ -139,14 +170,31 @@ class WebRTCController
      *
      * @param int $callerId Wer angerufen hat
      * @param int $calleeId Wer angerufen wurde
-     * @return array ['caller' => 'guide'|'viewer', 'callee' => 'guide'|'viewer']
+     * @return array|null ['caller' => 'viewer', 'callee' => 'guide'] oder null,
+     *                    wenn der Angerufene kein Guide ist
      */
     public static function callRoles($callerId, $calleeId)
     {
-        if (self::isGuideAccount($callerId) && !self::isGuideAccount($calleeId)) {
-            return ['caller' => 'guide', 'callee' => 'viewer'];
-        }
+        if (!self::isGuideAccount($calleeId)) return null;
+
         return ['caller' => 'viewer', 'callee' => 'guide'];
+    }
+
+    /**
+     * Darf dieser Anruf zustande kommen?
+     *
+     * Genau dann, wenn sich für das Paar Rollen vergeben lassen - also wenn
+     * der Angerufene ein Guide ist. Die Frage steht bewusst neben callRoles()
+     * und nicht daneben nachgebaut: Es gibt eine Bedingung, und sie steht an
+     * einer Stelle.
+     *
+     * @param int $callerId Wer angerufen hat
+     * @param int $calleeId Wer angerufen wurde
+     * @return bool
+     */
+    public static function callAllowed($callerId, $calleeId)
+    {
+        return self::callRoles($callerId, $calleeId) !== null;
     }
 
     /**
@@ -155,11 +203,13 @@ class WebRTCController
      * @param int $callerId Wer angerufen hat
      * @param int $calleeId Wer angerufen wurde
      * @param int $userId   Für wen die Rolle gesucht ist
-     * @return string|null 'guide', 'viewer' oder null, wenn der Nutzer nicht beteiligt ist
+     * @return string|null 'guide', 'viewer' oder null - wenn der Nutzer nicht
+     *                     beteiligt ist ODER der Anruf gar nicht zulässig war
      */
     public static function roleForCall($callerId, $calleeId, $userId)
     {
         $roles = self::callRoles($callerId, $calleeId);
+        if ($roles === null) return null;
         if ((int)$userId === (int)$callerId) return $roles['caller'];
         if ((int)$userId === (int)$calleeId) return $roles['callee'];
         return null;
@@ -171,6 +221,10 @@ class WebRTCController
      * Der Empfänger eines Offers ist immer der Angerufene, der Absender immer
      * der Anrufer - damit steht das Paar fest, ohne dass der Client etwas
      * dazu beitragen müsste.
+     *
+     * Bleibt das Feld null, hat der Empfänger die Guide-Rolle zwischen dem
+     * Anruf und diesem Abruf zurückgegeben. Dann steuert in diesem Call
+     * niemand - der Client wertet ein fehlendes "role" als unbekannt aus.
      *
      * @param array $messages   Bereits gefilterte Signalnachrichten
      * @param int   $receiverId Empfänger, der gerade abfragt
