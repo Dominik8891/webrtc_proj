@@ -661,11 +661,11 @@ class LocationView
 
         return '<div class="loc-req" id="loc-request">'
              .   '<p class="loc__note">' . self::esc($hinweis) . '</p>'
-             .   '<div class="loc-req__presets" role="group" aria-label="Wunschzeitpunkt">'
+             .   '<div class="loc-req__presets" role="group" aria-label="Vorgaben für den Wunschzeitpunkt">'
              .     $knoepfe
              .   '</div>'
              .   '<div class="loc-req__custom">'
-             .     '<label class="loc-req__label" for="loc-req-wish">Anderer Zeitpunkt</label>'
+             .     '<label class="loc-req__label" for="loc-req-wish">Wunschzeitpunkt</label>'
              .     '<input type="datetime-local" id="loc-req-wish" class="form-control loc-req__field">'
              .   '</div>'
              .   '<p class="loc-req__hint" id="loc-req-hint" hidden></p>'

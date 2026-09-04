@@ -726,11 +726,11 @@ window.webrtcApp.locationPage = {
 
         return '<div class="loc-req" id="loc-request">'
              +   '<p class="loc__note">' + this.esc(hinweis) + '</p>'
-             +   '<div class="loc-req__presets" role="group" aria-label="Wunschzeitpunkt">'
+             +   '<div class="loc-req__presets" role="group" aria-label="Vorgaben für den Wunschzeitpunkt">'
              +     knoepfe
              +   '</div>'
              +   '<div class="loc-req__custom">'
-             +     '<label class="loc-req__label" for="loc-req-wish">Anderer Zeitpunkt</label>'
+             +     '<label class="loc-req__label" for="loc-req-wish">Wunschzeitpunkt</label>'
              +     '<input type="datetime-local" id="loc-req-wish" class="form-control loc-req__field">'
              +   '</div>'
              +   '<p class="loc-req__hint" id="loc-req-hint" hidden></p>'
@@ -1037,7 +1037,11 @@ window.webrtcApp.locationPage = {
     },
 
     /**
-     * Maskiert Text fuer die Ausgabe.
+     * Maskiert Text fuer die Ausgabe in HTML.
+     *
+     * DIE EINE FASSUNG. Es gab zwei - wortgleich, aber als derselbe
+     * Schluessel im selben Objekt: Die zweite ueberschrieb die erste ohne
+     * jede Meldung. Wer die obere aendert, aenderte damit nichts.
      *
      * @param {*} wert
      * @returns {string}
@@ -1486,17 +1490,6 @@ window.webrtcApp.locationPage = {
                 : 'Noch ' + frei + ' von ' + grenze + ' Bildern möglich, Titelbild mitgezählt.';
         }
         if (knopf) knopf.disabled = (frei === 0);
-    },
-
-    /**
-     * Maskiert Text fuer die Ausgabe in HTML.
-     * @param {*} wert
-     * @returns {string}
-     */
-    esc(wert) {
-        return String(wert ?? '').replace(/[&<>"']/g, c => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-        })[c]);
     }
 };
 

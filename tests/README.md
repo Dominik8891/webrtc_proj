@@ -378,7 +378,7 @@ die Tests nicht an. Das ist Absicht.
     Und der Hinweis **folgt der Wahl** — beim Klick auf eine Vorgabe wie beim
     Neuzeichnen des Formulars.
 
-## Was `server_test.php` prüft (228 Prüfungen)
+## Was `server_test.php` prüft (230 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -888,6 +888,22 @@ die Tests nicht an. Das ist Absicht.
     Seitendaten. Geprüft wird außerdem, dass die Abkürzung im Raster
     (Zeilen- und Spaltenköpfe) auch eingehängt **wird** — sie war einmal
     gebaut, aber nicht aufgerufen.
+
+34. **Ein Schlüssel, eine Bedeutung — und eine Beschriftung** (Abschnitt 33 im
+    Skript). In `location_page.js` stand `esc()` **zweimal**: wortgleich, aber
+    als derselbe Schlüssel im selben Objektliteral. JavaScript meldet das
+    nicht — die spätere Fassung gewinnt stillschweigend, und wer die obere
+    ändert, ändert nichts. Geprüft wird deshalb die Regel dahinter: In
+    `location_page.js` und `requests.js` kommt **kein Methodenname zweimal**
+    vor. (Die Suche prüft sich selbst mit — findet sie gar keine Methode,
+    schlägt sie an.)
+
+    Und die Beschriftung des Feldes: Das Formular wird an **zwei Stellen**
+    gebaut — vom Server beim ersten Aufruf, vom Skript nach jedem Takt.
+    Beide sagen „Wunschzeitpunkt", und die alte Beschriftung steht nirgends
+    mehr. Die Gruppe der Vorgabeknöpfe heißt **anders** („Vorgaben für den
+    Wunschzeitpunkt"): Sonst nennt ein Vorleseprogramm die Gruppe und das Feld
+    darunter mit demselben Wort.
 
 ## Grenzen
 

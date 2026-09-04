@@ -4028,6 +4028,54 @@ check(strpos($wanderung, 'ADD COLUMN IF NOT EXISTS') !== false,
     'die Wanderung laesst sich kein zweites Mal ausfuehren');
 ok('die neuen Spalten stehen in der Wanderung und im Dump');
 
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n33) Ein Schluessel, eine Bedeutung - und eine Beschriftung\n");
+
+// DER BEFUND
+// In assets/js/location_page.js stand esc() ZWEIMAL: wortgleich, aber als
+// derselbe Schluessel im selben Objektliteral. JavaScript meldet das nicht -
+// die spaetere Fassung gewinnt stillschweigend. Wer die obere geaendert
+// haette, haette nichts geaendert und lange gesucht.
+//
+// Geprueft wird deshalb nicht "esc kommt einmal vor", sondern die Regel
+// dahinter: In diesen Objekten gibt es keinen Namen zweimal.
+foreach (['assets/js/location_page.js', 'assets/js/requests.js'] as $datei) {
+    $inhalt = file_get_contents($ROOT . '/' . $datei);
+
+    // Die Methoden eines Objektliterals stehen in dieser Anwendung auf einer
+    // Einrueckungsebene: vier Leerzeichen, Name, Klammer, Rumpf.
+    preg_match_all('/^    ([A-Za-z_$][A-Za-z0-9_$]*)\(/m', $inhalt, $treffer);
+    $namen = $treffer[1];
+    $doppelt = array_keys(array_filter(array_count_values($namen), fn($n) => $n > 1));
+
+    check($doppelt === [],
+        "$datei vergibt einen Namen mehrfach: " . implode(', ', $doppelt));
+    check(count($namen) > 5, "in $datei wurde gar keine Methode gefunden - die Suche greift nicht");
+}
+ok('kein Objekt vergibt denselben Methodennamen zweimal');
+
+// DIE BESCHRIFTUNG steht an ZWEI Stellen, weil das Formular an zwei Stellen
+// gebaut wird - vom Server beim ersten Aufruf, vom Skript nach jedem Takt.
+// Laufen die beiden auseinander, aendert sich die Beschriftung beim ersten
+// Nachziehen vor den Augen des Kunden.
+$formularServer = LocationView::anfrageFormularHtml($standort);
+$formularSkript = file_get_contents($ROOT . '/assets/js/location_page.js');
+
+check(strpos($formularServer, '>Wunschzeitpunkt</label>') !== false,
+    'das serverseitige Formular beschriftet das Feld anders');
+check(strpos($formularSkript, '>Wunschzeitpunkt</label>') !== false,
+    'das Skript beschriftet das Feld anders');
+check(strpos($formularServer, 'Anderer Zeitpunkt') === false
+      && strpos($formularSkript, 'Anderer Zeitpunkt') === false,
+    'die alte Beschriftung steht noch irgendwo');
+
+// Die Vorgabeknoepfe heissen NICHT genauso: Ein Vorleseprogramm nennt sonst
+// die Gruppe und das Feld darunter mit demselben Wort, und es waere nicht
+// mehr erkennbar, wovon gerade die Rede ist.
+check(strpos($formularServer, 'aria-label="Vorgaben für den Wunschzeitpunkt"') !== false,
+    'die Gruppe der Vorgaben traegt denselben Namen wie das Feld');
+ok('Feld und Vorgaben heissen ueberall gleich - und nicht gleich wie einander');
+
 PdoConnect::$connection = new FakeConnection();
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");
