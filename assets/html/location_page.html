@@ -74,12 +74,24 @@
             <div class="loc-hero__scrim" aria-hidden="true"></div>
 
             <!-- Der Weg zurueck liegt auf dem Bild, damit ueber dem Bild
-                 nichts steht. -->
+                 nichts steht.
+
+                 HIER STAND DER UMSCHALTER "Karte | Liste". Er gehoert auf
+                 die Startseite und auf die Standortliste: Dort schaltet er
+                 zwischen zwei Ansichten DERSELBEN Menge um, und einer der
+                 beiden Eintraege ist der, auf dem man gerade steht. Auf
+                 dieser Seite stimmte beides nicht - man ist weder auf der
+                 Karte noch in der Liste, sondern bei EINEM Standort. Ein
+                 Umschalter ohne aktuellen Zustand ist keiner; er sah nur so
+                 aus.
+
+                 An seiner Stelle steht das, was man an dieser Stelle
+                 tatsaechlich will: zurueck. -->
             <div class="loc-hero__bar">
-                <div class="app-switch app-switch--onimage" role="group" aria-label="Zurück">
-                    <a class="app-switch__item" href="index.php?act=home">Karte</a>
-                    <a class="app-switch__item" href="index.php?act=show_locations_page">Liste</a>
-                </div>
+                <a class="loc-hero__back" href="index.php?act=home">
+                    <span class="loc-hero__backIcon" aria-hidden="true"></span>
+                    Zurück zur Übersicht
+                </a>
             </div>
 
             <div class="loc-hero__text">

@@ -425,37 +425,83 @@ ausführliche Beschreibung, die ganz unten unter der Karte stand.
 Jetzt hat die Seite eine Rangfolge:
 
 ```
+←──────────────────── volle Fensterbreite ─────────────────────→
 ┌──────────────────────────────────────────────────────────────┐
-│  [Karte|Liste]                                        ● ○ ○  │  ← auf dem Bild
+│  [← Zurück zur Übersicht]                             ● ○ ○  │  ← auf dem Bild
 │                                                              │
-│   ‹                    B I L D                            ›  │  ← randlos, volle
-│                                                              │     Breite, blätterbar
+│   ‹                    B I L D                            ›  │  ← randlos,
+│                                                              │     blätterbar
 │  ● Jetzt verfügbar                                           │
 │  Alfama bei Nacht – durch die ältesten Gassen Lissabons       │  ← Titel auf dem Bild
 │  Lissabon, Portugal                                          │
 └──────────────────────────────────────────────────────────────┘
 
-   Die alten Gassen nach Sonnenuntergang …        ┌──────────────┐
-                                                  │ Führung      │  ← der Knopf zuerst
-   Wir treffen uns am Miradouro de Santa Luzia,   │  starten     │
-   wenn die Sonne gerade hinter dem Tejo …        ├──────────────┤
-                                                  │ Dauer  1:30  │  ← Nebendaten darunter
-   Sie bestimmen den Weg. Über das Steuerkreuz …  │ Sprachen …   │
-                                                  │ Ort     …    │
-   Treffpunkt                                     └──────────────┘
-   ┌────────────────────────┐                      läuft beim
-   │        Karte           │  ← Beiwerk, unten    Scrollen mit
-   └────────────────────────┘
+     Die alten Gassen nach Sonnenuntergang …    ┌──────────────┐
+                                                │ Führung      │  ← der Knopf zuerst
+     Wir treffen uns am Miradouro de Santa      │  starten     │
+     Luzia, wenn die Sonne gerade hinter …      ├──────────────┤
+                                                │ Dauer  1:30  │  ← Nebendaten darunter
+     Sie bestimmen den Weg. Über das            │ Sprachen …   │
+     Steuerkreuz schicken Sie mich …            │ Ort     …    │
+                                                └──────────────┘
+     Treffpunkt                                  läuft beim
+     ┌──────────────────────────────────────────────────────┐
+     │                     Karte                            │  ← Beiwerk, unten,
+     └──────────────────────────────────────────────────────┘     über beide Spalten
 ```
 
 | | |
 |---|---|
-| **Das Bild führt** | Randlos über die volle Breite des Inhaltsbereichs, ohne Kasten drumherum. Der Aussenabstand des Inhaltsbereichs wird dafür mit einem negativen Aussenabstand derselben Größe wieder abgezogen — nicht mit einem Vielfachen der Fensterbreite, das auf jedem zweiten Gerät einen waagerechten Rollbalken mitbringt. |
+| **Das Bild führt** | Randlos über die volle **Fensterbreite**, ohne Kasten drumherum. |
 | **Titel, Ort und Zustand liegen darauf** | Sie gehören zum Bild, nicht in eine eigene Zeile daneben. Ein Verlauf zwischen Bild und Schrift sorgt für den Kontrast; ein Kasten hinter der Schrift wäre wieder ein Kasten. |
+| **Der Weg zurück liegt ebenfalls darauf** | Über dem Bild steht nichts. |
 | **Die Beschreibung folgt unmittelbar** | Sie ist der Grund, warum jemand die Seite liest. |
 | **Der Knopf steht oben in der schmalen Spalte** | Nicht zwischen den Datenzeilen, wo er wie deren Fußnote aussah. Die Spalte läuft beim Scrollen mit: Wer unten in der Beschreibung angekommen ist, soll ihn nicht wieder suchen müssen. |
 | **Dauer, Sprachen und Ort darunter** | Sie sind Auskunft, keine Handlung — abgesetzt durch eine Linie und einen ruhigeren Grund. |
-| **Die Karte steht unten** | Beiwerk. |
+| **Die Karte steht unten, über beide Spalten** | Beiwerk — aber nicht neben einem Loch: Vorher stand sie nur unter dem Text, und rechts daneben, unter dem Knopf, blieb Platz übrig, den nichts füllte. |
+
+#### Volle Fensterbreite ohne `vw`
+
+Das Bild soll über das ganze Fenster laufen, nicht nur über die
+Inhaltsspalte — sonst stehen auf einem breiten Bildschirm links und rechts
+Balken. Der übliche Weg dafür ist `width: 100vw` bzw.
+`margin-inline: calc(50% - 50vw)`. **Beides ist hier falsch:** `vw` zählt den
+senkrechten Rollbalken mit, und diese Seite scrollt. Das Bild wäre rund 15
+Punkte breiter als das sichtbare Fenster und zöge einen waagerechten
+Rollbalken nach sich.
+
+Stattdessen zwei Regeln, die zusammengehören und in
+`assets/css/location.css` beieinanderstehen:
+
+1. `.app-page:has(> .loc-page) { max-width: none }` hebt die
+   1200-Punkte-Grenze des Inhaltsbereichs auf — **nur für diese Seite**;
+   `:has(> .loc-page)` trifft ausschließlich den Rahmen, in dem eine
+   Standortseite steht.
+2. Das Bild zieht mit `margin-inline: calc(var(--app-space-5) * -1)` den
+   Innenabstand des Inhaltsbereichs wieder ab. Padding und negativer
+   Außenabstand heben sich exakt auf: Das Bild endet genau an der
+   Fensterkante, keinen Punkt weiter.
+
+Fällt `:has()` aus (ein sehr alter Browser), bleibt die Grenze stehen und das
+Bild läuft über die Inhaltsspalte — also so, wie es vorher war. Eine
+Verbesserung, keine Voraussetzung.
+
+#### Die Breiten sind ausgerechnet, nicht gewählt
+
+Die Textspalte ist auf 75 Zeichen begrenzt — darüber findet das Auge den
+Zeilenanfang nicht mehr wieder. Ist die Spalte daneben zu schmal, bleibt der
+Überschuss als **Loch zwischen Text und Kasten** stehen; auf einem
+2500-Punkte-Bildschirm waren das 234 Punkte.
+
+| | Spalte | Kasten | Lücke | bleibt für den Text | 75 Zeichen brauchen |
+|---|---|---|---|---|---|
+| bis 1600 px | 1020 | 360 | 32 | 628 | ~626 |
+| ab 1600 px | 1160 | 400 | 48 | 712 | ~710 |
+
+Was auf einem großen Bildschirm wächst, ist der Betrachtungsabstand — also
+die **Schrift**. Dass die Spalte dabei breiter wird, ist die Folge und nicht
+der Zweck. Wer eine der drei Zahlen einer Zeile ändert, ändert die anderen
+mit; `tests/server_test.php` rechnet sie nach.
 
 **Auf schmalen Geräten fällt alles untereinander**, und zwar in dieser
 Reihenfolge: Bild, Beschreibung, Knopf mit Angaben, Karte. Das ist auch die
@@ -475,6 +521,21 @@ dass Bilder fehlen: ein ruhiger Streifen, auf dem Titel, Ort und Zustand
 trotzdem stehen. Dass keine da sind, sieht man; ein Satz macht daraus eine
 Meldung. Der Guide erfährt es dort, wo er etwas dagegen tun kann — im
 Bearbeitungsformular.
+
+Seine Höhe steht mit **zwei Klassen** im Selektor
+(`.loc-hero__frame.loc-hero__frame--empty`). Das ist kein Zufall: Die Höhe des
+Bildrahmens wird in zwei Medienabfragen neu gesetzt, und eine Medienabfrage
+erhöht die Spezifität nicht. Mit nur einer Klasse bekam der leere Streifen auf
+breiten Bildschirmen die Höhe eines Fotos — 570 Punkte graue Fläche mit einem
+Titel darin.
+
+**Statt eines Umschalters ein Weg zurück.** Hier stand „Karte | Liste". Der
+gehört auf die Startseite und auf die Standortliste: Dort schaltet er zwischen
+zwei Ansichten *derselben* Menge um, und einer der beiden Einträge ist der, auf
+dem man gerade steht. Auf dieser Seite stimmte beides nicht — man ist weder auf
+der Karte noch in der Liste, sondern bei *einem* Standort. Ein Umschalter ohne
+aktuellen Zustand ist keiner; er sah nur so aus. An seiner Stelle steht
+„← Zurück zur Übersicht" und führt auf die Karte der Startseite.
 
 ### Karte und Liste führen dorthin
 

@@ -310,7 +310,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (180 Prüfungen)
+## Was `server_test.php` prüft (185 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -610,10 +610,41 @@ die Tests nicht an. Das ist Absicht.
     `DAUER_VORGABE` ist eine eigene Konstante und nicht die Untergrenze: zwei
     Aussagen, und wer die eine ändert, meint selten die andere mit.
 
+    Und der **Weg zurück**: Der Umschalter „Karte | Liste" darf auf dieser
+    Seite nicht mehr vorkommen — er schaltet zwischen zwei Ansichten
+    derselben Menge um, und hier ist man bei *einem* Standort. An seiner
+    Stelle steht ein Verweis auf die Übersicht, und er liegt auf dem Bild.
+
     Zuletzt eine Quelltextprüfung: `LocationView` darf nicht auf `Auth`,
     `Request`, `$_SESSION`, `$_REQUEST`, `PdoConnect` oder `ImageStore`
     zugreifen. Sobald sie das täte, entschiede sie mit — und dieselbe Frage
     stünde an zwei Stellen.
+
+30b. **Die Seite auf breiten Bildschirmen** (Abschnitt 29b im Skript). Die
+    drei Befunde waren: Das Bild lief nur über die Inhaltsspalte, unter der
+    schmalen Spalte blieb eine große leere Fläche, und zwischen Text und
+    Kasten klaffte ein Loch. Alles drei ist Anordnung und steht in
+    `assets/css/location.css`; geprüft werden die Zusagen darin.
+
+    - **Volle Fensterbreite:** `.app-page:has(> .loc-page)` hebt die
+      Breitengrenze auf — und zwar nur für diese Seite.
+    - **Ohne `vw` in der Waagerechten:** `width`, `min-width`, `max-width`
+      und jede `margin`-Angabe dürfen kein `vw` enthalten, denn `vw` zählt
+      den senkrechten Rollbalken mit und zöge auf einer scrollenden Seite
+      einen waagerechten nach sich. In der *Senkrechten* ist `vw` erlaubt
+      und wird benutzt (die Bildhöhe wächst mit der Fensterbreite) — eine
+      Höhe verursacht keinen waagerechten Rollbalken. Der Kommentar, in dem
+      `100vw` als Gegenbeispiel steht, wird vor der Prüfung entfernt.
+    - **Die Karte über beide Spalten:** `grid-template-areas` muss
+      `"main side" "meeting meeting"` lauten, auf schmalen Geräten
+      `"main" "side" "meeting"`.
+    - **Die Breiten sind ausgerechnet:** Spaltenbreite minus Kastenbreite
+      minus Lücke muss ungefähr die Textbreite ergeben (75 Zeichen ≈ 626
+      Punkte). Der Test rechnet das aus dem CSS nach, damit ein späteres
+      „ich mach die Spalte mal breiter" das Loch nicht zurückbringt.
+    - **Der leere Streifen behält seine Höhe:** Sein Selektor muss zwei
+      Klassen tragen, sonst überschreibt ihn die nächste Medienabfrage und
+      aus dem Streifen wird eine 570 Punkte hohe graue Fläche.
 
 31. **Bilder: außerhalb des Webroots, geprüft, und ohne Reste** (Abschnitt 30 im Skript).
     `ImageStore::isValidName()` nimmt nur 32 Hexzeichen an; `../../etc/passwd`,

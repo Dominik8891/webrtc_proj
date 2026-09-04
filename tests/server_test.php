@@ -2731,6 +2731,95 @@ check(strpos($ohneBild, 'keine Bilder') === false,
 check(strpos($ohneBild, 'Alfama bei Nacht') !== false, 'der Titel fehlt auf dem leeren Streifen');
 ok('ohne Bilder bleibt ein Streifen mit Titel, ohne Meldung');
 
+// 3d. DER WEG ZURUECK. Hier stand ein Umschalter "Karte | Liste". Der gehoert
+//     auf die Startseite und auf die Standortliste: Dort schaltet er zwischen
+//     zwei Ansichten DERSELBEN Menge um, und einer der beiden Eintraege ist
+//     der, auf dem man gerade steht. Auf dieser Seite stimmte beides nicht -
+//     man ist weder auf der Karte noch in der Liste, sondern bei EINEM
+//     Standort.
+check(strpos($seiteKunde, 'app-switch') === false,
+    'der Umschalter "Karte | Liste" steht noch auf der Standortseite');
+check(preg_match('/loc-hero__back[^>]*href="index\.php\?act=home"/', $seiteKunde) === 1,
+    'es fehlt der Weg zurueck zur Uebersicht');
+check(strpos($seiteKunde, 'Zurück zur Übersicht') !== false,
+    'der Rueckweg ist nicht beschriftet');
+
+// Er liegt AUF dem Bild, wie Titel und Zustand auch - ueber dem Bild steht
+// nichts.
+check(strpos($hero, 'loc-hero__back') !== false, 'der Rueckweg liegt nicht auf dem Bild');
+ok('statt eines Umschalters steht dort ein Weg zurueck zur Uebersicht');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n29b) Die Seite auf breiten Bildschirmen\n");
+
+// DER BEFUND: Auf 2500 Punkten lief das Bild nur ueber die Inhaltsspalte -
+// links und rechts standen Balken -, und unter der schmalen Spalte blieb eine
+// grosse leere Flaeche. Beides ist Anordnung und steht deshalb in
+// assets/css/location.css; geprueft wird hier, dass die drei Zusagen darin
+// stehen, die es dafuer braucht.
+$locCss = file_get_contents($ROOT . '/assets/css/location.css');
+
+// 1. DAS BILD UEBER DIE VOLLE FENSTERBREITE. Dafuer muss die Seite die
+//    1200-Punkte-Grenze des Inhaltsbereichs fuer sich aufheben - und zwar NUR
+//    fuer sich: :has(> .loc-page) trifft ausschliesslich den Rahmen, in dem
+//    eine Standortseite steht.
+check(preg_match('/\.app-page:has\(>\s*\.loc-page\)\s*\{[^}]*max-width:\s*none/s', $locCss) === 1,
+    'die Standortseite hebt die Breitengrenze des Inhaltsbereichs nicht auf');
+
+// 2. UND SIE TUT ES NICHT MIT vw IN DER WAAGERECHTEN. "width: 100vw" bzw.
+//    "margin-inline: calc(50% - 50vw)" ist der uebliche Trick fuer volle
+//    Breite, und er zaehlt den senkrechten Rollbalken mit - auf einer Seite,
+//    die scrollt, waere das Bild rund 15 Punkte zu breit und zoege einen
+//    waagerechten Rollbalken nach sich. Der Weg ueber den Innenabstand
+//    rechnet mit dem, was wirklich da ist.
+//
+//    In der SENKRECHTEN ist vw dagegen erlaubt und wird auch benutzt: Die
+//    Hoehe des Bildes waechst mit der Fensterbreite, und eine Hoehe zieht
+//    keinen waagerechten Rollbalken nach sich. Geprueft werden deshalb genau
+//    die Eigenschaften, an denen es schiefgehen kann - und der Kommentar, in
+//    dem "100vw" als Gegenbeispiel steht, wird vorher entfernt.
+$cssOhneKommentar = preg_replace('#/\*.*?\*/#s', '', $locCss);
+preg_match_all('/(width|min-width|max-width|margin(?:-inline|-left|-right)?)\s*:\s*([^;]*vw[^;]*);/i',
+    $cssOhneKommentar, $waagerecht, PREG_SET_ORDER);
+check($waagerecht === [],
+    'eine waagerechte Angabe rechnet mit vw und zaehlt damit den Rollbalken mit: '
+    . implode(', ', array_map(fn($t) => trim($t[0]), $waagerecht)));
+ok('das Bild laeuft ueber die volle Fensterbreite, ohne waagerecht mit vw zu rechnen');
+
+// 3. KEINE LEERE FLAECHE UNTER DER SCHMALEN SPALTE. Sie spannte sich ueber
+//    beide Rasterzeilen, und weil der Kasten darin nur knapp 200 Punkte hoch
+//    ist, klaffte darunter ein Loch von mehreren hundert Punkten. Die Karte
+//    laeuft jetzt ueber beide Spalten.
+check(preg_match('/grid-template-areas:\s*"main\s+side"\s*"meeting\s+meeting"/s', $locCss) === 1,
+    'die Karte laeuft nicht ueber beide Spalten - unter der schmalen Spalte bleibt ein Loch');
+check(preg_match('/grid-template-areas:\s*"main"\s*"side"\s*"meeting"/s', $locCss) === 1,
+    'auf schmalen Geraeten stehen die Bereiche nicht in der Reihenfolge Text, Knopf, Karte');
+ok('die Karte laeuft ueber beide Spalten, unter der schmalen Spalte bleibt nichts leer');
+
+// 4. DIE BREITEN SIND AUFEINANDER ABGESTIMMT. Die Textspalte ist auf 75
+//    Zeichen begrenzt; ist die Spalte daneben zu schmal, bleibt zwischen Text
+//    und Kasten ein Loch. Auf breiten Bildschirmen waren das 234 Punkte.
+//    Geprueft wird die Rechnung, nicht das Aussehen: Spaltenbreite minus
+//    Kasten minus Luecke muss ungefaehr die Textbreite ergeben.
+check(preg_match('/--loc-column:\s*(\d+)px/', $locCss, $spalte) === 1, 'keine Spaltenbreite gesetzt');
+check(preg_match('/grid-template-columns:\s*minmax\(0,\s*1fr\)\s*(\d+)px/', $locCss, $kasten) === 1,
+    'keine Breite fuer die schmale Spalte gesetzt');
+$rest = (int)$spalte[1] - (int)$kasten[1] - 32;   // 32 = --app-space-6, die Luecke
+check($rest >= 600 && $rest <= 700,
+    "Text- und Kastenbreite passen nicht zusammen: fuer den Text bleiben $rest Punkte, "
+    . 'gebraucht werden rund 626 (75 Zeichen)');
+ok('Spaltenbreite, Kasten und Luecke sind aufeinander ausgerechnet');
+
+// 5. DER LEERE STREIFEN BEHAELT SEINE HOEHE. Die Hoehe des Bildrahmens wird in
+//    zwei Medienabfragen neu gesetzt (schmale und sehr breite Bildschirme).
+//    Eine Medienabfrage erhoeht die Spezifitaet nicht - mit nur einer Klasse
+//    im Selektor bekam der leere Streifen dort die Hoehe eines Fotos: 570
+//    Punkte graue Flaeche mit einem Titel darin. Zwei Klassen gewinnen.
+check(preg_match('/\.loc-hero__frame\.loc-hero__frame--empty\s*\{[^}]*height:/s', $cssOhneKommentar) === 1,
+    'die Hoehe des leeren Streifens steht nicht mit zwei Klassen im Selektor - '
+    . 'eine Medienabfrage macht daraus wieder eine Fotoflaeche');
+ok('der leere Streifen behaelt seine Hoehe auf jedem Bildschirm');
+
 // 4. Kein Platzhalter ueberlebt - in keiner der drei Ansichten.
 foreach (['Gast' => $seiteGast, 'Kunde' => $seiteKunde, 'Eigentuemer' => $seiteEigner] as $wer => $html) {
     check(preg_match('/###[A-Z_]+###/', $html, $rest) === 0,

@@ -49,8 +49,13 @@
     /* DIE BREITE DER LESBAREN SPALTE - an einer Stelle. Sie gilt fuer den
        Rumpf, fuer die Meldungen, fuer das Bearbeitungsformular UND fuer die
        Schrift auf dem Bild: Der Titel soll genau ueber dem Text darunter
-       anfangen und nicht um ein paar Punkte daneben. */
-    --loc-column: 1080px;
+       anfangen und nicht um ein paar Punkte daneben.
+
+       DIE ZAHL IST AUSGERECHNET UND NICHT GEWAEHLT: 626 Punkte Text (75
+       Zeichen der Grundschrift) plus 32 Luecke plus 360 fuer den Kasten
+       daneben. Stand hier eine groessere Zahl, blieb der Ueberschuss als Loch
+       zwischen Text und Kasten stehen - der Text waechst ja nicht mit. */
+    --loc-column: 1020px;
 }
 
 /* Alles ausser dem Bild bleibt eine lesbare Spalte in der Mitte: die
@@ -62,15 +67,44 @@
     margin-inline: auto;
 }
 
+/* DIE EINE STELLE, an der diese Seite den Inhaltsbereich der Anwendung
+   anfasst - und sie fasst ihn nur fuer sich selbst an: :has(> .loc-page)
+   trifft ausschliesslich den Rahmen, in dem eine Standortseite steht. Jede
+   andere Seite behaelt ihre 1200 Punkte.
+
+   Gebraucht wird das fuer das Bild: Es soll ueber die volle FENSTERbreite
+   laufen und nicht nur ueber die Inhaltsspalte.
+
+   FAELLT :has() AUS (ein sehr alter Browser), passiert nichts Schlimmes: Die
+   Grenze bleibt stehen, das Bild laeuft dann ueber die Inhaltsspalte statt
+   ueber das Fenster - also genau so, wie es vorher war. Es ist eine
+   Verbesserung, keine Voraussetzung. */
+.app-page:has(> .loc-page) {
+    max-width: none;
+}
+
 /* ===========================================================================
    1 + 2: Das Bild und was darauf liegt
    =========================================================================== */
 
-/* RANDLOS heisst: Der Aussenabstand des Inhaltsbereichs wird hier wieder
-   abgezogen. .app-main traegt rundherum --app-space-5; ein negativer
-   Aussenabstand derselben Groesse laesst das Bild genau bis an die Kante des
-   Inhaltsbereichs laufen - und keinen Punkt weiter, also entsteht auch kein
-   waagerechter Rollbalken.
+/* RANDLOS UEBER DIE VOLLE FENSTERBREITE - und dafuer braucht es zwei Regeln,
+   die zusammengehoeren:
+
+   1. HIER: Der Aussenabstand des Inhaltsbereichs wird abgezogen. .app-main
+      traegt rundherum --app-space-5; ein negativer Aussenabstand derselben
+      Groesse laesst das Bild genau bis an dessen Kante laufen - und keinen
+      Punkt weiter, also entsteht kein waagerechter Rollbalken.
+
+   2. WEITER OBEN in dieser Datei: Die 1200-Punkte-Grenze des Inhaltsbereichs
+      wird fuer diese eine Seite aufgehoben (.app-page:has(> .loc-page)).
+      Ohne das lief das Bild nur ueber die Inhaltsspalte, und auf einem
+      breiten Bildschirm standen links und rechts Balken.
+
+   WARUM NICHT 100vw: Das ist der uebliche Trick fuer volle Breite, und er
+   zaehlt den senkrechten Rollbalken mit. Auf jeder Seite, die scrollt - und
+   diese scrollt -, waere das Bild rund 15 Punkte breiter als das sichtbare
+   Fenster und zoege einen waagerechten Rollbalken nach sich. Der Weg ueber
+   den Innenabstand rechnet dagegen mit dem, was wirklich da ist.
 
    Nach OBEN nur dann, wenn das Bild wirklich das Erste auf der Seite ist.
    Steht darueber eine Meldung ("Gespeichert." oder ein Sperrhinweis), bleibt
@@ -104,7 +138,13 @@
    Umschalter oben und der Titel unten nebeneinander Platz haben und sich
    nicht ueberlagern. Das war der Fehler des ersten Versuchs: 150 Punkte
    Hoehe, und der Titelblock legte sich ueber die Zeile darueber. */
-.loc-hero__frame--empty {
+/* ZWEI KLASSEN IM SELEKTOR, und das ist Absicht: Die Hoehe des Bildrahmens
+   wird weiter unten in zwei Medienabfragen neu gesetzt (schmale und sehr
+   breite Bildschirme). Eine Medienabfrage erhoeht die Spezifitaet nicht -
+   mit nur einer Klasse haette der leere Streifen dort die Hoehe eines Fotos
+   bekommen: 570 Punkte graue Flaeche mit einem Titel darin. Mit zwei Klassen
+   gilt diese Zeile ueberall. */
+.loc-hero__frame.loc-hero__frame--empty {
     height: clamp(190px, 24vw, 240px);
     background: var(--app-surface-sunken);
 }
@@ -155,19 +195,17 @@
     text-shadow: none;
 }
 
-.loc-hero__frame--empty ~ .loc-hero__bar .app-switch--onimage {
+.loc-hero__frame--empty ~ .loc-hero__bar .loc-hero__back {
     background: var(--app-surface);
     border-color: var(--app-border);
     backdrop-filter: none;
-}
-
-.loc-hero__frame--empty ~ .loc-hero__bar .app-switch__item {
     color: var(--app-text-muted);
 }
 
-.loc-hero__frame--empty ~ .loc-hero__bar .app-switch__item:hover {
-    color: var(--app-text);
+.loc-hero__frame--empty ~ .loc-hero__bar .loc-hero__back:hover,
+.loc-hero__frame--empty ~ .loc-hero__bar .loc-hero__back:focus-visible {
     background: var(--app-surface-sunken);
+    color: var(--app-text);
 }
 
 /* Der Umschalter und die Schrift liegen zwar auf einem randlosen Bild, aber
@@ -199,21 +237,48 @@
     pointer-events: auto;
 }
 
-/* Der Umschalter liegt auf einem Foto und braucht dort seinen eigenen Grund -
-   der helle Flaechenton aus theme.css verschwindet auf einem hellen Bild. */
-.app-switch--onimage {
+/* Der Rueckweg liegt auf einem Foto und braucht dort seinen eigenen Grund -
+   ein heller Flaechenton verschwindet auf einem hellen Bild. */
+.loc-hero__back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    padding: var(--app-space-2) var(--app-space-3) var(--app-space-2) var(--app-space-2);
+    border: 1px solid rgba(255, 255, 255, .28);
+    border-radius: var(--app-radius-pill);
     background: rgba(0, 0, 0, .45);
-    border-color: rgba(255, 255, 255, .28);
     backdrop-filter: blur(6px);
+    color: rgba(255, 255, 255, .9);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    text-decoration: none;
+    transition: background var(--app-transition), color var(--app-transition);
 }
 
-.app-switch--onimage .app-switch__item {
-    color: rgba(255, 255, 255, .82);
-}
-
-.app-switch--onimage .app-switch__item:hover {
+.loc-hero__back:hover,
+.loc-hero__back:focus-visible {
+    background: rgba(0, 0, 0, .65);
     color: #fff;
-    background: rgba(255, 255, 255, .16);
+    text-decoration: none;
+}
+
+.loc-hero__back:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+/* Der Pfeil kommt aus derselben Maske wie die Blaetterpfeile - gedreht. In
+   theme.css liegen ein Auf- und ein Abwaertspfeil; ein drittes Symbol fuer
+   dieselbe Form waere Verschwendung. */
+.loc-hero__backIcon {
+    width: 1rem;
+    height: 1rem;
+    background-color: currentColor;
+    -webkit-mask-image: var(--icon-arrow-up); mask-image: var(--icon-arrow-up);
+    -webkit-mask-position: center;  mask-position: center;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-size: contain;     mask-size: contain;
+    transform: rotate(-90deg);
 }
 
 /* Titel, Ort und Zustand. Sie liegen unten links auf dem Bild - dort, wo der
@@ -368,12 +433,21 @@
    stehen und nicht unter der schmalen Spalte. Mit benannten Bereichen steht
    beides an einer Stelle und nicht als Reihe von "order"-Zahlen, die man
    einzeln nachrechnen muss. */
+/* DIE BREITEN SIND AUFEINANDER ABGESTIMMT, und das ist kein Zufall: Die
+   Textspalte ist auf 75 Zeichen begrenzt (rund 626 Punkte bei der
+   Grundschrift). Waere die Spalte daneben zu schmal, bliebe zwischen Text und
+   Kasten ein Loch - genau das war auf breiten Bildschirmen zu sehen, dort
+   klafften 234 Punkte dazwischen.
+
+   1020 abzueglich 360 fuer den Kasten und 32 fuer die Luecke ergibt 628 - also
+   genau die Textspalte. Wer eine der drei Zahlen aendert, aendert die anderen
+   mit. */
 .loc__body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 360px;
     grid-template-areas:
         "main    side"
-        "meeting side";
+        "meeting meeting";
     gap: var(--app-space-6);
     align-items: start;
 }
@@ -419,6 +493,13 @@
 
 /* --- 6: Die Karte, unten ------------------------------------------------- */
 
+/* Die Karte laeuft ueber BEIDE Spalten. Vorher stand sie nur unter dem Text,
+   und rechts daneben - unter dem Knopf - blieb Platz uebrig, den nichts
+   fuellte. Breiter ist sie ausserdem nuetzlicher: Ein Treffpunkt in einer
+   Altstadt braucht Umgebung, damit man ihn wiedererkennt.
+
+   Beiwerk bleibt sie trotzdem: Sie steht ganz unten und traegt keine Farbe,
+   keinen Schatten und keine Ueberschrift ausser einer kleinen. */
 .loc__meeting {
     /* Kein eigener Abstand nach oben mehr - den setzt die Luecke des
        Rasters. Zwei Abstaende uebereinander waren doppelt so gross wie
@@ -426,8 +507,10 @@
     min-width: 0;
 }
 
+/* Die Hoehe waechst mit der Breite, damit die Karte nicht zu einem Streifen
+   wird, wenn sie ueber beide Spalten laeuft. */
 .loc__map {
-    height: 260px;
+    height: clamp(240px, 22vw, 340px);
     border-radius: var(--app-radius);
     overflow: hidden;
     border: 1px solid var(--app-border);
@@ -437,11 +520,17 @@
 
 /* Der Knopf laeuft beim Scrollen mit: Wer unten in der Beschreibung
    angekommen ist, soll ihn nicht wieder suchen muessen.
-   
-   Zwei Elemente, und beide werden gebraucht: Die Spalte spannt sich ueber
-   BEIDE Rasterzeilen (align-self: stretch), damit der Kasten darin ueberhaupt
-   Weg zum Mitlaufen hat - ein Kasten, der genau so hoch ist wie sein
-   Behaelter, bleibt stehen, egal was an ihm steht. */
+
+   Zwei Elemente, und beide werden gebraucht: Die Spalte spannt sich ueber die
+   volle Hoehe ihrer Rasterzeile (align-self: stretch), damit der Kasten darin
+   ueberhaupt Weg zum Mitlaufen hat - ein Kasten, der genau so hoch ist wie
+   sein Behaelter, bleibt stehen, egal was an ihm steht.
+
+   SIE SPANNT SICH NICHT MEHR UEBER ZWEI ZEILEN. Vorher reichte sie bis unter
+   die Karte, und weil der Kasten darin nur knapp 200 Punkte hoch ist, klaffte
+   darunter eine leere Flaeche von mehreren hundert Punkten - auf breiten
+   Bildschirmen der auffaelligste Fehler der Seite. Jetzt endet die Spalte mit
+   der Beschreibung, und die Karte laeuft darunter ueber die volle Breite. */
 .loc__side {
     grid-area: side;
     align-self: stretch;
@@ -597,6 +686,59 @@
     .loc-hero__nav {
         width: 2.25rem;
         height: 2.25rem;
+    }
+}
+
+/* --- Sehr breite Bildschirme --------------------------------------------- */
+
+/* Auf 2500 Punkten wirkte der Inhalt als schmale Insel in der Mitte. Ganz
+   aufloesen laesst sich das nicht, und es soll auch nicht: Eine Textspalte
+   ueber die halbe Wand ist unlesbar - das Auge findet den Zeilenanfang nicht
+   mehr wieder. Was hilft, ist dreierlei, und zwei Drittel davon stehen
+   woanders:
+
+     - Das Bild laeuft ueber die volle Fensterbreite (siehe oben). Es traegt
+       die Seite und nimmt ihr das Inselhafte.
+     - Die Karte laeuft ueber beide Spalten, also ist unter dem Knopf keine
+       leere Flaeche mehr.
+     - Und hier: Spalte und Abstaende wachsen ein Stueck mit. Nicht bis an den
+       Rand, sondern bis dorthin, wo Text noch lesbar ist. */
+@media (min-width: 1600px) {
+    .loc-page {
+        --loc-column: 1160px;
+    }
+
+    /* GROESSERE SCHRIFT, und daher eine breitere Spalte - nicht umgekehrt.
+       Eine Textspalte waechst nicht dadurch, dass man ihr mehr Punkte gibt:
+       Bei 75 Zeichen ist Schluss, sonst findet das Auge den Zeilenanfang
+       nicht mehr. Was auf einem grossen Bildschirm waechst, ist der
+       Betrachtungsabstand - also die Schrift. Dass die Spalte dabei breiter
+       wird, ist die Folge und nicht der Zweck.
+
+       1160 abzueglich 400 und 48 ergibt 712 - und 75 Zeichen dieser
+       groesseren Schrift sind rund 710 Punkte. Dieselbe Rechnung wie oben,
+       nur eine Stufe groesser. */
+    .loc__main {
+        font-size: var(--app-text-md);
+    }
+
+    .loc__lead {
+        font-size: 1.25rem;
+    }
+
+    .loc__body {
+        grid-template-columns: minmax(0, 1fr) 400px;
+        gap: var(--app-space-7);
+    }
+
+    /* Das Bild darf hoeher werden, wenn es breiter wird - sonst wird aus dem
+       Aufmacher ein Band. */
+    .loc-hero__frame {
+        height: clamp(480px, 30vw, 640px);
+    }
+
+    .loc-hero__title {
+        font-size: 2.25rem;
     }
 }
 
