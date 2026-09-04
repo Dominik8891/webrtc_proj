@@ -4,9 +4,9 @@
  * WAS DIESES MODUL TUT
  * --------------------
  * Die Seite kommt FERTIG vom Server (App\Controller\LocationController).
- * Titel, Beschreibung, Dauer, Sprachen, Bilder und der Anrufknopf stehen
+ * Titel, Beschreibung, Dauer, Sprachen, Bilder und das Anfrageformular stehen
  * schon im Dokument, bevor dieses Skript laeuft - wer es abschaltet, sieht
- * den Standort trotzdem vollstaendig. Ergaenzt werden hier nur die vier
+ * den Standort trotzdem vollstaendig. Ergaenzt werden hier nur die fuenf
  * Dinge, die ohne Skript nicht gehen:
  *
  *   1. Die kleine Karte mit dem Treffpunkt.
@@ -19,6 +19,18 @@
  *      offenen Seite ein "Jetzt verfuegbar" von vor einer Stunde.
  *   4. Das Bearbeiten samt Bildverwaltung - nur beim Eigentuemer, und nur,
  *      weil der Server das Formular nur ihm geliefert hat.
+ *   5. Die ANFRAGE: sie abschicken, ihren Zustand im Takt nachziehen und -
+ *      sobald der Guide zugesagt hat und das Zeitfenster laeuft - die
+ *      Fuehrung starten.
+ *
+ * DIE ANFRAGE IST DER NEUE ANFANG
+ * -------------------------------
+ * Hier stand ein Knopf "Fuehrung starten", der sofort anrief. Das verlangte,
+ * dass Kunde und Guide zufaellig im selben Moment koennen - und der Guide ist
+ * die knappere Seite: Er muss losgehen, sich Zeit nehmen, vielleicht
+ * hinfahren. Jetzt steht dort eine Anfrage mit einem Wunschzeitpunkt; "jetzt
+ * sofort" ist einer davon und kein zweiter Weg. Angerufen wird erst nach der
+ * Zusage - und dann genau wie vorher.
  *
  * DER ANRUF GIBT DIE STANDORTKENNUNG MIT. Das ist die eine Stelle, an der
  * dieses Modul in den Ablauf des Calls eingreift, und sie ist wichtig: Am
@@ -73,6 +85,7 @@ window.webrtcApp.locationPage = {
         this.initMap();
         this.bindLightbox();
         this.bindCall();
+        this.bindRequest();
         this.startAutoRefresh();
 
         if (this.daten.isOwn) this.bindEdit();
@@ -298,12 +311,23 @@ window.webrtcApp.locationPage = {
             .then(antwort => {
                 if (!antwort || !antwort.success) return;
                 this.applyState(antwort.availability);
+                this.applyRequest(antwort.request || null);
             })
             .catch(() => {});
     },
 
     /**
-     * Uebernimmt einen neuen Zustand in Marke und Knopf.
+     * Uebernimmt eine neue Verfuegbarkeit.
+     *
+     * SIE SPERRT NICHTS MEHR. Frueher haing der Anrufknopf daran: Kein
+     * Guide vor Ort, kein Knopf. Seit am Anfang eine Anfrage steht, ist das
+     * falsch - ein Standort, an dem gerade niemand ist, laesst sich fuer
+     * heute Abend anfragen. Die Verfuegbarkeit ist eine AUSKUNFT und faerbt
+     * die Marke oben; ob jetzt gestartet werden darf, sagt allein die
+     * Anfrage (applyRequest).
+     *
+     * Steht gerade das Formular da, wird es neu gezeichnet: Sein Hinweis
+     * ("der Guide ist gerade bereit") gehoert zu dieser Auskunft.
      *
      * @param {string} zustand 'live', 'busy' oder 'idle'
      */
@@ -314,24 +338,7 @@ window.webrtcApp.locationPage = {
         const marke = document.getElementById('loc-state');
         if (marke && !this.daten.isOwn) marke.innerHTML = this.stateTagHtml(zustand);
 
-        const knopf = document.querySelector('.loc-call-btn');
-        if (!knopf) return;
-
-        const anrufbar = (zustand === 'live') && !!this.daten.userId;
-        knopf.disabled = !anrufbar;
-        knopf.classList.toggle('btn-success', anrufbar);
-        knopf.classList.toggle('btn-secondary', !anrufbar);
-
-        if (anrufbar) {
-            // Die Kennungen stehen erst jetzt am Knopf: Der Server liefert
-            // einen gesperrten Knopf ohne sie aus, damit ein nachgebauter
-            // Klick auf einem grauen Knopf ins Leere geht.
-            knopf.setAttribute('data-userid', String(this.daten.userId));
-            knopf.setAttribute('data-locationid', String(this.daten.id));
-            knopf.removeAttribute('aria-disabled');
-        } else {
-            knopf.setAttribute('aria-disabled', 'true');
-        }
+        if (!this.daten.request) this.renderAktion();
     },
 
     /**
@@ -355,6 +362,394 @@ window.webrtcApp.locationPage = {
         }
         return '<span class="app-tag">Kein Guide vor Ort</span>';
     },
+
+    // -----------------------------------------------------------------
+    // Die Anfrage
+    // -----------------------------------------------------------------
+
+    /**
+     * Haengt das Anfrageformular ein.
+     *
+     * Ein Handler am Dokument und nicht je Knopf: Der Aktionsbereich wird neu
+     * gebaut, sobald sich der Zustand aendert - ein Handler an einem
+     * ersetzten Knopf waere weg.
+     */
+    bindRequest() {
+        document.addEventListener('click', (e) => {
+            const vorgabe = e.target.closest('.loc-req__preset');
+            if (vorgabe) { e.preventDefault(); this.waehleVorgabe(vorgabe); return; }
+
+            const senden = e.target.closest('.loc-req-submit');
+            if (senden) { e.preventDefault(); this.stelleAnfrage(); return; }
+
+            const zurueck = e.target.closest('.loc-req-cancel');
+            if (zurueck) { e.preventDefault(); this.ziehZurueck(zurueck.getAttribute('data-id')); }
+        });
+
+        // Wer eine Uhrzeit eintraegt, hat sich gegen die Vorgaben entschieden.
+        // Sie bleiben stehen, sind aber nicht mehr ausgewaehlt - sonst
+        // stuenden zwei Antworten auf dieselbe Frage nebeneinander.
+        document.addEventListener('input', (e) => {
+            if (e.target && e.target.id === 'loc-req-wish') this.loeseVorgaben();
+        });
+    },
+
+    /**
+     * Waehlt einen der vorgegebenen Abstaende.
+     *
+     * @param {HTMLElement} knopf
+     */
+    waehleVorgabe(knopf) {
+        this.loeseVorgaben();
+        knopf.classList.add('loc-req__preset--on');
+        knopf.setAttribute('aria-pressed', 'true');
+
+        // Das Feld daneben wird geleert: Es gibt genau EINEN Wunschzeitpunkt,
+        // und er steht entweder in den Vorgaben oder im Feld.
+        const feld = document.getElementById('loc-req-wish');
+        if (feld) feld.value = '';
+    },
+
+    /** Nimmt allen Vorgaben die Auswahl. */
+    loeseVorgaben() {
+        document.querySelectorAll('.loc-req__preset').forEach(k => {
+            k.classList.remove('loc-req__preset--on');
+            k.setAttribute('aria-pressed', 'false');
+        });
+    },
+
+    /**
+     * Der gewaehlte Wunschzeitpunkt als ABSTAND in Sekunden.
+     *
+     * Ein Abstand und kein Datum, und zwar an dieser einen Stelle umgerechnet:
+     * Der Server rechnet daraus an SEINER Uhr einen Zeitpunkt. Damit spielt es
+     * keine Rolle, in welcher Zeitzone der Kunde sitzt und ob seine Uhr
+     * richtig geht - "in einer Stunde" heisst fuer beide Seiten dasselbe.
+     *
+     * @returns {number|null} Sekunden, oder null wenn nichts Gueltiges gewaehlt ist
+     */
+    wunschSekunden() {
+        const gewaehlt = document.querySelector('.loc-req__preset--on');
+        if (gewaehlt) return parseInt(gewaehlt.getAttribute('data-seconds'), 10) || 0;
+
+        const feld = document.getElementById('loc-req-wish');
+        if (!feld || !feld.value) return null;
+
+        const ziel = Date.parse(feld.value);
+        if (isNaN(ziel)) return null;
+
+        const sekunden = Math.round((ziel - Date.now()) / 1000);
+        // Ein Zeitpunkt in der Vergangenheit ist kein Wunsch, sondern ein
+        // Vertipper. Ein paar Sekunden Rueckstand sind dagegen die Zeit
+        // zwischen Auswahl und Klick - das ist "jetzt sofort".
+        if (sekunden < -60) return null;
+        return Math.max(0, sekunden);
+    },
+
+    /**
+     * Schickt die Anfrage.
+     *
+     * Uebernommen wird, was der SERVER antwortet. Weist er ab - der Standort
+     * ist gesperrt, es laeuft schon eine Anfrage, der Zeitpunkt liegt zu weit
+     * voraus -, steht danach der wahre Zustand da und nicht der gewuenschte.
+     */
+    stelleAnfrage() {
+        if (!this.daten || this.busy) return;
+
+        const sekunden = this.wunschSekunden();
+        if (sekunden === null) {
+            window.webrtcApp.notify.error(
+                'Bitte einen Wunschzeitpunkt wählen – "Jetzt sofort" ist auch einer.'
+            );
+            return;
+        }
+
+        this.busy = true;
+        fetch('index.php?act=request_create', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ location: this.daten.id, wish_in: sekunden })
+        })
+        .then(r => r.json())
+        .then(antwort => {
+            this.busy = false;
+            if (!antwort || !antwort.success) {
+                window.webrtcApp.notify.error(
+                    (antwort && antwort.error) || 'Die Anfrage konnte nicht gestellt werden.'
+                );
+                // Auch im Fehlerfall kann eine Anfrage mitkommen: "es laeuft
+                // schon eine" ist eine Absage MIT Zustand.
+                if (antwort && antwort.request) this.applyRequest(antwort.request);
+                return;
+            }
+            this.applyRequest(antwort.request || null);
+            window.webrtcApp.notify.success(
+                'Anfrage gestellt. Der Guide antwortet – Sie sehen es hier und am Zähler oben.'
+            );
+        })
+        .catch(() => {
+            this.busy = false;
+            window.webrtcApp.notify.error('Keine Verbindung. Bitte erneut versuchen.');
+        });
+    },
+
+    /**
+     * Zieht die eigene Anfrage zurueck.
+     *
+     * MIT RUECKFRAGE, anders als beim Bereitschaftsschalter: Der Guide hat
+     * womoeglich schon zugesagt und sich die Zeit genommen. Ein versehentlicher
+     * Klick soll das nicht wegwerfen.
+     *
+     * @param {string} id
+     */
+    ziehZurueck(id) {
+        const nummer = parseInt(id, 10);
+        if (!nummer || this.busy) return;
+
+        window.webrtcApp.notify.confirm({
+            title: 'Anfrage zurückziehen?',
+            text: 'Der Guide sieht dann, dass die Führung nicht stattfindet.',
+            confirmText: 'Zurückziehen'
+        }).then(ja => {
+            if (!ja) return;
+            this.busy = true;
+
+            fetch('index.php?act=request_cancel', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: nummer })
+            })
+            .then(r => r.json())
+            .then(antwort => {
+                this.busy = false;
+                if (!antwort || !antwort.success) {
+                    window.webrtcApp.notify.error(
+                        (antwort && antwort.error) || 'Das hat nicht geklappt.'
+                    );
+                    this.loadState();
+                    return;
+                }
+                // Direkt und nicht ueber applyRequest(): Das Verschwinden ist
+                // hier kein Ereignis, das gemeldet werden muesste - der
+                // Nutzer hat es selbst ausgeloest, und die Rueckmeldung
+                // steht in der naechsten Zeile.
+                this.daten.request = null;
+                this.renderAktion();
+                window.webrtcApp.notify.info('Anfrage zurückgezogen.');
+            })
+            .catch(() => {
+                this.busy = false;
+                window.webrtcApp.notify.error('Keine Verbindung. Bitte erneut versuchen.');
+            });
+        });
+    },
+
+    /**
+     * Uebernimmt einen neuen Anfragezustand.
+     *
+     * Neu gezeichnet wird nur, wenn sich wirklich etwas geaendert hat: Wer
+     * gerade eine Uhrzeit eintippt, soll sein Feld nicht alle fuenfzehn
+     * Sekunden geleert bekommen.
+     *
+     * @param {Object|null} anfrage
+     */
+    applyRequest(anfrage) {
+        if (!this.daten) return;
+        if (this.kennung(anfrage) === this.kennung(this.daten.request)) return;
+
+        // VERSCHWUNDEN heisst: abgelehnt, abgelaufen oder abgesagt - der
+        // Server liefert hier nur LAUFENDE Anfragen. Welcher der drei Faelle
+        // es war, steht auf der Anfragenseite; hier wuerde ein geratener Grund
+        // falsch dastehen. Ohne diesen Hinweis taeuscht der wieder
+        // auftauchende Kasten dem Kunden an, er haette nie angefragt.
+        const verschwunden = this.daten.request && !anfrage;
+
+        this.daten.request = anfrage;
+        this.renderAktion();
+
+        if (verschwunden) {
+            window.webrtcApp.notify.info(
+                'Ihre Anfrage ist nicht mehr offen. Was daraus geworden ist, steht unter "Anfragen".'
+            );
+        }
+    },
+
+    /**
+     * Was an einer Anfrage sichtbar ist - als Zeichenkette zum Vergleichen.
+     *
+     * Nur diese drei Angaben aendern die Darstellung. Der Rest (Zeitpunkte,
+     * Namen) steht fest, solange die Anfrage dieselbe ist.
+     *
+     * @param {Object|null} anfrage
+     * @returns {string}
+     */
+    kennung(anfrage) {
+        if (!anfrage) return 'keine';
+        return [anfrage.id, anfrage.status, anfrage.callable ? 1 : 0].join(':');
+    },
+
+    /**
+     * Zeichnet den Aktionsbereich neu.
+     *
+     * DIESELBEN FAELLE WIE SERVERSEITIG (App\Helper\LocationView::aktionHtml).
+     * Es sind zwei Bauorte fuer dieselben Kaesten - eine Doppelung, die
+     * bleibt, solange die Seite fertig ausgeliefert und im Browser
+     * nachgezogen wird; dieselbe Lage wie bei der Zustandsmarke darueber.
+     *
+     * Was hier NICHT nachgebaut wird: der Fall des Gastes und der des
+     * Eigentuemers. Beide aendern sich nicht, waehrend die Seite offen liegt -
+     * und bei beiden gibt es nichts nachzuziehen.
+     */
+    renderAktion() {
+        const bereich = document.getElementById('loc-action');
+        if (!bereich || !this.daten || this.daten.isOwn || this.daten.blocked) return;
+        if (!this.daten.userId) return;
+
+        bereich.innerHTML = this.daten.request
+            ? this.anfrageZustandHtml(this.daten.request)
+            : this.anfrageFormularHtml();
+    },
+
+    /**
+     * Das Anfrageformular als HTML.
+     *
+     * Die Abstaende stehen hier UND serverseitig - siehe renderAktion(). Wer
+     * einen ergaenzt, ergaenzt ihn an beiden Stellen; der Wert, der beim
+     * Server ankommt, ist derselbe.
+     *
+     * @returns {string} HTML
+     */
+    anfrageFormularHtml() {
+        const live = this.daten.availability === 'live';
+        const hinweis = live
+            ? 'Der Guide ist gerade bereit – „jetzt sofort“ hat gute Aussichten.'
+            : 'Gerade ist niemand vor Ort. Das ist kein Hindernis: Fragen Sie für '
+            + 'später an, und der Guide sagt zu oder ab.';
+
+        const vorgaben = [
+            [0,     'Jetzt sofort'],
+            [3600,  'In 1 Stunde'],
+            [10800, 'In 3 Stunden'],
+            [86400, 'Morgen um diese Zeit']
+        ];
+
+        const knoepfe = vorgaben.map(([sek, text], i) =>
+            '<button type="button" class="btn btn-sm loc-req__preset'
+            + (i === 0 ? ' loc-req__preset--on' : '') + '"'
+            + ' data-seconds="' + sek + '"'
+            + ' aria-pressed="' + (i === 0 ? 'true' : 'false') + '">'
+            + this.esc(text) + '</button>').join('');
+
+        return '<div class="loc-req" id="loc-request">'
+             +   '<p class="loc__note">' + this.esc(hinweis) + '</p>'
+             +   '<div class="loc-req__presets" role="group" aria-label="Wunschzeitpunkt">'
+             +     knoepfe
+             +   '</div>'
+             +   '<div class="loc-req__custom">'
+             +     '<label class="loc-req__label" for="loc-req-wish">Anderer Zeitpunkt</label>'
+             +     '<input type="datetime-local" id="loc-req-wish" class="form-control loc-req__field">'
+             +   '</div>'
+             +   '<button type="button" class="btn btn-success loc-req-submit"'
+             +     ' data-locationid="' + (parseInt(this.daten.id, 10) || 0) + '">Führung anfragen</button>'
+             + '</div>';
+    },
+
+    /**
+     * Der Zustand einer laufenden Anfrage als HTML.
+     *
+     * @param {Object} anfrage
+     * @returns {string} HTML
+     */
+    anfrageZustandHtml(anfrage) {
+        const id       = parseInt(anfrage.id, 10) || 0;
+        const anrufbar = this.wahr(anfrage.callable) && !!this.daten.userId;
+        const wann     = this.wunschzeitText(anfrage);
+
+        if (anfrage.status === 'open') {
+            return '<div class="loc-req loc-req--state" id="loc-request">'
+                 +   '<span class="app-tag app-tag--warn">Anfrage offen</span>'
+                 +   '<p class="loc__note">Ihre Anfrage für <strong>' + this.esc(wann)
+                 +     '</strong> ist beim Guide. Sobald er antwortet, sehen Sie es hier '
+                 +     'und am Zähler in der Kopfleiste.</p>'
+                 +   '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
+                 +     ' data-id="' + id + '">Anfrage zurückziehen</button>'
+                 + '</div>';
+        }
+
+        const text = anrufbar
+            ? 'Der Guide hat zugesagt. Sie können jetzt starten – er wird angerufen.'
+            : 'Der Guide hat für ' + wann + ' zugesagt. Kurz vorher lässt sich die '
+            + 'Führung von hier aus starten.';
+
+        return '<div class="loc-req loc-req--state" id="loc-request">'
+             +   '<span class="app-tag app-tag--live"><span class="app-dot"></span>Angenommen</span>'
+             +   '<p class="loc__note">' + this.esc(text) + '</p>'
+             +   '<button type="button" class="btn ' + (anrufbar ? 'btn-success' : 'btn-secondary')
+             +     ' loc-call-btn"' + (anrufbar ? '' : ' disabled aria-disabled="true"')
+             +     (anrufbar ? ' data-userid="' + (parseInt(this.daten.userId, 10) || 0) + '"'
+                             + ' data-locationid="' + (parseInt(this.daten.id, 10) || 0) + '"' : '')
+             +     '>Führung starten</button>'
+             +   '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
+             +     ' data-id="' + id + '">Absagen</button>'
+             + '</div>';
+    },
+
+    /**
+     * Der Wunschzeitpunkt als Text - relativ, wie ueberall.
+     *
+     * Der Abstand kommt fertig gerechnet vom Server (wish_in). Er hat keine
+     * Zeitzone, und genau darum steht hier keine Uhrzeit: Guide und Kunde
+     * sitzen womoeglich in verschiedenen.
+     *
+     * @param {Object} anfrage
+     * @returns {string}
+     */
+    wunschzeitText(anfrage) {
+        const s = parseInt(anfrage.wish_in, 10);
+        if (isNaN(s)) return 'den vereinbarten Zeitpunkt';
+        if (s <= 60 && s >= -60) return 'jetzt';
+
+        const minuten = Math.round(Math.abs(s) / 60);
+        let dauer;
+        if (minuten < 60) {
+            dauer = minuten + ' Minuten';
+        } else {
+            const stunden = Math.round(minuten / 60);
+            dauer = stunden < 24 ? stunden + ' Stunden' : Math.round(stunden / 24) + ' Tagen';
+        }
+        return (s > 0 ? 'in ' : 'vor ') + dauer;
+    },
+
+    /**
+     * MySQL liefert Wahrheitswerte als 0/1 - je nach Treiber als Zahl oder als
+     * Zeichenkette.
+     *
+     * @param {*} wert
+     * @returns {boolean}
+     */
+    wahr(wert) {
+        return wert === true || wert === 1 || wert === '1';
+    },
+
+    /**
+     * Maskiert Text fuer die Ausgabe.
+     *
+     * @param {*} wert
+     * @returns {string}
+     */
+    esc(wert) {
+        return String(wert === null || wert === undefined ? '' : wert)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    /** Laeuft gerade eine Anfrage an den Server? Verhindert Doppelklicks. */
+    busy: false,
 
     // -----------------------------------------------------------------
     // Bearbeiten

@@ -625,6 +625,103 @@ CREATE TABLE IF NOT EXISTS `location_image` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------
+-- Tabelle: tour_request
+--
+-- DIE ANFRAGE - und zugleich der einzige Datensatz ueber stattgefundene
+-- Fuehrungen.
+--
+-- WARUM ES SIE GIBT
+-- Vorher rief ein Kunde den Guide unmittelbar an. Das verlangte, dass beide
+-- zufaellig im selben Moment koennen - und der Guide ist die knappere Seite:
+-- Er muss losgehen, sich Zeit nehmen, vielleicht hinfahren. Zwischen Wunsch
+-- und Fuehrung steht deshalb eine Anfrage mit einem Wunschzeitpunkt, die der
+-- Guide annimmt oder ablehnt. Danach wird angerufen wie bisher - dieselbe
+-- Rollenvergabe, dieselbe Standortkennung (WebRTCController::callRoles).
+--
+-- "Jetzt sofort" ist KEIN Sonderfall, sondern der Wunschzeitpunkt NOW().
+-- Dafuer gibt es deshalb weder eine Spalte noch eine Verzweigung.
+--
+-- Ein Anruf hinterliess bisher nur Signalzeilen, die nach 15 Sekunden
+-- geloescht wurden. Dass ueberhaupt eine Fuehrung stattgefunden hat, stand
+-- danach nirgends - fuer Bewertungen und eine spaetere Abrechnung fehlte
+-- genau das. Diese Tabelle ist dieser Datensatz.
+--
+-- Bestehende Installationen: migrations/013_anfragen.sql. Dort steht auch
+-- ausfuehrlich, warum es keine Fremdschluessel gibt.
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `tour_request` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+
+  -- Der angefragte Standort, der Guide und der Kunde.
+  --
+  -- OHNE FREMDSCHLUESSEL, und das ist Absicht: Eine durchgefuehrte Fuehrung
+  -- bleibt geschehen, auch wenn der Standort spaeter geloescht wird oder ein
+  -- Konto verschwindet. Mit ON DELETE CASCADE waere die Historie beim ersten
+  -- geloeschten Standort weg, mit RESTRICT liesse sich ein Standort nie wieder
+  -- loeschen. Dasselbe Muster wie bei location.blocked_by. Gelesen wird
+  -- deshalb ueber LEFT JOIN (App\Model\TourRequest).
+  --
+  -- guide_user_id steht NEBEN location_id, weil der Guide die Seite ist, die
+  -- annimmt, absagt und abgerechnet wird - seine Kennung darf nicht an einem
+  -- Join haengen, der ins Leere laufen kann. Geschrieben wird sie beim
+  -- Anlegen aus dem Standort; der Kunde behauptet sie nicht.
+  `location_id` int(11) NOT NULL,
+  `guide_user_id` int(11) NOT NULL,
+  `customer_user_id` int(11) NOT NULL,
+
+  -- Der Zustand der Anfrage. Als Text und nicht als Zahl: In einem Dump soll
+  -- lesbar sein, was passiert ist, ohne eine Codetabelle danebenzulegen.
+  --
+  --   'open'       offen         - gestellt, noch nicht beantwortet
+  --   'accepted'   angenommen    - der Guide hat zugesagt
+  --   'declined'   abgelehnt     - der Guide hat abgesagt
+  --   'expired'    abgelaufen    - unbeantwortet verstrichen ODER angenommen
+  --                                und das Zeitfenster ungenutzt vorbei
+  --   'done'       durchgefuehrt - die Fuehrung hat stattgefunden
+  --   'cancelled'  abgebrochen   - zurueckgezogen
+  --
+  -- Die erlaubten Werte stehen in App\Model\TourRequest.
+  `status` varchar(16) NOT NULL DEFAULT 'open',
+
+  -- Der Wunschzeitpunkt. Bei "jetzt sofort" der Zeitpunkt des Stellens.
+  `wish_at` datetime NOT NULL,
+
+  -- Ab wann eine OFFENE Anfrage nicht mehr gilt.
+  --
+  -- Ein Zeitpunkt und keine Ja/Nein-Marke, aus demselben Grund wie bei
+  -- user.available_until: So ist "abgelaufen" allein aus der Zeile ablesbar.
+  -- Jede Abfrage wertet den Vergleich mit NOW() selbst aus; der Cronjob
+  -- raeumt nur auf. Gerechnet beim Anlegen aus den beiden Fristen in
+  -- config/requests.php - der fruehere Zeitpunkt gewinnt.
+  `expires_at` datetime NOT NULL,
+
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  -- Wann der Guide geantwortet hat. NULL, solange die Anfrage offen ist oder
+  -- unbeantwortet abgelaufen ist.
+  `decided_at` datetime DEFAULT NULL,
+
+  -- Beginn und Ende der tatsaechlichen Fuehrung, gesetzt vom Signaling: der
+  -- Beginn am Offer mit dieser Standortkennung, das Ende am 'hangup'
+  -- (App\Controller\WebRTCController). Beide NULL heisst: es kam nie zum
+  -- Gespraech. started_at gesetzt und ended_at dauerhaft NULL heisst: das
+  -- Ende ist nie angekommen (Absturz) - der Cronjob schliesst solche Zeilen
+  -- ab, ohne ein Ende zu erfinden.
+  `started_at` datetime DEFAULT NULL,
+  `ended_at` datetime DEFAULT NULL,
+
+  PRIMARY KEY (`id`),
+
+  -- Die vier Abfragen, die es wirklich gibt: was liegt bei diesem Guide an,
+  -- was habe ich als Kunde gestellt, was haengt an diesem Standort, und was
+  -- ist abgelaufen (Cronjob).
+  KEY `guide_status` (`guide_user_id`, `status`, `wish_at`),
+  KEY `customer_status` (`customer_user_id`, `status`, `wish_at`),
+  KEY `location_status` (`location_id`, `status`),
+  KEY `ablauf` (`status`, `expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
 -- Tabelle: chat
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `chat` (

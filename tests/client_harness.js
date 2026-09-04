@@ -363,7 +363,14 @@ global.fetch = async (url, opts) => {
         const rumpf = (opts && opts.body) ? JSON.parse(opts.body) : {};
         global.__presenceCalls.push({ url: String(url), body: rumpf });
         if (global.__availabilityFail) throw new Error('Netzwerkfehler');
-        const antwort = { status: 'ok', available_seconds: global.__availableSeconds };
+        // Die Anfragenzahlen fahren auf demselben Takt mit - genau wie beim
+        // Server (App\Controller\UserController::heartbeat). __requestCounts
+        // legt fest, was er meldet.
+        const antwort = {
+            status: 'ok',
+            available_seconds: global.__availableSeconds,
+            requests: global.__requestCounts
+        };
         return { ok: true, text: async () => JSON.stringify(antwort), json: async () => antwort };
     }
     return { ok: true, text: async () => '', json: async () => ({}) };
@@ -374,6 +381,8 @@ global.__presenceCalls = [];
 global.__availableSeconds = 0;
 /** Auf true: die Anfrage scheitert. */
 global.__availabilityFail = false;
+/** Die beiden Anfragenzahlen, die der Heartbeat meldet. */
+global.__requestCounts = { incoming_open: 0, outgoing_accepted: 0 };
 global.__turnResponse = async () => ({
     ok: true,
     json: async () => ({
@@ -460,6 +469,12 @@ for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'media.js', 's
     // window.locationPage sofort ab - und das setzt nur die echte
     // Standortseite.
     eval(fs.readFileSync(path.join(ROOT, 'location_page.js'), 'utf8'));
+
+    // requests.js: der Anfragenzaehler der Kopfleiste und die Anfragenseite.
+    // Geprueft werden der Zaehler (er haengt an der Antwort des Heartbeats)
+    // und die reinen Baumethoden der Liste. init() laeuft nur ueber
+    // DOMContentLoaded, und das loest hier niemand aus.
+    eval(fs.readFileSync(path.join(ROOT, 'requests.js'), 'utf8'));
 }
 
 // Module, die von rtc.js benutzt werden, aber hier nicht geladen sind

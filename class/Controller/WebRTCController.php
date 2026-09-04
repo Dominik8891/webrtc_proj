@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Model\Location;
 use App\Model\User;
+use App\Model\TourRequest;
 use App\Model\WebRTCHandler;
 use App\Helper\Auth;
 use App\Helper\Request;
@@ -120,6 +121,33 @@ class WebRTCController
                     $rtc_handler->setLocationId($type === 'offer' ? $location : null);
                     $rtc_handler->create();
 
+                    // DIE AUFZEICHNUNG DER FUEHRUNG.
+                    //
+                    // Hier laeuft ohnehin alles vorbei, was eine Fuehrung
+                    // anfaengt und beendet - deshalb steht der Beginn und das
+                    // Ende hier und nicht an einem zusaetzlichen Klick, den
+                    // jemand vergessen kann.
+                    //
+                    //   offer mit Standort  die Fuehrung faengt an. Getroffen
+                    //                       wird nur eine angenommene Anfrage
+                    //                       fuer genau dieses Tripel aus
+                    //                       Kunde, Guide und Standort; ein
+                    //                       Direktanruf der Verwaltung
+                    //                       veraendert nichts.
+                    //   hangup              sie ist zu Ende. Welche Seite
+                    //                       auflegt, ist offen - das Paar
+                    //                       wird deshalb in beide Richtungen
+                    //                       geprueft.
+                    //
+                    // Beides sind stille Nebenwirkungen: Schlaegt es fehl,
+                    // laeuft das Gespraech trotzdem. Ein Anruf soll nicht an
+                    // einer Buchhaltung scheitern.
+                    if ($type === 'offer' && $location !== null) {
+                        TourRequest::markStarted($sender, $target, $location);
+                    } elseif ($type === 'hangup') {
+                        TourRequest::markEnded($sender, $target);
+                    }
+
                     $response = ['status' => 'ok'];
                     // Beim Anruf legt der Server die Rollen fest und gibt dem
                     // Anrufer seine eigene direkt zurueck. Sie haengt damit am
@@ -212,6 +240,17 @@ class WebRTCController
      *    Rückfrage der Moderation muss sich niemand bereit gemeldet haben,
      *    und geführt wird dabei ohnehin nicht.
      *
+     * ODER EINE ZUSAGE. Seit es Anfragen gibt, hat die Führung eine zweite
+     *    Tür: eine ANGENOMMENE Anfrage dieses Kunden für diesen Standort,
+     *    deren Zeitfenster gerade läuft (App\Model\TourRequest). Sie ersetzt
+     *    die Bereitschaft, und zwar weil sie mehr sagt als der Schalter: Der
+     *    Schalter heißt "ich kann jetzt sofort" und gilt für jeden, die
+     *    Zusage gilt für genau diesen Kunden zu genau dieser Zeit. Wer sich
+     *    für 18 Uhr verabredet hat, soll die Verabredung nicht daran
+     *    verlieren, dass er um 18 Uhr vergessen hat, den Schalter umzulegen.
+     *
+     *    Der Weg über den Schalter bleibt daneben unverändert bestehen.
+     *
      * ENTSCHEIDEND IST, WOHER DER ANRUF KAM. Eine Führung beginnt an einem
      * Standort: Der Zuschauer sucht sich auf der Karte oder in der Liste
      * einen Ort aus und ruft den an, der dort ist. Ein Direktanruf aus der
@@ -284,7 +323,19 @@ class WebRTCController
         // nachgebauter Aufruf), kommt hier nicht durch.
         $bereit = self::readyToGuide($calleeId);
 
-        if ($bereit && self::guidedFromLocation($locationId, $calleeId)) return $fuehrung;
+        // ES SEI DENN, ER HAT ZUGESAGT. Eine angenommene Anfrage ist die
+        // staerkere Aussage: Sie gilt fuer genau diesen Kunden, genau diesen
+        // Standort und genau dieses Zeitfenster - der Schalter dagegen sagt
+        // "ich kann jetzt sofort" und gilt fuer jeden. Wer sich fuer 18 Uhr
+        // verabredet hat, soll die Verabredung nicht daran verlieren, dass er
+        // um 18 Uhr vergessen hat, den Schalter umzulegen.
+        //
+        // Das Fenster um den Wunschzeitpunkt steht in config/requests.php und
+        // wird in App\Model\TourRequest ausgewertet - an einer Stelle, an der
+        // auch der Knopf beim Kunden haengt.
+        $zusage = self::acceptedRequest($callerId, $calleeId, $locationId);
+
+        if (($bereit || $zusage) && self::guidedFromLocation($locationId, $calleeId)) return $fuehrung;
 
         if (self::isAdminAccount($callerId) || self::isAdminAccount($calleeId)) {
             return ['caller' => self::ROLE_PEER, 'callee' => self::ROLE_PEER];
@@ -334,6 +385,43 @@ class WebRTCController
     }
 
     /**
+     * Gibt es fuer diesen Anruf eine angenommene Anfrage, die JETZT gilt?
+     *
+     * Die zweite Tuer in die Fuehrung, neben dem Bereitschaftsschalter. Der
+     * Kunde hat angefragt, der Guide hat zugesagt - fuer diesen Standort und
+     * fuer dieses Zeitfenster. Genau das wird hier nachgeschlagen und nicht
+     * geglaubt: Die Anfrage steht in der Datenbank, der Anrufer schickt
+     * lediglich die Standortkennung mit.
+     *
+     * OHNE STANDORT KEINE ZUSAGE. Eine Anfrage haengt immer an einem
+     * Standort; ein Direktanruf ohne Kennung kann deshalb gar keine treffen.
+     *
+     * Der Zwischenspeicher lebt nur fuer die Dauer der Anfrage - dieselbe
+     * Ueberlegung wie bei readyToGuide(): Eine einzige Rollenvergabe fragt
+     * sonst zweimal dasselbe (callAllowed und roleForCall).
+     *
+     * @param int      $callerId   Der Anrufer - bei einer Fuehrung der Kunde
+     * @param int      $calleeId   Der Angerufene - bei einer Fuehrung der Guide
+     * @param int|null $locationId Standort aus dem Offer
+     * @return bool
+     */
+    private static function acceptedRequest($callerId, $calleeId, $locationId)
+    {
+        static $bekannt = [];
+
+        $kunde    = (int)$callerId;
+        $guide    = (int)$calleeId;
+        $standort = (int)$locationId;
+        if ($kunde < 1 || $guide < 1 || $standort < 1) return false;
+
+        $schluessel = $kunde . ':' . $guide . ':' . $standort;
+        if (!array_key_exists($schluessel, $bekannt)) {
+            $bekannt[$schluessel] = TourRequest::acceptedForCall($kunde, $guide, $standort);
+        }
+        return $bekannt[$schluessel];
+    }
+
+    /**
      * Warum kam dieser Anruf nicht zustande?
      *
      * Nur fuer die Meldung an den Anrufer. Die Entscheidung selbst faellt in
@@ -355,7 +443,8 @@ class WebRTCController
     {
         if (self::offersLocations($calleeId) && !self::readyToGuide($calleeId)) {
             return 'Dieser Guide ist gerade nicht bereit für eine Führung. '
-                 . 'Bitte versuchen Sie es später noch einmal.';
+                 . 'Fragen Sie die Führung auf der Standortseite an – '
+                 . 'mit einem Wunschzeitpunkt, der Ihnen beiden passt.';
         }
 
         return 'Dieser Benutzer bietet keine Führungen an und kann '

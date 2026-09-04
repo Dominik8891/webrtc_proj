@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Model\Location;
 use App\Model\LocationImage;
+use App\Model\TourRequest;
 use App\Helper\Auth;
 use App\Helper\ImageStore;
 use App\Helper\Languages;
@@ -771,6 +772,19 @@ class LocationController
         // wissen, wie die Rollen heissen.
         $bilder = LocationImage::teile(LocationImage::forLocation($location_id));
 
+        // DIE LAUFENDE EIGENE ANFRAGE. Sie entscheidet, was im Aktionsbereich
+        // steht: das Anfrageformular, "Ihre Anfrage ist beim Guide" oder der
+        // Knopf, mit dem die zugesagte Fuehrung beginnt.
+        //
+        // Nur fuer den ANGEMELDETEN BESUCHER und nur seine eigene: Ein Gast
+        // hat keine, und der Eigentuemer fragt seinen eigenen Standort nicht
+        // an. Was an diesem Standort sonst noch ansteht, gehoert dem Guide und
+        // steht auf seiner Anfragenseite - nicht auf einer Seite, die jeder
+        // aufrufen kann.
+        $anfrage = ($user_id > 0 && !$ist_eigen)
+            ? TourRequest::currentForCustomer($user_id, $location_id)
+            : null;
+
         ViewHelper::output(LocationView::page(
             $daten,
             $bilder,
@@ -783,6 +797,7 @@ class LocationController
                 // Nur der Eigentuemer bekommt ein Formular, also braucht auch
                 // nur er die Grenzen.
                 'grenzen'     => $ist_eigen ? self::grenzen($user_id) : [],
+                'anfrage'     => $anfrage,
             ]
         ));
     }
@@ -844,7 +859,26 @@ class LocationController
         if ($zustand === null) {
             self::json(['success' => false, 'error' => 'Standort nicht gefunden.']);
         }
-        self::json(['success' => true, 'availability' => $zustand]);
+
+        // MIT DER EIGENEN ANFRAGE, aus demselben Grund, aus dem es diese
+        // Route ueberhaupt gibt: Der Zustand aendert sich, waehrend die Seite
+        // offen liegt. Der Guide sagt zu, waehrend der Kunde noch die Bilder
+        // ansieht - dann muss dort der Startknopf erscheinen, ohne dass er
+        // neu laden muss.
+        //
+        // Sie ist immer die des Aufrufers. Wer die Route mit einer fremden
+        // Standortkennung aufruft, bekommt seine eigene Anfrage zu diesem
+        // Standort oder null - nie die eines anderen.
+        $user_id = Auth::userId();
+        $anfrage = $user_id > 0
+            ? TourRequest::currentForCustomer($user_id, $location_id)
+            : null;
+
+        self::json([
+            'success'      => true,
+            'availability' => $zustand,
+            'request'      => $anfrage,
+        ]);
     }
 
     /**

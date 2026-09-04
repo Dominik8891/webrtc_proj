@@ -38,13 +38,20 @@ Antworten für `heartbeat` und `set_availability` (`__presenceCalls`,
 `__availableSeconds`, `__availabilityFail`). `window.addEventListener` wird
 ausdrücklich gesetzt: Node bringt am globalen Objekt ein eigenes mit, und
 dessen Handler ließen sich nicht auslösen.
+Für die Anfragen kommt dazu: `requests.js` wird mitgeladen, und die
+Heartbeat-Antwort trägt die beiden Anfragenzahlen (`__requestCounts`) — genau
+wie beim Server, wo sie am Heartbeat hängen und nicht an einer eigenen
+Schleife. Ob das Skript auf der Anfragenseite steht, entscheidet
+`window.requestsPage` und nicht eine `id`: Ein Element findet man auf jeder
+Seite, auf der jemand dieselbe `id` vergibt.
+
 | `server_test.php` | Die Serverprüfungen. Ersetzt `PdoConnect::$connection` durch eine Attrappe, die abgesetzte SQL-Statements nur mitschreibt statt sie auszuführen. |
 
 Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (148 Prüfungen)
+## Was `client_test.js` prüft (158 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -304,6 +311,29 @@ und **die Standortkennung muss ihn überstehen**. Geprüft wird jede Station:
 der Verweis in der Liste, der Verweis im Kartenfenster, der Anrufknopf der
 Standortseite und die Übergabe an `rtc.startCall(userId, locationId)`.
 
+42. **Anfragen: Zähler, Liste und der Weg in die Führung** — der Zähler der
+    Kopfleiste zählt beide Richtungen (offene Anfragen an mich, Zusagen an
+    meine Anfragen), verschwindet bei null und meldet **nur den Zuwachs** —
+    eine Meldung bei jedem Takt wäre Lärm. Die Zahlen kommen wirklich aus der
+    Antwort des Heartbeats. Der Wunschzeitpunkt steht **relativ** da ("in 20
+    Min", "vor 1 Std"), weil ein Abstand keine Zeitzone hat. Die Knöpfe folgen
+    dem Zustand, den der Server mitgeliefert hat: Annehmen und Ablehnen nur
+    beim Guide und nur bei offenen Anfragen, der Startknopf erst bei
+    `callable` — und dann mit **beiden** Kennungen; eine begonnene Führung
+    lässt sich nicht mehr absagen; aus abgelehnt, abgelaufen, durchgeführt und
+    abgebrochen führt kein Knopf mehr heraus. Titel und Benutzernamen werden
+    maskiert, bevor sie in die Liste gehen.
+
+43. **Die Standortseite: Anfrage statt Anruf** — das Formular trägt "jetzt
+    sofort" als ersten und vorgewählten Zeitpunkt, und zwar als Abstand null;
+    es steht **unabhängig von der Verfügbarkeit** (ein Standort ohne Guide vor
+    Ort lässt sich für später anfragen — genau darum ging es). Eine offene
+    Anfrage zeigt ihren Zustand und den Weg zurück, aber keinen Startknopf.
+    Erst die Zusage im Zeitfenster öffnet ihn; davor steht er gesperrt und
+    **ohne Kennungen** da, damit ein nachgebauter Klick ins Leere geht. Neu
+    gezeichnet wird nur, was sich wirklich geändert hat — sonst würde das
+    Eingabefeld alle 15 Sekunden geleert.
+
 ### Zeitkonstanten im Test
 
 `client_test.js` setzt die Fristen aus `rtc.js` zu Beginn auf kurze Werte
@@ -312,7 +342,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (197 Prüfungen)
+## Was `server_test.php` prüft (207 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -721,6 +751,55 @@ die Tests nicht an. Das ist Absicht.
     Die **Auslieferung** prüft die Sperre (sonst wäre sie wirkungslos, sobald
     jemand die Bild-ID kennt), den Dateinamen und schickt `nosniff` und
     `Cache-Control: private` mit.
+
+32. **Die Anfrage: der neue Anfang einer Führung** (Abschnitt 31 im Skript).
+    Die sechs Zustände sind vollständig und werden **an einer Stelle** benannt
+    (`App\Model\TourRequest`) — Liste, Standortseite und Kopfleiste sagen
+    dasselbe Wort.
+
+    Der Wunschzeitpunkt geht als **Abstand in Sekunden** an die Datenbank, die
+    daraus an ihrer eigenen Uhr einen Zeitpunkt rechnet: Ein von PHP
+    formatiertes Datum würde gegen `NOW()` verglichen — zwei Uhren in
+    womöglich zwei Zeitzonen. „Jetzt sofort" ist dabei die Null und kein
+    Sonderfall. Der **Ablauf** wird beim Anlegen gerechnet, und der frühere der
+    beiden Gründe gewinnt: Antwortfrist gegen verstrichenen Wunschzeitpunkt.
+
+    Die **Zuständigkeit steht in der WHERE-Klausel**, wie beim Standort das
+    Eigentum: `accept()` und `decline()` tragen `guide_user_id = :guide`,
+    `status = 'open'` und `expires_at > NOW()`; `cancel()` trägt beide Seiten
+    des Paares und `started_at IS NULL` — was stattgefunden hat, wird nicht
+    nachträglich zu „abgebrochen". Trifft die Bedingung nichts, ist es kein
+    Erfolg.
+
+    **„Abgelaufen" steht in keiner Spalte:** `statusSql()` rechnet es bei jeder
+    Abfrage aus, aus zwei Gründen (offen und verstrichen; zugesagt, nie
+    begonnen und das Fenster vorbei). Anrufbar ist eine Zusage nur im
+    Zeitfenster um den Wunschzeitpunkt — und nach einem Verbindungsabbruch
+    noch einmal, deshalb zählt `done` mit. Der Tabellenalias wird geprüft, auch
+    wenn er nur aus dem Projekt selbst kommt: Er ist ein Textbaustein in einer
+    Abfrage.
+
+    **Beginn und Ende kommen aus dem Signaling** — der Beginn am Offer mit der
+    Standortkennung (nur beim ersten Mal: ein Rückruf verschiebt ihn nicht),
+    das Ende am Hangup, und dort wird das Paar **in beide Richtungen** geprüft,
+    denn welche Seite auflegt, ist offen.
+
+    Der **Cronjob räumt nur auf**: zwei Anweisungen für die zwei Ablaufgründe,
+    und für eine hängende Führung `status = 'done'` **ohne** ein erfundenes
+    Ende. Beide Aufrufe stehen wirklich in `cron/check_online_status.php`.
+
+    Die **Fristen** stehen nur in `config/requests.php` — geprüft wird, dass
+    keine von ihnen als Zahl im Modell, im Controller oder im Skript steht.
+
+    Die **vier Rechte**: Anfragen und die eigene Liste sehen darf jedes
+    angemeldete Konto (ein Guide ist anderswo Kunde), **beantworten** nur, wer
+    selbst Standorte anbietet — `request.answer` steht bei genau den Rollen,
+    bei denen auch `location.offer` steht. Der Gast hat keines der vier.
+
+    Und der Weg in die Führung: Ohne Bereitschaft **und** ohne Zusage kommt der
+    Anruf nicht zustande; mit Zusage wird es eine Führung, obwohl der Schalter
+    aus ist — aber **nur an ihrem Standort**. Ein Anruf ohne Standortkennung
+    oder über einen fremden Standort öffnet nichts.
 
 ## Grenzen
 

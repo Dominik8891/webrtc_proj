@@ -1,0 +1,69 @@
+<!--
+    Die Anfragenseite.
+
+    Eingesetzt von App\Controller\RequestController::showRequestsPage() ueber
+    App\Helper\ViewHelper::output(). Gefuellt und gesteuert wird sie von
+    assets/js/requests.js.
+
+    ZWEI LISTEN, WEIL EIN KONTO ZWEI SEITEN HAT
+    -------------------------------------------
+    Oben, was an die eigenen Standorte gerichtet ist - dort wird angenommen
+    oder abgelehnt. Darunter, was man selbst angefragt hat - dort wartet man
+    auf die Antwort und startet nach der Zusage die Fuehrung.
+
+    Wer keine Standorte anbietet, sieht oben nichts als den Hinweis; die
+    Ueberschrift bleibt trotzdem stehen. Ein Kasten, der je nach Rolle ganz
+    verschwindet, laesst die Seite bei jedem Aufruf anders aussehen.
+
+    DIE ZEILEN KOMMEN AUS DEM SKRIPT und nicht vom Server. Das ist die
+    Ausnahme von der Regel dieser Anwendung, und der Grund steht im
+    Controller: Der Inhalt aendert sich, waehrend man hinsieht, und muss
+    ohnehin im Takt nachgezogen werden. Eine zweite, serverseitige Fassung
+    derselben Liste waere ein zweiter Bauort fuer dieselben Zeilen.
+-->
+<div class="app-page req-page" id="requests-page">
+
+    <div class="app-toolbar">
+        <div>
+            <h1 class="app-page-head__title">Anfragen</h1>
+            <p class="app-page-head__sub">
+                Was an Ihre Standorte gerichtet ist – und was Sie selbst angefragt haben.
+            </p>
+        </div>
+        <div class="app-switch" role="group" aria-label="Ansicht">
+            <a class="app-switch__item" href="index.php?act=home">Karte</a>
+            <a class="app-switch__item" href="index.php?act=show_locations_page">Liste</a>
+            <span class="app-switch__item" aria-current="true">Anfragen</span>
+        </div>
+    </div>
+
+    <!-- Eingehend: an die eigenen Standorte gerichtet. -->
+    <section class="app-panel req-block" aria-labelledby="req-in-title">
+        <h2 class="req-block__title" id="req-in-title">An meine Standorte</h2>
+        <p class="req-block__hint" id="req-in-empty" hidden>
+            Hier ist gerade nichts offen. Sobald jemand eine Führung an einem Ihrer
+            Standorte anfragt, steht sie hier – und der Zähler in der Kopfleiste sagt es Ihnen.
+        </p>
+        <ul class="req-list" id="req-incoming"></ul>
+    </section>
+
+    <!-- Ausgehend: selbst gestellt. -->
+    <section class="app-panel req-block" aria-labelledby="req-out-title">
+        <h2 class="req-block__title" id="req-out-title">Meine Anfragen</h2>
+        <p class="req-block__hint" id="req-out-empty" hidden>
+            Sie haben noch keine Führung angefragt. Suchen Sie sich auf der Karte einen
+            Ort aus – auf seiner Seite fragen Sie die Führung mit Ihrem Wunschzeitpunkt an.
+        </p>
+        <ul class="req-list" id="req-outgoing"></ul>
+    </section>
+
+    <p class="req-page__foot" id="req-error" hidden>
+        Die Anfragen konnten nicht geladen werden. Das liegt meist an der Verbindung.
+    </p>
+</div>
+
+<!-- WORAN DAS SKRIPT DIESE SEITE ERKENNT.
+     An dieser Angabe und nicht an einer id: Ein Element findet man auf jeder
+     Seite, auf der jemand dieselbe id vergibt - dieselbe Ueberlegung wie bei
+     der Standortseite (App\Helper\LocationView::seitendatenHtml). -->
+<script>window.requestsPage = true;</script>

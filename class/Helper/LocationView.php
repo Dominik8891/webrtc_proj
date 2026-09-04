@@ -45,6 +45,10 @@ class LocationView
      *        'gespeichert' bool   Meldung nach einer erfolgreichen
      *        'grenzen'     array  Obergrenzen fuer das Bearbeitungsformular;
      *                             leer fuer jeden ausser dem Eigentuemer
+     *        'anfrage'     ?array Die laufende eigene Anfrage an diesen
+     *                             Standort (App\Model\TourRequest), oder
+     *                             null - fuer Gaeste und den Eigentuemer
+     *                             immer null
      * @return string HTML fuer den Inhaltsbereich
      */
     public static function page(array $in_daten, array $in_bilder, array $in_ansicht): string
@@ -74,7 +78,8 @@ class LocationView
             '###FACTS###'       => self::faktenHtml($in_daten),
             '###ACTION###'      => self::aktionHtml($in_daten, $eigen,
                                        !empty($in_ansicht['angemeldet']),
-                                       $in_ansicht['viewer_id'] ?? null),
+                                       $in_ansicht['viewer_id'] ?? null,
+                                       $in_ansicht['anfrage'] ?? null),
             '###OWNER_TOOLS###' => $eigen
                                        ? self::bearbeitenHtml($in_daten, $cover, $gallery,
                                              (array)($in_ansicht['grenzen'] ?? []))
@@ -436,70 +441,244 @@ class LocationView
     }
 
     /**
-     * Der Knopf, mit dem die Fuehrung beginnt - oder das, was an seiner
-     * Stelle steht.
+     * Der Anfang einer Fuehrung: die ANFRAGE - oder das, was an ihrer Stelle
+     * steht.
      *
-     * VIER FAELLE, und der wichtigste ist der Gast: Ihm fehlt die user_id
-     * (die bekommt er von dieser Seite nicht), also kann er von hier aus gar
-     * nicht anrufen. Statt eines Knopfes, der nichts tut, steht dort der Weg
-     * zur Anmeldung - genau wie im Kartenfenster.
+     * WARUM HIER KEIN ANRUFKNOPF MEHR STEHT
+     * -------------------------------------
+     * Ein Anruf verlangte, dass beide zufaellig im selben Moment koennen. Der
+     * Guide ist die knappere Seite: Er muss losgehen, sich Zeit nehmen,
+     * vielleicht hinfahren - und er steht vielleicht gerade im Supermarkt.
+     * Am Anfang steht deshalb eine Anfrage mit einem Wunschzeitpunkt; der
+     * Guide nimmt an oder lehnt ab, und erst danach wird angerufen.
      *
-     * DIE STANDORTKENNUNG HAENGT AM KNOPF. Daran haengt beim Server die
-     * Rollenvergabe: Von einem Standort aus fuehrt der Angerufene, auch wenn
-     * er Admin ist (WebRTCController::callRoles). Ohne sie waere jede
-     * Fuehrung ueber einen Admin-Standort ein Gespraech ohne Fuehrung.
+     * "JETZT SOFORT" IST DABEI EINER DER ZEITPUNKTE und kein zweiter Weg. Es
+     * ist der erste Knopf in der Reihe, weil es der haeufigste Wunsch sein
+     * duerfte - aber er schickt dieselbe Anfrage wie "in drei Stunden", nur
+     * mit dem Abstand null.
+     *
+     * DIE FAELLE, in dieser Reihenfolge:
+     *
+     *   1. Der eigene Standort. Sich selbst fragt niemand an; was an diesem
+     *      Standort ansteht, steht auf der Anfragenseite.
+     *   2. Gesperrt. Von hier aus beginnt nichts mehr.
+     *   3. Es laeuft bereits eine eigene Anfrage. Dann steht ihr Zustand da -
+     *      und, sobald der Guide zugesagt hat und das Zeitfenster laeuft, der
+     *      Knopf "Fuehrung starten".
+     *   4. Gast oder ohne Ziel-Kennung. Ihm fehlt die user_id (die bekommt er
+     *      von dieser Seite nicht); statt eines Knopfes, der nichts tut,
+     *      steht dort der Weg zur Anmeldung.
+     *   5. Sonst: das Anfrageformular.
+     *
+     * DIE VERFUEGBARKEIT SPERRT HIER NICHTS MEHR. Genau das war der Punkt:
+     * Ein Standort, an dem gerade niemand ist, laesst sich fuer heute Abend
+     * anfragen. Sie steht weiterhin als Marke oben auf der Seite und wird
+     * hier nur noch als Hinweis benutzt - "der Guide ist gerade da" macht aus
+     * "jetzt sofort" eine aussichtsreiche Bitte.
+     *
+     * DIE STANDORTKENNUNG HAENGT AM KNOPF, wie eh und je: Daran haengt beim
+     * Server die Rollenvergabe - von einem Standort aus fuehrt der
+     * Angerufene, auch wenn er Admin ist (WebRTCController::callRoles).
      *
      * Wen man anrufen darf, steht in $in_ziel_user_id und wird NICHT aus
      * $in_daten genommen: Ob die user_id des Guides ueberhaupt herausgegeben
      * wird, entscheidet der Controller - fuer einen Gast tut er es nicht.
      *
-     * @param array<string,mixed> $in_daten
-     * @param bool                $in_eigen
-     * @param bool                $in_angemeldet
-     * @param int|null            $in_ziel_user_id
+     * @param array<string,mixed>      $in_daten
+     * @param bool                     $in_eigen
+     * @param bool                     $in_angemeldet
+     * @param int|null                 $in_ziel_user_id
+     * @param array<string,mixed>|null $in_anfrage Die laufende eigene Anfrage
+     *                                 (App\Model\TourRequest), oder null
      * @return string HTML
      */
     public static function aktionHtml(array $in_daten, bool $in_eigen,
-                                      bool $in_angemeldet, $in_ziel_user_id = null): string
+                                      bool $in_angemeldet, $in_ziel_user_id = null,
+                                      ?array $in_anfrage = null): string
     {
         if ($in_eigen) {
-            return '<p class="loc__note">Den eigenen Standort ruft man nicht an. '
-                 . 'Ob er für andere anrufbar ist, entscheidet Ihr Bereitschaftsschalter '
-                 . 'in der Kopfleiste.</p>';
+            return '<p class="loc__note">Den eigenen Standort fragt man nicht an. '
+                 . 'Was hier ansteht, sehen Sie unter '
+                 . '<a href="index.php?act=requests_page">Anfragen</a>; ob Sie gerade '
+                 . 'sofort anrufbar sind, entscheidet Ihr Bereitschaftsschalter in der '
+                 . 'Kopfleiste.</p>';
         }
 
         if ((int)$in_daten['blocked'] === 1) {
             return '<p class="loc__note loc__note--danger">Dieser Standort ist gesperrt. '
-                 . 'Von hier aus lässt sich keine Führung starten.</p>';
+                 . 'Von hier aus lässt sich keine Führung anfragen.</p>';
         }
 
-        $zustand = (string)$in_daten['availability'];
-
-        if ($zustand !== 'live') {
-            $text = $zustand === 'busy'
-                ? 'Der Guide ist gerade in einer anderen Führung. Versuchen Sie es in ein paar Minuten noch einmal.'
-                : 'Dieser Ort wird angeboten, aber gerade ist niemand da. Sobald der Guide bereit ist, lässt sich die Führung von hier aus starten.';
-            // Der Knopf steht trotzdem da, nur gesperrt: Sonst springt das
-            // Seitenlayout, wenn der Guide waehrend des Lesens bereit wird
-            // (assets/js/location_page.js schaltet ihn dann frei).
-            return '<button type="button" class="btn btn-secondary loc-call-btn" disabled aria-disabled="true">'
-                 . 'Führung starten</button>'
-                 . '<p class="loc__note">' . self::esc($text) . '</p>';
+        if ($in_anfrage !== null) {
+            return self::anfrageZustandHtml($in_anfrage, $in_daten, $in_ziel_user_id);
         }
 
         if (!$in_angemeldet || (int)$in_ziel_user_id < 1) {
-            return '<p class="loc__note">Für eine Führung brauchen Sie ein Konto – '
-                 . 'die Verbindung läuft direkt zwischen Ihnen und dem Guide.</p>'
+            return '<p class="loc__note">Für eine Anfrage brauchen Sie ein Konto – '
+                 . 'der Guide muss wissen, wem er zusagt.</p>'
                  . '<div class="app-actions">'
-                 . '<a class="btn btn-primary" href="index.php?act=login_page">Anmelden und starten</a>'
+                 . '<a class="btn btn-primary" href="index.php?act=login_page">Anmelden und anfragen</a>'
                  . '<a class="btn btn-secondary" href="index.php?act=signup_page">Konto anlegen</a>'
                  . '</div>';
         }
 
-        return '<button type="button" class="btn btn-success loc-call-btn"'
-             . ' data-userid="' . (int)$in_ziel_user_id . '"'
-             . ' data-locationid="' . (int)$in_daten['id'] . '">'
-             . 'Führung starten</button>';
+        return self::anfrageFormularHtml($in_daten);
+    }
+
+    /**
+     * Das Anfrageformular.
+     *
+     * DIE VORGEWAEHLTEN ZEITPUNKTE SIND ABSTAENDE UND KEINE UHRZEITEN. Ein
+     * Abstand hat keine Zeitzone: Guide und Kunde sitzen womoeglich in
+     * verschiedenen, und "in einer Stunde" heisst fuer beide dasselbe. Der
+     * Server rechnet daraus an SEINER Uhr einen Zeitpunkt - derselben Uhr, an
+     * der auch alle Fristen haengen (App\Model\TourRequest).
+     *
+     * Das Feld daneben nimmt jeden anderen Zeitpunkt entgegen; assets/js/
+     * location_page.js rechnet ihn in denselben Abstand um, bevor er
+     * abgeschickt wird. Es gibt also nur EINE Angabe, die den Server
+     * erreicht, und keine zweite Auslegung von "wann".
+     *
+     * ABGESCHICKT WIRD MIT SKRIPT. Das war beim Anrufknopf, der vorher hier
+     * stand, nicht anders - eine Fuehrung ohne JavaScript gibt es in dieser
+     * Anwendung nicht, denn auch das Gespraech selbst haengt daran.
+     *
+     * @param array<string,mixed> $in_daten
+     * @return string HTML
+     */
+    public static function anfrageFormularHtml(array $in_daten): string
+    {
+        $zustand = (string)$in_daten['availability'];
+        $hinweis = $zustand === 'live'
+            ? 'Der Guide ist gerade bereit – „jetzt sofort“ hat gute Aussichten.'
+            : 'Gerade ist niemand vor Ort. Das ist kein Hindernis: Fragen Sie für '
+            . 'später an, und der Guide sagt zu oder ab.';
+
+        // Die Abstaende in Sekunden. Sie stehen hier und nicht im Skript,
+        // damit die Beschriftung und der Wert, der beim Server ankommt,
+        // nebeneinander stehen und nicht in zwei Dateien.
+        $vorgaben = [
+            0     => 'Jetzt sofort',
+            3600  => 'In 1 Stunde',
+            10800 => 'In 3 Stunden',
+            86400 => 'Morgen um diese Zeit',
+        ];
+
+        $knoepfe = '';
+        foreach ($vorgaben as $sekunden => $text) {
+            // Der erste ist vorgewaehlt: Ohne Vorauswahl waere der haeufigste
+            // Fall ein zusaetzlicher Klick.
+            $an = ($sekunden === 0);
+            $knoepfe .= '<button type="button" class="btn btn-sm loc-req__preset'
+                     .  ($an ? ' loc-req__preset--on' : '') . '"'
+                     .  ' data-seconds="' . (int)$sekunden . '"'
+                     .  ' aria-pressed="' . ($an ? 'true' : 'false') . '">'
+                     .  self::esc($text) . '</button>';
+        }
+
+        return '<div class="loc-req" id="loc-request">'
+             .   '<p class="loc__note">' . self::esc($hinweis) . '</p>'
+             .   '<div class="loc-req__presets" role="group" aria-label="Wunschzeitpunkt">'
+             .     $knoepfe
+             .   '</div>'
+             .   '<div class="loc-req__custom">'
+             .     '<label class="loc-req__label" for="loc-req-wish">Anderer Zeitpunkt</label>'
+             .     '<input type="datetime-local" id="loc-req-wish" class="form-control loc-req__field">'
+             .   '</div>'
+             .   '<button type="button" class="btn btn-success loc-req-submit"'
+             .     ' data-locationid="' . (int)$in_daten['id'] . '">Führung anfragen</button>'
+             . '</div>';
+    }
+
+    /**
+     * Der Zustand einer laufenden eigenen Anfrage.
+     *
+     * ZWEI ZUSTAENDE, die der Kunde hier sehen kann - mehr gibt es nicht:
+     * Eine abgelehnte, abgelaufene oder abgebrochene Anfrage ist keine
+     * laufende mehr, und dann steht hier wieder das Formular (der Controller
+     * liefert nur laufende, App\Model\TourRequest::currentForCustomer).
+     *
+     *   offen        Der Guide hat noch nicht geantwortet.
+     *   angenommen   Er hat zugesagt. Ob es JETZT losgehen darf, sagt
+     *                'callable' - der Server rechnet es aus dem Zeitfenster
+     *                um den Wunschzeitpunkt aus, und diese Ansicht rechnet
+     *                nichts nach.
+     *
+     * Der Knopf steht auch dann da, wenn das Fenster noch nicht laeuft - nur
+     * gesperrt. Sonst spraenge das Layout in dem Moment, in dem er auftaucht;
+     * dieselbe Ueberlegung wie vorher beim Anrufknopf.
+     *
+     * @param array<string,mixed> $in_anfrage
+     * @param array<string,mixed> $in_daten
+     * @param int|null            $in_ziel_user_id
+     * @return string HTML
+     */
+    public static function anfrageZustandHtml(array $in_anfrage, array $in_daten, $in_ziel_user_id = null): string
+    {
+        $zustand  = (string)($in_anfrage['status'] ?? '');
+        $anrufbar = !empty($in_anfrage['callable']) && (int)$in_ziel_user_id > 0;
+        $wann     = self::wunschzeitText($in_anfrage);
+
+        if ($zustand === 'open') {
+            return '<div class="loc-req loc-req--state" id="loc-request">'
+                 .   '<span class="app-tag app-tag--warn">Anfrage offen</span>'
+                 .   '<p class="loc__note">Ihre Anfrage für <strong>' . self::esc($wann)
+                 .     '</strong> ist beim Guide. Sobald er antwortet, sehen Sie es hier '
+                 .     'und am Zähler in der Kopfleiste.</p>'
+                 .   '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
+                 .     ' data-id="' . (int)($in_anfrage['id'] ?? 0) . '">Anfrage zurückziehen</button>'
+                 . '</div>';
+        }
+
+        $text = $anrufbar
+            ? 'Der Guide hat zugesagt. Sie können jetzt starten – er wird angerufen.'
+            : 'Der Guide hat für ' . $wann . ' zugesagt. Kurz vorher lässt sich die '
+            . 'Führung von hier aus starten.';
+
+        return '<div class="loc-req loc-req--state" id="loc-request">'
+             .   '<span class="app-tag app-tag--live"><span class="app-dot"></span>Angenommen</span>'
+             .   '<p class="loc__note">' . self::esc($text) . '</p>'
+             .   '<button type="button" class="btn ' . ($anrufbar ? 'btn-success' : 'btn-secondary')
+             .     ' loc-call-btn"' . ($anrufbar ? '' : ' disabled aria-disabled="true"')
+             .     ($anrufbar ? ' data-userid="' . (int)$in_ziel_user_id . '"'
+                              . ' data-locationid="' . (int)$in_daten['id'] . '"' : '')
+             .     '>Führung starten</button>'
+             .   '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
+             .     ' data-id="' . (int)($in_anfrage['id'] ?? 0) . '">Absagen</button>'
+             . '</div>';
+    }
+
+    /**
+     * Der Wunschzeitpunkt als Text.
+     *
+     * RELATIV UND NICHT ALS DATUM, aus demselben Grund wie im Formular: Der
+     * Abstand hat keine Zeitzone. Er kommt fertig gerechnet vom Server
+     * (wish_in), damit hier keine zweite Uhr befragt wird.
+     *
+     * @param array<string,mixed> $in_anfrage
+     * @return string Unmaskiert - der Aufrufer maskiert
+     */
+    public static function wunschzeitText(array $in_anfrage): string
+    {
+        if (!isset($in_anfrage['wish_in']) || !is_numeric($in_anfrage['wish_in'])) {
+            return 'den vereinbarten Zeitpunkt';
+        }
+
+        $s = (int)$in_anfrage['wish_in'];
+        if ($s <= 60 && $s >= -60) return 'jetzt';
+
+        $rest = abs($s);
+        $minuten = (int)round($rest / 60);
+        if ($minuten < 60) {
+            $dauer = $minuten . ' Minuten';
+        } else {
+            $stunden = (int)round($minuten / 60);
+            $dauer = $stunden < 24
+                ? $stunden . ' Stunden'
+                : (int)round($stunden / 24) . ' Tagen';
+        }
+
+        return $s > 0 ? 'in ' . $dauer : 'vor ' . $dauer;
     }
 
     /**
@@ -578,6 +757,12 @@ class LocationView
                                   ? (int)$in_ansicht['viewer_id'] : null,
             // Beide Zahlen, denn beide Arten zaehlen gegen dieselbe
             // Obergrenze - siehe maxImages.
+            // DIE LAUFENDE EIGENE ANFRAGE. Sie geht mit, damit das Skript
+            // nach jedem Takt vergleichen kann, ob sich am Zustand etwas
+            // geaendert hat - und nur dann den Aktionsbereich neu baut.
+            // Fuer Gaeste und fuer den Eigentuemer ist sie null; das
+            // entscheidet der Controller und nicht diese Klasse.
+            'request'      => $in_ansicht['anfrage'] ?? null,
             'coverCount'   => isset($in_bilder['cover']) && $in_bilder['cover'] !== null ? 1 : 0,
             'imageCount'   => count((array)($in_bilder['gallery'] ?? [])),
             'maxImages'    => (int)($grenzen['max_images'] ?? 0),

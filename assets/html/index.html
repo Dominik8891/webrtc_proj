@@ -67,6 +67,10 @@
     <!-- Der Bereitschaftsschalter der Kopfleiste. Nach main.js, weil er sich
          in dessen Heartbeat einhaengt. -->
     <script src="assets/js/availability.js"></script>
+    <!-- Der Anfragenzaehler der Kopfleiste und die Anfragenseite. Nach
+         main.js, weil er sich - wie der Bereitschaftsschalter - in dessen
+         Heartbeat einhaengt. -->
+    <script src="assets/js/requests.js"></script>
     <script src="assets/js/locations_table.js"></script>
     <script src="assets/js/map.js"></script>
     <script src="assets/js/home_map.js"></script>
@@ -118,12 +122,20 @@
              erreichbar sein, auch auf einem schmalen Geraet - dahinter liegt
              das Abmelden.
 
+             Davor der Anfragenzaehler: Eine Anfrage, die der Guide im Moment
+             des Eintreffens nicht bemerkt hat, muss er an einer Stelle
+             wiederfinden, die er ohnehin ansteuert - und das ist diese
+             Leiste, denn sie steht auf jeder Seite. Sie fuehrt auf die
+             Anfragenseite; gebaut wird der Zaehler von
+             App\Helper\ViewHelper.
+
              Davor der Bereitschaftsschalter des Guides. Er steht aus demselben
              Grund hier und nicht in der schiebbaren Aktionszeile daneben: Ob
              man gerade anrufbar ist, darf auf keinem Geraet aus dem Blick
              geraten. Gebaut wird er von App\Helper\ViewHelper; wer keine
              Standorte anbietet, bekommt an dieser Stelle nichts. -->
         <div class="app-topbar__account">
+            ###REQUESTS###
             ###AVAILABILITY###
             ###USER###
             ###REGISTER###

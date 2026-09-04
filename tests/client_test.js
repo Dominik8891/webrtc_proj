@@ -2418,6 +2418,206 @@ function ackLastMove(status = 'executed', reason) {
         ok('ohne Beispielbilder gibt es nichts zu blaettern');
     }
 
+    console.error('\n42) Anfragen: Zaehler, Liste und der Weg in die Fuehrung');
+    {
+        const anfragen = app.requests;
+
+        // --- Der Zaehler der Kopfleiste -------------------------------------
+        //
+        // Er meint beides: was der Guide beantworten muss und was dem Kunden
+        // zugesagt wurde. Beide Zahlen kommen mit der Antwort des Heartbeats -
+        // eine eigene Schleife daneben waere derselbe Weg noch einmal.
+        anfragen.counts = { incoming_open: 0, outgoing_accepted: 0 };
+        anfragen.sync({ incoming_open: 2, outgoing_accepted: 1 });
+
+        const zaehler = __el('requests-badge');
+        const zahl    = __el('requests-count');
+        assert.strictEqual(zahl.textContent, '3', 'der Zaehler zeigt die Summe nicht');
+        assert.strictEqual(zahl.hidden, false, 'der Zaehler bleibt versteckt, obwohl etwas ansteht');
+        assert.ok(zaehler.classList.contains('app-requests--on'), 'der Zaehler faerbt nicht');
+        assert.ok(/warten auf Ihre Antwort/.test(zaehler.getAttribute('title')),
+            'der Titel sagt nicht, WAS wartet');
+
+        // Nichts mehr offen: Die Zahl verschwindet, statt eine 0 zu zeigen.
+        anfragen.sync({ incoming_open: 0, outgoing_accepted: 0 });
+        assert.strictEqual(zahl.hidden, true, 'eine 0 bleibt stehen');
+        assert.ok(!zaehler.classList.contains('app-requests--on'), 'der Zaehler faerbt weiter');
+        ok('der Zaehler zeigt beide Seiten und verschwindet, wenn nichts ansteht');
+
+        // GEMELDET WIRD NUR DER ZUWACHS. Eine Meldung bei jedem Takt waere
+        // Laerm: Die Zahl steht ohnehin in der Leiste.
+        app.sound.plays.length = 0;
+        anfragen.counts = { incoming_open: 1, outgoing_accepted: 0 };
+        anfragen.sync({ incoming_open: 1, outgoing_accepted: 0 });
+        assert.strictEqual(app.sound.plays.length, 0, 'die gleiche Zahl meldet sich erneut');
+
+        anfragen.sync({ incoming_open: 2, outgoing_accepted: 0 });
+        assert.strictEqual(app.sound.plays.length, 1, 'eine neue Anfrage bleibt still');
+
+        // Und die Gegenrichtung: Weniger ist keine Meldung wert.
+        app.sound.plays.length = 0;
+        anfragen.sync({ incoming_open: 0, outgoing_accepted: 0 });
+        assert.strictEqual(app.sound.plays.length, 0, 'das Abarbeiten meldet sich als Neuigkeit');
+        ok('gemeldet wird nur, was neu dazukommt');
+
+        // --- Die Zahlen kommen wirklich vom Heartbeat ------------------------
+        global.__requestCounts = { incoming_open: 4, outgoing_accepted: 0 };
+        anfragen.counts = { incoming_open: 0, outgoing_accepted: 0 };
+        await app.signaling.sendHeartbeat(false);
+        await sleep(10);
+        assert.strictEqual(anfragen.counts.incoming_open, 4,
+            'der Heartbeat traegt die Anfragenzahlen nicht weiter');
+        global.__requestCounts = { incoming_open: 0, outgoing_accepted: 0 };
+        ok('die Zahlen fahren auf dem Takt des Heartbeats mit');
+
+        // --- Die Zeitangabe ist RELATIV --------------------------------------
+        //
+        // Guide und Kunde sitzen womoeglich in verschiedenen Zeitzonen. "In 20
+        // Minuten" heisst fuer beide dasselbe, eine Uhrzeit nicht. Der Abstand
+        // kommt fertig gerechnet vom Server (wish_in).
+        assert.strictEqual(anfragen.zeitText({ wish_in: 0 }), 'jetzt',
+            '"jetzt sofort" wird nicht als jetzt gelesen');
+        assert.strictEqual(anfragen.zeitText({ wish_in: 30 }), 'jetzt',
+            'eine halbe Minute ist nicht mehr "jetzt"');
+        assert.ok(/^in 20 Min/.test(anfragen.zeitText({ wish_in: 1200 })), 'Minuten fehlen');
+        assert.ok(/^in 3 Std/.test(anfragen.zeitText({ wish_in: 10800 })), 'Stunden fehlen');
+        assert.ok(/^in 2 Tagen/.test(anfragen.zeitText({ wish_in: 172800 })), 'Tage fehlen');
+        assert.ok(/^vor /.test(anfragen.zeitText({ wish_in: -3600 })),
+            'ein verstrichener Zeitpunkt liegt in der Zukunft');
+        ok('der Wunschzeitpunkt steht als Abstand da und nicht als Uhrzeit');
+
+        // --- Die Knoepfe einer Zeile -----------------------------------------
+        //
+        // WER WAS DARF, entscheidet der Server. Hier steht nur, was er
+        // mitgeliefert hat.
+        const offen = { id: 5, status: 'open', guide_user_id: 3, location_id: 7, callable: 0 };
+        const beimGuide = anfragen.aktionenHtml(offen, true);
+        assert.ok(/req-accept/.test(beimGuide) && /req-decline/.test(beimGuide),
+            'der Guide kann eine offene Anfrage nicht beantworten');
+        assert.ok(!/req-call/.test(beimGuide), 'der Guide bekommt einen Anrufknopf');
+
+        const beimKunden = anfragen.aktionenHtml(offen, false);
+        assert.ok(!/req-accept/.test(beimKunden), 'der Kunde beantwortet seine eigene Anfrage');
+        assert.ok(/req-cancel/.test(beimKunden), 'der Kunde kann nicht zuruecknehmen');
+        assert.ok(!/req-call/.test(beimKunden),
+            'eine offene Anfrage laesst sich schon anrufen');
+
+        // ANGENOMMEN UND IM ZEITFENSTER: erst jetzt der Knopf - und er traegt
+        // BEIDE Kennungen. An der Standortkennung haengt beim Server die
+        // Rollenvergabe (App\Controller\WebRTCController::callRoles).
+        const zusage = { id: 5, status: 'accepted', guide_user_id: 3, location_id: 7, callable: 1 };
+        const mitZusage = anfragen.aktionenHtml(zusage, false);
+        assert.ok(/req-call[^>]*data-userid="3"[^>]*data-locationid="7"/.test(mitZusage),
+            'am Startknopf fehlt eine der beiden Kennungen');
+
+        // Zugesagt, aber das Fenster laeuft noch nicht: kein Knopf.
+        const nochNicht = anfragen.aktionenHtml(
+            { id: 5, status: 'accepted', guide_user_id: 3, location_id: 7, callable: 0 }, false);
+        assert.ok(!/req-call/.test(nochNicht),
+            'vor dem Zeitfenster laesst sich die Fuehrung starten');
+
+        // Eine begonnene Fuehrung laesst sich nicht mehr abbrechen: Was
+        // stattgefunden hat, wird nicht nachtraeglich zu "abgebrochen".
+        const gelaufen = anfragen.aktionenHtml(
+            { id: 5, status: 'accepted', guide_user_id: 3, location_id: 7,
+              callable: 1, started_at: '2026-01-01 10:00:00' }, false);
+        assert.ok(!/req-cancel/.test(gelaufen), 'eine begonnene Fuehrung laesst sich absagen');
+
+        for (const erledigt of ['declined', 'expired', 'done', 'cancelled']) {
+            const html = anfragen.aktionenHtml(
+                { id: 5, status: erledigt, guide_user_id: 3, location_id: 7, callable: 0 }, false);
+            assert.ok(!/req-call|req-accept|req-cancel/.test(html),
+                'aus "' + erledigt + '" laesst sich noch etwas machen');
+        }
+        ok('die Knoepfe folgen dem Zustand, den der Server mitgeliefert hat');
+
+        // MySQL liefert Wahrheitswerte als 0/1 - je nach Treiber als Zahl oder
+        // als Zeichenkette. Beides heisst dasselbe, und "0" ist in JavaScript
+        // wahr, wenn man es nicht prueft.
+        assert.strictEqual(anfragen.wahr('1'), true, 'die Zeichenkette "1" gilt nicht');
+        assert.strictEqual(anfragen.wahr('0'), false, 'die Zeichenkette "0" gilt als wahr');
+        assert.strictEqual(anfragen.wahr(0), false, '0 gilt als wahr');
+        ok('0 und 1 werden auch als Zeichenkette richtig gelesen');
+
+        // --- Fremdeingabe in der Liste ---------------------------------------
+        //
+        // Titel, Ortsnamen und Benutzernamen kommen von Nutzern und werden
+        // hier in eine Zeichenkette eingesetzt, die als HTML in die Seite geht.
+        const boese = anfragen.zeileHtml({
+            id: 1, status: 'open', title: '<script>alert(1)</script>',
+            partner_name: '"><img src=x>', wish_in: 60,
+            guide_user_id: 3, location_id: 7, callable: 0
+        }, true);
+        assert.ok(!/<script>/.test(boese), 'ein Skript aus einem Titel kommt durch');
+        assert.ok(!/<img src=x>/.test(boese), 'Markup aus einem Namen kommt durch');
+        ok('Titel und Namen werden maskiert, bevor sie in die Liste gehen');
+    }
+
+    console.error('\n43) Die Standortseite: Anfrage statt Anruf');
+    {
+        const seite = app.locationPage;
+
+        // Der Wunschzeitpunkt wird als ABSTAND geschickt und nicht als Datum.
+        // Ein Abstand hat keine Zeitzone - und die Uhr, die zaehlt, ist die des
+        // Servers.
+        global.__querySelectorErgebnis = null;
+        seite.daten = { id: 7, userId: 3, availability: 'idle', request: null };
+
+        // Das Formular traegt "jetzt sofort" als ersten und vorgewaehlten
+        // Zeitpunkt - und als Abstand null, nicht als Sonderfall.
+        const formular = seite.anfrageFormularHtml();
+        assert.ok(/data-seconds="0"/.test(formular), '"jetzt sofort" fehlt');
+        assert.ok(/loc-req__preset--on/.test(formular), 'nichts ist vorgewaehlt');
+        assert.ok(/loc-req-submit/.test(formular), 'der Absendeknopf fehlt');
+        assert.ok(!/loc-call-btn/.test(formular),
+            'im Anfrageformular steht ein Anrufknopf');
+
+        // Der Hinweis haengt an der Verfuegbarkeit - aber sie SPERRT nichts:
+        // Ein Standort ohne Guide vor Ort laesst sich fuer heute Abend
+        // anfragen. Genau darum ging es bei diesem Umbau.
+        seite.daten.availability = 'live';
+        assert.ok(/gerade bereit/.test(seite.anfrageFormularHtml()),
+            'der Hinweis kennt den bereiten Guide nicht');
+        seite.daten.availability = 'idle';
+        assert.ok(/loc-req-submit/.test(seite.anfrageFormularHtml()),
+            'ohne Guide vor Ort laesst sich nichts anfragen');
+        ok('das Anfrageformular steht unabhaengig von der Verfuegbarkeit');
+
+        // Offen: der Zustand und der Weg zurueck, aber kein Startknopf.
+        const offen = seite.anfrageZustandHtml({ id: 9, status: 'open', callable: 0, wish_in: 600 });
+        assert.ok(/Anfrage offen/.test(offen), 'der offene Zustand steht nicht da');
+        assert.ok(/loc-req-cancel[^>]*data-id="9"/.test(offen), 'das Zuruecknehmen fehlt');
+        assert.ok(!/loc-call-btn[^>]*data-userid/.test(offen),
+            'eine offene Anfrage laesst sich schon anrufen');
+
+        // Angenommen und im Fenster: der Knopf mit BEIDEN Kennungen.
+        const bereit = seite.anfrageZustandHtml({ id: 9, status: 'accepted', callable: 1, wish_in: 60 });
+        assert.ok(/loc-call-btn[^>]*data-userid="3"[^>]*data-locationid="7"/.test(bereit),
+            'am Startknopf fehlt eine der beiden Kennungen');
+
+        // Angenommen, aber noch nicht so weit: Der Knopf steht da, gesperrt
+        // und OHNE Kennungen - ein nachgebauter Klick soll ins Leere gehen.
+        const spaeter = seite.anfrageZustandHtml({ id: 9, status: 'accepted', callable: 0, wish_in: 7200 });
+        assert.ok(/loc-call-btn/.test(spaeter), 'der Knopf fehlt und das Layout springt');
+        assert.ok(/disabled/.test(spaeter), 'der Knopf ist offen, bevor das Fenster laeuft');
+        assert.ok(!/data-userid/.test(spaeter), 'der gesperrte Knopf traegt die Kennungen');
+        ok('erst die Zusage im Zeitfenster oeffnet den Weg in die Fuehrung');
+
+        // Nur eine wirkliche Aenderung zeichnet neu: Wer gerade eine Uhrzeit
+        // eintippt, soll sein Feld nicht alle fuenfzehn Sekunden geleert
+        // bekommen.
+        assert.strictEqual(seite.kennung(null), 'keine', 'ohne Anfrage fehlt die Kennung');
+        assert.strictEqual(seite.kennung({ id: 1, status: 'open', callable: 0 }),
+                           seite.kennung({ id: 1, status: 'open', callable: 0, wish_in: 99 }),
+            'ein unveraenderter Zustand gilt als geaendert');
+        assert.notStrictEqual(seite.kennung({ id: 1, status: 'accepted', callable: 0 }),
+                              seite.kennung({ id: 1, status: 'accepted', callable: 1 }),
+            'das geoeffnete Zeitfenster faellt nicht auf');
+        ok('neu gezeichnet wird nur, was sich wirklich geaendert hat');
+
+        seite.daten = null;
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

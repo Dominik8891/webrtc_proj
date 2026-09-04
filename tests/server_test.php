@@ -11,6 +11,7 @@ $ROOT = __DIR__ . '/..';
 require_once $ROOT . '/class/Model/PdoConnect.php';
 require_once $ROOT . '/class/Model/IceServerConfig.php';
 require_once $ROOT . '/class/Model/WebRTCHandler.php';
+require_once $ROOT . '/class/Model/TourRequest.php';
 require_once $ROOT . '/class/Controller/TurnController.php';
 require_once $ROOT . '/class/Model/User.php';
 require_once $ROOT . '/class/Helper/Role.php';
@@ -37,6 +38,7 @@ require_once $ROOT . '/class/Controller/LocationController.php';
 
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
+use App\Model\TourRequest;
 use App\Model\WebRTCHandler;
 use App\Controller\TurnController;
 use App\Controller\WebRTCController;
@@ -162,6 +164,14 @@ class FakeConnection {
     public function commit()           { $this->offen = false; $this->transaktionen[] = 'commit';   return true; }
     public function rollBack()         { $this->offen = false; $this->transaktionen[] = 'rollback'; return true; }
     public function inTransaction()    { return $this->offen; }
+
+    // exec() setzt eine Anweisung ohne Platzhalter ab - so raeumt der Cronjob
+    // auf (App\Model\TourRequest::expireDue). Mitgeschrieben wird sie wie
+    // jede andere, damit auch diese Statements pruefbar sind.
+    public function exec($sql) { $this->statements[] = new FakeStatement($sql); return 0; }
+
+    // Nach einem INSERT fragt das Modell die neue Kennung ab.
+    public function lastInsertId() { return 42; }
 }
 $fake = new FakeConnection();
 PdoConnect::$connection = $fake;
@@ -1238,6 +1248,10 @@ $vorlagen = [
     // Formular kommt. Bliebe einer unbesetzt, stuende ###DESCRIPTION### als
     // Text im Beschreibungsfeld.
     'assets/html/set_location.html' => 'class/Controller/LocationController.php',
+    // Das Hauptlayout. Es traegt die Platzhalter, die auf JEDER Seite stehen -
+    // darunter den Anfragenzaehler der Kopfleiste. Bliebe einer unbesetzt,
+    // stuende er in der Kopfleiste jeder einzelnen Seite.
+    'assets/html/index.html'        => 'class/Helper/ViewHelper.php',
 ];
 foreach ($vorlagen as $vorlage => $controller) {
     $code = file_get_contents($ROOT . '/' . $controller);
@@ -1246,7 +1260,7 @@ foreach ($vorlagen as $vorlage => $controller) {
             "$marke aus $vorlage wird in $controller nicht ersetzt");
     }
 }
-ok('guide_role.html, settings.html und set_location.html haben keinen unbesetzten Platzhalter');
+ok('guide_role.html, settings.html, set_location.html und das Hauptlayout haben keinen unbesetzten Platzhalter');
 
 // ---------------------------------------------------------------------
 fwrite(STDERR, "\n12b) Veraltete Guide-Bedingungen greifen dort, wo die Rolle benutzt wird\n");
@@ -2592,14 +2606,21 @@ $bilderRoh = [
 ];
 $bilder = LocationImage::teile($bilderRoh);
 
-// 1. Der angemeldete Zuschauer: Er bekommt den Anrufknopf, und der traegt
-//    BEIDE Kennungen. Ginge die Standortkennung hier verloren, waere jede
-//    Fuehrung ueber einen Admin-Standort ein Gespraech ohne Fuehrung
-//    (WebRTCController::callRoles).
+// 1. Der angemeldete Zuschauer: Er bekommt das ANFRAGEFORMULAR. Der
+//    Anrufknopf, der frueher hier stand, kommt erst nach der Zusage - siehe
+//    weiter unten und Abschnitt 31.
 $seiteGast    = LocationView::page($standort, $bilder,
     ['eigen' => false, 'angemeldet' => false, 'viewer_id' => null]);
 $seiteKunde   = LocationView::page($standort, $bilder,
     ['eigen' => false, 'angemeldet' => true,  'viewer_id' => 3]);
+// Dieselbe Seite, aber der Guide hat zugesagt und das Fenster laeuft: Jetzt
+// steht dort der Knopf, und er traegt BEIDE Kennungen. Ginge die
+// Standortkennung verloren, waere jede Fuehrung ueber einen Admin-Standort
+// ein Gespraech ohne Fuehrung (WebRTCController::callRoles).
+$seiteZusage  = LocationView::page($standort, $bilder,
+    ['eigen' => false, 'angemeldet' => true,  'viewer_id' => 3,
+     'anfrage' => ['id' => 5, 'status' => TourRequest::STATUS_ACCEPTED,
+                   'callable' => 1, 'wish_in' => 120]]);
 $seiteEigner  = LocationView::page($standort, $bilder,
     ['eigen' => true,  'angemeldet' => true,  'viewer_id' => null,
      'grenzen' => ['max_images' => 5, 'max_bytes' => 100, 'max_source_edge' => 6000,
@@ -2607,10 +2628,18 @@ $seiteEigner  = LocationView::page($standort, $bilder,
                    'lang_max' => 5000, 'dauer_min' => 5, 'dauer_max' => 480,
                    'dauer_vorgabe' => 5]]);
 
-check(preg_match('/loc-call-btn[^>]*data-userid="3"[^>]*data-locationid="7"/', $seiteKunde) === 1,
+check(preg_match('/loc-call-btn[^>]*data-userid="3"[^>]*data-locationid="7"/', $seiteZusage) === 1,
     'am Anrufknopf der Standortseite fehlt eine der beiden Kennungen');
-check(strpos($seiteKunde, 'Führung starten') !== false, 'der Anrufknopf fehlt');
-ok('der angemeldete Zuschauer bekommt einen Knopf mit Standort- und Benutzerkennung');
+check(strpos($seiteZusage, 'Führung starten') !== false, 'der Anrufknopf fehlt');
+// Ohne Anfrage KEIN Anrufknopf: Der Weg in die Fuehrung fuehrt ueber die
+// Anfrage, und der Knopf traegt dann auch keine Kennungen, mit denen sich
+// ein Anruf nachbauen liesse.
+check(strpos($seiteKunde, 'loc-call-btn') === false,
+    'ohne Anfrage steht auf der Standortseite ein Anrufknopf');
+check(strpos($seiteKunde, 'loc-req-submit') !== false, 'das Anfrageformular fehlt');
+check(preg_match('/loc-req__preset[^>]*data-seconds="0"/', $seiteKunde) === 1,
+    '"Jetzt sofort" fehlt als Wunschzeitpunkt');
+ok('ohne Zusage steht das Anfrageformular da, mit Zusage der Knopf samt beider Kennungen');
 
 // 2. DER GAST BEKOMMT KEINE user_id. Ohne sie laesst sich von hier aus
 //    niemand anrufen - genau wie auf der oeffentlichen Karte. Statt eines
@@ -2627,6 +2656,8 @@ check(strpos($seiteEigner, 'id="loc-edit-form"') !== false,
     'der Eigentuemer bekommt kein Bearbeitungsformular');
 check(strpos($seiteEigner, 'loc-call-btn') === false,
     'der Eigentuemer kann sich selbst anrufen');
+check(strpos($seiteEigner, 'loc-req-submit') === false,
+    'der Eigentuemer bekommt ein Anfrageformular fuer den eigenen Standort');
 check(strpos($seiteKunde, 'id="loc-edit-form"') === false,
     'das Bearbeitungsformular wird auch fremden Aufrufern geliefert');
 check(strpos($seiteGast, 'id="loc-edit-form"') === false,
@@ -3290,5 +3321,311 @@ check(strpos($serveRumpf, 'nosniff') !== false,
 check(strpos($serveRumpf, 'private') !== false,
     'die Bilder duerfen in einem gemeinsamen Zwischenspeicher landen');
 ok('die Auslieferung prueft Sperre, Name und Typ');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n31) Die Anfrage: der neue Anfang einer Fuehrung\n");
+
+// WORUM ES GEHT: Vorher rief ein Kunde den Guide unmittelbar an - beide
+// mussten zufaellig im selben Moment koennen. Jetzt steht am Anfang eine
+// Anfrage mit einem Wunschzeitpunkt, die der Guide annimmt oder ablehnt.
+// "Jetzt sofort" ist dabei ein Zeitpunkt unter anderen und kein Sonderfall.
+
+$fake = new FakeConnection();
+PdoConnect::$connection = $fake;
+FakeStatement::$affected = 1;
+
+$reqConfig = require $ROOT . '/config/requests.php';
+
+// --- Die Zustaende sind vollstaendig und heissen ueberall gleich -----------
+check(TourRequest::statuses() === ['open', 'accepted', 'declined', 'expired', 'done', 'cancelled'],
+    'die sechs Zustaende der Anfrage stimmen nicht');
+$namen = TourRequest::statusNames();
+foreach (TourRequest::statuses() as $z) {
+    check(isset($namen[$z]) && $namen[$z] !== '', "der Zustand '$z' hat keinen deutschen Namen");
+}
+// Die Namen stehen im Modell und nicht in drei Ansichten: Liste,
+// Standortseite und Kopfleiste benennen denselben Zustand.
+check(strpos(file_get_contents($ROOT . '/class/Model/TourRequest.php'), 'durchgeführt') !== false,
+    'die deutschen Namen stehen nicht im Modell');
+ok('sechs Zustaende, benannt an einer Stelle');
+
+// --- "Jetzt sofort" ist ein Abstand und kein Sonderfall --------------------
+//
+// Der Wunschzeitpunkt geht als ABSTAND in Sekunden an die Datenbank, die
+// daraus an IHRER Uhr einen Zeitpunkt rechnet. Ein von PHP formatiertes Datum
+// wuerde gegen NOW() der Datenbank verglichen - zwei Uhren in womoeglich zwei
+// Zeitzonen.
+$fake->statements = [];
+check(TourRequest::create(7, 3, 4, 0) === 42, 'die Anfrage wird nicht angelegt');
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'INSERT INTO tour_request') !== false, "es ist kein INSERT: $sql");
+check(strpos($sql, 'DATE_ADD(NOW(), INTERVAL :wunsch SECOND)') !== false,
+    "der Wunschzeitpunkt wird nicht aus einem Abstand gerechnet: $sql");
+check($fake->statements[0]->params[':wunsch'] === 0, '"jetzt sofort" ist nicht die Null');
+check($fake->statements[0]->params[':guide'] === 3, 'der Guide wird nicht gebunden');
+check($fake->statements[0]->params[':customer'] === 4, 'der Kunde wird nicht gebunden');
+check(strpos($sql, "'open'") !== false, 'eine neue Anfrage ist nicht offen');
+
+// DER ABLAUF WIRD BEIM ANLEGEN GERECHNET, und der fruehere der beiden Gruende
+// gewinnt: die Antwortfrist und der um die Karenz verlaengerte
+// Wunschzeitpunkt.
+check($fake->statements[0]->params[':ablauf']
+      === min((int)$reqConfig['response_timeout'], 0 + (int)$reqConfig['wish_grace']),
+    'bei "jetzt sofort" gewinnt nicht der verstrichene Wunschzeitpunkt');
+
+$fake->statements = [];
+TourRequest::create(7, 3, 4, 86400);
+check($fake->statements[0]->params[':ablauf'] === (int)$reqConfig['response_timeout'],
+    'bei einem fernen Wunschzeitpunkt gewinnt nicht die Antwortfrist');
+
+// Unvollstaendige Angaben erreichen die Datenbank nicht - und sich selbst
+// fragt niemand an.
+$fake->statements = [];
+check(TourRequest::create(0, 3, 4, 0) === null, 'ohne Standort wird angelegt');
+check(TourRequest::create(7, 0, 4, 0) === null, 'ohne Guide wird angelegt');
+check(TourRequest::create(7, 3, 3, 0) === null, 'der eigene Standort laesst sich anfragen');
+check(count($fake->statements) === 0, 'unvollstaendige Angaben erzeugen ein Statement');
+ok('der Wunschzeitpunkt ist ein Abstand, und der Ablauf steht in der Zeile');
+
+// --- Die Zustaendigkeit steht in der WHERE-Klausel -------------------------
+//
+// Dieselbe Regel wie beim Standort: Eine Rechtetabelle kann nicht wissen, an
+// wen eine Anfrage gerichtet ist.
+$fake->statements = [];
+check(TourRequest::accept(5, 3) === true, 'annehmen scheitert');
+$sql = $fake->statements[0]->sql;
+check(preg_match('/guide_user_id\s*=\s*:guide/i', $sql) === 1,
+    "der Guide fehlt in der Bedingung: $sql");
+check(strpos($sql, "status = 'open'") !== false, 'eine beantwortete Anfrage laesst sich erneut beantworten');
+check(strpos($sql, 'expires_at > NOW()') !== false,
+    'eine abgelaufene Anfrage laesst sich noch annehmen');
+check($fake->statements[0]->params[':status'] === 'accepted', 'der Zustand stimmt nicht');
+check(strpos($sql, 'decided_at = NOW()') !== false, 'der Zeitpunkt der Antwort wird nicht festgehalten');
+
+$fake->statements = [];
+TourRequest::decline(5, 3);
+check($fake->statements[0]->params[':status'] === 'declined', 'ablehnen setzt den falschen Zustand');
+
+// Trifft die Bedingung nichts, ist es kein Erfolg.
+FakeStatement::$affected = 0;
+check(TourRequest::accept(5, 999) === false, 'eine fremde Anfrage gilt als angenommen');
+FakeStatement::$affected = 1;
+
+// Zuruecknehmen: beide Seiten duerfen, aber nur bis zum Beginn der Fuehrung.
+$fake->statements = [];
+check(TourRequest::cancel(5, 4) === true, 'zuruecknehmen scheitert');
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'customer_user_id = :user') !== false
+      && strpos($sql, 'guide_user_id = :user2') !== false,
+    "die Beteiligung fehlt in der Bedingung: $sql");
+check(strpos($sql, 'started_at IS NULL') !== false,
+    'eine begonnene Fuehrung laesst sich nachtraeglich abbrechen');
+ok('annehmen, ablehnen und zuruecknehmen tragen die Beteiligung im Statement');
+
+// --- Der Zustand wird gerechnet, nicht geglaubt ----------------------------
+//
+// "abgelaufen" steht in keiner Spalte: Es ergibt sich aus den Zeitpunkten und
+// wird bei jeder Abfrage ausgewertet. Damit wirkt ein Ablauf auch dann, wenn
+// der Cronjob gar nicht eingerichtet ist - dieselbe Bauart wie bei der
+// Bereitschaft (Location::AVAILABILITY_SQL).
+$statusSql = TourRequest::statusSql('r');
+check(strpos($statusSql, 'expires_at <= NOW()') !== false,
+    'eine offene Anfrage laeuft nie ab');
+check(strpos($statusSql, 'started_at IS NULL') !== false,
+    'eine begonnene Fuehrung laeuft ab');
+check(preg_match('/DATE_ADD\(r\.wish_at, INTERVAL \d+ SECOND\)/', $statusSql) === 1,
+    "das Zeitfenster steht nicht als Zahl in der Abfrage: $statusSql");
+check(substr_count($statusSql, "'expired'") === 2, 'es gibt nicht zwei Wege in den Ablauf');
+
+// Der Tabellenalias geht als Textbaustein in die Abfrage und wird geprueft -
+// auch wenn er nur aus diesem Projekt kommt.
+$praepariert = TourRequest::statusSql('r; DROP TABLE user');
+check(strpos($praepariert, ';') === false && strpos($praepariert, 'DROP TABLE') === false,
+    "ein praeparierter Alias landet in der Abfrage: $praepariert");
+
+// Anrufbar ist eine Zusage nur im vereinbarten Fenster - und dann auch nach
+// einem Abbruch der Verbindung noch einmal ('done' zaehlt mit).
+$callSql = TourRequest::callableSql('r');
+check(strpos($callSql, "'accepted'") !== false && strpos($callSql, "'done'") !== false,
+    'nach einem Verbindungsabbruch laesst sich nicht zurueckrufen');
+check(strpos($callSql, "'open'") === false, 'eine offene Anfrage ist anrufbar');
+check(strpos($callSql, "'declined'") === false && strpos($callSql, "'cancelled'") === false,
+    'eine abgelehnte Anfrage ist anrufbar');
+check(strpos($callSql, 'DATE_SUB') !== false && strpos($callSql, 'DATE_ADD') !== false,
+    'das Zeitfenster hat keine zwei Seiten');
+ok('Ablauf und Anrufbarkeit stehen als Ausdruck in jeder Abfrage');
+
+// --- Beginn und Ende kommen aus dem Signaling ------------------------------
+$fake->statements = [];
+TourRequest::markStarted(4, 3, 7);
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'started_at = NOW()') !== false, 'der Beginn wird nicht festgehalten');
+check(strpos($sql, 'r.started_at IS NULL') !== false,
+    'ein Rueckruf verschiebt den Beginn der Fuehrung');
+check(strpos($sql, 'customer_user_id = :customer') !== false
+      && strpos($sql, 'guide_user_id    = :guide') !== false
+      && strpos($sql, 'location_id      = :location') !== false,
+    "der Beginn haengt nicht am Tripel Kunde/Guide/Standort: $sql");
+
+$fake->statements = [];
+TourRequest::markEnded(4, 3);
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, "status   = 'done'") !== false, 'aus der Fuehrung wird keine durchgefuehrte');
+check(strpos($sql, 'r.started_at IS NOT NULL') !== false,
+    'ein Anruf, der nie zustande kam, gilt als durchgefuehrte Fuehrung');
+// WELCHE SEITE AUFLEGT, IST OFFEN - deshalb das Paar in beide Richtungen.
+check(substr_count($sql, 'customer_user_id') === 2 && substr_count($sql, 'guide_user_id') === 2,
+    "das Paar wird nur in einer Richtung geprueft: $sql");
+check(TourRequest::markEnded(4, 4) === false, 'ein Selbstgespraech schliesst eine Fuehrung ab');
+ok('Beginn und Ende der Fuehrung werden im Signaling festgehalten');
+
+// --- Der Cronjob raeumt nur auf --------------------------------------------
+$fake->statements = [];
+TourRequest::expireDue();
+check(count($fake->statements) === 2, 'es sind nicht die zwei Ablaufgruende');
+$alle = $fake->statements[0]->sql . ' ' . $fake->statements[1]->sql;
+check(substr_count($alle, "SET status = 'expired'") === 2, 'es wird nicht auf abgelaufen gesetzt');
+check(strpos($alle, "status = 'open'") !== false, 'die offenen Anfragen bleiben liegen');
+check(strpos($alle, "status = 'accepted'") !== false, 'die ungenutzten Zusagen bleiben liegen');
+
+$fake->statements = [];
+TourRequest::closeStale();
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, "status = 'done'") !== false, 'haengende Fuehrungen werden nicht abgeschlossen');
+check(strpos($sql, 'ended_at') !== false && strpos($sql, 'ended_at = NOW()') === false,
+    'der Cronjob erfindet ein Ende');
+
+// Der Cronjob ruft beides auf - sonst waere es Code ohne Aufrufer.
+$cron = file_get_contents($ROOT . '/cron/check_online_status.php');
+check(strpos($cron, 'TourRequest::expireDue') !== false, 'der Cronjob raeumt keine Anfragen auf');
+check(strpos($cron, 'TourRequest::closeStale') !== false, 'haengende Fuehrungen bleiben stehen');
+ok('der Cronjob raeumt auf, ohne ein Ende zu erfinden');
+
+// --- Die Fristen stehen an genau einer Stelle ------------------------------
+foreach (['response_timeout', 'wish_grace', 'lead_time_max',
+          'call_window_before', 'call_window_after', 'stale_call'] as $schluessel) {
+    check(isset($reqConfig[$schluessel]) && is_int($reqConfig[$schluessel]),
+        "die Frist '$schluessel' fehlt in config/requests.php");
+}
+foreach ([['class', 'Model', 'TourRequest.php'],
+          ['class', 'Controller', 'RequestController.php'],
+          ['assets', 'js', 'requests.js']] as $teile) {
+    $inhalt = file_get_contents($ROOT . '/' . implode('/', $teile));
+    foreach ([(string)$reqConfig['response_timeout'], (string)$reqConfig['wish_grace'],
+              (string)$reqConfig['call_window_after']] as $zahl) {
+        check(strpos($inhalt, $zahl) === false,
+            implode('/', $teile) . ": die Frist $zahl steht als Zahl im Code");
+    }
+}
+ok('die Fristen der Anfrage stehen nur in config/requests.php');
+
+// --- Die Rechte und die Routen ---------------------------------------------
+$routes = require $ROOT . '/config/routes.php';
+check(Permission::routeErrors($routes) === [], 'die Routentabelle ist fehlerhaft');
+
+$erwartet = [
+    'request_create'  => Permission::REQUEST_CREATE,
+    'request_accept'  => Permission::REQUEST_ANSWER,
+    'request_decline' => Permission::REQUEST_ANSWER,
+    'request_cancel'  => Permission::REQUEST_CANCEL,
+    'get_requests'    => Permission::REQUEST_LIST,
+    'requests_page'   => Permission::REQUEST_LIST,
+];
+foreach ($erwartet as $act => $recht) {
+    check(isset($routes[$act]), "die Route '$act' fehlt");
+    check($routes[$act][2] === $recht, "die Route '$act' haengt am falschen Recht");
+}
+
+// BEANTWORTEN darf nur, wer selbst Standorte anbietet - dieselben Rollen wie
+// bei location.offer. Wer keine anbietet, bekommt auch keine Anfragen.
+foreach ([Role::TRIAL, Role::USER, Role::GUIDE, Role::ADMIN] as $rolle) {
+    check(Permission::has($rolle, Permission::REQUEST_ANSWER)
+          === Permission::has($rolle, Permission::LOCATION_OFFER),
+        "Rolle $rolle: request.answer und location.offer stehen nicht beieinander");
+    // Anfragen und die eigene Liste sehen darf jedes angemeldete Konto: Ein
+    // Guide ist anderswo Kunde.
+    check(Permission::has($rolle, Permission::REQUEST_CREATE), "Rolle $rolle darf nicht anfragen");
+    check(Permission::has($rolle, Permission::REQUEST_LIST), "Rolle $rolle sieht seine Anfragen nicht");
+}
+// Der Gast hat keines der vier: Eine Anfrage gehoert zu einem Konto, sonst
+// gaebe es niemanden, dem der Guide zusagen koennte.
+foreach ([Permission::REQUEST_CREATE, Permission::REQUEST_ANSWER,
+          Permission::REQUEST_LIST, Permission::REQUEST_CANCEL] as $recht) {
+    check(!Permission::has(Permission::GUEST, $recht), "der Gast hat $recht");
+}
+ok('die Anfragerouten haengen an vier eigenen Rechten');
+
+// --- Der Weg in die Fuehrung: die Zusage ersetzt die Bereitschaft ----------
+//
+// Eine angenommene Anfrage ist die staerkere Aussage: Sie gilt fuer genau
+// diesen Kunden, diesen Standort und dieses Zeitfenster. Der
+// Bereitschaftsschalter sagt "ich kann jetzt sofort" und gilt fuer jeden.
+
+/**
+ * Attrappe wie FakeUserConnection, die zusaetzlich eine angenommene Anfrage
+ * kennt. Erkannt wird sie an der Tabelle in der Abfrage.
+ */
+class FakeRequestStatement extends FakeUserStatement {
+    public static $zusage = false;
+    public function fetch($mode = null) {
+        if (strpos($this->sql, 'FROM tour_request') !== false) {
+            return self::$zusage ? ['id' => 5] : false;
+        }
+        return parent::fetch($mode);
+    }
+}
+class FakeRequestConnection extends FakeUserConnection {
+    public function prepare($sql) {
+        return new FakeRequestStatement($sql, $this->users, $this->locations);
+    }
+}
+
+$reqDb = new FakeRequestConnection();
+// Guide 6 bietet Standort 13 an, steht aber NICHT auf bereit.
+$reqDb->users = [
+    4 => fakeUser(4, 1),          // Kunde (Rolle User)
+    6 => fakeUser(6, 2, false),   // Guide, nicht bereit
+];
+// Zwei Standorte desselben Guides: Die Rollenvergabe merkt sich ihre
+// Antworten fuer die Dauer EINER Anfrage (Zwischenspeicher in
+// WebRTCController) - zwei Faelle brauchen deshalb zwei Standorte, sonst
+// pruefte der zweite den gemerkten Wert des ersten.
+$reqDb->locations = [13 => fakeLocation(13, 6), 14 => fakeLocation(14, 6)];
+PdoConnect::$connection = $reqDb;
+
+// Ohne Zusage und ohne Bereitschaft kommt der Anruf nicht zustande - das war
+// schon vorher so und bleibt so.
+FakeRequestStatement::$zusage = false;
+check(WebRTCController::callRoles(4, 6, 13) === null,
+    'ein Anruf ohne Bereitschaft und ohne Zusage kommt durch');
+
+// Mit Zusage wird es eine Fuehrung, obwohl der Schalter aus ist.
+FakeRequestStatement::$zusage = true;
+$rollen = WebRTCController::callRoles(4, 6, 14);
+check($rollen === ['caller' => 'viewer', 'callee' => 'guide'],
+    'eine angenommene Anfrage oeffnet den Anruf nicht');
+
+// ABER NUR VON EINEM STANDORT DES ANGERUFENEN. Die Standortkennung ist eine
+// Behauptung des Anrufers und wird weiterhin geprueft - eine Zusage haengt
+// immer an einem Standort.
+check(WebRTCController::callRoles(4, 6, null) === null,
+    'eine Zusage oeffnet auch den Anruf ohne Standort');
+check(WebRTCController::callRoles(4, 6, 99) === null,
+    'eine Zusage oeffnet den Anruf ueber einen fremden Standort');
+ok('die Zusage ersetzt die Bereitschaft - aber nur an ihrem Standort');
+
+// Das Signaling haelt Beginn und Ende fest, und zwar an den beiden
+// Nachrichten, die ohnehin durchlaufen.
+$rtcCode = file_get_contents($ROOT . '/class/Controller/WebRTCController.php');
+check(strpos($rtcCode, 'TourRequest::markStarted') !== false,
+    'der Beginn der Fuehrung wird nirgends festgehalten');
+check(strpos($rtcCode, 'TourRequest::markEnded') !== false,
+    'das Ende der Fuehrung wird nirgends festgehalten');
+check(strpos($rtcCode, 'TourRequest::acceptedForCall') !== false
+      || strpos($rtcCode, 'acceptedRequest') !== false,
+    'die Zusage wird bei der Rollenvergabe nicht gelesen');
+ok('Beginn und Ende haengen an Offer und Hangup');
+
+PdoConnect::$connection = new FakeConnection();
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

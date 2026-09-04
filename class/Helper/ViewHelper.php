@@ -2,6 +2,7 @@
 namespace App\Helper;
 
 use App\Model\GuideRole;
+use App\Model\TourRequest;
 use App\Model\User;
 use App\Helper\Theme;
 
@@ -129,6 +130,68 @@ class ViewHelper
     }
 
     /**
+     * Baut den Anfragenzaehler der Kopfleiste.
+     *
+     * WARUM ER IN DER KOPFLEISTE STEHT
+     * --------------------------------
+     * Weil eine Anfrage sonst verlorengeht. Der Guide sieht sie im Moment des
+     * Eintreffens vielleicht nicht - er steht im Supermarkt, der Tab liegt im
+     * Hintergrund. Sie muss deshalb an einer Stelle wieder auftauchen, die er
+     * im Alltag ohnehin ansteuert, und das ist die Kopfleiste: Sie steht auf
+     * jeder Seite der Anwendung. Dieselbe Ueberlegung wie beim
+     * Bereitschaftsschalter daneben, mit dem er die Zeile teilt.
+     *
+     * ZWEI ZAHLEN, EIN ZAEHLER. Er meint immer dasselbe: "hier wartet etwas
+     * auf dich".
+     *
+     *   eingehend   Anfragen an die eigenen Standorte, die noch keine Antwort
+     *               haben - der Guide ist am Zug.
+     *   ausgehend   eigene Anfragen, die angenommen wurden - der Kunde kann
+     *               losgehen.
+     *
+     * Ein Konto kann beides zugleich sein, und deshalb steht der Zaehler bei
+     * JEDEM angemeldeten Konto und nicht nur bei Guides: Auch ein Zuschauer
+     * muss sehen, dass seine Anfrage angenommen wurde. Ohne diese Auskunft
+     * muesste er die Standortseite offen halten und hoffen.
+     *
+     * SERVERSEITIG MIT SEINEM STAND AUSGELIEFERT, wie der Schalter daneben:
+     * Wer die Seite ohne Skript oeffnet, sieht trotzdem, dass etwas ansteht -
+     * nur nachgezogen wird die Zahl dann nicht (assets/js/requests.js holt sie
+     * sich aus der Antwort des Heartbeats).
+     *
+     * @param array{incoming_open:int, outgoing_accepted:int} $zahlen
+     * @return string HTML
+     */
+    private static function requestsBadge(array $zahlen): string
+    {
+        $eingehend = max(0, (int)($zahlen['incoming_open'] ?? 0));
+        $ausgehend = max(0, (int)($zahlen['outgoing_accepted'] ?? 0));
+        $summe     = $eingehend + $ausgehend;
+
+        // Der Titel sagt, WAS wartet - die Zahl allein sagt es nicht. Er wird
+        // im Browser mit derselben Regel neu gebaut (requests.js), damit an
+        // beiden Stellen dasselbe steht.
+        $titel = 'Ihre Anfragen';
+        if ($eingehend > 0 && $ausgehend > 0) {
+            $titel = $eingehend . ' Anfrage(n) warten auf Ihre Antwort, '
+                   . $ausgehend . ' Ihrer Anfragen wurde(n) angenommen';
+        } elseif ($eingehend > 0) {
+            $titel = $eingehend . ' Anfrage(n) warten auf Ihre Antwort';
+        } elseif ($ausgehend > 0) {
+            $titel = $ausgehend . ' Ihrer Anfragen wurde(n) angenommen';
+        }
+
+        return '<a class="app-requests' . ($summe > 0 ? ' app-requests--on' : '') . '"'
+             . ' id="requests-badge" href="index.php?act=requests_page"'
+             . ' data-incoming="' . $eingehend . '" data-outgoing="' . $ausgehend . '"'
+             . ' title="' . htmlspecialchars($titel) . '">'
+             .   '<span class="app-requests__text">Anfragen</span>'
+             .   '<span class="app-requests__count" id="requests-count"'
+             .     ($summe > 0 ? '' : ' hidden') . '>' . $summe . '</span>'
+             . '</a>';
+    }
+
+    /**
      * Baut den Bereitschaftsschalter der Kopfleiste.
      *
      * WARUM IN DER KOPFLEISTE UND NICHT AUF DER KONTOSEITE
@@ -209,6 +272,9 @@ class ViewHelper
         // Der Bereitschaftsschalter. Fuer Gaeste und fuer alle, die keine
         // Standorte anbieten, bleibt er leer - siehe availabilitySwitch().
         $ready     = "";
+        // Der Anfragenzaehler. Fuer Gaeste leer: Wer nicht angemeldet ist, hat
+        // keine Anfragen - weder gestellte noch erhaltene.
+        $requests  = "";
 
         // Das Farbprofil des ANGEMELDETEN Kontos - fuer Gaeste bleibt es
         // null. Das ist der Unterschied, den das Boot-Skript braucht:
@@ -292,6 +358,21 @@ class ViewHelper
             // Gefragt wird das Recht und nicht die Rolle - dasselbe Kriterium,
             // ueber das ein Standort auf die Karte kommt. Wer keine Standorte
             // anbietet, bekommt den Schalter nicht.
+            // DER ANFRAGENZAEHLER - fuer jedes angemeldete Konto, auch fuer
+            // eines ohne Standorte: Es kann selbst angefragt haben, und die
+            // Zusage darauf soll es nicht verpassen. Gefragt wird deshalb das
+            // Recht request.list und nicht location.offer.
+            if (Auth::can(Permission::REQUEST_LIST)) {
+                $zahlen   = TourRequest::counters(Auth::userId());
+                $requests = self::requestsBadge($zahlen);
+
+                // Die beiden Zahlen gehen als Startwert mit. Ohne sie muesste
+                // das Skript beim Seitenaufbau erst einmal fragen, was der
+                // Server gerade ausgeliefert hat.
+                $user_id_script .= '<script>window.requestCounts = '
+                    . json_encode($zahlen) . ';</script>';
+            }
+
             if (Auth::can(Permission::USER_AVAILABILITY)) {
                 // Der Zustand kommt aus der Datenbank und nicht aus der
                 // Sitzung: Er kann seit dem Anmelden abgelaufen sein, und die
@@ -360,6 +441,7 @@ class ViewHelper
         $out = str_replace("###USER###"                , $menu_html        , $out);
         $out = str_replace("###REGISTER###"            , $sign             , $out);
         $out = str_replace("###AVAILABILITY###"        , $ready            , $out);
+        $out = str_replace("###REQUESTS###"            , $requests         , $out);
         // Das Farbprofil. Zwei Stellen, und beide sind noetig:
         //
         //   ###THEME###      das Attribut am <html>-Element. Angemeldet steht

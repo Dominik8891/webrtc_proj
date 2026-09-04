@@ -239,6 +239,13 @@ window.webrtcApp.signaling = {
         .then(antwort => antwort.json())
         .then(daten => {
             if (bereitschaft && daten) bereitschaft.sync(daten.available_seconds);
+
+            // DIE ANFRAGEN FAHREN AUF DEMSELBEN TAKT MIT. Der Zaehler in der
+            // Kopfleiste braucht keine eigene Schleife: Die beiden Zahlen
+            // haengen an der Antwort des Heartbeats
+            // (App\Controller\UserController::heartbeat).
+            const anfragen = window.webrtcApp.requests;
+            if (anfragen && daten) anfragen.sync(daten.requests);
         })
         // Ein ausgefallener Heartbeat aendert nichts: Der naechste Takt kommt,
         // und bis dahin laeuft die Anzeige lokal weiter. Ohne diesen Zweig

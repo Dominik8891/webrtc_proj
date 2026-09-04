@@ -1,6 +1,7 @@
 <?php
 namespace App\Controller;
 
+use App\Model\TourRequest;
 use App\Model\User;
 use App\Helper\Auth;
 use App\Helper\Permission;
@@ -235,6 +236,17 @@ class UserController
         echo json_encode([
             'status'            => 'ok',
             'available_seconds' => User::availableSeconds($user_id),
+            // DIE ANFRAGEN GEHEN MIT.
+            //
+            // Zwei Zahlen: was als Guide auf eine Antwort wartet, und welche
+            // eigene Anfrage angenommen wurde. Beide faerben den Zaehler in
+            // der Kopfleiste (assets/js/requests.js).
+            //
+            // Sie haengen bewusst AM HEARTBEAT und nicht an einer eigenen
+            // Schleife: Der Takt laeuft ohnehin, und eine zweite Abfrage
+            // daneben waere derselbe Weg noch einmal - fuer eine Auskunft, die
+            // sich seltener aendert als die Bereitschaft.
+            'requests'          => TourRequest::counters($user_id),
         ]);
         exit;
     }

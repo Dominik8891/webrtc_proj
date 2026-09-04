@@ -7,6 +7,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 ## 💡 Das Konzept
 * **Interaktive Steuerung:** Der Zuschauer navigiert den Guide über ein Steuerkreuz (vorwärts, zurück, links, rechts) und ein Tastenpaar für die Blickrichtung. Beim Guide löst jede Anweisung ein Tonsignal in seiner Sprache und eine bildschirmfüllende Anzeige aus — gesteuert wird über Tasten und Töne, nicht über Sprache, damit die Anwendung weltweit funktioniert. Die Befehle laufen über einen eigenen WebRTC-Datenkanal, getrennt vom Chat, als versioniertes JSON-Protokoll mit Rollen, Bestätigung und Sperre — vollständig beschrieben in [`PROTOKOLL.md`](PROTOKOLL.md).
 * **Geo-Präsenz:** Guides hinterlegen Standorte in der Datenbank, die für User sichtbar sind. Jeder Standort hat eine **eigene, teilbare Seite** mit Bildern, Titel, ausführlicher Beschreibung, Dauer, Sprachen und Karte — von dort aus beginnt die Führung, und dort bearbeitet der Guide sein Angebot (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)).
+* **Anfrage statt Anruf:** Eine Führung beginnt mit einer **Anfrage samt Wunschzeitpunkt**, die der Guide annimmt oder ablehnt — „jetzt sofort" ist dabei ein Zeitpunkt unter anderen und kein Sonderfall. Erst nach der Zusage wird angerufen. Damit müssen nicht mehr beide Seiten zufällig im selben Moment können (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)).
 * **Echtzeit-Kommunikation:** P2P-Video/Audio mit minimaler Latenz.
 
 ---
@@ -48,11 +49,14 @@ mariadb -u <user> -p <datenbank> < migrations/009_call_standort.sql
 mariadb -u <user> -p <datenbank> < migrations/010_verfuegbarkeit.sql
 mariadb -u <user> -p <datenbank> < migrations/011_standort_inhalt.sql
 mariadb -u <user> -p <datenbank> < migrations/012_titelbild.sql
+mariadb -u <user> -p <datenbank> < migrations/013_anfragen.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)). Alle sind idempotent und löschen nichts.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)). Alle sind idempotent und löschen nichts.
 
 **Nach `011` braucht die Anwendung ein Ablageverzeichnis für Bilder**, sonst lässt sich kein Bild hochladen; alles andere läuft unverändert weiter. Siehe [Bilder](#bilder-ablage-formate-größen).
+
+**Nach `013` beginnt die Aufzeichnung bei null.** Vergangene Führungen sind nirgends festgehalten und lassen sich nicht nachtragen — es gab dafür keinen Datensatz, und genau deshalb gibt es die Tabelle.
 
 **Nach `010` steht kein Guide mehr auf bereit.** Das ist Absicht: Die Bereitschaft ist eine Entscheidung, und die hat vorher niemand getroffen. Jeder Guide legt den Schalter in der Kopfleiste um, sobald er die Seite das nächste Mal öffnet. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
 
@@ -169,6 +173,12 @@ Der Cronjob setzt alle Nutzer offline, deren letzter Heartbeat laenger als 45
 Sekunden zurueckliegt (`config/presence.php`). Er braucht dieselbe `.env` und
 dasselbe `vendor/`-Verzeichnis wie die Web-Anwendung, aber keinen Webserver.
 
+Derselbe Lauf **raeumt abgelaufene Anfragen auf** und schliesst Fuehrungen ab,
+deren Ende nie angekommen ist (`config/requests.php`). Auch das ist Aufraeumen
+und keine Pruefung: Ob eine Anfrage noch gilt, entscheidet der Vergleich mit
+`NOW()` in jeder einzelnen Abfrage — ohne den Cronjob laeuft alles genauso, die
+Tabelle sammelt dann nur Karteileichen.
+
 #### Linux / macOS
 
 `crontab -e` oeffnen und eine Zeile ergaenzen — Pfade anpassen, den PHP-Pfad
@@ -231,8 +241,11 @@ FROM user ORDER BY updated_at DESC;
 ```
 
 `user_status` ist die Erreichbarkeit, `available_until` die Bereitschaft. Ein
-Guide ist genau dann anrufbar, wenn `user_status` `online` lautet **und**
-`available_until` in der Zukunft liegt.
+Guide steht genau dann grün auf der Karte, wenn `user_status` `online` lautet
+**und** `available_until` in der Zukunft liegt. Anrufbar ist er darüber hinaus
+für jeden, dem er eine Anfrage zugesagt hat — die Zusage gilt auch ohne
+Bereitschaft, aber nur in ihrem Zeitfenster (siehe
+[Die Anfrage](#-die-anfrage-statt-des-anrufs)).
 
 #### Taktung anpassen
 
@@ -345,6 +358,11 @@ Schalter zusätzlich ab.
 
 ### Was die Bereitschaft *nicht* sperrt
 
+Eine **zugesagte Anfrage**. Sie ist die stärkere Aussage — sie gilt für genau
+diesen Kunden, diesen Standort und dieses Zeitfenster —, und deshalb kommt der
+Anruf dazu auch bei ausgeschaltetem Schalter durch (siehe
+[Die Anfrage](#-die-anfrage-statt-des-anrufs)).
+
 Den **Direktanruf der Verwaltung**. Ein Admin erreicht einen Guide auch dann,
 wenn dieser nicht bereit ist — beide bekommen die Rolle `peer`, niemand wird
 gesteuert. Für eine Rückfrage der Moderation muss sich niemand vorher bereit
@@ -354,6 +372,151 @@ In der Benutzerverwaltung stehen deshalb **beide** Auskünfte nebeneinander: der
 Zustandspunkt für die Erreichbarkeit und die Marke „Bereit" für die
 Bereitschaft. „Angemeldet, aber nicht bereit" ist dort die Antwort auf die
 Frage, warum ein Standort grau bleibt, obwohl der Guide erreichbar ist.
+
+---
+
+## 📨 Die Anfrage statt des Anrufs
+
+### Das Problem
+
+Ein Kunde rief den Guide **unmittelbar an**. Das verlangte, dass beide
+zufällig im selben Moment können — und der Guide ist die knappere Seite: Er
+muss losgehen, sich Zeit nehmen, vielleicht hinfahren. Er steht vielleicht
+gerade im Supermarkt. Ein Anruf, der in diesem Moment klingelt, ist eine
+Zumutung; einer, der zehn Minuten später gekommen wäre, wäre eine Führung
+geworden.
+
+Dazu kam ein zweiter Mangel, der erst auf den zweiten Blick auffällt: Es gab
+**keinen Datensatz über stattgefundene Führungen**. Ein Anruf hinterließ ein
+paar Signalzeilen, die nach 15 Sekunden gelöscht wurden. Danach war nicht mehr
+feststellbar, dass überhaupt eine Führung stattgefunden hat — für Bewertungen
+und für eine spätere Abrechnung fehlt genau das.
+
+### Der Ablauf
+
+1. **Der Kunde fragt an** — auf der Standortseite, mit einem Wunschzeitpunkt.
+   Vier Vorgaben stehen bereit (*jetzt sofort*, *in 1 Stunde*, *in 3 Stunden*,
+   *morgen um diese Zeit*), daneben ein Feld für jeden anderen Zeitpunkt.
+2. **Der Guide antwortet** — annehmen oder ablehnen, auf der Seite *Anfragen*.
+3. **Nach der Zusage startet der Kunde die Führung** — mit demselben Knopf und
+   demselben Weg wie vorher: `rtc.startCall` mit der Standortkennung, der
+   Server vergibt die Rollen (`WebRTCController::callRoles`).
+4. **Beginn und Ende schreibt der Server mit** — am Offer und am Hangup, die
+   ohnehin durch das Signaling laufen. Kein zusätzlicher Klick, den jemand
+   vergessen kann.
+
+**„Jetzt sofort" ist kein Sonderfall.** Es ist der Wunschzeitpunkt mit dem
+Abstand null. Es gibt dafür keine Spalte, keine Marke und keine Verzweigung —
+alles, was für eine Anfrage in drei Tagen gilt, gilt auch für eine sofortige.
+
+**Der Wunschzeitpunkt reist als Abstand in Sekunden**, nicht als Datum. Ein
+Abstand hat keine Zeitzone: Guide und Kunde sitzen womöglich in verschiedenen,
+und „in einer Stunde" heißt für beide dasselbe. Die Datenbank rechnet daraus an
+ihrer eigenen Uhr einen Zeitpunkt — derselben Uhr, an der auch alle Fristen
+hängen.
+
+### Wo der Guide die Anfragen sieht
+
+**In der Kopfleiste**, gleich neben dem Bereitschaftsschalter, steht ein
+Zähler; er führt auf die Seite *Anfragen*. Der Ort ist die Antwort auf die
+Anforderung, dass eine Anfrage auch dann ankommt, wenn der Guide sie im Moment
+des Eintreffens nicht bemerkt hat: Die Kopfleiste steht auf **jeder** Seite der
+Anwendung — dieselbe Überlegung, aus der auch der Bereitschaftsschalter dort
+sitzt und nicht in den Einstellungen.
+
+Der Zähler meint immer dasselbe — *hier wartet etwas auf dich* — und zählt
+deshalb beide Richtungen zusammen:
+
+| | |
+|---|---|
+| eingehend | Anfragen an die eigenen Standorte, die noch keine Antwort haben |
+| ausgehend | eigene Anfragen, die angenommen wurden — die Führung wartet |
+
+Er steht bei **jedem angemeldeten Konto**, nicht nur bei Guides: Auch ein
+Zuschauer muss sehen, dass seine Anfrage angenommen wurde, sonst müsste er die
+Standortseite offen halten und hoffen. Seine Zahlen fahren auf dem Takt des
+Heartbeats mit (`UserController::heartbeat`) — eine zweite Abfrageschleife
+daneben wäre derselbe Weg noch einmal.
+
+Die Seite *Anfragen* zeigt beide Listen: *An meine Standorte* mit den Knöpfen
+zum Annehmen und Ablehnen, *Meine Anfragen* mit dem Zustand und, sobald die
+Zusage gilt, dem Startknopf.
+
+### Die sechs Zustände
+
+| Wert in `status` | Bedeutung |
+|---|---|
+| `open` | gestellt, noch nicht beantwortet |
+| `accepted` | der Guide hat zugesagt |
+| `declined` | der Guide hat abgesagt |
+| `expired` | unbeantwortet verstrichen **oder** angenommen und das Zeitfenster ungenutzt vorbei |
+| `done` | die Führung hat stattgefunden |
+| `cancelled` | zurückgezogen — vom Kunden oder vom Guide |
+
+Sie stehen als Text in der Spalte und nicht als Zahl: In einem Dump soll
+lesbar sein, was mit einer Anfrage passiert ist, ohne eine Codetabelle
+danebenzulegen.
+
+**„Abgelaufen" steht in keiner Spalte.** Es ergibt sich aus den Zeitpunkten und
+wird bei **jeder** Abfrage ausgerechnet (`TourRequest::statusSql`) — dieselbe
+Bauart wie bei der Bereitschaft. Damit wirkt ein Ablauf sofort und auch dann,
+wenn der Cronjob gar nicht eingerichtet ist; der räumt nur auf.
+
+### Die Fristen
+
+Alle in `config/requests.php`, und dort stehen sie **einmal**:
+
+| Schlüssel | Vorgabe | Bedeutung |
+|---|---|---|
+| `response_timeout` | 1 Std | wie lange eine offene Anfrage auf Antwort wartet |
+| `wish_grace` | 15 Min | wie lange nach dem Wunschzeitpunkt eine offene Anfrage noch gilt |
+| `lead_time_max` | 14 Tage | wie weit im Voraus sich anfragen lässt |
+| `call_window_before` / `_after` | 15 Min / 2 Std | das Zeitfenster um den Wunschzeitpunkt, in dem eine Zusage anrufbar ist |
+| `stale_call` | 4 Std | wann eine begonnene Führung ohne Ende als beendet gilt |
+
+Eine offene Anfrage läuft ab, **wenn einer der beiden Gründe eintritt** — der
+frühere gewinnt: Eine Anfrage für „jetzt sofort" ist eine Viertelstunde später
+gegenstandslos, eine für nächsten Samstag verfällt nach der Antwortfrist statt
+eine Woche offen zu stehen. Der Ablaufzeitpunkt wird beim Anlegen gerechnet und
+steht in der Zeile; er bleibt damit nachvollziehbar, auch wenn jemand die
+Konfiguration ändert.
+
+### Die Zusage ersetzt die Bereitschaft
+
+Der Bereitschaftsschalter **bleibt, was er ist**: „ich kann jetzt sofort". Er
+färbt die Nadel auf der Karte und gilt für jeden.
+
+Eine **angenommene Anfrage** ist die stärkere Aussage — sie gilt für genau
+diesen Kunden, genau diesen Standort und genau dieses Zeitfenster. Deshalb
+lässt der Server den Anruf zu einer Zusage auch dann durch, wenn der Schalter
+aus ist (`WebRTCController::callRoles`, zweite Tür). Wer sich für 18 Uhr
+verabredet hat, soll die Verabredung nicht daran verlieren, dass er um 18 Uhr
+vergessen hat, den Schalter umzulegen.
+
+Was dabei **nicht** aufgeweicht wird: Die Standortkennung ist weiterhin eine
+Behauptung des Anrufers und wird geprüft — es muss ein Standort **des
+Angerufenen** sein, und er darf nicht gesperrt sein. Eine Zusage für einen
+anderen Standort desselben Guides öffnet nichts.
+
+### Was die Tabelle sonst noch löst
+
+`tour_request` ist der erste Datensatz über Führungen, und darauf stützt sich
+später mehr als die Anfrage selbst:
+
+* **Bewertungen** brauchen einen Beleg, dass die Führung stattgefunden hat.
+  `started_at` und `ended_at` sind dieser Beleg.
+* **Die Abrechnung** braucht Dauer und Beteiligte. Beides steht in der Zeile —
+  ein Preis steht bewusst *nicht* darin, es wird nichts berechnet.
+* **Ohne Fremdschlüssel**, und das ist Absicht: Eine durchgeführte Führung
+  bleibt geschehen, auch wenn der Standort später gelöscht wird oder ein Konto
+  verschwindet. Mit `ON DELETE CASCADE` wäre die Historie beim ersten
+  gelöschten Standort weg. Gelesen wird deshalb über `LEFT JOIN`; fehlt der
+  Standort, fehlt eben sein Titel.
+
+Kommt das Ende einer Führung nie an — Absturz, Netzausfall —, schließt der
+Cronjob die Zeile nach `stale_call` ab und lässt `ended_at` **leer**. Ein
+geschätztes Ende wäre eine Erfindung, und an dieser Spalte hängt später eine
+Abrechnung.
 
 ---
 
@@ -401,13 +564,21 @@ index.php?act=location&id=<standort>
 Eine Adresse, die sich verlinken und weitergeben lässt. Sie zeigt Bilder,
 Titel, Beschreibung, Dauer, Sprachen, den Treffpunkt auf einer kleinen Karte
 und den Verfügbarkeitszustand des Guides — **und von hier aus, und nur von
-hier aus, beginnt die Führung**.
+hier aus, beginnt die Führung**: mit einer Anfrage samt Wunschzeitpunkt (siehe
+[Die Anfrage](#-die-anfrage-statt-des-anrufs)).
+
+**Der Verfügbarkeitszustand sperrt hier nichts mehr.** Er ist eine Auskunft:
+Steht der Guide gerade bereit, hat „jetzt sofort" gute Aussichten. Ein
+Standort, an dem gerade niemand ist, lässt sich trotzdem für heute Abend
+anfragen — genau darum ging es bei diesem Umbau.
 
 **Auch ein Gast sieht sie** (Recht `location.view`, wie `location.map_public`).
 Ein geteilter Link, der beim Empfänger auf dem Anmeldeformular endet, wird
 nicht weitergegeben. Was ein Gast nicht bekommt, ist die `user_id` des Guides —
-ohne sie lässt sich von dort niemand anrufen, und statt eines Knopfes, der
-nichts tut, steht dort der Weg zur Anmeldung. Dieselbe Entscheidung wie bei der
+ohne sie lässt sich von dort niemand anrufen. Anfragen kann er ebenfalls nicht:
+Eine Anfrage gehört zu einem Konto, sonst gäbe es niemanden, dem der Guide
+zusagen könnte. Statt eines Formulars, das nichts bewirkt, steht dort der Weg
+zur Anmeldung. Dieselbe Entscheidung wie bei der
 öffentlichen Karte.
 
 **Ein gesperrter Standort ist auf dieser Seite nur für seinen Eigentümer und
@@ -438,9 +609,11 @@ Jetzt hat die Seite eine Rangfolge:
 └──────────────────────────────────────────────────────────────┘
 
      Die alten Gassen nach Sonnenuntergang …    ┌──────────────┐
-                                                │ Führung      │  ← der Knopf zuerst
-     Wir treffen uns am Miradouro de Santa      │  starten     │
-     Luzia, wenn die Sonne gerade hinter …      ├──────────────┤
+                                                │ Wunschzeit-  │  ← die Anfrage
+     Wir treffen uns am Miradouro de Santa      │ punkt wählen │     zuerst
+     Luzia, wenn die Sonne gerade hinter …      │ Führung      │
+                                                │  anfragen    │
+                                                ├──────────────┤
                                                 │ Dauer  1:30  │  ← Nebendaten darunter
      Sie bestimmen den Weg. Über das            │ Sprachen …   │
      Steuerkreuz schicken Sie mich …            │ Ort     …    │
@@ -461,7 +634,7 @@ Jetzt hat die Seite eine Rangfolge:
 | **Titel, Ort und Zustand liegen darauf** | Sie gehören zum Bild, nicht in eine eigene Zeile daneben. Ein Verlauf zwischen Bild und Schrift sorgt für den Kontrast; ein Kasten hinter der Schrift wäre wieder ein Kasten. |
 | **Der Weg zurück liegt ebenfalls darauf** | Über dem Bild steht nichts. |
 | **Die Beschreibung folgt unmittelbar** | Sie ist der Grund, warum jemand die Seite liest. |
-| **Der Knopf steht oben in der schmalen Spalte** | Nicht zwischen den Datenzeilen, wo er wie deren Fußnote aussah. Die Spalte läuft beim Scrollen mit: Wer unten in der Beschreibung angekommen ist, soll ihn nicht wieder suchen müssen. |
+| **Die Anfrage steht oben in der schmalen Spalte** | Nicht zwischen den Datenzeilen, wo der frühere Knopf wie deren Fußnote aussah. Die Spalte läuft beim Scrollen mit: Wer unten in der Beschreibung angekommen ist, soll sie nicht wieder suchen müssen. An derselben Stelle steht später der Zustand der eigenen Anfrage und, nach der Zusage, der Startknopf. |
 | **Dauer, Sprachen und Ort darunter** | Sie sind Auskunft, keine Handlung — abgesetzt durch eine Linie und einen ruhigeren Grund. |
 | **Die Beispielbilder stehen unter dem Text, über beide Spalten** | Sie zeigen den Ort, sie führen die Seite nicht an — dafür ist das Titelbild da. |
 | **Die Karte steht unten, über beide Spalten** | Beiwerk — aber nicht neben einem Loch: Vorher stand sie nur unter dem Text, und rechts daneben, unter dem Knopf, blieb Platz übrig, den nichts füllte. |
@@ -623,12 +796,22 @@ jetzt:
 Nadel / Listenzeile  ──id──▶  index.php?act=location&id=7
                                         │
                                         ▼
+                       Anfrage mit Wunschzeitpunkt
+                                        │
+                          Guide nimmt an (Seite "Anfragen")
+                                        │
+                                        ▼
                           Knopf "Führung starten"
                           data-userid, data-locationid
                                         │
                                         ▼
                     rtc.startCall(userId, locationId)  ──▶  Offer mit location
 ```
+
+Zwischen Klick und Anruf stehen seit dem Umbau zwei Schritte mehr — die
+Anfrage und die Zusage (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)).
+Was **nicht** dazwischenkommt, ist ein zweiter Weg: Auch die zugesagte Führung
+startet über denselben Knopf mit denselben zwei Kennungen.
 
 Jede Station davon ist in `tests/client_test.js` (Abschnitt 38) und
 `tests/server_test.php` festgehalten.
@@ -786,7 +969,7 @@ Die Nummern sind **Etiketten, keine Rangfolge**: Eine höhere Nummer bedeutet ni
 
 ### Rechte
 
-Geprüft wird nie eine Rolle, sondern immer ein **benanntes Recht** (`user.delete`, `location.block`, `chat.read`, …). Die vollständige Zuordnung steht in `class/Helper/Permission.php`; jede Rolle führt ihre Rechte selbst auf, es gibt **keine Vererbung**. Auch "nicht angemeldet" ist dort eine Rolle (`Permission::GUEST`) mit einer ausgeschriebenen Liste.
+Geprüft wird nie eine Rolle, sondern immer ein **benanntes Recht** (`user.delete`, `location.block`, `chat.read`, `request.answer`, …). Die vollständige Zuordnung steht in `class/Helper/Permission.php`; jede Rolle führt ihre Rechte selbst auf, es gibt **keine Vererbung**. Auch "nicht angemeldet" ist dort eine Rolle (`Permission::GUEST`) mit einer ausgeschriebenen Liste.
 
 ### Durchsetzung
 

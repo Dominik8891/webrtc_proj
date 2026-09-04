@@ -1090,6 +1090,142 @@ a:hover {
     }
 }
 
+/* ---------------------------------------------------------------------------
+   Der Anfragenzaehler der Kopfleiste
+   ---------------------------------------------------------------------------
+   Er steht neben dem Bereitschaftsschalter und sieht aus wie er - beides sind
+   Auskuenfte ueber den eigenen Stand, keine Seitenaktionen. Was ihn
+   unterscheidet, ist die Zahl: Sie traegt den Akzent und nicht die
+   Live-Farbe, denn Gruen heisst in dieser Anwendung "ein Guide ist gerade
+   erreichbar" - eine wartende Anfrage ist etwas anderes.
+
+   Gebaut von App\Helper\ViewHelper::requestsBadge(), nachgezogen von
+   assets/js/requests.js.
+   --------------------------------------------------------------------------- */
+.app-requests {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    padding: 4px var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-pill);
+    background: var(--app-surface);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    line-height: 1.5;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background var(--app-transition), border-color var(--app-transition),
+                color var(--app-transition);
+}
+
+.app-requests:hover {
+    border-color: var(--app-text-faint);
+    color: var(--app-text);
+    text-decoration: none;
+}
+
+/* Steht etwas an, traegt der Zaehler den Akzent - und zwar dauerhaft, nicht
+   blinkend: Eine Anfrage ist kein Alarm, sie soll nur nicht uebersehen
+   werden. */
+.app-requests--on {
+    background: var(--app-accent-soft);
+    border-color: transparent;
+    color: var(--app-accent-strong);
+}
+
+.app-requests__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    box-sizing: border-box;
+    border-radius: var(--app-radius-pill);
+    background: var(--app-accent);
+    color: #fff;
+    font-size: var(--app-text-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 700px) {
+    /* Auf schmalen Geraeten bleibt die Zahl, das Wort geht. Sie ist die
+       Auskunft; "Anfragen" erklaert nur, wovon. */
+    .app-requests { padding: 3px var(--app-space-2); }
+    .app-requests__text { display: none; }
+}
+
+/* ---------------------------------------------------------------------------
+   Die Anfragenseite
+   ---------------------------------------------------------------------------
+   Zwei Listen aus Karten - eingehend und ausgehend. Gefuellt von
+   assets/js/requests.js.
+   --------------------------------------------------------------------------- */
+.req-block + .req-block { margin-top: var(--app-space-4); }
+
+.req-block__title {
+    margin: 0 0 var(--app-space-2);
+    font-size: var(--app-text-lg);
+    font-weight: var(--app-weight-semibold);
+}
+
+.req-block__hint {
+    margin: 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.req-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--app-space-3);
+}
+
+.req-item {
+    padding: var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface);
+}
+
+/* Was Handlung verlangt, steht optisch vorn: ein Streifen am Rand. Farbe
+   traegt nur das Offene und das Zugesagte - erledigte Zeilen sind Archiv. */
+.req-item--open     { border-left: 3px solid var(--app-warn); }
+.req-item--accepted { border-left: 3px solid var(--app-live); }
+
+.req-item__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-2);
+    flex-wrap: wrap;
+}
+
+.req-item__title {
+    font-weight: var(--app-weight-semibold);
+}
+
+.req-item__meta {
+    margin: var(--app-space-1) 0 var(--app-space-2);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.req-item__done {
+    color: var(--app-text-faint);
+    font-size: var(--app-text-sm);
+}
+
+.req-page__foot {
+    margin-top: var(--app-space-3);
+    color: var(--app-danger);
+    font-size: var(--app-text-sm);
+}
+
 /* Spalten, die auf schmalen Geraeten entfallen. Die Regel stand frueher in
    call.css in einer Medienabfrage fuer die Call-Ansicht - dort hatte sie
    nichts zu suchen und ging beim Umbau der Call-Ansicht verloren. */

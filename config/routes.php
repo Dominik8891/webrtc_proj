@@ -14,6 +14,7 @@ use App\Controller\TwoFactorController;
 use App\Controller\SettingsController;
 use App\Controller\GuideController;
 use App\Controller\ChatController;
+use App\Controller\RequestController;
 use App\Helper\Permission;
 
 /**
@@ -176,6 +177,31 @@ return [
     // deshalb laesst der Controller dort nur POST zu.
     'guide_role_page'       => [GuideController::class              , 'showGuideRolePage'       , Permission::USER_GUIDE_ROLE        , 'html'],
     'guide_role'            => [GuideController::class              , 'handleGuideRole'         , Permission::USER_GUIDE_ROLE        , 'html'],
+
+    // Anfragen: der neue Anfang jeder Fuehrung.
+    //
+    // Vorher rief ein Kunde den Guide unmittelbar an - das verlangte, dass
+    // beide zufaellig im selben Moment koennen. Jetzt stellt er von der
+    // Standortseite aus eine Anfrage mit einem Wunschzeitpunkt ("jetzt
+    // sofort" ist dabei nur ein Zeitpunkt unter anderen), und der Guide nimmt
+    // an oder lehnt ab. Erst danach wird angerufen - ueber dieselbe Route
+    // getSignal und mit derselben Rollenvergabe wie bisher.
+    //
+    // Vier Rechte statt eines: Anfragen darf jedes angemeldete Konto,
+    // BEANTWORTEN nur, wer selbst Standorte anbietet - dieselben Rollen wie
+    // bei location.offer. Ob die einzelne Anfrage an den Aufrufer gerichtet
+    // ist, kann keine Rechtetabelle wissen; das steht in der WHERE-Klausel
+    // (App\Model\TourRequest).
+    'request_create'        => [RequestController::class            , 'create'                  , Permission::REQUEST_CREATE         , 'json'],
+    'request_accept'        => [RequestController::class            , 'accept'                  , Permission::REQUEST_ANSWER         , 'json'],
+    'request_decline'       => [RequestController::class            , 'decline'                 , Permission::REQUEST_ANSWER         , 'json'],
+    'request_cancel'        => [RequestController::class            , 'cancel'                  , Permission::REQUEST_CANCEL         , 'json'],
+    'get_requests'          => [RequestController::class            , 'getRequests'             , Permission::REQUEST_LIST           , 'json'],
+    // Die Seite, auf der beide Seiten ihren Stand sehen. Der Zaehler dorthin
+    // steht in der Kopfleiste, also auf jeder Seite: Eine Anfrage, die der
+    // Guide im Moment des Eintreffens nicht bemerkt hat, muss er spaeter an
+    // einer Stelle wiederfinden, die er ohnehin ansteuert.
+    'requests_page'         => [RequestController::class            , 'showRequestsPage'        , Permission::REQUEST_LIST           , 'html'],
 
     // Chat-Funktionen
     'chat_start'            => [ChatController::class               , 'startChat'               , Permission::CHAT_START             , 'json'],

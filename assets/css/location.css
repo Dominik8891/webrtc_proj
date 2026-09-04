@@ -524,6 +524,73 @@
     gap: var(--app-space-2);
 }
 
+/* ---------------------------------------------------------------------------
+   Das Anfrageformular
+   ---------------------------------------------------------------------------
+   An der Stelle, an der frueher der Anrufknopf stand. Es ist die Handlung
+   dieser Seite und darf deshalb ein paar Zeilen mehr einnehmen als ein Knopf -
+   aber nicht mehr als noetig: vier Vorgaben, ein Feld, ein Knopf.
+
+   Gebaut von App\Helper\LocationView und, sobald sich der Zustand aendert,
+   von assets/js/location_page.js.
+   --------------------------------------------------------------------------- */
+.loc-req__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--app-space-2);
+    margin: var(--app-space-3) 0;
+}
+
+/* Die Vorgaben stehen NEBENEINANDER. Der Kasten darum gibt jedem Knopf die
+   volle Breite (.loc-cta__action .btn) - das ist fuer den einen grossen Knopf
+   richtig und fuer eine Reihe kurzer Auswahlen falsch. */
+.loc-req__presets .btn {
+    width: auto;
+    flex: 0 1 auto;
+    border: 1px solid var(--app-border);
+    background: var(--app-surface);
+    color: var(--app-text-muted);
+}
+
+.loc-req__presets .btn:hover {
+    border-color: var(--app-text-faint);
+    color: var(--app-text);
+}
+
+/* Die gewaehlte Vorgabe. Der Akzent und nicht Gruen: Gruen heisst auf dieser
+   Seite "ein Guide ist gerade erreichbar". */
+.loc-req__preset--on,
+.loc-req__preset--on:hover {
+    background: var(--app-accent-soft);
+    border-color: var(--app-accent);
+    color: var(--app-accent-strong);
+}
+
+.loc-req__custom {
+    margin-bottom: var(--app-space-3);
+}
+
+.loc-req__label {
+    display: block;
+    margin-bottom: var(--app-space-1);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+/* Der Zustand einer laufenden Anfrage: Marke, Satz, Knoepfe untereinander.
+   Der zweite Knopf ("zurueckziehen") steht klein darunter und nicht daneben -
+   in einer 320px-Spalte waeren zwei Knoepfe nebeneinander zwei Streifen. */
+.loc-req--state {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--app-space-2);
+}
+
+.loc-req--state .btn {
+    width: 100%;
+}
+
 /* 4: Die Nebendaten. Abgesetzt vom Knopf durch eine Linie und einen ruhigeren
    Grund - sie sind Auskunft, keine Handlung. */
 .loc-facts {

@@ -193,6 +193,45 @@ class Permission
      */
     public const LOCATION_BLOCK = 'location.block';
 
+    /**
+     * Eine Fuehrung anfragen.
+     *
+     * Der neue Anfang jeder Fuehrung: Der Kunde stellt von der Standortseite
+     * aus eine Anfrage mit einem Wunschzeitpunkt, statt sofort anzurufen.
+     * Jedes angemeldete Konto darf das - auch ein Guide, denn ein Guide ist
+     * anderswo Kunde.
+     *
+     * Der GAST hat es nicht: Eine Anfrage gehoert zu einem Konto, sonst
+     * gaebe es niemanden, dem der Guide zusagen koennte. Auf der
+     * Standortseite steht fuer ihn deshalb der Weg zur Anmeldung - dieselbe
+     * Stelle, an der frueher der Anrufknopf fehlte.
+     */
+    public const REQUEST_CREATE = 'request.create';
+
+    /**
+     * Eine Anfrage annehmen oder ablehnen.
+     *
+     * Es steht bei denselben Rollen wie location.offer, und aus demselben
+     * Grund wie user.availability: Beantwortet werden Anfragen an EIGENE
+     * Standorte - wer keine anbietet, bekommt keine. Ob die einzelne Anfrage
+     * wirklich an den Aufrufer gerichtet ist, kann keine Rechtetabelle
+     * wissen; das steht in der WHERE-Klausel (App\Model\TourRequest::accept).
+     */
+    public const REQUEST_ANSWER = 'request.answer';
+
+    /** Die eigenen Anfragen sehen - als Kunde wie als Guide. */
+    public const REQUEST_LIST = 'request.list';
+
+    /**
+     * Eine eigene Anfrage zuruecknehmen.
+     *
+     * Beide Seiten duerfen das: der Kunde, der es sich anders ueberlegt, und
+     * der Guide, der eine Zusage nicht halten kann. Es ist derselbe Vorgang
+     * und deshalb dasselbe Recht; wer beteiligt ist, prueft die
+     * WHERE-Klausel.
+     */
+    public const REQUEST_CANCEL = 'request.cancel';
+
     /** Chat mit einem anderen Nutzer beginnen. */
     public const CHAT_START = 'chat.start';
     /** Einladung annehmen oder ablehnen. */
@@ -285,6 +324,9 @@ class Permission
             self::LOCATION_COUNTRY_LIST,
             self::LOCATION_EDIT_OWN,
             self::LOCATION_DELETE_OWN,
+            self::REQUEST_CREATE,
+            self::REQUEST_LIST,
+            self::REQUEST_CANCEL,
             self::CHAT_START,
             self::CHAT_ANSWER,
             self::CHAT_LIST,
@@ -321,6 +363,9 @@ class Permission
             self::LOCATION_COUNTRY_LIST,
             self::LOCATION_EDIT_OWN,
             self::LOCATION_DELETE_OWN,
+            self::REQUEST_CREATE,
+            self::REQUEST_LIST,
+            self::REQUEST_CANCEL,
             self::CHAT_START,
             self::CHAT_ANSWER,
             self::CHAT_LIST,
@@ -360,6 +405,10 @@ class Permission
             self::LOCATION_OFFER,
             self::LOCATION_EDIT_OWN,
             self::LOCATION_DELETE_OWN,
+            self::REQUEST_CREATE,
+            self::REQUEST_ANSWER,
+            self::REQUEST_LIST,
+            self::REQUEST_CANCEL,
             self::CHAT_START,
             self::CHAT_ANSWER,
             self::CHAT_LIST,
@@ -409,6 +458,10 @@ class Permission
             self::LOCATION_EDIT_OWN,
             self::LOCATION_DELETE_OWN,
             self::LOCATION_BLOCK,
+            self::REQUEST_CREATE,
+            self::REQUEST_ANSWER,
+            self::REQUEST_LIST,
+            self::REQUEST_CANCEL,
             self::CHAT_START,
             self::CHAT_ANSWER,
             self::CHAT_LIST,

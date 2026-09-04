@@ -56,6 +56,25 @@ try {
            AND available_until <= NOW()"
     );
 
+    // ABGELAUFENE ANFRAGEN AUFRAEUMEN.
+    //
+    // Auch das ist AUFRAEUMEN UND KEINE PRUEFUNG - dieselbe Ueberlegung wie
+    // bei der Bereitschaft darueber. Ob eine Anfrage noch gilt, entscheidet
+    // der Vergleich mit NOW() in jeder einzelnen Abfrage
+    // (App\Model\TourRequest::statusSql). Ohne diesen Job laeuft alles
+    // genauso; die Spalte traegt dann nur dauerhaft einen Wert, der nicht mehr
+    // stimmt, und die Tabelle sammelt Karteileichen.
+    //
+    // Zwei Faelle: eine offene Anfrage, deren Frist verstrichen ist, und eine
+    // angenommene, zu der es nie ein Gespraech gab und deren Zeitfenster
+    // vorbei ist. Beide enden als "abgelaufen".
+    App\Model\TourRequest::expireDue();
+
+    // Und die Gegenrichtung: eine Fuehrung, die begonnen hat und deren Ende
+    // nie angekommen ist (Absturz, Netzausfall). Sie wird abgeschlossen, aber
+    // OHNE ein Ende zu erfinden - siehe dort.
+    App\Model\TourRequest::closeStale();
+
     // Optional: Logging für Cronjobs (nur zur Überwachung/Debug)
     // error_log("Cron: $affected Nutzer auf offline gesetzt (" . date('c') . ")");
 
