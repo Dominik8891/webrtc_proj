@@ -90,8 +90,19 @@ class ImageStore
      * Abfrage, und kein einziger Aufrufer aendert sich. Ohne die Methode
      * stuende die Zahl an drei Stellen im Controller.
      *
+     * SIE GILT FUER DIE SUMME BEIDER BILDARTEN - Titelbild UND
+     * Beispielbilder (App\Model\LocationImage::ROLE_COVER bzw.
+     * ROLE_GALLERY). Das ist eine Entscheidung und keine Nachlaessigkeit: Eine
+     * getrennte Grenze je Art waere ueber den Umweg "als Titelbild markieren"
+     * zu umgehen, und gezaehlt wird ohnehin, was auf der Platte liegt.
+     *
+     * Soll spaeter je Kontoart auch die AUFTEILUNG unterschiedlich sein - etwa
+     * "vier Beispielbilder plus ein Titelbild" -, bekommt diese Methode einen
+     * zweiten Parameter fuer die Rolle. Sie bleibt die eine Lesestelle; die
+     * Aufrufer fragen dann nach dem, was sie gerade ablegen wollen.
+     *
      * @param int $in_user_id Eigentuemer des Standorts
-     * @return int
+     * @return int Obergrenze fuer Titelbild und Beispielbilder zusammen
      */
     public static function maxImages($in_user_id): int
     {

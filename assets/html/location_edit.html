@@ -31,7 +31,12 @@
       ###E_DURATION###       bisherige Dauer in Minuten (leer = nicht angegeben)
       ###E_LANGUAGES###      die Kaestchen der Sprachauswahl, gebaut aus
                              App\Helper\Languages
-      ###E_IMAGES###         die vorhandenen Bilder als Kacheln
+      ###E_COVER###          das gewaehlte Titelbild - oder der Hinweis, dass
+                             noch keines gewaehlt ist
+      ###E_IMAGES###         die Beispielbilder als Kacheln
+      ###E_IMAGECOUNT###     wie viele Bilder es insgesamt schon gibt
+                             (Titelbild UND Beispielbilder - die Obergrenze
+                             gilt fuer die Summe)
       ###E_MAXIMAGES###      Obergrenze aus config/uploads.php
       ###E_TITLE_MAX###      Zeichengrenzen, damit im Formular dieselben
       ###E_SHORT_MAX###      Zahlen stehen wie in der Pruefung des Servers -
@@ -40,7 +45,8 @@
       ###E_DURATION_MAX###
 
     IDs, die das Skript braucht: loc-edit, loc-edit-toggle, loc-edit-form,
-    loc-image-list, loc-image-input, loc-image-add, loc-image-count.
+    loc-image-list, loc-image-input, loc-image-add, loc-image-count,
+    loc-cover-slot, loc-cover-clear.
 -->
 <section class="app-panel loc-edit" id="loc-edit" style="margin-top: var(--app-space-4);">
     <div class="app-panel__head">
@@ -106,10 +112,32 @@
              das Formular darueber abzuschicken. Das ist Absicht: Ein Bild
              hochzuladen ist eine abgeschlossene Handlung, und wer sie erst
              mit "Speichern" bestaetigen muesste, verlöre sie beim
-             Zurückgehen. -->
-        <h3 class="app-page-head__title app-text-sm">Bilder</h3>
+             Zurückgehen.
+
+             ZWEI ABSCHNITTE, weil es zwei Arten von Bildern sind. Das
+             Titelbild fuellt den Kopf der Seite und braucht ein sehr breites
+             Format mit ruhigen Flaechen, auf denen die Schrift steht; die
+             Beispielbilder zeigen den Ort. Vorher musste EIN Bild beides
+             sein - das erste hochgeladene wurde stillschweigend zum
+             Titelbild, ob es dafuer taugte oder nicht.
+
+             HOCHGELADEN WIRD NUR AN EINER STELLE, und zwar unten. Das
+             Titelbild waehlt der Guide aus den vorhandenen Bildern aus
+             (Knopf an jeder Kachel). So gibt es keinen zweiten Upload-Weg,
+             keine zweite Pruefung und keine Frage, gegen welche Obergrenze
+             welcher Upload zaehlt: Die Obergrenze gilt fuer die SUMME. -->
+
+        <h3 class="app-page-head__title app-text-sm">Titelbild</h3>
+        <div id="loc-cover-slot">
+            ###E_COVER###
+        </div>
+
+        <h3 class="app-page-head__title app-text-sm" style="margin-top: var(--app-space-5);">
+            Bilder vom Ort
+        </h3>
         <p class="loc-hint" id="loc-image-count">
-            Bis zu ###E_MAXIMAGES### Bilder. Das erste ist das Titelbild.
+            Bis zu ###E_MAXIMAGES### Bilder insgesamt, Titelbild mitgezählt –
+            derzeit ###E_IMAGECOUNT###.
         </p>
 
         <ul class="loc-edit__images" id="loc-image-list">

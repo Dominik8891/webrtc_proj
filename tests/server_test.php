@@ -145,6 +145,8 @@ class FakeStatement {
     public function rowCount() { return self::$affected; }
     public function fetch($mode = null) { return false; }
     public function fetchAll($mode = null) { return []; }
+    /** Fuer COUNT-Abfragen (LocationImage::countForLocation). */
+    public function fetchColumn($i = 0) { return 0; }
 }
 class FakeConnection {
     public $statements = [];
@@ -2580,10 +2582,15 @@ $standort = [
     'country_name' => 'Portugal', 'city_name' => 'Lissabon',
     'username' => 'guide1', 'availability' => 'live',
 ];
-$bilder = [
-    ['id' => 11, 'file_name' => str_repeat('a', 32), 'sort_order' => 0],
-    ['id' => 12, 'file_name' => str_repeat('b', 32), 'sort_order' => 1],
+// Die Bilder kommen aus der Datenbank in EINER Liste und werden getrennt -
+// welches das Titelbild ist, steht in der Zeile (role) und nicht in der
+// Reihenfolge.
+$bilderRoh = [
+    ['id' => 11, 'file_name' => str_repeat('a', 32), 'role' => LocationImage::ROLE_COVER,   'sort_order' => 0],
+    ['id' => 12, 'file_name' => str_repeat('b', 32), 'role' => LocationImage::ROLE_GALLERY, 'sort_order' => 1],
+    ['id' => 13, 'file_name' => str_repeat('c', 32), 'role' => LocationImage::ROLE_GALLERY, 'sort_order' => 2],
 ];
+$bilder = LocationImage::teile($bilderRoh);
 
 // 1. Der angemeldete Zuschauer: Er bekommt den Anrufknopf, und der traegt
 //    BEIDE Kennungen. Ginge die Standortkennung hier verloren, waere jede
@@ -2597,7 +2604,8 @@ $seiteEigner  = LocationView::page($standort, $bilder,
     ['eigen' => true,  'angemeldet' => true,  'viewer_id' => null,
      'grenzen' => ['max_images' => 5, 'max_bytes' => 100, 'max_source_edge' => 6000,
                    'accept' => 'image/jpeg', 'titel_max' => 120, 'kurz_max' => 200,
-                   'lang_max' => 5000, 'dauer_min' => 5, 'dauer_max' => 480]]);
+                   'lang_max' => 5000, 'dauer_min' => 5, 'dauer_max' => 480,
+                   'dauer_vorgabe' => 5]]);
 
 check(preg_match('/loc-call-btn[^>]*data-userid="3"[^>]*data-locationid="7"/', $seiteKunde) === 1,
     'am Anrufknopf der Standortseite fehlt eine der beiden Kennungen');
@@ -2634,12 +2642,12 @@ $grenzenBsp = ['max_images' => 5, 'max_bytes' => 100, 'max_source_edge' => 6000,
                'lang_max' => 5000, 'dauer_min' => 5, 'dauer_max' => 480,
                'dauer_vorgabe' => 5];
 $ohneDauer = LocationView::bearbeitenHtml(
-    array_merge($standort, ['duration_minutes' => null]), [], $grenzenBsp);
+    array_merge($standort, ['duration_minutes' => null]), null, [], $grenzenBsp);
 check(preg_match('/id="edit-duration"[^>]*value="5"/s', $ohneDauer) === 1
       || preg_match('/id="edit-duration"[\s\S]{0,200}value="5"/', $ohneDauer) === 1,
     'ohne eigene Dauer steht die Vorgabe nicht im Feld');
 
-$mitDauer = LocationView::bearbeitenHtml($standort, [], $grenzenBsp);
+$mitDauer = LocationView::bearbeitenHtml($standort, null, [], $grenzenBsp);
 check(preg_match('/id="edit-duration"[\s\S]{0,200}value="90"/', $mitDauer) === 1,
     'eine vorhandene Dauer wird von der Vorgabe ueberschrieben');
 
@@ -2698,37 +2706,80 @@ check(strpos($cta, 'loc-cta__action') < strpos($cta, 'loc-facts'),
     'die Datenzeilen stehen vor dem Knopf');
 ok('der Knopf steht oben im Kasten, die Nebendaten darunter');
 
-// 3c. DIE GALERIE. Ein Bild je Eintrag, genau eines sichtbar, und die Punkte
-//     sind Verweise auf das jeweilige Bild - ohne JavaScript oeffnet ein
-//     Klick darauf das Bild, statt ins Leere zu greifen.
-check(substr_count($seiteKunde, 'loc-hero__slide') === 2, 'nicht ein Bild je Eintrag');
-check(substr_count($seiteKunde, 'loc-hero__slide is-active') === 1,
-    'es ist nicht genau ein Bild sichtbar');
-check(substr_count($seiteKunde, 'loc-hero__dot') === 3,   // 2 Punkte + der Behaelter
-    'die Punkte fehlen oder sind zu viele');
-check(preg_match('/loc-hero__dot[^>]*href="index\.php\?act=location_image/', $seiteKunde) === 1,
-    'die Punkte sind keine Verweise auf das Bild - ohne Skript greifen sie ins Leere');
-check(substr_count($seiteKunde, 'data-slide-step') === 2, 'die beiden Pfeile fehlen');
+// 3c. ZWEI ARTEN VON BILDERN, und sie stehen an zwei Stellen.
+//
+//     DER BEFUND: Ein Bild musste beides sein - Hintergrund der Kopfzeile und
+//     Beispielbild des Ortes. Ein Titelbild braucht ein sehr breites Format
+//     und ruhige Flaechen fuer die Schrift, ein Beispielbild soll zeigen, was
+//     man dort sieht. Das erste hochgeladene Bild wurde stillschweigend zum
+//     Titelbild, ob es dafuer taugte oder nicht.
+check(substr_count($seiteKunde, 'loc-hero__cover') === 1,
+    'im Kopf steht nicht genau ein Titelbild');
+check(strpos($hero, 'id=11') !== false,
+    'im Kopf steht ein anderes Bild als das mit der Rolle "cover"');
+check(strpos($hero, 'loc-shots') === false,
+    'die Beispielbilder stehen noch im Kopf');
 
-// EIN Bild braucht keine Blaetterung. Pfeile, die nirgends hinfuehren, sind
-// schlimmer als keine.
-$eines = LocationView::page($standort, [$bilder[0]],
+// Die Beispielbilder stehen im Inhaltsbereich - und zwar ALLE ausser dem
+// Titelbild.
+check(substr_count($seiteKunde, 'loc-shots__item') === 2,
+    'nicht jedes Beispielbild steht in der Galerie');
+check(strpos($seiteKunde, 'loc-shots__item') > strpos($seiteKunde, 'loc__main'),
+    'die Galerie steht vor der Beschreibung');
+
+// Jede Kachel ist ein VERWEIS auf das Bild - ohne JavaScript oeffnet ein
+// Klick es, statt ins Leere zu greifen.
+check(preg_match('#loc-shots__item[^>]*href="index\.php\?act=location_image#', $seiteKunde) === 1,
+    'die Kacheln sind keine Verweise auf das Bild');
+ok('Titelbild im Kopf, Beispielbilder in der Galerie darunter');
+
+// OHNE TITELBILD, aber mit Beispielbildern: ein ruhiger Streifen im Kopf, die
+// Bilder trotzdem in der Galerie. Kein Rueckfall auf das erste Beispielbild -
+// genau diese Kopplung sollte weg.
+$ohneTitel = LocationView::page($standort,
+    LocationImage::teile([
+        ['id' => 21, 'file_name' => str_repeat('d', 32),
+         'role' => LocationImage::ROLE_GALLERY, 'sort_order' => 0],
+    ]),
     ['eigen' => false, 'angemeldet' => true, 'viewer_id' => 3]);
-check(substr_count($eines, 'loc-hero__slide') === 1, 'ein Bild ergibt nicht ein Bild');
-check(strpos($eines, 'data-slide-step') === false, 'ein einzelnes Bild bekommt Pfeile');
-check(strpos($eines, 'loc-hero__dot') === false, 'ein einzelnes Bild bekommt Punkte');
-ok('geblaettert wird nur, wo es etwas zu blaettern gibt');
+check(strpos($ohneTitel, 'loc-hero__frame--empty') !== false,
+    'ohne Titelbild fehlt der ruhige Streifen');
+check(strpos($ohneTitel, 'loc-hero__cover') === false,
+    'ohne Titelbild rueckt ein Beispielbild in den Kopf nach');
+check(substr_count($ohneTitel, 'loc-shots__item') === 1,
+    'das Beispielbild fehlt in der Galerie');
+ok('ohne Titelbild rueckt kein Beispielbild nach');
 
-// KEIN Bild: ein ruhiger Streifen, auf dem der Titel trotzdem steht - und
-// kein Satz darueber, dass es keine Bilder gibt. Dass keine da sind, sieht
-// man; ein Satz macht aus einer stillen Leerstelle eine Meldung.
-$ohneBild = LocationView::page($standort, [],
+// GAR KEINE BILDER: der Streifen mit Titel, und die Galerie faellt ganz weg -
+// kein leerer Rahmen, keine Ueberschrift ohne Inhalt.
+$ohneBild = LocationView::page($standort, ['cover' => null, 'gallery' => []],
     ['eigen' => false, 'angemeldet' => true, 'viewer_id' => 3]);
 check(strpos($ohneBild, 'loc-hero__frame--empty') !== false, 'der leere Streifen fehlt');
-check(strpos($ohneBild, 'loc-hero__slide') === false, 'ohne Bilder steht ein Bild da');
+check(strpos($ohneBild, 'loc-hero__cover') === false, 'ohne Bilder steht ein Bild da');
+check(strpos($ohneBild, 'loc-shots') === false, 'ohne Bilder steht eine leere Galerie da');
+check(strpos($ohneBild, 'Bilder vom Ort') === false,
+    'ohne Bilder steht eine Ueberschrift ohne Inhalt da');
 check(strpos($ohneBild, 'keine Bilder') === false,
     'die Seite meldet dem Besucher, dass Bilder fehlen');
 check(strpos($ohneBild, 'Alfama bei Nacht') !== false, 'der Titel fehlt auf dem leeren Streifen');
+ok('ohne Bilder bleibt ein Streifen mit Titel, ohne Meldung und ohne Galerie');
+
+// DIE AUFTEILUNG SELBST. Sie ist eine reine Funktion und laesst sich deshalb
+// einzeln pruefen - auch der Fall, den setCover() verhindert, den aber ein von
+// Hand veraenderter Datenbestand hergeben koennte.
+$zweiCover = LocationImage::teile([
+    ['id' => 1, 'role' => LocationImage::ROLE_COVER],
+    ['id' => 2, 'role' => LocationImage::ROLE_COVER],
+    ['id' => 3, 'role' => LocationImage::ROLE_GALLERY],
+]);
+check((int)$zweiCover['cover']['id'] === 1, 'bei zwei Titelbildern gilt nicht das erste');
+check(count($zweiCover['gallery']) === 2,
+    'das zweite Titelbild geht verloren, statt in die Galerie zu fallen');
+
+$keins = LocationImage::teile([]);
+check($keins['cover'] === null && $keins['gallery'] === [],
+    'aus keinem Bild wird nicht nichts');
+ok('die Aufteilung verliert kein Bild, auch nicht bei kaputten Daten');
 ok('ohne Bilder bleibt ein Streifen mit Titel, ohne Meldung');
 
 // 3d. DER WEG ZURUECK. Hier stand ein Umschalter "Karte | Liste". Der gehoert
@@ -2790,11 +2841,12 @@ ok('das Bild laeuft ueber die volle Fensterbreite, ohne waagerecht mit vw zu rec
 //    beide Rasterzeilen, und weil der Kasten darin nur knapp 200 Punkte hoch
 //    ist, klaffte darunter ein Loch von mehreren hundert Punkten. Die Karte
 //    laeuft jetzt ueber beide Spalten.
-check(preg_match('/grid-template-areas:\s*"main\s+side"\s*"meeting\s+meeting"/s', $locCss) === 1,
-    'die Karte laeuft nicht ueber beide Spalten - unter der schmalen Spalte bleibt ein Loch');
-check(preg_match('/grid-template-areas:\s*"main"\s*"side"\s*"meeting"/s', $locCss) === 1,
-    'auf schmalen Geraeten stehen die Bereiche nicht in der Reihenfolge Text, Knopf, Karte');
-ok('die Karte laeuft ueber beide Spalten, unter der schmalen Spalte bleibt nichts leer');
+check(preg_match('/grid-template-areas:\s*"main\s+side"\s*"shots\s+shots"\s*"meeting\s+meeting"/s', $locCss) === 1,
+    'Galerie und Karte laufen nicht ueber beide Spalten - unter der schmalen Spalte bleibt ein Loch');
+check(preg_match('/grid-template-areas:\s*"main"\s*"shots"\s*"side"\s*"meeting"/s', $locCss) === 1,
+    'auf schmalen Geraeten stehen die Bereiche nicht in der Reihenfolge '
+    . 'Text, Bilder, Knopf, Karte');
+ok('Galerie und Karte laufen ueber beide Spalten, unter der schmalen Spalte bleibt nichts leer');
 
 // 4. DIE BREITEN SIND AUFEINANDER ABGESTIMMT. Die Textspalte ist auf 75
 //    Zeichen begrenzt; ist die Spalte daneben zu schmal, bleibt zwischen Text
@@ -2819,6 +2871,67 @@ check(preg_match('/\.loc-hero__frame\.loc-hero__frame--empty\s*\{[^}]*height:/s'
     'die Hoehe des leeren Streifens steht nicht mit zwei Klassen im Selektor - '
     . 'eine Medienabfrage macht daraus wieder eine Fotoflaeche');
 ok('der leere Streifen behaelt seine Hoehe auf jedem Bildschirm');
+
+// 6. DIE HOEHE DES KOPFES IST GEDECKELT. Auf einem niedrigen Fenster fuellte
+//    er fast alles: 520 Punkte Bild plus Kopfleiste sind auf 700 Punkten
+//    Fensterhoehe ueber 80 Prozent - der Besucher sah ein Foto und musste
+//    scrollen, um ueberhaupt zu erfahren, worum es geht.
+//
+//    Der Deckel steht als max-height an EINER Stelle und in vh, also relativ
+//    zum Fenster. Die Medienabfragen setzen nur die Wunschhoehe (height) und
+//    duerfen ihn nicht ueberschreiben - sonst waere er wieder weg.
+check(preg_match('/\.loc-hero__frame\s*\{[^}]*max-height:\s*(\d+)vh/s', $cssOhneKommentar, $deckel) === 1,
+    'die Hoehe des Kopfes ist nicht an der Fensterhoehe gedeckelt');
+check((int)$deckel[1] >= 40 && (int)$deckel[1] <= 70,
+    'der Deckel liegt bei ' . $deckel[1] . 'vh - darunter bliebe zu wenig, darueber zu viel');
+// Nur EIN Deckel an der Fensterhoehe. Ein zweiter in einer Medienabfrage
+// wuerde diesen ueberschreiben, und dann waere er auf der Bildschirmgroesse,
+// auf der es darauf ankommt, wieder weg. (max-height mit anderen Einheiten
+// gibt es woanders - die Grossansicht begrenzt ihr Bild auf 100% - und die
+// sind hier nicht gemeint.)
+check(preg_match_all('/max-height:\s*\d+vh/', $cssOhneKommentar) === 1,
+    'es gibt mehr als einen Deckel an der Fensterhoehe - '
+    . 'dann ueberschreibt eine Medienabfrage den anderen');
+ok('der Kopf ist an der Fensterhoehe gedeckelt, und zwar an einer Stelle');
+
+// 7. DIE LESBARKEIT DES TITELS HAENGT NICHT AM BILD.
+//
+//    Vorher lag die weisse Schrift auf einem Verlauf, der ueber einen festen
+//    Anteil der BILDHOEHE lief. Auf einem hellen Foto verschluckte das Bild
+//    den Titel, und bei einem dreizeiligen Titel reichte der Verlauf ohnehin
+//    nicht bis nach oben. Ein Verlauf, der am Bild haengt, kann keine Zusage
+//    ueber den Text machen.
+//
+//    Jetzt traegt das BAND den Grund. Es ist so hoch wie sein Inhalt, waechst
+//    also mit dem Titel mit. Geprueft wird die Zusage, die es gibt: An seiner
+//    hellsten Stelle - dort, wo der Text beginnt - muss es dunkel genug sein,
+//    dass weisse Schrift auch auf einer weissen Flaeche darunter noch lesbar
+//    ist. 55 Prozent Schwarz ueber Weiss ergeben rund 5:1 und liegen damit
+//    ueber der Anforderung von 4.5:1.
+// Am Zeilenanfang verankert: Weiter unten steht eine Regel
+// ".loc-hero__frame--empty ~ .loc-hero__band" fuer den Fall ohne Titelbild -
+// die soll hier nicht getroffen werden.
+check(preg_match('/^\.loc-hero__band\s*\{(.*?)\n\}/ms', $cssOhneKommentar, $band) === 1,
+    'es gibt kein Band hinter dem Titel');
+check(preg_match_all('/rgba\(0,\s*0,\s*0,\s*\.(\d+)\)/', $band[1], $stufen) >= 3,
+    'das Band hat keinen Verlauf mit mehreren Stufen');
+
+// Die schwaechste Stufe ausser der durchsichtigen (die ist der Auslauf nach
+// oben, dort steht kein Text).
+$werte = array_map(fn($z) => (float)('0.' . $z), $stufen[1]);
+sort($werte);
+check(min($werte) >= 0.5,
+    'die hellste Stelle des Bandes liegt bei ' . min($werte)
+    . ' - unter 0.55 ist weisse Schrift auf einem weissen Foto nicht mehr lesbar');
+check(max($werte) >= 0.85, 'das Band wird nach unten nicht dunkel genug');
+
+// Und der Verlauf ueber dem Bild ist NICHT mehr fuer den Text zustaendig: Er
+// reicht nur noch in den oberen Bereich, wo der Rueckweg liegt.
+check(preg_match('/^\.loc-hero__scrim\s*\{(.*?)\n\}/ms', $cssOhneKommentar, $scrim) === 1,
+    'kein Verlauf am oberen Rand');
+check(strpos($scrim[1], 'to bottom') !== false,
+    'der Verlauf laeuft nicht von oben nach unten - dann liegt er wieder unter dem Text');
+ok('das Band hinter dem Titel ist dunkel genug, unabhaengig vom Bild');
 
 // 4. Kein Platzhalter ueberlebt - in keiner der drei Ansichten.
 foreach (['Gast' => $seiteGast, 'Kunde' => $seiteKunde, 'Eigentuemer' => $seiteEigner] as $wer => $html) {
@@ -2989,6 +3102,145 @@ check(LocationImage::reorder(7, 0, [12]) === false, 'ohne Benutzer wird sortiert
 check(LocationImage::reorder(0, 3, [12]) === false, 'ohne Standort wird sortiert');
 check(LocationImage::reorder(7, 3, [])   === false, 'eine leere Reihenfolge wird gespeichert');
 ok('das Sortieren traegt Standort und Eigentuemer im Statement');
+
+// --- Das Titelbild ist eine AUSWAHL, keine Reihenfolge ---------------------
+//
+// DER BEFUND: Das erste hochgeladene Bild wurde stillschweigend zum
+// Titelbild, und jede Umsortierung der Galerie veraenderte damit den Kopf der
+// Seite mit. Ein Titelbild braucht aber ein sehr breites Format und ruhige
+// Flaechen fuer die Schrift, ein Beispielbild soll den Ort zeigen - das ist
+// keine Frage der Position, sondern eine Entscheidung.
+
+/**
+ * Attrappe fuer die Statements rund um das Titelbild. Sie liefert eine feste
+ * Zeile fuer findWithLocation() und schreibt alles mit, was abgesetzt wird.
+ */
+class FakeCoverStatement {
+    public $sql; public $params = []; private $zeile;
+    public function __construct($sql, $zeile) { $this->sql = $sql; $this->zeile = $zeile; }
+    public function bindParam($k, &$v, $t = null) { $this->params[$k] = $v; return true; }
+    public function execute() { return true; }
+    public function rowCount() { return 1; }
+    public function fetch($m = null) { return $this->zeile; }
+    public function fetchColumn($i = 0) { return 1; }
+    public function fetchAll($m = null) { return []; }
+}
+class FakeCoverConnection {
+    public $statements = [];
+    public $transaktionen = [];
+    private $offen = false;
+    /** Zeile, die findWithLocation() zurueckbekommt. */
+    public $zeile = ['id' => 11, 'file_name' => 'x', 'location_id' => 7,
+                     'role' => 'gallery', 'user_id' => 3, 'blocked' => 0];
+    public function prepare($sql) {
+        $s = new FakeCoverStatement($sql, $this->zeile);
+        $this->statements[] = $s;
+        return $s;
+    }
+    public function beginTransaction() { $this->offen = true;  $this->transaktionen[] = 'begin';    return true; }
+    public function commit()           { $this->offen = false; $this->transaktionen[] = 'commit';   return true; }
+    public function rollBack()         { $this->offen = false; $this->transaktionen[] = 'rollback'; return true; }
+    public function inTransaction()    { return $this->offen; }
+    /** Die schreibenden Statements, ohne das SELECT von findWithLocation(). */
+    public function schreibend(): array {
+        return array_values(array_filter($this->statements,
+            fn($s) => stripos(trim($s->sql), 'SELECT') !== 0));
+    }
+}
+
+$coverDb = new FakeCoverConnection();
+PdoConnect::$connection = $coverDb;
+
+check(LocationImage::setCover(11, 3) === true, 'das Titelbild laesst sich nicht setzen');
+$schreibend = $coverDb->schreibend();
+check(count($schreibend) === 2,
+    'es sind nicht genau zwei Schritte: das alte zuruecknehmen, das neue setzen');
+
+// ZWEI SCHRITTE IN EINER TRANSAKTION. Dazwischen darf es keinen Zustand
+// geben, in dem ein Standort zwei Titelbilder hat oder gar keines - und genau
+// das kann die Datenbank hier nicht selbst durchsetzen: Einen Teilindex ueber
+// "role = 'cover'" gibt es in MariaDB nicht.
+check($coverDb->transaktionen === ['begin', 'commit'],
+    'das Setzen laeuft nicht in einer Transaktion: ' . implode(',', $coverDb->transaktionen));
+
+// Schritt 1 nimmt das BISHERIGE Titelbild zurueck - und loescht es nicht.
+check(stripos($schreibend[0]->sql, 'DELETE') === false,
+    'das bisherige Titelbild wird geloescht statt zurueckgestuft');
+check(strpos($schreibend[0]->sql, 'location.user_id') !== false,
+    'der Eigentuemer fehlt beim Zuruecknehmen');
+check($schreibend[0]->params[':gallery'] === LocationImage::ROLE_GALLERY,
+    'das alte Titelbild landet nicht in der Galerie');
+
+// Schritt 2 setzt das gewaehlte Bild - mit Eigentuemer in der Bedingung.
+check(strpos($schreibend[1]->sql, 'location.user_id') !== false,
+    'der Eigentuemer fehlt beim Setzen');
+check($schreibend[1]->params[':cover'] === LocationImage::ROLE_COVER,
+    'die gesetzte Rolle ist nicht das Titelbild');
+ok('setCover nimmt das alte zurueck und setzt das neue - in einer Transaktion');
+
+// Ein fremdes Bild kommt nicht durch, und dafuer wird gar nichts geschrieben.
+$coverDb->statements = [];
+$coverDb->transaktionen = [];
+check(LocationImage::setCover(11, 999) === false, 'ein fremdes Bild wird zum Titelbild');
+check($coverDb->schreibend() === [], 'fuer ein fremdes Bild wird geschrieben');
+check(LocationImage::setCover(0, 3) === false, 'ohne Bild wird gesetzt');
+check(LocationImage::setCover(11, 0) === false, 'ohne Benutzer wird gesetzt');
+ok('ein fremdes Bild wird nicht zum Titelbild, und es wird nichts geschrieben');
+
+// Zuruecknehmen ist ein UPDATE und kein DELETE: Wer sein Titelbild absetzt,
+// will fast immer ein anderes waehlen und nicht dieses Bild verlieren.
+$coverDb->statements = [];
+check(LocationImage::clearCover(7, 3) === true, 'das Titelbild laesst sich nicht zuruecknehmen');
+$sql = $coverDb->statements[0]->sql;
+check(stripos($sql, 'DELETE') === false, 'das Zuruecknehmen loescht');
+check(strpos($sql, 'location.user_id') !== false, 'der Eigentuemer fehlt beim Zuruecknehmen');
+check(LocationImage::clearCover(0, 3) === false, 'ohne Standort wird zurueckgenommen');
+ok('clearCover stuft zurueck, statt zu loeschen');
+
+// --- Die Obergrenze gilt fuer die SUMME beider Arten ----------------------
+//
+// Eine getrennte Grenze je Art waere ueber den Umweg "als Titelbild
+// markieren" zu umgehen - und gezaehlt wird ohnehin, was auf der Platte
+// liegt.
+$summeDb = new FakeConnection();
+PdoConnect::$connection = $summeDb;
+LocationImage::countForLocation(7);
+check(strpos($summeDb->statements[0]->sql, 'role') === false,
+    'gezaehlt wird nur eine Bildart - dann laesst sich die Obergrenze umgehen');
+ok('gezaehlt werden alle Bilder eines Standorts, unabhaengig von ihrer Rolle');
+
+// Und das Sortieren fasst NUR die Galerie an: Das Titelbild steht nicht darin
+// und hat keine Position, die man verschieben koennte.
+$sortDb = new FakeConnection();
+PdoConnect::$connection = $sortDb;
+FakeStatement::$affected = 1;
+LocationImage::reorder(7, 3, [12, 13]);
+check(strpos($sortDb->statements[0]->sql, "location_image.`role`      = :gallery") !== false,
+    'das Sortieren koennte auch das Titelbild treffen');
+ok('sortiert wird die Galerie, nicht das Titelbild');
+
+// --- Das erste Bild eines Standorts wird sein Titelbild -------------------
+//
+// Aber nur, solange gar keines gewaehlt ist. Ohne das stuende ein frischer
+// Standort mit fuenf Bildern unter einem leeren Kopf, und der Guide muesste
+// erst merken, dass da noch eine Entscheidung offen ist.
+$upRumpfCover = methodenRumpf($locCode, 'uploadImage');
+check(strpos($upRumpfCover, 'LocationImage::hasCover') !== false,
+    'beim Hochladen wird nicht geprueft, ob es schon ein Titelbild gibt');
+check(strpos($upRumpfCover, 'LocationImage::hasCover') < strpos($upRumpfCover, 'LocationImage::add'),
+    'die Rolle steht erst nach dem Eintragen fest');
+check(strpos($upRumpfCover, 'ROLE_GALLERY') !== false && strpos($upRumpfCover, 'ROLE_COVER') !== false,
+    'beim Hochladen wird keine Rolle vergeben');
+ok('das erste Bild wird Titelbild, jedes weitere ein Beispielbild');
+
+// --- Die Routen fuer die Auswahl ------------------------------------------
+foreach (['set_location_cover', 'unset_location_cover'] as $route) {
+    check(isset($routes[$route]), "die Route $route fehlt");
+    check($routes[$route][2] === Permission::LOCATION_EDIT_OWN,
+        "$route haengt nicht am Bearbeitungsrecht");
+    check($routes[$route][3] === 'json', "$route antwortet nicht als JSON");
+}
+ok('die Auswahl des Titelbildes haengt am Bearbeitungsrecht');
 
 // --- Reihenfolge der Schritte beim Hochladen und Loeschen ------------------
 //

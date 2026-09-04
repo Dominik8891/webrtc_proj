@@ -288,13 +288,15 @@ keine eigenen: Ohne Angaben lehnt der Client von sich aus gar nichts ab — der
 Server prüft ohnehin, und ein Client, der aus eigenem Antrieb sperrt, sperrt
 irgendwann etwas Erlaubtes. SVG und PDF kommen nicht durch.
 
-Das **Blättern** durch die Bilder wird an `showSlide()` geprüft, ohne DOM:
-Die Nummer läuft im Kreis, und zwar in beide Richtungen. Rückwärts ist die
-Stelle, an der eine naive Rechnung scheitert — in JavaScript ist `(-1 % 3)`
-gleich `-1` und nicht `2`, ohne die zweite Modulo-Rechnung wäre danach gar kein
-Bild mehr sichtbar. Geprüft wird außerdem, dass immer genau ein Bild sichtbar
-ist, dass der markierte Punkt zum sichtbaren Bild gehört und dass ein einzelnes
-Bild sich nicht weiterblättern lässt.
+Das **Blättern** ist mit den Bildern umgezogen: Im Kopf der Seite steht ein
+einzelnes Titelbild, geblättert wird in der Großansicht der Beispielbilder.
+Geprüft wird `showSlide()` an einer Liste nachgestellter Kacheln: Die Nummer
+läuft in beide Richtungen im Kreis, und die Großansicht zeigt bei jedem Schritt
+auch wirklich das Bild, auf dessen Nummer sie steht. Rückwärts ist die Stelle,
+an der eine naive Rechnung scheitert — in JavaScript ist `(-1 % 3)` gleich `-1`
+und nicht `2`, ohne die zweite Modulo-Rechnung wäre danach gar kein Bild mehr
+zu sehen. Ohne Beispielbilder gibt es nichts zu blättern, und der Aufruf darf
+trotzdem nicht scheitern.
 
 Abschnitt 38 ist mit dem Umbau gewachsen: Der Weg vom Klick zum Anruf ist
 länger geworden — Nadel oder Listenzeile führen jetzt auf die Standortseite —,
@@ -310,7 +312,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (185 Prüfungen)
+## Was `server_test.php` prüft (197 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -597,11 +599,31 @@ die Tests nicht an. Das ist Absicht.
     Zeile darüber, und im Kasten der schmalen Spalte steht der Knopf vor den
     Datenzeilen.
 
-    Die **Galerie**: ein Bild je Eintrag, genau eines sichtbar, die Punkte sind
-    Verweise auf das jeweilige Bild (ohne JavaScript greifen sie sonst ins
-    Leere). Ein einzelnes Bild bekommt weder Pfeile noch Punkte — Pfeile, die
-    nirgends hinführen, sind schlimmer als keine. Kein Bild: ein Streifen mit
-    dem Titel, und ausdrücklich **kein** Satz darüber, dass Bilder fehlen.
+    Die **zwei Arten von Bildern** werden an derselben gerenderten Seite
+    geprüft: Das `cover` steht im `<header class="loc-hero">` und **nur**
+    dort, die `gallery`-Bilder im Streifen darunter und **nur** dort. Hat ein
+    Standort kein Titelbild, rückt kein Beispielbild nach — sonst stünde
+    dasselbe Foto wieder an beiden Stellen, und der Guide hätte keine Wahl
+    mehr. Kein Bild überhaupt: ein Streifen mit dem Titel, ausdrücklich
+    **kein** Satz darüber, dass Bilder fehlen, und gar kein Galerie-Abschnitt.
+
+    `LocationImage::teile()` **verliert kein Bild**, auch nicht bei Daten, die
+    es so nicht geben sollte: Stünden in der Datenbank zwei `cover`, gewinnt
+    das erste und das zweite fällt in die Galerie; eine unbekannte Rolle fällt
+    ebenfalls dorthin. Die Summe aus Kopf und Galerie ist immer die Zahl der
+    Zeilen. Diese Regel steht an genau einer Stelle — die Ansicht und das
+    Skript verlassen sich darauf, statt sie nachzubauen.
+
+    Die **Auswahl des Titelbildes** hängt am Bearbeitungsrecht, nicht am
+    Ansehen. `setCover()` läuft in einer Transaktion und schreibt zweierlei —
+    das alte zurückstufen, das neue setzen —, beide Male mit dem Eigentümer in
+    der WHERE-Klausel: Bei einem fremden Bild wird gar nichts geschrieben, und
+    nicht nur nichts geändert. `clearCover()` stuft zurück und löscht nicht.
+    Gezählt für die Obergrenze werden **alle** Bilder eines Standorts,
+    unabhängig von ihrer Rolle; sortiert wird dagegen nur die Galerie — das
+    Titelbild steht nicht in der Reihe, in der es zu verschieben gäbe. Und
+    beim Hochladen entscheidet der Server: Das erste Bild wird Titelbild,
+    jedes weitere ein Beispielbild.
 
     Die **Dauer** ist mit 5 Minuten vorbelegt: Ein Standort ohne eigene Dauer
     zeigt sie im Formular, eine vorhandene bleibt stehen, und ein ausdrücklich
@@ -635,9 +657,6 @@ die Tests nicht an. Das ist Absicht.
       und wird benutzt (die Bildhöhe wächst mit der Fensterbreite) — eine
       Höhe verursacht keinen waagerechten Rollbalken. Der Kommentar, in dem
       `100vw` als Gegenbeispiel steht, wird vor der Prüfung entfernt.
-    - **Die Karte über beide Spalten:** `grid-template-areas` muss
-      `"main side" "meeting meeting"` lauten, auf schmalen Geräten
-      `"main" "side" "meeting"`.
     - **Die Breiten sind ausgerechnet:** Spaltenbreite minus Kastenbreite
       minus Lücke muss ungefähr die Textbreite ergeben (75 Zeichen ≈ 626
       Punkte). Der Test rechnet das aus dem CSS nach, damit ein späteres
@@ -645,6 +664,27 @@ die Tests nicht an. Das ist Absicht.
     - **Der leere Streifen behält seine Höhe:** Sein Selektor muss zwei
       Klassen tragen, sonst überschreibt ihn die nächste Medienabfrage und
       aus dem Streifen wird eine 570 Punkte hohe graue Fläche.
+    - **Der Kopf ist gedeckelt:** Genau eine `max-height` in
+      Fensterhöhen-Einheiten, und sie liegt zwischen 40 % und 70 % — darunter
+      bliebe vom Bild nichts, darüber füllt der Kopf auf einem hohen
+      Bildschirm das Fenster und vom Text ist nichts mehr zu sehen. Dass es
+      *eine* ist, gehört zur Prüfung: Ein zweiter Deckel in einer
+      Medienabfrage überschriebe den ersten, und dann wäre er ausgerechnet
+      auf der Bildschirmgröße weg, auf der es darauf ankommt.
+    - **Das Band trägt die Lesbarkeit, nicht das Bild:** Der Verlauf hinter
+      dem Titel braucht mehrere Stufen; die dunkelste muss bei mindestens
+      85 % liegen, die hellste — dort, wo der Text beginnt — bei mindestens
+      50 %. Weiße Schrift liegt damit auch auf einem weißen Foto über 5:1
+      Kontrast. Der Verlauf *über* dem Bild ist dafür ausdrücklich nicht mehr
+      zuständig: Er reicht nur noch in den oberen Rand, wo der Weg zurück
+      liegt. Geprüft werden die Zahlen im CSS, denn
+      genau daran hing der Befund — vorher lief der Verlauf über einen festen
+      Anteil der *Bildhöhe* und war bei einem dreizeiligen Titel oben längst
+      durchsichtig.
+    - **Galerie und Karte laufen über beide Spalten:** `grid-template-areas`
+      muss `"main side" "shots shots" "meeting meeting"` lauten, auf schmalen
+      Geräten `"main" "shots" "side" "meeting"` — die Beispielbilder gehören
+      dort unter die Beschreibung und nicht hinter die Nebendaten.
 
 31. **Bilder: außerhalb des Webroots, geprüft, und ohne Reste** (Abschnitt 30 im Skript).
     `ImageStore::isValidName()` nimmt nur 32 Hexzeichen an; `../../etc/passwd`,

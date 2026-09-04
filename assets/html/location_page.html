@@ -14,8 +14,16 @@
     das Wichtigste - das Bild und die ausfuehrliche Beschreibung - ging darin
     unter. Jetzt hat die Seite eine Rangfolge:
 
-      1. DAS BILD FUEHRT. Randlos ueber die volle Breite des Inhaltsbereichs,
-         ohne Kasten drumherum. Bei mehreren Bildern laesst sich blaettern.
+      1. DAS TITELBILD FUEHRT. Randlos ueber die volle Fensterbreite, ohne
+         Kasten drumherum - und in der Hoehe gedeckelt, damit darunter immer
+         etwas vom Text zu sehen ist.
+
+         ES IST EIN ANDERES BILD ALS DIE IN DER GALERIE. Vorher musste ein
+         Bild beides sein: Hintergrund der Kopfzeile und Beispielbild des
+         Ortes. Ein Titelbild braucht ein sehr breites Format und ruhige
+         Flaechen fuer die Schrift, ein Beispielbild soll zeigen, was man
+         dort sieht. Der Guide waehlt aus, welches seiner Bilder die
+         Kopfzeile fuellt.
       2. TITEL, ORT UND ZUSTAND LIEGEN DARAUF, nicht in einer eigenen Zeile
          darueber. Sie gehoeren zum Bild, nicht neben es.
       3. DIE AUSFUEHRLICHE BESCHREIBUNG steht unmittelbar darunter. Sie ist
@@ -32,9 +40,11 @@
       ###LOCATION_ID###  Kennung des Standorts, am Wurzelelement
       ###NOTICE###       Rueckmeldung nach dem Speichern (Erfolg oder Fehler)
       ###BLOCKED###      Hinweis auf eine Sperre (sonst leer)
-      ###GALLERY###      Der Bildrahmen samt Blaetterung - oder, ohne Bilder,
-                         ein flacher Streifen, auf dem der Titel trotzdem
-                         lesbar ist
+      ###COVER###        Der Bildrahmen mit dem TITELBILD - oder, wenn keines
+                         gewaehlt ist, ein flacher Streifen, auf dem der
+                         Titel trotzdem lesbar ist
+      ###GALLERY###      Die Beispielbilder als Streifen im Inhaltsbereich;
+                         leer, wenn es keine gibt
       ###TITLE###        Ueberschrift des Angebots
       ###PLACE###        "Stadt, Land"
       ###STATE###        Zustandsmarke: verfuegbar, im Gespraech, niemand da
@@ -49,7 +59,8 @@
 
     IDs, die assets/js/location_page.js braucht und die erhalten bleiben
     muessen: location-page, loc-hero, loc-state, loc-action, loc-map,
-    loc-edit, loc-edit-toggle.
+    loc-edit, loc-edit-toggle, loc-lightbox, loc-lightbox-image,
+    loc-lightbox-close.
 -->
 <div class="app-page loc-page" id="location-page" data-locationid="###LOCATION_ID###">
 
@@ -63,14 +74,15 @@
 
     <article class="loc">
 
-        <!-- 1 und 2: Das Bild, und darauf der Titel. -->
+        <!-- 1 und 2: Das Titelbild, und darauf der Titel. -->
         <header class="loc-hero" id="loc-hero">
 
-            ###GALLERY###
+            ###COVER###
 
-            <!-- Der Verlauf liegt zwischen Bild und Schrift. Ohne ihn ist
-                 weisse Schrift auf einem hellen Foto unlesbar, und ein
-                 Kasten hinter der Schrift waere wieder ein Kasten. -->
+            <!-- Ein leichter Verlauf am oberen Rand. Er gilt dem Rueckweg,
+                 damit der nicht auf einem hellen Himmel schwebt. Fuer die
+                 LESBARKEIT DES TITELS ist er nicht zustaendig - die haengt
+                 nicht am Bild, sondern am Band darunter. -->
             <div class="loc-hero__scrim" aria-hidden="true"></div>
 
             <!-- Der Weg zurueck liegt auf dem Bild, damit ueber dem Bild
@@ -94,10 +106,28 @@
                 </a>
             </div>
 
-            <div class="loc-hero__text">
-                <div class="loc-hero__state" id="loc-state">###STATE###</div>
-                <h1 class="loc-hero__title">###TITLE###</h1>
-                <p class="loc-hero__place">###PLACE###</p>
+            <!-- DAS BAND TRAEGT DIE LESBARKEIT, nicht das Bild.
+
+                 Vorher lag die weisse Schrift auf einem Verlauf, der ueber
+                 einen festen Anteil der Bildhoehe lief. Auf einem hellen Foto
+                 - Himmel, Sand, Schnee - verschluckte das Bild den Titel, und
+                 bei einem dreizeiligen Titel reichte der Verlauf ohnehin
+                 nicht bis nach oben.
+
+                 Der Grund haengt jetzt am TEXT und nicht am Bild: Das Band
+                 ist so hoch wie sein Inhalt und dunkel genug, dass weisse
+                 Schrift darauf in jedem Fall lesbar bleibt - auch auf einer
+                 weissen Flaeche darunter. Nach oben laeuft es weich aus,
+                 damit es keine Kante gibt.
+
+                 Es geht ueber die volle Breite, der Text darin steht in
+                 derselben Spalte wie der Text weiter unten. -->
+            <div class="loc-hero__band">
+                <div class="loc-hero__text">
+                    <div class="loc-hero__state" id="loc-state">###STATE###</div>
+                    <h1 class="loc-hero__title">###TITLE###</h1>
+                    <p class="loc-hero__place">###PLACE###</p>
+                </div>
             </div>
         </header>
 
@@ -108,6 +138,17 @@
                 ###SHORTTEXT###
                 ###LONGTEXT###
             </div>
+
+            <!-- Die Beispielbilder. Sie stehen im Inhaltsbereich und nicht
+                 mehr im Kopf: Dort mussten sie sich mit dem Titelbild
+                 abwechseln und trugen dabei Schrift, die nicht zu ihnen
+                 gehoerte.
+
+                 Nach der Beschreibung und VOR dem Knopf: Wer sich fuer eine
+                 Fuehrung entscheidet, soll vorher gesehen haben, wie es dort
+                 aussieht. Ohne Bilder steht hier gar nichts - kein leerer
+                 Rahmen und keine Ueberschrift ohne Inhalt. -->
+            ###GALLERY###
 
             <!-- 4 und 5: Die schmale Spalte. Der Knopf steht OBEN, die
                  Nebendaten darunter - nicht umgekehrt und nicht dazwischen. -->
@@ -143,6 +184,27 @@
     </article>
 
     ###OWNER_TOOLS###
+</div>
+
+<!--
+    Die Grossansicht der Beispielbilder. Sie liegt AUSSERHALB der Seite und
+    nicht in der Galerie: Sie deckt das Fenster ab, und ein Element, das
+    ueber allem liegt, gehoert nicht in einen Kasten, der weiter oben
+    beschnitten werden koennte.
+
+    Sie ist leer, bis jemand ein Bild anklickt - gefuellt wird sie von
+    assets/js/location_page.js. Ohne JavaScript oeffnet ein Klick auf ein
+    Beispielbild schlicht das Bild selbst; jede Kachel ist ein Verweis
+    darauf.
+-->
+<div class="loc-lightbox" id="loc-lightbox" hidden>
+    <button type="button" class="loc-lightbox__close" id="loc-lightbox-close"
+            aria-label="Schließen"></button>
+    <button type="button" class="loc-lightbox__nav loc-lightbox__nav--prev"
+            data-slide-step="-1" aria-label="Vorheriges Bild"></button>
+    <img class="loc-lightbox__image" id="loc-lightbox-image" src="" alt="">
+    <button type="button" class="loc-lightbox__nav loc-lightbox__nav--next"
+            data-slide-step="1" aria-label="Nächstes Bild"></button>
 </div>
 
 ###PAGE_DATA###

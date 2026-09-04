@@ -10,10 +10,11 @@
  * Dinge, die ohne Skript nicht gehen:
  *
  *   1. Die kleine Karte mit dem Treffpunkt.
- *   2. Das Blaettern durch die Bilder. Ohne Skript bleibt das erste stehen -
- *      das Titelbild, das der Guide selbst nach vorn gestellt hat -, und die
- *      Punkte darunter sind Verweise auf das jeweilige Bild: Ein Klick
- *      oeffnet es dann eben, statt es hier zu tauschen.
+ *   2. Die Grossansicht der Beispielbilder samt Blaettern. Ohne Skript ist
+ *      jede Kachel ein Verweis auf das Bild selbst - ein Klick oeffnet es
+ *      dann eben, statt es hier zu zeigen. Der KOPF der Seite braucht das
+ *      nicht mehr: Dort steht ein einzelnes Bild, das Titelbild, und das
+ *      liefert der Server fertig aus.
  *   3. Der Verfuegbarkeitszustand im Takt. Ohne ihn stuende auf einer lange
  *      offenen Seite ein "Jetzt verfuegbar" von vor einer Stunde.
  *   4. Das Bearbeiten samt Bildverwaltung - nur beim Eigentuemer, und nur,
@@ -70,7 +71,7 @@ window.webrtcApp.locationPage = {
         this.daten = window.locationPage;
 
         this.initMap();
-        this.bindSlider();
+        this.bindLightbox();
         this.bindCall();
         this.startAutoRefresh();
 
@@ -118,66 +119,94 @@ window.webrtcApp.locationPage = {
     },
 
     // -----------------------------------------------------------------
-    // Bildergalerie
+    // Grossansicht der Beispielbilder
     // -----------------------------------------------------------------
 
-    /** Nummer des gerade sichtbaren Bildes. */
+    /** Nummer des gerade gezeigten Bildes. */
     slide: 0,
 
-    /** Die Bilder und die Punkte darunter, in derselben Reihenfolge. */
-    slides: [],
-    dots: [],
+    /** Die Kacheln der Galerie, in ihrer Reihenfolge. */
+    shots: [],
 
     /**
-     * Haengt die Blaetterung ein.
+     * Haengt die Grossansicht ein.
      *
-     * ALLE BILDER STEHEN SCHON IM DOKUMENT (App\Helper\LocationView), nur
-     * eines ist sichtbar. Hier wird nur umgeschaltet - es wird keine Adresse
-     * getauscht und nichts nachgeladen, also ist der Wechsel sofort da.
+     * OHNE SIE FUNKTIONIERT DIE SEITE TROTZDEM: Jede Kachel ist ein Verweis
+     * auf das Bild in voller Groesse. Was hier dazukommt, ist das Ansehen
+     * OHNE die Seite zu verlassen - und das Blaettern, das ein einzelnes Bild
+     * im Browser nicht kann.
      *
-     * DREI BEDIENWEGE, und alle drei landen in derselben Methode:
-     * die Pfeile am Bildrand, die Punkte darunter und die Pfeiltasten.
-     * Letztere nur, wenn nicht gerade in einem Feld getippt wird - sonst
-     * blaetterte das Bild, waehrend der Guide in seiner Beschreibung nach
-     * links geht.
+     * Der Handler haengt am Behaelter und nicht an jeder Kachel: Die Galerie
+     * steht fest im ausgelieferten Dokument, aber ein Handler weniger ist ein
+     * Handler weniger.
      */
-    bindSlider() {
-        const hero = document.getElementById('loc-hero');
-        if (!hero) return;
+    bindLightbox() {
+        const streifen = document.getElementById('loc-shots');
+        const kasten   = document.getElementById('loc-lightbox');
+        if (!streifen || !kasten) return;
 
-        this.slides = Array.from(hero.querySelectorAll('.loc-hero__slide'));
-        this.dots   = Array.from(hero.querySelectorAll('.loc-hero__dot'));
-        if (this.slides.length < 2) return;
+        this.shots = Array.from(streifen.querySelectorAll('.loc-shots__item'));
+        if (this.shots.length === 0) return;
 
-        hero.addEventListener('click', (e) => {
+        streifen.addEventListener('click', (e) => {
+            const kachel = e.target.closest('.loc-shots__item');
+            if (!kachel) return;
+            // Erst hier: Ohne Skript soll der Verweis das Bild oeffnen.
+            e.preventDefault();
+            this.openLightbox(this.shots.indexOf(kachel));
+        });
+
+        kasten.addEventListener('click', (e) => {
             const pfeil = e.target.closest('[data-slide-step]');
             if (pfeil) {
-                e.preventDefault();
                 this.showSlide(this.slide + parseInt(pfeil.getAttribute('data-slide-step'), 10));
                 return;
             }
-
-            const punkt = e.target.closest('[data-slide-to]');
-            if (punkt) {
-                // Erst hier: Ohne Skript soll der Verweis das Bild oeffnen.
-                e.preventDefault();
-                this.showSlide(parseInt(punkt.getAttribute('data-slide-to'), 10));
+            // Ein Klick auf die Flaeche daneben schliesst - so wie man es von
+            // jeder Grossansicht erwartet. Ein Klick auf das Bild selbst
+            // nicht: Wer es ansieht, will es nicht versehentlich wegklicken.
+            if (e.target === kasten || e.target.closest('.loc-lightbox__close')) {
+                this.closeLightbox();
             }
         });
 
         document.addEventListener('keydown', (e) => {
-            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-            // Nicht blaettern, waehrend jemand schreibt.
-            const ziel = e.target;
-            if (ziel && /^(INPUT|TEXTAREA|SELECT)$/.test(ziel.tagName || '')) return;
-            if (ziel && ziel.isContentEditable) return;
-
-            this.showSlide(this.slide + (e.key === 'ArrowLeft' ? -1 : 1));
+            if (kasten.hidden) return;
+            if (e.key === 'Escape')     { this.closeLightbox(); return; }
+            if (e.key === 'ArrowLeft')  { this.showSlide(this.slide - 1); return; }
+            if (e.key === 'ArrowRight') { this.showSlide(this.slide + 1); }
         });
     },
 
     /**
-     * Zeigt ein Bild.
+     * Oeffnet die Grossansicht bei einem bestimmten Bild.
+     *
+     * Das Scrollen der Seite darunter wird gesperrt: Sonst rollt der Hintergrund
+     * weg, waehrend man mit dem Rad durch die Bilder blaettern will, und beim
+     * Schliessen steht man an einer anderen Stelle als vorher.
+     *
+     * @param {number} nr
+     */
+    openLightbox(nr) {
+        const kasten = document.getElementById('loc-lightbox');
+        if (!kasten || this.shots.length === 0) return;
+
+        kasten.hidden = false;
+        document.body.style.overflow = 'hidden';
+        this.showSlide(nr);
+        document.getElementById('loc-lightbox-close')?.focus();
+    },
+
+    /** Schliesst die Grossansicht und gibt das Scrollen wieder frei. */
+    closeLightbox() {
+        const kasten = document.getElementById('loc-lightbox');
+        if (!kasten) return;
+        kasten.hidden = true;
+        document.body.style.overflow = '';
+    },
+
+    /**
+     * Zeigt ein Bild in der Grossansicht.
      *
      * Die Nummer laeuft im Kreis: Hinter dem letzten Bild kommt wieder das
      * erste. Ein Pfeil, der am Ende nichts mehr tut, sieht kaputt aus, und
@@ -186,14 +215,22 @@ window.webrtcApp.locationPage = {
      * @param {number} nr Kann ueber die Grenzen hinausgehen
      */
     showSlide(nr) {
-        const anzahl = this.slides ? this.slides.length : 0;
-        if (anzahl < 2) return;
+        const anzahl = this.shots ? this.shots.length : 0;
+        if (anzahl === 0) return;
 
         // Modulo zweimal: In JavaScript ist (-1 % 5) gleich -1 und nicht 4.
         this.slide = ((nr % anzahl) + anzahl) % anzahl;
 
-        this.slides.forEach((el, i) => el.classList.toggle('is-active', i === this.slide));
-        this.dots.forEach((el, i)   => el.classList.toggle('is-active', i === this.slide));
+        const bild = document.getElementById('loc-lightbox-image');
+        const quelle = this.shots[this.slide];
+        if (bild && quelle) {
+            bild.src = quelle.getAttribute('data-full') || quelle.getAttribute('href') || '';
+            bild.alt = quelle.querySelector('img')?.getAttribute('alt') || '';
+        }
+
+        // Bei einem einzelnen Bild gibt es nichts zu blaettern.
+        document.querySelectorAll('.loc-lightbox__nav').forEach(
+            el => { el.hidden = (anzahl < 2); });
     },
 
     // -----------------------------------------------------------------
@@ -387,12 +424,82 @@ window.webrtcApp.locationPage = {
             const kachel = e.target.closest('.loc-edit__image');
             if (!kachel) return;
 
-            if (e.target.closest('.loc-img-del'))  { this.deleteImage(kachel); return; }
-            if (e.target.closest('.loc-img-up'))   { this.moveImage(kachel, -1); return; }
-            if (e.target.closest('.loc-img-down')) { this.moveImage(kachel,  1); return; }
+            if (e.target.closest('.loc-img-cover')) { this.setCover(kachel); return; }
+            if (e.target.closest('.loc-img-del'))   { this.deleteImage(kachel); return; }
+            if (e.target.closest('.loc-img-up'))    { this.moveImage(kachel, -1); return; }
+            if (e.target.closest('.loc-img-down'))  { this.moveImage(kachel,  1); return; }
         });
 
+        // Das Titelbild zurueck in die Galerie. Der Knopf steht im
+        // Titelbild-Abschnitt darueber und nicht an einer Kachel - er gehoert
+        // zu dem einen Bild, das dort steht.
+        document.getElementById('loc-cover-clear')
+            ?.addEventListener('click', () => this.clearCover());
+
         this.updateImageHint();
+    },
+
+    /**
+     * Waehlt eine Kachel als Titelbild aus.
+     *
+     * DIE SEITE WIRD DANACH NEU GELADEN, und das ist bewusst: Ein neues
+     * Titelbild aendert den Kopf der Seite, nimmt das bisherige zurueck in die
+     * Galerie und ordnet damit beide Listen neu. Das im Browser nachzubauen
+     * hiesse, dieselbe Aufteilung ein zweites Mal zu programmieren - einmal
+     * hier und einmal in App\Helper\LocationView. Zwei Fassungen derselben
+     * Regel laufen auseinander.
+     *
+     * @param {Element} kachel
+     */
+    setCover(kachel) {
+        const id = kachel.getAttribute('data-imageid');
+        if (!id) return;
+
+        fetch('index.php?act=set_location_cover&id=' + encodeURIComponent(id),
+              { method: 'POST', credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(antwort => {
+                if (!antwort || !antwort.success) {
+                    window.webrtcApp.notify.error(
+                        (antwort && antwort.error) || 'Das Titelbild konnte nicht gesetzt werden.');
+                    return;
+                }
+                window.location.reload();
+            })
+            .catch(() => window.webrtcApp.notify.error(
+                'Das Titelbild konnte nicht gesetzt werden.'));
+    },
+
+    /**
+     * Nimmt das Titelbild zurueck in die Galerie.
+     *
+     * Zurueckstufen, nicht loeschen: Wer sein Titelbild absetzt, will fast
+     * immer ein anderes waehlen und nicht dieses Bild verlieren. Deshalb auch
+     * keine Rueckfrage - es geht nichts verloren.
+     */
+    clearCover() {
+        if (!this.daten) return;
+
+        const daten = new URLSearchParams();
+        daten.set('location_id', String(this.daten.id));
+
+        fetch('index.php?act=unset_location_cover', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: daten.toString()
+        })
+            .then(r => r.json())
+            .then(antwort => {
+                if (!antwort || !antwort.success) {
+                    window.webrtcApp.notify.error(
+                        (antwort && antwort.error) || 'Das Titelbild konnte nicht geändert werden.');
+                    return;
+                }
+                window.location.reload();
+            })
+            .catch(() => window.webrtcApp.notify.error(
+                'Das Titelbild konnte nicht geändert werden.'));
     },
 
     /**
@@ -447,6 +554,14 @@ window.webrtcApp.locationPage = {
                         (antwort && antwort.error) || 'Das Bild konnte nicht gespeichert werden.');
                     return;
                 }
+                // Wurde das Bild zum TITELBILD - weil der Standort noch
+                // keines hatte -, gehoert es nicht in die Galerie, sondern in
+                // den Abschnitt darueber. Statt beide Listen hier nachzubauen,
+                // laedt die Seite neu; der Server teilt sie ohnehin.
+                if (antwort.image && antwort.image.role === 'cover') {
+                    window.location.reload();
+                    return;
+                }
                 this.appendImage(antwort.image);
                 window.webrtcApp.notify.success('Bild hinzugefügt.');
             })
@@ -479,6 +594,8 @@ window.webrtcApp.locationPage = {
         li.innerHTML =
               '<img src="' + this.esc(bild.thumb) + '" alt="Bild ' + nr + '">'
             + '<div class="loc-edit__imageActions">'
+            +   '<button type="button" class="app-iconbtn app-iconbtn--cover loc-img-cover"'
+            +   ' aria-label="Bild ' + nr + ' als Titelbild verwenden" title="Als Titelbild"></button>'
             +   '<button type="button" class="app-iconbtn app-iconbtn--up loc-img-up"'
             +   ' aria-label="Bild ' + nr + ' nach vorne" title="Nach vorne"></button>'
             +   '<button type="button" class="app-iconbtn app-iconbtn--down loc-img-down"'
@@ -521,7 +638,7 @@ window.webrtcApp.locationPage = {
                     const liste = document.getElementById('loc-image-list');
                     if (liste && liste.querySelectorAll('.loc-edit__image').length === 0) {
                         liste.innerHTML =
-                            '<p class="loc__empty" data-empty>Noch keine Bilder hochgeladen.</p>';
+                            '<p class="loc__empty" data-empty>Noch keine Beispielbilder hochgeladen.</p>';
                     }
                     this.updateImageHint();
                 })
@@ -614,14 +731,18 @@ window.webrtcApp.locationPage = {
         const knopf = document.getElementById('loc-image-add');
         if (!liste || !this.daten) return;
 
-        const anzahl = liste.querySelectorAll('.loc-edit__image').length;
+        // DAS TITELBILD ZAEHLT MIT. Die Obergrenze gilt fuer die SUMME beider
+        // Arten - sonst waere sie ueber den Umweg "als Titelbild markieren"
+        // zu umgehen.
+        const cover  = document.querySelector('.loc-edit__cover') ? 1 : 0;
+        const anzahl = liste.querySelectorAll('.loc-edit__image').length + cover;
         const grenze = this.daten.maxImages || 0;
         const frei   = Math.max(0, grenze - anzahl);
 
         if (text) {
             text.textContent = frei === 0
-                ? 'Die Obergrenze von ' + grenze + ' Bildern ist erreicht.'
-                : 'Noch ' + frei + ' von ' + grenze + ' Bildern möglich. Das erste ist das Titelbild.';
+                ? 'Die Obergrenze von ' + grenze + ' Bildern ist erreicht (Titelbild mitgezählt).'
+                : 'Noch ' + frei + ' von ' + grenze + ' Bildern möglich, Titelbild mitgezählt.';
         }
         if (knopf) knopf.disabled = (frei === 0);
     },

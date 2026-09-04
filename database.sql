@@ -583,6 +583,24 @@ CREATE TABLE IF NOT EXISTS `location_image` (
   -- Fremdeingabe ("../", "bild.php") und wird nirgends gebraucht.
   `file_name` varchar(32) NOT NULL,
 
+  -- WOFUER das Bild da ist:
+  --   'cover'    das eine Titelbild, das die Kopfzeile der Standortseite
+  --              fuellt. Hoechstens eines je Standort - durchgesetzt von
+  --              App\Model\LocationImage::setCover(), nicht von der Datenbank:
+  --              Ein Teilindex ueber "role = 'cover'" gibt es in MariaDB
+  --              nicht.
+  --   'gallery'  Beispielbild in der Galerie im Inhaltsbereich.
+  --
+  -- Ein Titelbild braucht ein sehr breites Format und ruhige Flaechen fuer
+  -- die Schrift, ein Beispielbild soll den Ort zeigen. Vorher musste EIN Bild
+  -- beides sein.
+  --
+  -- Vorgabe 'gallery': Ein hochgeladenes Bild ist erst einmal nur ein Bild.
+  -- Zum Titelbild wird es durch eine Entscheidung.
+  --
+  -- Bestehende Installationen: migrations/012_titelbild.sql.
+  `role` varchar(16) NOT NULL DEFAULT 'gallery',
+
   -- Reihenfolge in der Bildleiste, aufsteigend. Das erste Bild ist zugleich
   -- das Titelbild des Standorts.
   `sort_order` int(11) NOT NULL DEFAULT 0,

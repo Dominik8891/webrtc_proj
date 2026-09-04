@@ -128,9 +128,24 @@
 /* Der Bildrahmen. Feste Hoehe mit Ausschnitt statt freier Hoehe: Sonst
    springt die halbe Seite, sobald ein Hochformat an die Stelle eines
    Querformats tritt - und beim Blaettern waere genau das der Normalfall. */
+/* DIE HOEHE IST GEDECKELT, und zwar an der FENSTERHOEHE. Ohne diesen Deckel
+   fuellte der Kopf auf einem niedrigen Fenster fast alles: 520 Punkte Bild
+   plus Kopfleiste sind auf einem 700 Punkte hohen Fenster ueber 80 Prozent -
+   der Besucher sah ein Foto und musste scrollen, um ueberhaupt zu erfahren,
+   worum es geht.
+
+   56vh laesst immer knapp die Haelfte des Fensters fuer den Text uebrig,
+   abzueglich der Kopfleiste. Die Angabe steht EINMAL hier und gilt fuer alle
+   Bildschirmgroessen: Die Medienabfragen weiter unten setzen nur die
+   Wunschhoehe (height), nicht den Deckel (max-height).
+
+   vh und nicht dvh: Auf einem Telefon aendert dvh sich beim Scrollen, waehrend
+   die Adressleiste ein- und ausfaehrt - der Kopf wuerde dabei die Hoehe
+   wechseln. */
 .loc-hero__frame {
     position: relative;
     height: clamp(280px, 46vw, 520px);
+    max-height: 56vh;
 }
 
 /* Ohne Bilder kein bildschirmhoher grauer Kasten: Er verspricht ein Bild,
@@ -149,48 +164,49 @@
     background: var(--app-surface-sunken);
 }
 
-/* Alle Bilder liegen uebereinander, sichtbar ist eines. Geblendet statt
-   geschoben: Ein Schieben braucht eine Spur mit fester Breite, und die muss
-   bei jeder Fenstergroesse neu gerechnet werden. */
-.loc-hero__slide {
+/* EIN Bild, nicht mehr eine Reihe zum Blaettern: Der Kopf zeigt das
+   Titelbild, die Beispielbilder stehen als Galerie im Inhaltsbereich. */
+.loc-hero__cover {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0;
-    transition: opacity .25s ease;
 }
 
-.loc-hero__slide.is-active {
-    opacity: 1;
-}
+/* Ein leichter Verlauf am OBEREN Rand - er gilt dem Rueckweg, damit der nicht
+   auf einem hellen Himmel schwebt.
 
-/* Der Verlauf zwischen Bild und Schrift. Er sitzt unten, wo die Schrift
-   liegt, und laesst das Bild oben unberuehrt. Ohne ihn ist weisse Schrift auf
-   einem hellen Foto unlesbar - und ein Kasten hinter der Schrift waere wieder
-   ein Kasten. */
+   FUER DIE LESBARKEIT DES TITELS IST ER NICHT MEHR ZUSTAENDIG. Vorher lief
+   hier ein zweiter Verlauf ueber einen festen Anteil der BILDHOEHE nach unten,
+   und genau daran scheiterte es: Auf einem hellen Foto verschluckte das Bild
+   die weisse Schrift, und bei einem dreizeiligen Titel reichte der Verlauf
+   ohnehin nicht bis nach oben. Ein Verlauf, der am Bild haengt, kann keine
+   Zusage ueber den Text machen. Das tut jetzt das Band (siehe unten). */
 .loc-hero__scrim {
     position: absolute;
     inset: 0;
     pointer-events: none;
     background:
         linear-gradient(to bottom,
-            rgba(0, 0, 0, .45) 0,
-            rgba(0, 0, 0, 0) 28%,
-            rgba(0, 0, 0, 0) 45%,
-            rgba(0, 0, 0, .72) 100%);
+            rgba(0, 0, 0, .38) 0,
+            rgba(0, 0, 0, 0) 26%);
 }
 
-/* Ohne Bild braucht es keinen Verlauf - dort steht die Schrift auf der
-   Flaeche und nimmt die gewoehnliche Textfarbe. Der Umschalter ebenso: Sein
-   dunkler Grund ist fuer ein Foto gedacht und saehe auf einer hellen Flaeche
-   aus wie ein Fremdkoerper. */
+/* Ohne Titelbild braucht es weder Verlauf noch Band - dort steht die Schrift
+   auf der Flaeche und nimmt die gewoehnliche Textfarbe. Der Rueckweg ebenso:
+   Sein dunkler Grund ist fuer ein Foto gedacht und saehe auf einer hellen
+   Flaeche aus wie ein Fremdkoerper. */
 .loc-hero__frame--empty ~ .loc-hero__scrim {
     display: none;
 }
 
-.loc-hero__frame--empty ~ .loc-hero__text {
+.loc-hero__frame--empty ~ .loc-hero__band {
+    background: none;
+    padding-top: 0;
+}
+
+.loc-hero__frame--empty ~ .loc-hero__band .loc-hero__text {
     color: var(--app-text);
     text-shadow: none;
 }
@@ -214,13 +230,15 @@
    zentriert der Aussenabstand "auto" den Kasten - dasselbe Mittel wie beim
    Rumpf, nur eine Ebene hoeher. */
 .loc-hero__bar,
-.loc-hero__text,
-.loc-hero__dots {
-    left: 0;
-    right: 0;
+.loc-hero__text {
     margin-inline: auto;
     max-width: calc(var(--loc-column) + 2 * var(--app-space-5));
     padding-inline: var(--app-space-5);
+}
+
+.loc-hero__bar {
+    left: 0;
+    right: 0;
 }
 
 .loc-hero__bar {
@@ -283,11 +301,38 @@
 
 /* Titel, Ort und Zustand. Sie liegen unten links auf dem Bild - dort, wo der
    Verlauf am dunkelsten ist. */
-.loc-hero__text {
+/* DAS BAND MACHT DEN TITEL LESBAR - unabhaengig davon, was auf dem Bild ist.
+   Das ist der Unterschied zu einem Verlauf ueber der Bildhoehe: Das Band ist
+   genau so hoch wie sein Inhalt, waechst also mit einem dreizeiligen Titel
+   mit, und sein dunkelster Teil liegt immer dort, wo Schrift steht.
+
+   DIE ZAHLEN SIND GERECHNET, nicht geschaetzt. Weiss auf 55 Prozent Schwarz
+   ueber einer WEISSEN Flaeche - der schlechteste Fall, ein ueberbelichteter
+   Himmel - ergibt einen Kontrast von rund 5:1 und liegt damit ueber der
+   Anforderung von 4.5:1. Nach unten wird es dunkler (bis 90 Prozent, rund
+   15:1). Es gibt also keinen Bildinhalt, bei dem die Schrift verschwindet.
+
+   Die oberen 3rem sind der Auslauf nach durchsichtig: ohne ihn saesse eine
+   Kante quer ueber dem Foto. Der Text beginnt erst darunter, also erst dort,
+   wo die 55 Prozent stehen. */
+.loc-hero__band {
     position: absolute;
+    left: 0;
+    right: 0;
     bottom: 0;
     z-index: 2;
-    padding-block: var(--app-space-5);
+    padding-top: 3rem;
+    background: linear-gradient(to top,
+        rgba(0, 0, 0, .90) 0,
+        rgba(0, 0, 0, .78) 45%,
+        rgba(0, 0, 0, .55) 78%,
+        rgba(0, 0, 0, 0)  100%);
+}
+
+.loc-hero__text {
+    padding-block: 0 var(--app-space-5);
+    /* Der Schatten bleibt als zweite Sicherung an den Buchstabenkanten - er
+       hilft dort, wo das Band gerade erst anfaengt. */
     text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
 }
 
@@ -326,101 +371,10 @@
     opacity: .85;
 }
 
-/* --- Blaettern ----------------------------------------------------------- */
-
-/* Die Pfeile liegen am Rand des Bildes, mittig in der Hoehe. Sie sind gross
-   genug fuer den Daumen und ruhig genug, um das Bild nicht zu zerschneiden. */
-.loc-hero__nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 3;
-    width: 2.75rem;
-    height: 2.75rem;
-    padding: 0;
-    border: 1px solid rgba(255, 255, 255, .3);
-    border-radius: var(--app-radius-pill);
-    background: rgba(0, 0, 0, .4);
-    color: #fff;
-    cursor: pointer;
-    transition: background var(--app-transition), transform var(--app-transition);
-}
-
-.loc-hero__nav::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background-color: currentColor;
-    -webkit-mask-position: center;  mask-position: center;
-    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-    -webkit-mask-size: 1.15rem;     mask-size: 1.15rem;
-}
-
-/* Die Pfeile stehen als Maske in theme.css, wie jedes andere Symbol der
-   Anwendung auch - gedreht, weil dort ein Auf- und ein Abwaertspfeil liegen
-   und ein viertes Symbol fuer dieselbe Form Verschwendung waere. */
-.loc-hero__nav--prev { left: var(--app-space-4); }
-.loc-hero__nav--next { right: var(--app-space-4); }
-
-.loc-hero__nav--prev::before {
-    -webkit-mask-image: var(--icon-arrow-up); mask-image: var(--icon-arrow-up);
-    transform: rotate(-90deg);
-}
-
-.loc-hero__nav--next::before {
-    -webkit-mask-image: var(--icon-arrow-up); mask-image: var(--icon-arrow-up);
-    transform: rotate(90deg);
-}
-
-.loc-hero__nav:hover {
-    background: rgba(0, 0, 0, .62);
-}
-
-.loc-hero__nav:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 2px;
-}
-
-/* Die Punkte sagen, wie viele Bilder es gibt und wo man steht - das sagen
-   zwei Pfeile nicht. Sie sind Verweise auf das jeweilige Bild: Ohne
-   JavaScript oeffnet ein Klick darauf das Bild, statt ins Leere zu greifen. */
-.loc-hero__dots {
-    position: absolute;
-    bottom: var(--app-space-5);
-    z-index: 3;
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--app-space-2);
-    pointer-events: none;
-}
-
-.loc-hero__dots > * {
-    pointer-events: auto;
-}
-
-.loc-hero__dot {
-    display: block;
-    width: 9px;
-    height: 9px;
-    border-radius: var(--app-radius-pill);
-    background: rgba(255, 255, 255, .45);
-    border: 1px solid rgba(0, 0, 0, .25);
-    transition: background var(--app-transition), transform var(--app-transition);
-}
-
-.loc-hero__dot:hover {
-    background: rgba(255, 255, 255, .8);
-}
-
-.loc-hero__dot.is-active {
-    background: #fff;
-    transform: scale(1.25);
-}
-
-.loc-hero__dot:focus-visible {
-    outline: 2px solid #fff;
-    outline-offset: 2px;
-}
+/* Im Kopf wird nicht mehr geblaettert: Dort steht EIN Bild, das Titelbild.
+   Die Pfeile und Punkte, die hier standen, sind mit der Bilderreihe entfallen
+   - geblaettert wird jetzt in der Grossansicht der Beispielbilder
+   (.loc-lightbox weiter unten). */
 
 /* ===========================================================================
    3 bis 6: Text links, Nebendaten rechts
@@ -447,6 +401,7 @@
     grid-template-columns: minmax(0, 1fr) 360px;
     grid-template-areas:
         "main    side"
+        "shots   shots"
         "meeting meeting";
     gap: var(--app-space-6);
     align-items: start;
@@ -454,6 +409,7 @@
 
 .loc__main    { grid-area: main; }
 .loc__side    { grid-area: side; }
+.loc__shots   { grid-area: shots; min-width: 0; }
 .loc__meeting { grid-area: meeting; }
 
 /* --- 3: Die Beschreibung ------------------------------------------------- */
@@ -612,6 +568,149 @@
     font-size: var(--app-text-sm);
 }
 
+/* --- Die Beispielbilder --------------------------------------------------- */
+
+/* Sie standen frueher im Kopf und wechselten sich dort mit dem Titelbild ab.
+   Das hiess: Jedes von ihnen trug Schrift, die nicht zu ihm gehoerte, und
+   wurde auf ein sehr breites Format beschnitten. Hier duerfen sie zeigen, was
+   sie zeigen sollen.
+
+   Ein Raster mit gleich grossen Kacheln statt einer schiebbaren Zeile: Bis zu
+   fuenf Bilder sollen auf einen Blick da sein und nicht hinter einem
+   Rollbalken. */
+.loc-shots {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--app-space-3);
+}
+
+.loc-shots__item {
+    display: block;
+    aspect-ratio: 3 / 2;
+    border-radius: var(--app-radius);
+    overflow: hidden;
+    background: var(--app-surface-sunken);
+    transition: transform var(--app-transition), box-shadow var(--app-transition);
+}
+
+.loc-shots__item img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.loc-shots__item:hover,
+.loc-shots__item:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: var(--app-shadow);
+}
+
+.loc-shots__item:focus-visible {
+    outline: 2px solid var(--app-accent-ring);
+    outline-offset: 2px;
+}
+
+/* --- Grossansicht --------------------------------------------------------- */
+
+/* Sie deckt das Fenster ab. Fest positioniert und nicht absolut: Sie soll
+   stehen bleiben, wenn die Seite darunter scrollt - und das Skript sperrt das
+   Scrollen ohnehin, solange sie offen ist. */
+/* ZUERST DAS VERSTECKEN, und zwar ausdruecklich: Das Attribut "hidden" wirkt
+   ueber "display: none" mit der schwaechsten Spezifitaet, die es gibt. Die
+   Regel darunter setzt "display: flex" auf eine Klasse - und gewinnt damit.
+   Ohne diese Zeile stuende die Grossansicht offen ueber der ganzen Seite,
+   bevor jemand ein Bild angeklickt hat. */
+.loc-lightbox[hidden] {
+    display: none;
+}
+
+.loc-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--app-space-3);
+    padding: var(--app-space-5);
+    background: rgba(0, 0, 0, .88);
+}
+
+.loc-lightbox__image {
+    max-width: min(100%, 1400px);
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: var(--app-radius-sm);
+}
+
+/* Die Knoepfe der Grossansicht. Dieselbe Form wie die frueheren Blaetterpfeile
+   im Kopf - sie sind mit der Bilderreihe dorthin umgezogen. */
+.loc-lightbox__nav,
+.loc-lightbox__close {
+    flex: 0 0 auto;
+    position: relative;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, .3);
+    border-radius: var(--app-radius-pill);
+    background: rgba(255, 255, 255, .12);
+    color: #fff;
+    cursor: pointer;
+    transition: background var(--app-transition);
+}
+
+.loc-lightbox__nav:hover,
+.loc-lightbox__close:hover {
+    background: rgba(255, 255, 255, .26);
+}
+
+.loc-lightbox__nav:focus-visible,
+.loc-lightbox__close:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+.loc-lightbox__nav::before,
+.loc-lightbox__close::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: currentColor;
+    -webkit-mask-position: center;  mask-position: center;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-size: 1.15rem;     mask-size: 1.15rem;
+}
+
+.loc-lightbox__nav--prev::before {
+    -webkit-mask-image: var(--icon-arrow-up); mask-image: var(--icon-arrow-up);
+    transform: rotate(-90deg);
+}
+
+.loc-lightbox__nav--next::before {
+    -webkit-mask-image: var(--icon-arrow-up); mask-image: var(--icon-arrow-up);
+    transform: rotate(90deg);
+}
+
+.loc-lightbox__close::before {
+    -webkit-mask-image: var(--icon-close); mask-image: var(--icon-close);
+}
+
+/* Das Kreuz sitzt in der Ecke und nicht in der Reihe: Es schliesst, es
+   blaettert nicht. */
+.loc-lightbox__close {
+    position: absolute;
+    top: var(--app-space-4);
+    right: var(--app-space-4);
+}
+
+/* Ein einzelnes Bild braucht keine Pfeile. Sie werden vom Skript versteckt,
+   nicht entfernt - beim naechsten Bild sind sie wieder da. */
+.loc-lightbox__nav[hidden] {
+    display: none;
+}
+
 /* --- Schmale Geraete ------------------------------------------------------ */
 
 @media (max-width: 900px) {
@@ -621,6 +720,7 @@
         grid-template-columns: 1fr;
         grid-template-areas:
             "main"
+            "shots"
             "side"
             "meeting";
         gap: var(--app-space-5);
@@ -638,20 +738,19 @@
 
     /* Das Bild bleibt randlos und braucht auf einem schmalen Geraet MEHR
        Hoehe, nicht weniger: Der Titel bricht dort auf zwei bis drei Zeilen
-       um und liegt auf dem Bild. Bei 200 Punkten Hoehe stand er quer ueber
-       dem Motiv und mitten in den Blaetterpfeilen. */
+       um und liegt auf dem Bild. Der Deckel aus 56vh gilt trotzdem - auf
+       einem quer gehaltenen Telefon greift er. */
     .loc-hero__frame {
         height: clamp(300px, 78vw, 420px);
     }
 
     .loc-hero__bar,
-    .loc-hero__text,
-    .loc-hero__dots {
+    .loc-hero__text {
         padding-inline: var(--app-space-4);
     }
 
     .loc-hero__text {
-        padding-block: var(--app-space-4);
+        padding-block: 0 var(--app-space-4);
     }
 
     .loc-hero__title,
@@ -663,29 +762,8 @@
         font-size: var(--app-text-lg);
     }
 
-    /* Die Punkte ruecken in die Mitte: Rechts unten stuenden sie sonst genau
-       dort, wo auf schmalen Geraeten der Titel endet. */
-    /* Die Punkte nach OBEN RECHTS, gegenueber dem Umschalter: Unten waeren
-       sie genau dort, wo der Titel auf zwei Zeilen endet. */
-    .loc-hero__dots {
-        top: var(--app-space-4);
-        bottom: auto;
-        align-items: center;
-        height: 2rem;
-    }
-
-    /* Die Pfeile hoeher, damit sie ueber und nicht in der Schrift liegen. */
-    .loc-hero__nav {
-        top: 38%;
-    }
-
     .loc-hero__bar {
         top: var(--app-space-3);
-    }
-
-    .loc-hero__nav {
-        width: 2.25rem;
-        height: 2.25rem;
     }
 }
 
@@ -743,7 +821,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .loc-hero__slide { transition: none; }
+    .loc-lightbox { transition: none; }
 }
 
 /* --- Bearbeiten ---------------------------------------------------------- */
@@ -785,6 +863,28 @@
     color: var(--app-accent-strong);
 }
 
+/* --- Das Titelbild im Formular -------------------------------------------- */
+
+/* Es wird BREIT gezeigt und nicht als Kachel: So sieht der Guide, was die
+   Kopfzeile daraus macht - ein sehr breiter Ausschnitt, in dem die Schrift
+   Platz braucht. Eine quadratische Vorschau haette genau das verschwiegen. */
+.loc-edit__cover {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+    margin: var(--app-space-3) 0;
+}
+
+.loc-edit__cover img {
+    display: block;
+    width: min(100%, 420px);
+    aspect-ratio: 21 / 9;
+    object-fit: cover;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+}
+
 .loc-edit__images {
     display: flex;
     flex-wrap: wrap;
@@ -810,19 +910,11 @@
     object-fit: cover;
 }
 
-/* Das erste Bild ist das Titelbild - das steht dran, damit die Reihenfolge
-   eine erkennbare Bedeutung hat und nicht nur eine Anordnung ist. */
-.loc-edit__image:first-child::after {
-    content: "Titelbild";
-    position: absolute;
-    top: var(--app-space-1);
-    left: var(--app-space-1);
-    padding: 2px var(--app-space-2);
-    border-radius: var(--app-radius-sm);
-    background: var(--app-accent);
-    color: #fff;
-    font-size: var(--app-text-xs);
-}
+/* HIER STAND EINE MARKE "Titelbild" an der ersten Kachel. Sie ist entfallen,
+   und mit ihr die Kopplung, die sie beschrieb: Das erste Bild der Galerie ist
+   nicht mehr das Titelbild. Welches Bild den Kopf fuellt, waehlt der Guide
+   ueber den Stern an der Kachel aus; es verlaesst die Galerie dabei und steht
+   im Abschnitt darueber. */
 
 .loc-edit__imageActions {
     display: flex;

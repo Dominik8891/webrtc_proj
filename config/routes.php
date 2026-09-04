@@ -123,6 +123,12 @@ return [
     'upload_location_image' => [LocationController::class           , 'uploadImage'             , Permission::LOCATION_EDIT_OWN      , 'json'],
     'delete_location_image' => [LocationController::class           , 'deleteImage'             , Permission::LOCATION_EDIT_OWN      , 'json'],
     'sort_location_images'  => [LocationController::class           , 'sortImages'              , Permission::LOCATION_EDIT_OWN      , 'json'],
+    // Welches der Bilder die Kopfzeile fuellt. Ein Titelbild braucht ein sehr
+    // breites Format und ruhige Flaechen fuer die Schrift, ein Beispielbild
+    // soll den Ort zeigen - vorher musste EIN Bild beides sein. Ausgewaehlt
+    // wird es hier, geloescht wird dabei nichts.
+    'set_location_cover'    => [LocationController::class           , 'setCoverImage'           , Permission::LOCATION_EDIT_OWN      , 'json'],
+    'unset_location_cover'  => [LocationController::class           , 'unsetCoverImage'         , Permission::LOCATION_EDIT_OWN      , 'json'],
 
     'delete_location'       => [LocationController::class           , 'deleteLocation'          , Permission::LOCATION_DELETE_OWN    , 'json'],
     'block_location'        => [LocationController::class           , 'blockLocation'           , Permission::LOCATION_BLOCK         , 'json'],

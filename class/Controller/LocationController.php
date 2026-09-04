@@ -766,9 +766,14 @@ class LocationController
         // Sie entscheidet nichts; sie bekommt hier, was sie zeigen darf.
         $anrufbar = (Auth::isLoggedIn() && !$ist_eigen) ? (int)$daten['user_id'] : null;
 
+        // EINMAL LADEN, hier trennen: Welche Rolle ein Bild traegt, steht in
+        // der Zeile - die Ansicht bekommt zwei fertige Listen und muss nicht
+        // wissen, wie die Rollen heissen.
+        $bilder = LocationImage::teile(LocationImage::forLocation($location_id));
+
         ViewHelper::output(LocationView::page(
             $daten,
-            LocationImage::forLocation($location_id),
+            $bilder,
             [
                 'eigen'       => $ist_eigen,
                 'angemeldet'  => Auth::isLoggedIn(),
@@ -1074,7 +1079,20 @@ class LocationController
             self::json(['success' => false, 'error' => $abgelegt['error']]);
         }
 
-        $image_id = LocationImage::add($location['id'], $abgelegt['name']);
+        // DAS ERSTE BILD EINES STANDORTS WIRD SEIN TITELBILD - aber nur, solange
+        // gar keines gewaehlt ist. Ohne das stuende ein frischer Standort mit
+        // fuenf Bildern unter einem leeren Kopf, und der Guide muesste erst
+        // merken, dass da noch eine Entscheidung offen ist.
+        //
+        // Jedes weitere Bild geht in die Galerie. Das ist der Unterschied zum
+        // alten Verhalten, bei dem das erste Bild stillschweigend zum
+        // Titelbild wurde und jede Umsortierung die Kopfzeile mit veraendert
+        // hat: Ab hier waehlt der Guide aus (setCover).
+        $rolle = LocationImage::hasCover($location['id'])
+            ? LocationImage::ROLE_GALLERY
+            : LocationImage::ROLE_COVER;
+
+        $image_id = LocationImage::add($location['id'], $abgelegt['name'], $rolle);
         if (!$image_id) {
             // Die Datei liegt schon, die Zeile fehlt - also wieder weg damit.
             // Sonst bliebe eine Datei, auf die nichts mehr zeigt und die
@@ -1087,6 +1105,7 @@ class LocationController
             'success' => true,
             'image'   => [
                 'id'    => (int)$image_id,
+                'role'  => $rolle,
                 'thumb' => 'index.php?act=location_image&id=' . (int)$image_id . '&size=thumb',
                 'full'  => 'index.php?act=location_image&id=' . (int)$image_id . '&size=full',
             ],
@@ -1159,6 +1178,58 @@ class LocationController
 
         if (!LocationImage::reorder($location['id'], $user_id, $ids)) {
             self::json(['success' => false, 'error' => 'Die Reihenfolge konnte nicht gespeichert werden.']);
+        }
+        self::json(['success' => true]);
+    }
+
+    /**
+     * Waehlt eines der Bilder als Titelbild aus.
+     *
+     * DAS IST DER GANZE UNTERSCHIED zwischen den beiden Bildarten, soweit es
+     * den Server betrifft: Ein Titelbild fuellt die Kopfzeile, ein
+     * Beispielbild steht in der Galerie. Dieselbe Datei, dieselbe Pruefung,
+     * dieselbe Obergrenze - eine andere Rolle.
+     *
+     * Das bisherige Titelbild wird dabei NICHT geloescht, sondern zurueck in
+     * die Galerie genommen (App\Model\LocationImage::setCover). Eine Auswahl
+     * ist keine Loeschung.
+     *
+     * @return void
+     */
+    public function setCoverImage()
+    {
+        $image_id = (int)Request::g('id');
+        $user_id  = Auth::userId();
+
+        if ($image_id < 1) {
+            self::json(['success' => false, 'error' => 'Kein Bild angegeben.']);
+        }
+
+        if (!LocationImage::setCover($image_id, $user_id)) {
+            // "Gibt es nicht" und "gehoert jemand anderem" ergeben dieselbe
+            // Antwort - sonst liessen sich ueber diese Route fremde
+            // Bildkennungen abklopfen.
+            self::json(['success' => false, 'error' => 'Bild nicht gefunden.']);
+        }
+        self::json(['success' => true]);
+    }
+
+    /**
+     * Nimmt das Titelbild zurueck in die Galerie.
+     *
+     * Der Standort hat danach keinen Bildkopf mehr, sondern einen ruhigen
+     * Streifen mit Titel und Ort. Das Bild bleibt erhalten - wer es loeschen
+     * will, loescht es.
+     *
+     * @return void
+     */
+    public function unsetCoverImage()
+    {
+        $user_id  = Auth::userId();
+        $location = self::eigenerStandortAusAnfrage();
+
+        if (!LocationImage::clearCover($location['id'], $user_id)) {
+            self::json(['success' => false, 'error' => 'Das Titelbild konnte nicht geändert werden.']);
         }
         self::json(['success' => true]);
     }

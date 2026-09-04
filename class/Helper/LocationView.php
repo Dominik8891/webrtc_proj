@@ -30,8 +30,12 @@ class LocationView
      * DER EINE EINSTIEGSPUNKT. Alles Weitere in dieser Klasse ist ein
      * Baustein davon.
      *
-     * @param array<string,mixed>            $in_daten   Aus Location::selectOneForPage()
-     * @param array<int,array<string,mixed>> $in_bilder  Aus LocationImage::forLocation()
+     * @param array<string,mixed> $in_daten  Aus Location::selectOneForPage()
+     * @param array{cover: array<string,mixed>|null, gallery: array<int,array<string,mixed>>} $in_bilder
+     *        Die Bilder, BEREITS GETRENNT (App\Model\LocationImage::teile).
+     *        Getrennt wird im Controller und nicht hier: Welche Rolle ein Bild
+     *        traegt, steht in der Datenbank - diese Klasse bekommt, was sie
+     *        zeigen soll, und entscheidet nichts.
      * @param array<string,mixed>            $in_ansicht Was der Controller entschieden hat:
      *        'eigen'       bool   Gehoert der Standort dem Aufrufer?
      *        'angemeldet'  bool   Ist ueberhaupt jemand angemeldet?
@@ -48,6 +52,12 @@ class LocationView
         $eigen  = !empty($in_ansicht['eigen']);
         $titel  = self::titelVon($in_daten);
 
+        // ZWEI ARTEN VON BILDERN: das Titelbild fuer den Kopf, die
+        // Beispielbilder fuer die Galerie im Inhaltsbereich. Welches welches
+        // ist, hat der Guide ausgewaehlt - nicht mehr die Reihenfolge.
+        $cover   = $in_bilder['cover']   ?? null;
+        $gallery = (array)($in_bilder['gallery'] ?? []);
+
         $ersetzungen = [
             '###LOCATION_ID###' => (string)(int)$in_daten['id'],
             '###NOTICE###'      => self::hinweisHtml(
@@ -57,7 +67,8 @@ class LocationView
             '###PLACE###'       => self::esc(self::ortVon($in_daten)),
             '###STATE###'       => self::zustandHtml($in_daten, $eigen),
             '###BLOCKED###'     => self::sperrHtml($in_daten, $eigen),
-            '###GALLERY###'     => self::galerieHtml($in_bilder, $titel),
+            '###COVER###'       => self::titelbildHtml($cover, $titel),
+            '###GALLERY###'     => self::galerieHtml($gallery, $titel),
             '###SHORTTEXT###'   => self::kurztextHtml($in_daten),
             '###LONGTEXT###'    => self::langtextHtml($in_daten),
             '###FACTS###'       => self::faktenHtml($in_daten),
@@ -65,7 +76,7 @@ class LocationView
                                        !empty($in_ansicht['angemeldet']),
                                        $in_ansicht['viewer_id'] ?? null),
             '###OWNER_TOOLS###' => $eigen
-                                       ? self::bearbeitenHtml($in_daten, $in_bilder,
+                                       ? self::bearbeitenHtml($in_daten, $cover, $gallery,
                                              (array)($in_ansicht['grenzen'] ?? []))
                                        : '',
             '###PAGE_DATA###'   => self::seitendatenHtml($in_daten, $in_bilder, $in_ansicht),
@@ -210,110 +221,91 @@ class LocationView
     }
 
     /**
-     * Der Bildrahmen, der die Seite anfuehrt - samt Blaetterung.
+     * Der Bildrahmen, der die Seite anfuehrt - mit dem TITELBILD.
      *
-     * ER IST RANDLOS UND OHNE KASTEN. Vorher stand hier eine gerundete
-     * Flaeche mit Hintergrund, also ein Kasten unter mehreren gleichrangigen.
-     * Jetzt liegt das Bild ueber die volle Breite des Inhaltsbereichs und
-     * traegt Titel, Ort und Zustand auf sich; die Anordnung macht
-     * assets/css/location.css, hier steht nur, was darin liegt.
+     * ER IST RANDLOS UND OHNE KASTEN. Das Bild liegt ueber die volle
+     * Fensterbreite und traegt Titel, Ort und Zustand auf sich; die Anordnung
+     * macht assets/css/location.css, hier steht nur, was darin liegt.
      *
-     * ALLE BILDER STEHEN IM DOKUMENT, nur eines ist sichtbar. Das ist der
-     * Unterschied zu einem Bildwechsel, der die Adresse des einen Bildes
-     * austauscht: So blaettert der Browser ohne einen neuen Abruf, und die
-     * bereits geladenen Bilder sind sofort da.
+     * GENAU EIN BILD, und nicht mehr eine Reihe zum Blaettern. Vorher musste
+     * dasselbe Bild beides sein: Hintergrund der Kopfzeile und Beispielbild
+     * des Ortes. Ein Titelbild braucht ein sehr breites Format und ruhige
+     * Flaechen fuer die Schrift, ein Beispielbild soll zeigen, was man dort
+     * sieht - beides zugleich geht selten gut. Welches Bild hier steht, waehlt
+     * der Guide aus (LocationController::setCoverImage); die uebrigen stehen
+     * als Galerie im Inhaltsbereich.
      *
-     * OHNE JAVASCRIPT bleibt das erste Bild stehen - das Titelbild, das der
-     * Guide selbst nach vorn gestellt hat. Die Seite ist damit vollstaendig
-     * benutzbar: Titel, Beschreibung, Angaben und der Knopf haengen nicht am
-     * Blaettern. Die Punkte unter dem Bild sind trotzdem VERWEISE auf das
-     * jeweilige Bild und keine Knoepfe - ohne Skript oeffnet ein Klick darauf
-     * das Bild, statt ins Leere zu greifen.
-     *
-     * OHNE BILDER gibt es keinen leeren Fotokasten, sondern einen flachen
+     * OHNE TITELBILD gibt es keinen leeren Fotokasten, sondern einen flachen
      * Streifen: Der Titel muss auch dann irgendwo stehen, und eine
      * bildschirmhohe graue Flaeche verspricht ein Bild, das nicht kommt.
      *
-     * @param array<int,array<string,mixed>> $in_bilder Aus LocationImage::forLocation()
+     * DIE LESBARKEIT DES TITELS HAENGT NICHT AN DIESEM BILD. Sie haengt am
+     * Band darunter (assets/css/location.css, .loc-hero__band), das dunkel
+     * genug ist, dass weisse Schrift darauf in jedem Fall lesbar bleibt -
+     * auch auf einem hellen Foto.
+     *
+     * @param array<string,mixed>|null $in_cover Das Titelbild, oder null
+     * @param string                   $in_titel Fuer den Alternativtext
+     * @return string HTML
+     */
+    public static function titelbildHtml(?array $in_cover, string $in_titel): string
+    {
+        if ($in_cover === null) {
+            return '<div class="loc-hero__frame loc-hero__frame--empty"></div>';
+        }
+
+        // loading="eager": Es ist das Groesste auf der Seite und steht ganz
+        // oben. Haengte es an einem spaeteren Ladevorgang, saehe der Besucher
+        // zuerst eine graue Flaeche.
+        return '<div class="loc-hero__frame">'
+             . '<img class="loc-hero__cover" src="' . self::bildUrl((int)$in_cover['id'], 'full') . '"'
+             . ' alt="' . self::esc($in_titel) . '" loading="eager">'
+             . '</div>';
+    }
+
+    /**
+     * Die Beispielbilder als Streifen im Inhaltsbereich.
+     *
+     * SIE STANDEN FRUEHER IM KOPF und wechselten sich dort mit dem Titelbild
+     * ab. Das hiess: Jedes von ihnen musste Schrift tragen, die nicht zu ihm
+     * gehoerte, und wurde auf ein sehr breites Format beschnitten. Hier
+     * duerfen sie zeigen, was sie zeigen sollen.
+     *
+     * OHNE BILDER STEHT HIER GAR NICHTS - kein leerer Rahmen, keine
+     * Ueberschrift ohne Inhalt. Ein Standort ohne Beispielbilder hat an dieser
+     * Stelle nichts zu sagen.
+     *
+     * Jede Kachel ist ein VERWEIS auf das Bild in voller Groesse. Ohne
+     * JavaScript oeffnet ein Klick es damit; mit JavaScript faengt
+     * assets/js/location_page.js den Klick ab und zeigt es in der
+     * Grossansicht, in der sich auch blaettern laesst.
+     *
+     * @param array<int,array<string,mixed>> $in_bilder Nur die Beispielbilder
      * @param string                         $in_titel  Fuer den Alternativtext
      * @return string HTML
      */
     public static function galerieHtml(array $in_bilder, string $in_titel): string
     {
+        if ($in_bilder === []) return '';
+
         $alt = self::esc($in_titel);
 
-        // OHNE BILDER bleibt ein ruhiger Streifen, auf dem Titel, Ort und
-        // Zustand stehen - kein leerer Fotokasten und auch kein Satz "hier
-        // gibt es keine Bilder". Dass keine da sind, sieht man; ein Satz
-        // darueber macht aus einer stillen Leerstelle eine Meldung. Der
-        // Guide erfaehrt es an der Stelle, an der er etwas dagegen tun kann:
-        // im Bearbeitungsformular.
-        if ($in_bilder === []) {
-            return '<div class="loc-hero__frame loc-hero__frame--empty"></div>';
-        }
-
-        // Die Bilder. Nur das erste traegt is-active; die uebrigen liegen
-        // bereit und werden vom Skript hereingeschoben.
-        //
-        // loading: Das erste Bild EAGER, alle weiteren lazy. Es ist das
-        // Groesste auf der Seite und steht ganz oben - haengte es an einem
-        // spaeteren Ladevorgang, saehe der Besucher zuerst eine graue
-        // Flaeche.
-        $slides = '';
+        $kacheln = '';
         foreach ($in_bilder as $nr => $bild) {
             $id = (int)$bild['id'];
-            $slides .= '<img class="loc-hero__slide' . ($nr === 0 ? ' is-active' : '') . '"'
-                    . ' src="' . self::bildUrl($id, 'full') . '"'
-                    . ' alt="' . $alt . ($nr === 0 ? '' : ' – Bild ' . ($nr + 1)) . '"'
-                    . ' loading="' . ($nr === 0 ? 'eager' : 'lazy') . '"'
-                    . ' data-slide="' . $nr . '">';
+            $kacheln .= '<a class="loc-shots__item"'
+                     . ' href="' . self::bildUrl($id, 'full') . '"'
+                     . ' data-full="' . self::bildUrl($id, 'full') . '"'
+                     . ' data-shot="' . $nr . '">'
+                     . '<img src="' . self::bildUrl($id, 'thumb') . '"'
+                     . ' alt="' . $alt . ' – Bild ' . ($nr + 1) . '" loading="lazy">'
+                     . '</a>';
         }
 
-        $frame = '<div class="loc-hero__frame">' . $slides . '</div>';
-
-        // Ein einzelnes Bild braucht keine Blaetterung. Pfeile, die nirgends
-        // hinfuehren, sind schlimmer als keine.
-        if (count($in_bilder) < 2) return $frame;
-
-        return $frame . self::blaetternHtml($in_bilder, $alt);
-    }
-
-    /**
-     * Pfeile und Punkte zum Blaettern.
-     *
-     * ZWEI BEDIENWEGE, und das ist kein Zufall: Die Pfeile sind gross und
-     * liegen am Rand des Bildes - dorthin greift man mit der Maus. Die Punkte
-     * sagen, wie viele Bilder es ueberhaupt gibt und an welcher Stelle man
-     * steht; das sagen zwei Pfeile nicht.
-     *
-     * Die Pfeile sind KNOEPFE (ohne Skript nutzlos, deshalb tragen sie kein
-     * href, das ins Leere fuehrt), die Punkte sind VERWEISE auf das jeweilige
-     * Bild (ohne Skript oeffnen sie es). So ist jedes Bild auch ohne
-     * JavaScript erreichbar.
-     *
-     * @param array<int,array<string,mixed>> $in_bilder
-     * @param string                         $in_alt Bereits maskiert
-     * @return string HTML
-     */
-    private static function blaetternHtml(array $in_bilder, string $in_alt): string
-    {
-        $anzahl = count($in_bilder);
-
-        $pfeile = '<button type="button" class="loc-hero__nav loc-hero__nav--prev"'
-                . ' data-slide-step="-1" aria-label="Vorheriges Bild"></button>'
-                . '<button type="button" class="loc-hero__nav loc-hero__nav--next"'
-                . ' data-slide-step="1" aria-label="Nächstes Bild"></button>';
-
-        $punkte = '';
-        foreach ($in_bilder as $nr => $bild) {
-            $punkte .= '<a class="loc-hero__dot' . ($nr === 0 ? ' is-active' : '') . '"'
-                    . ' href="' . self::bildUrl((int)$bild['id'], 'full') . '"'
-                    . ' data-slide-to="' . $nr . '"'
-                    . ' aria-label="Bild ' . ($nr + 1) . ' von ' . $anzahl . '"></a>';
-        }
-
-        return $pfeile
-             . '<div class="loc-hero__dots" role="group" aria-label="Bilder">' . $punkte . '</div>';
+        return '<section class="loc__shots">'
+             . '<h2 class="loc__h2">Bilder vom Ort</h2>'
+             . '<div class="loc-shots" id="loc-shots">' . $kacheln . '</div>'
+             . '</section>';
     }
 
     /**
@@ -559,9 +551,9 @@ class LocationView
      * fuer den Knopf, damit es keinen zweiten Ort gibt, an dem man vergisst,
      * sie herauszunehmen.
      *
-     * @param array<string,mixed>            $in_daten
-     * @param array<int,array<string,mixed>> $in_bilder
-     * @param array<string,mixed>            $in_ansicht Siehe page()
+     * @param array<string,mixed> $in_daten
+     * @param array{cover: array<string,mixed>|null, gallery: array<int,array<string,mixed>>} $in_bilder
+     * @param array<string,mixed> $in_ansicht Siehe page()
      * @return string HTML (<script>-Block)
      */
     public static function seitendatenHtml(array $in_daten, array $in_bilder, array $in_ansicht): string
@@ -584,7 +576,10 @@ class LocationView
             'isOwn'        => $eigen,
             'userId'       => isset($in_ansicht['viewer_id']) && (int)$in_ansicht['viewer_id'] > 0
                                   ? (int)$in_ansicht['viewer_id'] : null,
-            'imageCount'   => count($in_bilder),
+            // Beide Zahlen, denn beide Arten zaehlen gegen dieselbe
+            // Obergrenze - siehe maxImages.
+            'coverCount'   => isset($in_bilder['cover']) && $in_bilder['cover'] !== null ? 1 : 0,
+            'imageCount'   => count((array)($in_bilder['gallery'] ?? [])),
             'maxImages'    => (int)($grenzen['max_images'] ?? 0),
         ];
 
@@ -634,11 +629,13 @@ class LocationView
      * Eingabe, die das Feld ausdruecklich erlaubt hat.
      *
      * @param array<string,mixed>            $in_daten
-     * @param array<int,array<string,mixed>> $in_bilder
+     * @param array<string,mixed>|null       $in_cover   Das Titelbild, oder null
+     * @param array<int,array<string,mixed>> $in_gallery Die Beispielbilder
      * @param array<string,mixed>            $in_grenzen Siehe page()
      * @return string HTML
      */
-    public static function bearbeitenHtml(array $in_daten, array $in_bilder, array $in_grenzen): string
+    public static function bearbeitenHtml(array $in_daten, ?array $in_cover,
+                                          array $in_gallery, array $in_grenzen): string
     {
         $vorlage = ViewHelper::template('assets/html/location_edit.html');
 
@@ -658,7 +655,9 @@ class LocationView
                                         ? (string)(int)$in_daten['duration_minutes']
                                         : (string)(int)($in_grenzen['dauer_vorgabe'] ?? 0),
             '###E_LANGUAGES###'   => self::sprachauswahlHtml($in_daten['languages'] ?? ''),
-            '###E_IMAGES###'      => self::bildverwaltungHtml($in_bilder),
+            '###E_COVER###'       => self::titelbildVerwaltungHtml($in_cover),
+            '###E_IMAGES###'      => self::bildverwaltungHtml($in_gallery),
+            '###E_IMAGECOUNT###'  => (string)(count($in_gallery) + ($in_cover === null ? 0 : 1)),
             '###E_MAXIMAGES###'   => (string)(int)($in_grenzen['max_images']   ?? 0),
             '###E_TITLE_MAX###'   => (string)(int)($in_grenzen['titel_max']    ?? 0),
             '###E_SHORT_MAX###'   => (string)(int)($in_grenzen['kurz_max']     ?? 0),
@@ -698,18 +697,57 @@ class LocationView
     }
 
     /**
-     * Die Bilderliste im Bearbeitungsformular.
+     * Das Titelbild im Bearbeitungsformular.
      *
-     * Jede Kachel traegt ihre Bild-ID: Daran haengen das Loeschen und die
-     * neue Reihenfolge (assets/js/location_page.js).
+     * ENTWEDER das gewaehlte Bild mit einem Knopf, es zurueckzunehmen - ODER
+     * der Hinweis, dass noch keines gewaehlt ist. Der Hinweis ist kein
+     * Schoenheitsfehler, sondern die Antwort auf die Frage, warum der Kopf
+     * der Seite grau ist.
      *
-     * @param array<int,array<string,mixed>> $in_bilder
+     * "Zurueck in die Galerie" und nicht "Loeschen": Wer sein Titelbild
+     * absetzt, will fast immer ein anderes waehlen und nicht dieses Bild
+     * verlieren. Loeschen kann er es in der Galerie darunter.
+     *
+     * @param array<string,mixed>|null $in_cover
+     * @return string HTML
+     */
+    public static function titelbildVerwaltungHtml(?array $in_cover): string
+    {
+        if ($in_cover === null) {
+            return '<p class="loc__empty" data-nocover>'
+                 . 'Noch kein Titelbild gewählt. Der Kopf der Seite zeigt so lange nur '
+                 . 'Titel und Ort. Wählen Sie unten eines Ihrer Bilder aus – am besten '
+                 . 'ein sehr breites mit ruhigen Flächen, auf denen die Schrift steht.'
+                 . '</p>';
+        }
+
+        $id = (int)$in_cover['id'];
+        return '<div class="loc-edit__cover" data-imageid="' . $id . '">'
+             . '<img src="' . self::bildUrl($id, 'full') . '" alt="Titelbild">'
+             . '<div class="loc-edit__coverActions">'
+             . '<button type="button" class="btn btn-secondary btn-sm" id="loc-cover-clear">'
+             . 'Zurück in die Galerie</button>'
+             . '</div>'
+             . '</div>';
+    }
+
+    /**
+     * Die Beispielbilder im Bearbeitungsformular.
+     *
+     * Jede Kachel traegt ihre Bild-ID: Daran haengen das Loeschen, die neue
+     * Reihenfolge und die Wahl zum Titelbild (assets/js/location_page.js).
+     *
+     * DREI KNOEPFE JE KACHEL, und der erste ist neu: "Als Titelbild". Er ist
+     * der Weg, auf dem der Guide auswaehlt, welches Bild die Kopfzeile fuellt
+     * - ohne es dafuer noch einmal hochladen zu muessen.
+     *
+     * @param array<int,array<string,mixed>> $in_bilder Nur die Beispielbilder
      * @return string HTML
      */
     public static function bildverwaltungHtml(array $in_bilder): string
     {
         if ($in_bilder === []) {
-            return '<p class="loc__empty" data-empty>Noch keine Bilder hochgeladen.</p>';
+            return '<p class="loc__empty" data-empty>Noch keine Beispielbilder hochgeladen.</p>';
         }
 
         $html = '';
@@ -718,6 +756,9 @@ class LocationView
             $html .= '<li class="loc-edit__image" data-imageid="' . $id . '">'
                   . '<img src="' . self::bildUrl($id, 'thumb') . '" alt="Bild ' . ($nr + 1) . '">'
                   . '<div class="loc-edit__imageActions">'
+                  . '<button type="button" class="app-iconbtn app-iconbtn--cover loc-img-cover"'
+                  . ' aria-label="Bild ' . ($nr + 1) . ' als Titelbild verwenden"'
+                  . ' title="Als Titelbild"></button>'
                   . '<button type="button" class="app-iconbtn app-iconbtn--up loc-img-up"'
                   . ' aria-label="Bild ' . ($nr + 1) . ' nach vorne" title="Nach vorne"></button>'
                   . '<button type="button" class="app-iconbtn app-iconbtn--down loc-img-down"'
@@ -729,4 +770,5 @@ class LocationView
         }
         return $html;
     }
+
 }

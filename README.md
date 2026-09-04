@@ -47,9 +47,10 @@ mariadb -u <user> -p <datenbank> < migrations/008_farbprofil.sql
 mariadb -u <user> -p <datenbank> < migrations/009_call_standort.sql
 mariadb -u <user> -p <datenbank> < migrations/010_verfuegbarkeit.sql
 mariadb -u <user> -p <datenbank> < migrations/011_standort_inhalt.sql
+mariadb -u <user> -p <datenbank> < migrations/012_titelbild.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)). Alle sind idempotent und löschen nichts.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)). Alle sind idempotent und löschen nichts.
 
 **Nach `011` braucht die Anwendung ein Ablageverzeichnis für Bilder**, sonst lässt sich kein Bild hochladen; alles andere läuft unverändert weiter. Siehe [Bilder](#bilder-ablage-formate-größen).
 
@@ -375,7 +376,7 @@ auf dem eine Entscheidung hätte fußen können.
 | Ausführliche Beschreibung | `location.description_long` | Mehrzeilig, nur auf der Standortseite. |
 | Typische Dauer | `location.duration_minutes` | In Minuten, **mit 5 vorbelegt** (`LocationController::DAUER_VORGABE`). Wer das Feld nicht anfasst, speichert fünf Minuten; `NULL` — "nicht angegeben", die Seite erwähnt die Dauer dann gar nicht — kommt nur zustande, wenn der Guide das Feld ausdrücklich leert. |
 | Sprachen | `location.languages` | Kürzel nach ISO 639-1, kommagetrennt (`de,en`). Der Katalog steht in `App\Helper\Languages` und **nur dort**. |
-| Bilder | Tabelle `location_image` | Je Bild eine Zeile mit Reihenfolge. Die Dateien liegen außerhalb des Webroots. |
+| Bilder | Tabelle `location_image` | Je Bild eine Zeile mit Reihenfolge und **Verwendung** (`role`): ein `cover` füllt den Kopf der Seite, alle `gallery` stehen als Beispielbilder darunter. Die Dateien liegen außerhalb des Webroots. |
 
 **Die bisherige Beschreibung ist nicht verlorengegangen und auch nicht
 verschoben worden.** `location.description` steht unverändert an seinem Platz
@@ -427,12 +428,12 @@ Jetzt hat die Seite eine Rangfolge:
 ```
 ←──────────────────── volle Fensterbreite ─────────────────────→
 ┌──────────────────────────────────────────────────────────────┐
-│  [← Zurück zur Übersicht]                             ● ○ ○  │  ← auf dem Bild
+│  [← Zurück zur Übersicht]                                    │  ← auf dem Bild
 │                                                              │
-│   ‹                    B I L D                            ›  │  ← randlos,
-│                                                              │     blätterbar
-│  ● Jetzt verfügbar                                           │
-│  Alfama bei Nacht – durch die ältesten Gassen Lissabons       │  ← Titel auf dem Bild
+│                    T I T E L B I L D                         │  ← randlos, in der
+│                                                              │     Höhe gedeckelt
+│  ● Jetzt verfügbar                                           │  ← Band: traegt die
+│  Alfama bei Nacht – durch die ältesten Gassen Lissabons       │     Lesbarkeit
 │  Lissabon, Portugal                                          │
 └──────────────────────────────────────────────────────────────┘
 
@@ -444,7 +445,11 @@ Jetzt hat die Seite eine Rangfolge:
      Sie bestimmen den Weg. Über das            │ Sprachen …   │
      Steuerkreuz schicken Sie mich …            │ Ort     …    │
                                                 └──────────────┘
-     Treffpunkt                                  läuft beim
+     Bilder vom Ort                              läuft beim
+     ┌────────┐ ┌────────┐ ┌────────┐                Scrollen mit
+     │  Foto  │ │  Foto  │ │  Foto  │              ← Beispielbilder, ueber
+     └────────┘ └────────┘ └────────┘                 beide Spalten
+     Treffpunkt
      ┌──────────────────────────────────────────────────────┐
      │                     Karte                            │  ← Beiwerk, unten,
      └──────────────────────────────────────────────────────┘     über beide Spalten
@@ -452,12 +457,13 @@ Jetzt hat die Seite eine Rangfolge:
 
 | | |
 |---|---|
-| **Das Bild führt** | Randlos über die volle **Fensterbreite**, ohne Kasten drumherum. |
+| **Das Titelbild führt** | Randlos über die volle **Fensterbreite**, ohne Kasten drumherum — und in der Höhe gedeckelt, damit darunter immer etwas vom Text steht. |
 | **Titel, Ort und Zustand liegen darauf** | Sie gehören zum Bild, nicht in eine eigene Zeile daneben. Ein Verlauf zwischen Bild und Schrift sorgt für den Kontrast; ein Kasten hinter der Schrift wäre wieder ein Kasten. |
 | **Der Weg zurück liegt ebenfalls darauf** | Über dem Bild steht nichts. |
 | **Die Beschreibung folgt unmittelbar** | Sie ist der Grund, warum jemand die Seite liest. |
 | **Der Knopf steht oben in der schmalen Spalte** | Nicht zwischen den Datenzeilen, wo er wie deren Fußnote aussah. Die Spalte läuft beim Scrollen mit: Wer unten in der Beschreibung angekommen ist, soll ihn nicht wieder suchen müssen. |
 | **Dauer, Sprachen und Ort darunter** | Sie sind Auskunft, keine Handlung — abgesetzt durch eine Linie und einen ruhigeren Grund. |
+| **Die Beispielbilder stehen unter dem Text, über beide Spalten** | Sie zeigen den Ort, sie führen die Seite nicht an — dafür ist das Titelbild da. |
 | **Die Karte steht unten, über beide Spalten** | Beiwerk — aber nicht neben einem Loch: Vorher stand sie nur unter dem Text, und rechts daneben, unter dem Knopf, blieb Platz übrig, den nichts füllte. |
 
 #### Volle Fensterbreite ohne `vw`
@@ -486,6 +492,70 @@ Fällt `:has()` aus (ein sehr alter Browser), bleibt die Grenze stehen und das
 Bild läuft über die Inhaltsspalte — also so, wie es vorher war. Eine
 Verbesserung, keine Voraussetzung.
 
+#### Zwei Arten von Bildern
+
+Vorher gab es **eine** Liste, und das erste Bild darin musste zweierlei
+zugleich sein: Hintergrund der Kopfzeile und Beispielbild des Ortes. Das
+kann ein Bild nicht. Ein Titelbild braucht ein sehr breites Format und ruhige
+Flächen, auf denen Schrift stehen kann; ein Beispielbild soll zeigen, was man
+an dem Ort zu sehen bekommt — meist genau das Gegenteil einer ruhigen Fläche.
+Auf einem hellen Foto war der Titel kaum noch zu lesen.
+
+Getrennt sind sie über **eine Spalte**, nicht über eine zweite Tabelle und
+nicht über einen zweiten Upload-Weg:
+
+| `location_image.role` | Wo es steht | Wie viele |
+|---|---|---|
+| `cover` | füllt den Kopf der Seite | höchstens eines je Standort |
+| `gallery` | Streifen "Bilder vom Ort" unter der Beschreibung | der Rest |
+
+Eine Tabelle bleibt eine Tabelle: Dieselbe Datei, derselbe Speicherort,
+dieselbe Prüfung, dieselbe Auslieferung über `index.php?act=location_image`.
+Was sich unterscheidet, ist allein die Verwendung — und die ändert sich per
+Klick, ohne dass etwas neu hochgeladen oder gelöscht wird
+(`set_location_cover` / `unset_location_cover`).
+
+* **Das erste hochgeladene Bild wird von selbst Titelbild.** Wer eins hat,
+  hat auch einen Kopf; wer die Wahl treffen will, klickt den Stern an einer
+  anderen Kachel.
+* **Ein Titelbild abwählen löscht es nicht**, es rutscht in die Galerie
+  zurück. Wer sein Titelbild absetzt, will fast immer ein anderes wählen und
+  nicht dieses Bild verlieren — deshalb gibt es auch keine Rückfrage.
+* **Ein neues Titelbild stuft das alte zurück**, in einer Transaktion und mit
+  dem Eigentümer in der `WHERE`-Klausel beider Anweisungen. Zwei Titelbilder
+  gleichzeitig kann es dadurch nicht geben; und käme in alten Daten doch eines
+  vor, entscheidet `LocationImage::teile()` — das erste `cover` gewinnt, jedes
+  weitere fällt in die Galerie.
+* **Die Obergrenze gilt für die Summe.** Fünf Bilder heißt fünf Bilder, egal
+  wie sie verwendet werden; das Titelbild ist keins extra. Der Hinweis im
+  Formular sagt das auch so: "Noch 2 von 5 Bildern möglich, Titelbild
+  mitgezählt."
+
+Die Beispielbilder öffnen sich im Großen in einem Lichtkasten, durch den man
+blättern kann. Ohne JavaScript ist jede Kachel schlicht ein **Verweis auf das
+Bild** — ein Klick öffnet es dann eben direkt, statt ins Leere zu greifen.
+
+#### Die Höhe des Kopfes ist gedeckelt
+
+Ein Bild ohne Höhenangabe wächst mit der Breite. Auf einem hohen Bildschirm
+füllte der Kopf dadurch fast das ganze Fenster, und wer die Seite öffnete, sah
+ein Foto und sonst nichts — die Beschreibung, um die es geht, und der Knopf,
+um den es geht, lagen unter der Kante.
+
+`.loc-hero__frame` bekommt deshalb `max-height: 56vh`. Der Wert ist kein
+runder Zufall: Auf dem niedrigsten Fenster, das noch ein Fenster ist (rund
+700 Punkte), bleiben darunter gut 300 Punkte — genug für die Überschrift des
+Textes, die ersten Zeilen und den Knopf. Nach oben wächst der Kopf mit dem
+Fenster mit, aber er nimmt es nie ganz.
+
+**Die Lesbarkeit des Titels hängt nicht am Bild.** Sie hängt an dem Band, auf
+dem er steht: ein Verlauf von 90 % Deckung unten auf 55 % am oberen Ende des
+Textes, dann weich auf null. Er ist so hoch wie der **Text**, nicht ein fester
+Anteil der **Bildhöhe** — ein dreizeiliger Titel bringt sein Band selbst mit.
+Weiß darauf liegt in jedem Fall über 5:1 Kontrast, auch wenn das Bild an
+dieser Stelle weiß ist. Geprüft wird das mit einem absichtlich überstrahlten
+Testbild, nicht mit einem gefälligen.
+
 #### Die Breiten sind ausgerechnet, nicht gewählt
 
 Die Textspalte ist auf 75 Zeichen begrenzt — darüber findet das Auge den
@@ -510,17 +580,12 @@ Reihenfolge im Dokument; auf breiten Bildschirmen ordnet erst das Raster
 Karte im Dokument vor der schmalen Spalte — stünden auf einem Telefon 260 Punkte
 Beiwerk zwischen der Beschreibung und der Handlung, um die es geht.
 
-**Die Galerie** hält alle Bilder im Dokument und blendet eines ein; geblättert
-wird mit den Pfeilen am Bildrand, den Punkten darunter oder den Pfeiltasten
-(letztere nicht, während jemand in ein Feld tippt). Ohne JavaScript bleibt das
-Titelbild stehen — und die Punkte sind **Verweise auf das jeweilige Bild**, also
-öffnet ein Klick es dann eben, statt ins Leere zu greifen.
-
-**Ohne Bilder** gibt es keinen leeren Fotokasten und auch keinen Satz darüber,
-dass Bilder fehlen: ein ruhiger Streifen, auf dem Titel, Ort und Zustand
-trotzdem stehen. Dass keine da sind, sieht man; ein Satz macht daraus eine
-Meldung. Der Guide erfährt es dort, wo er etwas dagegen tun kann — im
-Bearbeitungsformular.
+**Ohne Titelbild** gibt es keinen leeren Fotokasten und auch keinen Satz
+darüber, dass ein Bild fehlt: ein ruhiger Streifen, auf dem Titel, Ort und
+Zustand trotzdem stehen. Dass keins da ist, sieht man; ein Satz macht daraus
+eine Meldung. Der Guide erfährt es dort, wo er etwas dagegen tun kann — im
+Bearbeitungsformular. **Ohne Beispielbilder** entfällt der Streifen "Bilder vom
+Ort" ganz, mitsamt seiner Überschrift.
 
 Seine Höhe steht mit **zwei Klassen** im Selektor
 (`.loc-hero__frame.loc-hero__frame--empty`). Das ist kein Zufall: Die Höhe des
@@ -589,6 +654,21 @@ Der Guide sieht auf seiner eigenen Standortseite den Knopf *Bearbeiten*; er
 klappt das Formular an Ort und Stelle auf. Das ist Absicht: Reihenfolge und
 Auswahl der Bilder beurteilt man an der Ansicht und nicht an einer Liste von
 Dateinamen.
+
+**Die Bilder stehen im Formular in zwei Blöcken**, so wie sie auf der Seite
+auch in zwei Blöcken stehen: oben das Titelbild mit dem Knopf *Zurück in die
+Galerie*, darunter "Bilder vom Ort" mit den Kacheln. An jeder Kachel steht
+neben Verschieben und Löschen ein Stern — *Als Titelbild*. Hochgeladen wird
+weiterhin über **einen** Knopf: Welche Verwendung ein neues Bild bekommt,
+entscheidet der Server (das erste wird Titelbild, jedes weitere Galerie), und
+nicht der Hochladende über eine Auswahl, die er beim Aussuchen noch gar nicht
+treffen kann.
+
+Nach dem Setzen oder Abwählen eines Titelbildes **lädt die Seite neu**. Das ist
+Absicht und keine Bequemlichkeit: Der Wechsel ordnet Kopf und Galerie zugleich
+neu. Das im Browser nachzubauen hieße, dieselbe Aufteilungsregel ein zweites
+Mal zu schreiben — einmal in `App\Helper\LocationView` und einmal in
+JavaScript. Zwei Fassungen derselben Regel laufen auseinander.
 
 **Das alte Formular taugte dafür nicht.** `set_location.html` kennt keine
 Standort-ID und schickt immer an ein `INSERT`; der Dialog "Beschreibung ändern"
@@ -659,7 +739,7 @@ Bedeutung.
 
 | Wert | Vorgabe | Warum |
 |---|---|---|
-| `max_images_per_location` | 5 | Die Obergrenze je Standort. |
+| `max_images_per_location` | 5 | Die Obergrenze je Standort — für die **Summe** aus Titelbild und Beispielbildern. |
 | `max_file_bytes` | 8 MB | Reichlich für ein Handyfoto, klein genug, dass paralleles Hochladen den Server nicht belegt. |
 | `max_source_edge` | 6000 px | **Nicht wegen des Plattenplatzes, sondern wegen des Arbeitsspeichers**: Ein GD-Bild braucht rund vier Byte je Bildpunkt. Ein Bild mit 30000 × 30000 Punkten ist als Datei ein paar hundert Kilobyte — fällt also durch jede Größenprüfung — und bringt den Prozess um. |
 | `full_edge` | 1600 px | Reicht für eine bildschirmfüllende Ansicht. Größer hieße längeres Laden für eine Auflösung, die niemand sieht. |
@@ -680,6 +760,14 @@ Parameter steht schon da und wird heute nicht beachtet. Kommt die Staffelung,
 bekommt genau dieser Methodenrumpf seine Abfrage — und kein Aufrufer ändert
 sich. Wer die Zahl stattdessen direkt aus `config/uploads.php` liest, macht das
 kaputt; `tests/server_test.php` (Abschnitt 30) hält es fest.
+
+Dasselbe gilt für die **Verwendung**: Dass ein Standort genau ein Titelbild
+hat, steht in `App\Model\LocationImage` (`ROLE_COVER`, `ROLE_GALLERY`,
+`teile()`) und nicht verteilt in Controller, Ansicht und Skript. Sollen später
+je Kontoart mehrere Titelbilder erlaubt sein oder Beispielbilder getrennt von
+Titelbildern gezählt werden, ist das dort und in `maxImages()` zu ändern — die
+Spalte `role` trägt einen Text und keine Ja/Nein-Marke, gerade damit eine
+dritte Verwendung dazukommen kann, ohne dass die Tabelle wandert.
 
 ---
 

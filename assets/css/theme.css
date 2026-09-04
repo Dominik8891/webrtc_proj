@@ -143,6 +143,11 @@
        Tastatur gar nicht. */
     --icon-arrow-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 19V5'/%3E%3Cpath d='M5 12l7-7 7 7'/%3E%3C/svg%3E");
     --icon-arrow-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14'/%3E%3Cpath d='M5 12l7 7 7-7'/%3E%3C/svg%3E");
+    /* Stern: "dieses Bild ist das Titelbild". Gefuellt und nicht als Umriss -
+       er markiert einen Zustand, keine Handlung. */
+    --icon-star: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23000'%3E%3Cpath d='M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5-5.8-3-5.8 3 1.1-6.5L2.6 9.4l6.5-.9z'/%3E%3C/svg%3E");
+    /* Schliessen: das Kreuz der Grossansicht. */
+    --icon-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M5 5l14 14M19 5L5 19'/%3E%3C/svg%3E");
     --icon-history: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3.5 2'/%3E%3C/svg%3E");
 
     /* --- Schrift --------------------------------------------------------
@@ -2042,6 +2047,9 @@ table.dataTable td.dataTables_empty {
 }
 .app-iconbtn--down::before {
     -webkit-mask-image: var(--icon-arrow-down); mask-image: var(--icon-arrow-down);
+}
+.app-iconbtn--cover::before {
+    -webkit-mask-image: var(--icon-star); mask-image: var(--icon-star);
 }
 
 /* Die Aktionszelle: Symbole eng beieinander, damit sie als eine Gruppe

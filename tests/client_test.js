@@ -2371,57 +2371,51 @@ function ackLastMove(status = 'executed', reason) {
 
         seite.daten = null;
 
-        // --- Das Blaettern -------------------------------------------------
+        // --- Das Blaettern in der Grossansicht ------------------------------
+        // Es ist mit den Bildern UMGEZOGEN: Im Kopf der Seite steht jetzt ein
+        // einzelnes Titelbild, geblaettert wird in der Grossansicht der
+        // Beispielbilder.
+        //
         // showSlide() bekommt Zahlen, die ueber die Grenzen hinausgehen: Die
-        // Pfeile rechnen einfach +1 und -1. Sie laufen deshalb im Kreis -
-        // ein Pfeil, der am Ende nichts mehr tut, sieht kaputt aus, und ihn
-        // dort zu sperren hiesse, bei jedem Wechsel zwei Knoepfe
-        // umzuschalten.
-        const machBild = () => {
-            const klassen = new Set();
-            return { klassen, classList: {
-                toggle(n, an) { if (an) klassen.add(n); else klassen.delete(n); }
-            } };
-        };
-        seite.slides = [machBild(), machBild(), machBild()];
-        seite.dots   = [machBild(), machBild(), machBild()];
-        const sichtbar = () => seite.slides.findIndex(b => b.klassen.has('is-active'));
+        // Pfeile rechnen einfach +1 und -1. Sie laufen deshalb im Kreis - ein
+        // Pfeil, der am Ende nichts mehr tut, sieht kaputt aus, und ihn dort
+        // zu sperren hiesse, bei jedem Wechsel zwei Knoepfe umzuschalten.
+        const machKachel = (nr) => ({
+            getAttribute: (n) => (n === 'data-full' ? 'bild' + nr + '.jpg' : null),
+            querySelector: () => ({ getAttribute: () => 'Bild ' + nr })
+        });
+        seite.shots = [machKachel(0), machKachel(1), machKachel(2)];
+
+        const gezeigt = () => __el('loc-lightbox-image').src;
 
         seite.showSlide(0);
-        assert.strictEqual(sichtbar(), 0, 'das erste Bild wird nicht sichtbar');
+        assert.strictEqual(seite.slide, 0, 'das erste Bild wird nicht gezeigt');
+        assert.strictEqual(gezeigt(), 'bild0.jpg', 'die Grossansicht zeigt das falsche Bild');
 
         seite.showSlide(seite.slide + 1);
-        assert.strictEqual(sichtbar(), 1, 'der Vorwaertspfeil bewegt nichts');
+        assert.strictEqual(seite.slide, 1, 'der Vorwaertspfeil bewegt nichts');
+        assert.strictEqual(gezeigt(), 'bild1.jpg', 'das Bild wechselt nicht mit');
 
         // Ueber das Ende hinaus: zurueck zum ersten.
         seite.showSlide(3);
-        assert.strictEqual(sichtbar(), 0, 'hinter dem letzten Bild kommt nicht wieder das erste');
+        assert.strictEqual(seite.slide, 0, 'hinter dem letzten Bild kommt nicht wieder das erste');
 
-        // UND ZURUECK UEBER DEN ANFANG. Das ist die Stelle, an der eine
-        // naive Rechnung scheitert: In JavaScript ist (-1 % 3) gleich -1 und
-        // nicht 2 - ohne die zweite Modulo-Rechnung stuende hier -1 und es
-        // waere gar kein Bild mehr sichtbar.
+        // UND ZURUECK UEBER DEN ANFANG. Das ist die Stelle, an der eine naive
+        // Rechnung scheitert: In JavaScript ist (-1 % 3) gleich -1 und nicht
+        // 2 - ohne die zweite Modulo-Rechnung stuende hier -1 und es waere gar
+        // kein Bild mehr zu sehen.
         seite.showSlide(-1);
-        assert.strictEqual(sichtbar(), 2, 'vor dem ersten Bild kommt nicht das letzte');
-
-        // Immer genau EINES sichtbar, und die Punkte zeigen dasselbe.
-        assert.strictEqual(seite.slides.filter(b => b.klassen.has('is-active')).length, 1,
-            'es ist nicht genau ein Bild sichtbar');
-        assert.strictEqual(seite.dots.findIndex(b => b.klassen.has('is-active')), sichtbar(),
-            'der markierte Punkt gehoert nicht zum sichtbaren Bild');
+        assert.strictEqual(seite.slide, 2, 'vor dem ersten Bild kommt nicht das letzte');
+        assert.strictEqual(gezeigt(), 'bild2.jpg', 'das letzte Bild wird nicht gezeigt');
         ok('das Blaettern laeuft im Kreis, auch rueckwaerts');
 
-        // Mit einem einzelnen Bild passiert gar nichts - dann gibt es auch
-        // keine Pfeile, die etwas ausloesen koennten.
-        seite.slides = [machBild()];
-        seite.dots   = [machBild()];
-        seite.slide  = 0;
-        seite.showSlide(1);
-        assert.strictEqual(seite.slide, 0, 'ein einzelnes Bild laesst sich weiterblaettern');
-        ok('ein einzelnes Bild kennt kein Blaettern');
-
-        seite.slides = [];
-        seite.dots = [];
+        // Ohne Bilder passiert gar nichts - dann gibt es auch keine
+        // Grossansicht, die etwas zeigen koennte.
+        seite.shots = [];
+        seite.slide = 7;
+        seite.showSlide(0);
+        assert.strictEqual(seite.slide, 7, 'ohne Bilder wird trotzdem geblaettert');
+        ok('ohne Beispielbilder gibt es nichts zu blaettern');
     }
 
     console.error('\n' + passed + ' Pruefungen bestanden.');
