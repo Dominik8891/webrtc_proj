@@ -1,0 +1,259 @@
+/* ===========================================================================
+   Die Seite eines einzelnen Standorts (assets/html/location_page.html,
+   assets/html/location_edit.html).
+
+   Sie benutzt ausschliesslich die Variablen aus theme.css - Farben, Abstaende
+   und Rundungen stehen dort und nur dort. Hier steht die Anordnung.
+
+   AUFBAU: Bilder oben ueber die volle Breite, darunter zwei Spalten - links
+   der Text, rechts die Angaben, der Knopf und die Karte. Auf schmalen
+   Geraeten fallen die Spalten untereinander, und die rechte kommt ZUERST:
+   Wer auf dem Telefon eine Fuehrung starten will, soll dafuer nicht an einer
+   Beschreibung vorbeiscrollen muessen.
+   =========================================================================== */
+
+.loc-page {
+    max-width: 1080px;
+}
+
+/* --- Kopf ---------------------------------------------------------------- */
+
+.loc__head {
+    margin-bottom: var(--app-space-4);
+}
+
+.loc__state {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+    margin-top: var(--app-space-2);
+}
+
+.loc__hint {
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+/* --- Bildergalerie ------------------------------------------------------- */
+
+.loc-gallery {
+    margin-bottom: var(--app-space-5);
+}
+
+.loc-gallery__main {
+    margin: 0;
+    border-radius: var(--app-radius);
+    overflow: hidden;
+    background: var(--app-surface-sunken);
+}
+
+.loc-gallery__main img {
+    display: block;
+    width: 100%;
+    /* Feste Hoehe mit Ausschnitt statt freier Hoehe: Sonst springt die halbe
+       Seite, sobald ein Hochformat an die Stelle eines Querformats tritt. */
+    height: clamp(220px, 42vw, 460px);
+    object-fit: cover;
+}
+
+.loc-gallery__strip {
+    display: flex;
+    gap: var(--app-space-2);
+    margin-top: var(--app-space-2);
+    /* Waagerecht schiebbar statt umbrechend: Fuenf Vorschauen sollen eine
+       Zeile bleiben, auch wenn der Platz nicht reicht. */
+    overflow-x: auto;
+    padding-bottom: var(--app-space-1);
+}
+
+.loc-gallery__thumb {
+    flex: 0 0 auto;
+    display: block;
+    width: 108px;
+    height: 72px;
+    border-radius: var(--app-radius-sm);
+    overflow: hidden;
+    /* Der Rahmen ist im Ruhezustand schon da, nur durchsichtig: So springt
+       nichts, wenn das aktive Bild wechselt. */
+    border: 2px solid transparent;
+    opacity: .72;
+    transition: opacity .12s ease, border-color .12s ease;
+}
+
+.loc-gallery__thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.loc-gallery__thumb:hover,
+.loc-gallery__thumb:focus-visible {
+    opacity: 1;
+}
+
+.loc-gallery__thumb.is-active {
+    opacity: 1;
+    border-color: var(--app-accent);
+}
+
+/* --- Zwei Spalten -------------------------------------------------------- */
+
+.loc__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: var(--app-space-5);
+    align-items: start;
+}
+
+.loc__lead {
+    font-size: var(--app-text-md);
+    color: var(--app-text);
+    margin-bottom: var(--app-space-4);
+}
+
+.loc__main .loc__text p {
+    margin-bottom: var(--app-space-3);
+    line-height: var(--app-leading);
+}
+
+.loc__empty {
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.loc__side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-4);
+}
+
+.loc__action {
+    margin-top: var(--app-space-4);
+}
+
+/* Der Knopf traegt die Hauptaktion der Seite - er nimmt die volle Breite
+   seiner Spalte ein, damit er nicht wie eine Nebenaktion neben den Angaben
+   steht. */
+.loc__action .btn {
+    width: 100%;
+}
+
+.loc__note {
+    margin-top: var(--app-space-2);
+    margin-bottom: 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.loc__note--danger {
+    color: var(--app-danger);
+}
+
+.loc__reason {
+    display: block;
+    margin-top: var(--app-space-1);
+    font-size: var(--app-text-sm);
+}
+
+.loc__map {
+    height: 220px;
+    border-radius: var(--app-radius-sm);
+    overflow: hidden;
+}
+
+@media (max-width: 900px) {
+    .loc__body {
+        grid-template-columns: 1fr;
+    }
+    /* Die Handlung zuerst: Auf dem Telefon steht der Knopf ueber der
+       Beschreibung, nicht darunter. */
+    .loc__side { order: -1; }
+}
+
+/* --- Bearbeiten ---------------------------------------------------------- */
+
+.loc-hint {
+    margin: var(--app-space-1) 0 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-xs);
+}
+
+.loc-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--app-space-2);
+}
+
+.loc-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    padding: var(--app-space-1) var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-pill, 999px);
+    font-size: var(--app-text-sm);
+    cursor: pointer;
+}
+
+.loc-choice:hover {
+    border-color: var(--app-border-strong);
+}
+
+/* Der Zustand haengt am Kaestchen und nicht an einer Klasse, die JavaScript
+   setzen muesste: :has() faerbt das Etikett, sobald das Kaestchen gesetzt
+   ist. Wo der Browser :has() nicht kennt, bleibt das Kaestchen selbst als
+   Anzeige - die Auswahl ist also nie unsichtbar. */
+.loc-choice:has(input:checked) {
+    border-color: var(--app-accent);
+    background: var(--app-accent-soft);
+    color: var(--app-accent-strong);
+}
+
+.loc-edit__images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--app-space-3);
+    list-style: none;
+    padding: 0;
+    margin: var(--app-space-3) 0;
+}
+
+.loc-edit__image {
+    position: relative;
+    width: 160px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    overflow: hidden;
+    background: var(--app-surface-sunken);
+}
+
+.loc-edit__image img {
+    display: block;
+    width: 100%;
+    height: 106px;
+    object-fit: cover;
+}
+
+/* Das erste Bild ist das Titelbild - das steht dran, damit die Reihenfolge
+   eine erkennbare Bedeutung hat und nicht nur eine Anordnung ist. */
+.loc-edit__image:first-child::after {
+    content: "Titelbild";
+    position: absolute;
+    top: var(--app-space-1);
+    left: var(--app-space-1);
+    padding: 2px var(--app-space-2);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-accent);
+    color: #fff;
+    font-size: var(--app-text-xs);
+}
+
+.loc-edit__imageActions {
+    display: flex;
+    justify-content: center;
+    gap: var(--app-space-1);
+    padding: var(--app-space-1);
+    border-top: 1px solid var(--app-border);
+}

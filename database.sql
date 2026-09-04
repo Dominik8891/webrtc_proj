@@ -508,7 +508,28 @@ CREATE TABLE IF NOT EXISTS `location` (
   `city_id` int(11) NOT NULL,
   `latitude` decimal(10,8) DEFAULT NULL,
   `longitude` decimal(11,8) DEFAULT NULL,
+  -- Die KURZE Beschreibung: die eine Zeile, die im Kartenfenster und in der
+  -- Standortliste steht. Dort ist Kuerze richtig - ein Absatz in einem
+  -- Kartenfenster ist unlesbar. Der ausfuehrliche Text steht in
+  -- description_long und erscheint nur auf der Standortseite.
   `description` text DEFAULT NULL,
+
+  -- Ueberschrift des Angebots. Bestehende Standorte haben sie mit
+  -- migrations/011 aus ihrer bisherigen Beschreibung bekommen.
+  `title` varchar(120) DEFAULT NULL,
+
+  -- Die ausfuehrliche, mehrzeilige Beschreibung. Nur auf der Standortseite
+  -- (index.php?act=location&id=...) zu sehen.
+  `description_long` text DEFAULT NULL,
+
+  -- Uebliche Dauer einer Fuehrung in Minuten. NULL heisst "nicht angegeben"
+  -- und ist etwas anderes als 0 - deshalb keine Vorgabe. Der Controller
+  -- laesst 5 bis 480 zu.
+  `duration_minutes` smallint(5) unsigned DEFAULT NULL,
+
+  -- Sprachen des Guides als Kuerzel nach ISO 639-1, kommagetrennt ("de,en").
+  -- Geschrieben ausschliesslich ueber App\Helper\Languages::normalize().
+  `languages` varchar(64) DEFAULT NULL,
 
   -- Moderation: Ein gesperrter Standort verschwindet aus der Uebersicht der
   -- anderen Nutzer (Location::selectAllLocations filtert blocked = 0), bleibt
@@ -532,6 +553,57 @@ CREATE TABLE IF NOT EXISTS `location` (
   CONSTRAINT `location_ibfk_1` FOREIGN KEY (`city_id`) REFERENCES `city` (`id`) ON DELETE CASCADE,
   -- Wird ein Nutzer gelöscht, verschwinden seine Standorte mit.
   CONSTRAINT `location_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
+-- Tabelle: location_image
+-- Die Bilder eines Standorts. Je Bild eine Zeile.
+--
+-- HIER STEHT KEIN BILD DRIN, sondern nur sein Dateiname. Die Dateien liegen
+-- AUSSERHALB des Document Root (Pfad aus config/uploads.php) und werden
+-- ausschliesslich ueber index.php?act=location_image ausgeliefert - ein
+-- Controller, der vorher prueft, ob der Standort gesperrt ist. Was unter dem
+-- Webroot liegt, ist ueber HTTP abrufbar, und eine hochgeladene Datei ist
+-- Fremdeingabe.
+--
+-- Ein BLOB waere die Alternative gewesen. Dagegen spricht die Sicherung: Sie
+-- waere um Groessenordnungen gewachsen, ohne dass die Datenbank mit den Daten
+-- irgendetwas anfangen koennte, was das Dateisystem nicht besser kann.
+--
+-- Bestehende Installationen: migrations/011_standort_inhalt.sql.
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `location_image` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+
+  `location_id` int(11) NOT NULL,
+
+  -- 32 Hexzeichen, vergeben von App\Helper\ImageStore. OHNE Pfad und OHNE
+  -- Endung; daraus entstehen zwei Dateien, <name>.jpg und <name>_t.jpg.
+  -- Der Name, unter dem hochgeladen wurde, wird verworfen: Er ist
+  -- Fremdeingabe ("../", "bild.php") und wird nirgends gebraucht.
+  `file_name` varchar(32) NOT NULL,
+
+  -- Reihenfolge in der Bildleiste, aufsteigend. Das erste Bild ist zugleich
+  -- das Titelbild des Standorts.
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (`id`),
+
+  -- Zusammengesetzt und in dieser Reihenfolge: Jede Abfrage holt die Bilder
+  -- EINES Standorts sortiert.
+  KEY `location_sort` (`location_id`, `sort_order`),
+
+  -- Ein zufaelliger Name kollidiert praktisch nie - aber wenn doch, zeigte
+  -- ein Standort das Bild eines anderen, und das faellt niemandem auf.
+  UNIQUE KEY `file_name` (`file_name`),
+
+  -- Wird der Standort geloescht, verschwinden seine Bildzeilen mit. Die
+  -- DATEIEN nimmt das nicht mit - dafuer ruft
+  -- LocationController::deleteLocation() vorher ImageStore::deleteLocationDir().
+  CONSTRAINT `location_image_ibfk_1` FOREIGN KEY (`location_id`)
+    REFERENCES `location` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------

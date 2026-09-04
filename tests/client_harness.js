@@ -452,6 +452,14 @@ for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'media.js', 's
         setItem(k, w) { this.__daten[k] = String(w); }
     };
     eval(fs.readFileSync(path.join(ROOT, 'map.js'), 'utf8'));
+
+    // location_page.js: geprueft werden die reinen Baumethoden - die
+    // Zustandsmarke und die Dateipruefung vor dem Hochladen. Beide brauchen
+    // kein DOM. Die Datei haengt am Ende einen DOMContentLoaded-Handler ein,
+    // der hier nie ausgeloest wird; init() bricht ausserdem ohne
+    // window.locationPage sofort ab - und das setzt nur die echte
+    // Standortseite.
+    eval(fs.readFileSync(path.join(ROOT, 'location_page.js'), 'utf8'));
 }
 
 // Module, die von rtc.js benutzt werden, aber hier nicht geladen sind

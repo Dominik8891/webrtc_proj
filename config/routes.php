@@ -87,12 +87,43 @@ return [
     'set_location'          => [LocationController::class           , 'setLocation'             , Permission::LOCATION_CREATE        , 'html'],
     'get_country'           => [LocationController::class           , 'getCountry'              , Permission::LOCATION_COUNTRY_LIST  , 'json'],
     'get_locations'         => [LocationController::class           , 'getLocations'            , Permission::LOCATION_LIST          , 'json'],
-    // Die Karte der Startseite. Einzige Standortroute, die ein Gast
-    // aufrufen darf - sie gibt weder Benutzernamen noch IDs heraus.
+    // Die Karte der Startseite. Eine von zwei Standortrouten, die ein Gast
+    // aufrufen darf (die andere ist die Standortseite weiter unten) - sie
+    // gibt weder Benutzernamen noch IDs heraus.
     'get_map_locations'     => [LocationController::class           , 'getMapLocations'         , Permission::LOCATION_MAP_PUBLIC    , 'json'],
     'get_my_locations'      => [LocationController::class           , 'getMyLocations'          , Permission::LOCATION_LIST_OWN      , 'json'],
     'show_locations_page'   => [LocationController::class           , 'showLocationsPage'       , Permission::LOCATION_PAGE          , 'html'],
-    'edit_location_desc'    => [LocationController::class           , 'editLocationDesc'        , Permission::LOCATION_EDIT_OWN      , 'json'],
+
+    // Die Seite EINES Standorts - das Ziel jeder Nadel und jeder
+    // Listenzeile. Sie ist die Adresse, die ein Guide weitergibt, und
+    // deshalb auch fuer Gaeste erreichbar (Permission::LOCATION_VIEW).
+    // Von hier aus wird die Fuehrung gestartet, und von hier aus bearbeitet
+    // der Guide seinen Standort.
+    'location'              => [LocationController::class           , 'showLocationPage'        , Permission::LOCATION_VIEW          , 'html'],
+    // Nur die Verfuegbarkeit, im Takt nachgefragt. Damit der Knopf
+    // "Fuehrung starten" nicht anbietet, was gerade nicht geht - ohne die
+    // ganze Seite neu zu laden.
+    'get_location_state'    => [LocationController::class           , 'getLocationState'        , Permission::LOCATION_VIEW          , 'json'],
+    // Ein Bild ausliefern. Die Dateien liegen AUSSERHALB des Webroots
+    // (config/uploads.php); dies ist der einzige Weg, auf dem sie einen
+    // Browser erreichen - und der einzige Ort, an dem vorher geprueft wird,
+    // ob der Standort gesperrt ist.
+    'location_image'        => [LocationController::class           , 'serveImage'              , Permission::LOCATION_VIEW          , 'html'],
+
+    // Bearbeiten. Alles vier setzt Eigentum am Standort voraus - das prueft
+    // der Controller und noch einmal die WHERE-Klausel, denn eine
+    // Rechtetabelle kann nicht wissen, welcher Datensatz wem gehoert.
+    //
+    // Die Route 'edit_location_desc' ist entfallen. Sie aenderte ueber einen
+    // Dialog in der Standortliste genau ein Feld - die Beschreibung. Seit
+    // ein Standort Titel, ausfuehrliche Beschreibung, Dauer, Sprachen und
+    // Bilder hat, waere sie das Formular fuer ein Fuenftel davon; bearbeitet
+    // wird auf der Standortseite selbst.
+    'update_location'       => [LocationController::class           , 'updateLocation'          , Permission::LOCATION_EDIT_OWN      , 'html'],
+    'upload_location_image' => [LocationController::class           , 'uploadImage'             , Permission::LOCATION_EDIT_OWN      , 'json'],
+    'delete_location_image' => [LocationController::class           , 'deleteImage'             , Permission::LOCATION_EDIT_OWN      , 'json'],
+    'sort_location_images'  => [LocationController::class           , 'sortImages'              , Permission::LOCATION_EDIT_OWN      , 'json'],
+
     'delete_location'       => [LocationController::class           , 'deleteLocation'          , Permission::LOCATION_DELETE_OWN    , 'json'],
     'block_location'        => [LocationController::class           , 'blockLocation'           , Permission::LOCATION_BLOCK         , 'json'],
     'unblock_location'      => [LocationController::class           , 'unblockLocation'         , Permission::LOCATION_BLOCK         , 'json'],

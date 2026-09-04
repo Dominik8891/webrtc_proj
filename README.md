@@ -6,7 +6,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 
 ## 💡 Das Konzept
 * **Interaktive Steuerung:** Der Zuschauer navigiert den Guide über ein Steuerkreuz (vorwärts, zurück, links, rechts) und ein Tastenpaar für die Blickrichtung. Beim Guide löst jede Anweisung ein Tonsignal in seiner Sprache und eine bildschirmfüllende Anzeige aus — gesteuert wird über Tasten und Töne, nicht über Sprache, damit die Anwendung weltweit funktioniert. Die Befehle laufen über einen eigenen WebRTC-Datenkanal, getrennt vom Chat, als versioniertes JSON-Protokoll mit Rollen, Bestätigung und Sperre — vollständig beschrieben in [`PROTOKOLL.md`](PROTOKOLL.md).
-* **Geo-Präsenz:** Guides hinterlegen Standorte in der Datenbank, die für User sichtbar sind.
+* **Geo-Präsenz:** Guides hinterlegen Standorte in der Datenbank, die für User sichtbar sind. Jeder Standort hat eine **eigene, teilbare Seite** mit Bildern, Titel, ausführlicher Beschreibung, Dauer, Sprachen und Karte — von dort aus beginnt die Führung, und dort bearbeitet der Guide sein Angebot (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)).
 * **Echtzeit-Kommunikation:** P2P-Video/Audio mit minimaler Latenz.
 
 ---
@@ -46,9 +46,12 @@ mariadb -u <user> -p <datenbank> < migrations/007_guide_rolle.sql
 mariadb -u <user> -p <datenbank> < migrations/008_farbprofil.sql
 mariadb -u <user> -p <datenbank> < migrations/009_call_standort.sql
 mariadb -u <user> -p <datenbank> < migrations/010_verfuegbarkeit.sql
+mariadb -u <user> -p <datenbank> < migrations/011_standort_inhalt.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)). Alle sind idempotent und löschen nichts.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)). Alle sind idempotent und löschen nichts.
+
+**Nach `011` braucht die Anwendung ein Ablageverzeichnis für Bilder**, sonst lässt sich kein Bild hochladen; alles andere läuft unverändert weiter. Siehe [Bilder](#bilder-ablage-formate-größen).
 
 **Nach `010` steht kein Guide mehr auf bereit.** Das ist Absicht: Die Bereitschaft ist eine Entscheidung, und die hat vorher niemand getroffen. Jeder Guide legt den Schalter in der Kopfleiste um, sobald er die Seite das nächste Mal öffnet. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
 
@@ -350,6 +353,210 @@ In der Benutzerverwaltung stehen deshalb **beide** Auskünfte nebeneinander: der
 Zustandspunkt für die Erreichbarkeit und die Marke „Bereit" für die
 Bereitschaft. „Angemeldet, aber nicht bereit" ist dort die Antwort auf die
 Frage, warum ein Standort grau bleibt, obwohl der Guide erreichbar ist.
+
+---
+
+## 📍 Der Standort und seine Seite
+
+### Das Problem
+
+Ein Standort bestand aus Land, Stadt, zwei Koordinaten und **einer Zeile
+Freitext**. Auf dieser Grundlage sollte ein Kunde entscheiden, ob er einen
+Fremden losschickt, der ihn per Video durch eine ihm unbekannte Stadt führt.
+Ein Klick auf eine Nadel begann sofort den Anruf — es gab nichts dazwischen,
+auf dem eine Entscheidung hätte fußen können.
+
+### Was ein Standort jetzt trägt
+
+| Feld | Spalte | Wozu |
+|---|---|---|
+| Titel | `location.title` | Die Überschrift des Angebots. Steht im Kartenfenster, in der Liste und auf der Seite. |
+| Kurzbeschreibung | `location.description` | **Unverändert** die eine Zeile für Kartenfenster und Liste. Dort ist Kürze richtig — ein Absatz in einem Kartenfenster ist unlesbar. |
+| Ausführliche Beschreibung | `location.description_long` | Mehrzeilig, nur auf der Standortseite. |
+| Typische Dauer | `location.duration_minutes` | In Minuten. `NULL` heißt "nicht angegeben" und ist etwas anderes als 0. |
+| Sprachen | `location.languages` | Kürzel nach ISO 639-1, kommagetrennt (`de,en`). Der Katalog steht in `App\Helper\Languages` und **nur dort**. |
+| Bilder | Tabelle `location_image` | Je Bild eine Zeile mit Reihenfolge. Die Dateien liegen außerhalb des Webroots. |
+
+**Die bisherige Beschreibung ist nicht verlorengegangen und auch nicht
+verschoben worden.** `location.description` steht unverändert an seinem Platz
+und behält seine Aufgabe; es hat nur einen Namen für das bekommen, was es
+immer schon war: die Kurzbeschreibung. Übernommen wurde der Bestand in den
+**Titel** — jeder vorhandene Standort trägt seine bisherige Beschreibung, auf
+120 Zeichen gekürzt, als Überschrift. Damit hat kein Standort nach der
+Migration eine leere Seite, und es ist nichts erfunden.
+
+Die ausführliche Beschreibung bleibt bewusst leer. Sie mit derselben Zeile zu
+füllen hätte denselben Satz dreimal auf die Seite gebracht; dass ein Guide sie
+noch nicht geschrieben hat, ist die Wahrheit und wird auf der Seite auch so
+gesagt. Solange Titel und Kurzbeschreibung gleich sind, zeigt die Seite sie nur
+einmal.
+
+### Die Seite
+
+```
+index.php?act=location&id=<standort>
+```
+
+Eine Adresse, die sich verlinken und weitergeben lässt. Sie zeigt Bilder,
+Titel, Beschreibung, Dauer, Sprachen, den Treffpunkt auf einer kleinen Karte
+und den Verfügbarkeitszustand des Guides — **und von hier aus, und nur von
+hier aus, beginnt die Führung**.
+
+**Auch ein Gast sieht sie** (Recht `location.view`, wie `location.map_public`).
+Ein geteilter Link, der beim Empfänger auf dem Anmeldeformular endet, wird
+nicht weitergegeben. Was ein Gast nicht bekommt, ist die `user_id` des Guides —
+ohne sie lässt sich von dort niemand anrufen, und statt eines Knopfes, der
+nichts tut, steht dort der Weg zur Anmeldung. Dieselbe Entscheidung wie bei der
+öffentlichen Karte.
+
+**Ein gesperrter Standort ist auf dieser Seite nur für seinen Eigentümer und
+die Moderation zu sehen.** Für alle anderen antwortet sie so wie für einen
+Standort, den es nicht gibt: Zwei unterscheidbare Antworten wären eine Auskunft
+darüber, welche IDs belegt sind.
+
+### Karte und Liste führen dorthin
+
+Ein Klick auf eine Nadel oder eine Listenzeile führt auf die Standortseite
+statt in den Anruf. In der Standortliste heißt die Hauptaktion deshalb
+"Ansehen" statt "Anrufen", und sie ist ein **Verweis** statt eines Knopfes —
+damit lässt sie sich in einem neuen Tab öffnen, kopieren und weitergeben.
+
+Sie ist nie gesperrt, auch bei einem Standort ohne Guide: Ansehen kann man ihn
+immer. Die Verfügbarkeit entscheidet nur noch über das Gewicht des Verweises.
+
+**Die Standortkennung überlebt den längeren Weg.** Das ist der Punkt, an dem
+dieser Umbau still hätte scheitern können: An der Kennung hängt beim Server die
+Rollenvergabe — von einem Standort aus führt der Angerufene, auch wenn er Admin
+ist (`WebRTCController::callRoles`). Ginge sie unterwegs verloren, käme der
+Anruf trotzdem zustande, nur eben als Gespräch ohne Führung. Der Weg lautet
+jetzt:
+
+```
+Nadel / Listenzeile  ──id──▶  index.php?act=location&id=7
+                                        │
+                                        ▼
+                          Knopf "Führung starten"
+                          data-userid, data-locationid
+                                        │
+                                        ▼
+                    rtc.startCall(userId, locationId)  ──▶  Offer mit location
+```
+
+Jede Station davon ist in `tests/client_test.js` (Abschnitt 38) und
+`tests/server_test.php` festgehalten.
+
+### Wer entscheidet was
+
+| Datei | Aufgabe |
+|---|---|
+| `class/Controller/LocationController.php` | **Wer** darf was sehen und ändern, und **was** ist eine gültige Eingabe. Hier steht auch die einzige Stelle, an der entschieden wird, ob ein Aufrufer die `user_id` des Guides bekommt. |
+| `class/Helper/LocationView.php` | **Wie** die Seite aussieht. Reine Funktionen: Werte rein, HTML raus — kein Zugriff auf Sitzung, Anfrage oder Datenbank. Damit lässt sich die ganze Seite prüfen, ohne eine Anmeldung nachzustellen. |
+| `class/Helper/ImageStore.php` | Dateien: prüfen, umrechnen, ablegen, löschen. Kennt keine Datenbank. |
+| `class/Model/LocationImage.php` | Die Zeilen dazu: welche Bilder zu welchem Standort gehören und in welcher Reihenfolge. Fasst keine Datei an. |
+| `class/Helper/Languages.php` | Der Sprachkatalog. Die einzige Stelle, an der er steht. |
+
+Die Trennung der ersten beiden ist keine Formsache: Zusammen waren es 1700
+Zeilen, und die Frage "darf er das sehen" stand in der Frage "wie sieht das
+aus". Jetzt bekommt die Ansicht übergeben, was sie zeigen darf, und
+entscheidet nichts.
+
+### Bearbeiten — auf derselben Seite
+
+Der Guide sieht auf seiner eigenen Standortseite den Knopf *Bearbeiten*; er
+klappt das Formular an Ort und Stelle auf. Das ist Absicht: Reihenfolge und
+Auswahl der Bilder beurteilt man an der Ansicht und nicht an einer Liste von
+Dateinamen.
+
+**Das alte Formular taugte dafür nicht.** `set_location.html` kennt keine
+Standort-ID und schickt immer an ein `INSERT`; der Dialog "Beschreibung ändern"
+in der Standortliste konnte genau ein Feld von fünf. Beide sind ersetzt: Das
+Anlegeformular bleibt das Anlegeformular (um die neuen Felder erweitert), der
+Dialog ist entfallen, und bearbeitet wird auf der Standortseite.
+
+**Was sich dort nicht ändern lässt: Land, Stadt und Koordinaten.** Sie hängen
+an `location.city_id`; ein Punkt, den man über die Landesgrenze zieht, machte
+aus "Lissabon, Portugal" eine Zeile, die nicht mehr stimmt. Ein Standort an
+einem anderen Ort ist ein anderer Standort und wird über *Standort anbieten*
+angelegt — dort gibt es die Karte und die Länderauswahl dafür. (Zu ändern waren
+sie vorher auch nicht: Der alte Dialog konnte nur die Beschreibung.)
+
+### Bilder: Ablage, Formate, Größen
+
+**Sie liegen außerhalb des Document Root**, aus demselben Grund wie das
+Fehlerlog: Was unter dem Webroot liegt, ist über HTTP abrufbar — und zwar auch
+dann, wenn es gar kein Bild ist. Eine hochgeladene Datei ist Fremdeingabe und
+darf den Webserver nie direkt erreichen. Ausgeliefert wird sie über
+`index.php?act=location_image`, also durch einen Controller, der vorher prüft,
+ob der Standort gesperrt ist.
+
+```
+<UPLOAD_PATH>/locations/<standort-id>/<32 Hexzeichen>.jpg     Vollansicht
+<UPLOAD_PATH>/locations/<standort-id>/<32 Hexzeichen>_t.jpg   Vorschau
+```
+
+Den Pfad bestimmt `UPLOAD_PATH`; ohne den Wert greift `../uploads` eine Ebene
+oberhalb des Webroots. Anders als `LOG_PATH` darf er in der `.env` stehen —
+`config/uploads.php` wird erst aus einem Controller heraus geladen. Das
+Verzeichnis muss dem Webserver gehören:
+
+```bash
+mkdir -p /var/lib/webrtc/uploads
+chown www-data:www-data /var/lib/webrtc/uploads   # unter RHEL/CentOS: apache
+chmod 750 /var/lib/webrtc/uploads
+```
+
+**Der Dateiname kommt aus dem Programm**, nicht aus dem Upload: 32 zufällige
+Hexzeichen. Der Name, unter dem hochgeladen wurde, wird verworfen — er ist
+Fremdeingabe (`../`, `bild.php`, Steuerzeichen) und wird nirgends gebraucht. Zu
+einer Datei führt allein die Zeile in `location_image`.
+
+**Angenommen werden JPEG, PNG und WebP**, erkannt am *Inhalt* der Datei
+(`getimagesize`) und nie an der Endung oder am gemeldeten Content-Type — beide
+kommen vom Browser des Hochladenden und sagen nichts. SVG ist bewusst nicht
+dabei: Das ist ein Dokument mit Skriptfähigkeit, kein Bild.
+
+**Gespeichert wird ausschließlich JPEG**, und zwar neu gezeichnet: Die Datei
+wird eingelesen, in ein GD-Bild verwandelt und daraus neu geschrieben. Zwei
+Gründe, und der zweite wiegt schwerer:
+
+1. Was dabei nicht Bildpunkt ist, überlebt es nicht — kein eingebetteter
+   Kommentar, kein angehängter Datenblock, keine als Bild getarnte Datei mit
+   HTML- oder PHP-Anteil.
+2. **In den EXIF-Daten eines Handyfotos stehen GPS-Koordinaten.** Ein Guide,
+   der zuhause ein Foto aussucht, würde sonst seine Wohnadresse
+   mitveröffentlichen — an einem Standort, dessen Treffpunkt er bewusst
+   woanders gesetzt hat. Die im EXIF vermerkte Drehung wird vorher angewandt,
+   sonst läge jedes Hochkantfoto anschließend auf der Seite.
+
+Bezahlt wird das mit der Transparenz eines PNG (JPEG kennt keine; der Grund
+wird weiß) und mit etwas Schärfe bei Schrift. Für Ortsfotos ist beides ohne
+Bedeutung.
+
+**Die Grenzen stehen an genau einer Stelle: `config/uploads.php`.**
+
+| Wert | Vorgabe | Warum |
+|---|---|---|
+| `max_images_per_location` | 5 | Die Obergrenze je Standort. |
+| `max_file_bytes` | 8 MB | Reichlich für ein Handyfoto, klein genug, dass paralleles Hochladen den Server nicht belegt. |
+| `max_source_edge` | 6000 px | **Nicht wegen des Plattenplatzes, sondern wegen des Arbeitsspeichers**: Ein GD-Bild braucht rund vier Byte je Bildpunkt. Ein Bild mit 30000 × 30000 Punkten ist als Datei ein paar hundert Kilobyte — fällt also durch jede Größenprüfung — und bringt den Prozess um. |
+| `full_edge` | 1600 px | Reicht für eine bildschirmfüllende Ansicht. Größer hieße längeres Laden für eine Auflösung, die niemand sieht. |
+| `thumb_width` / `thumb_height` | 480 × 320 | Fester Ausschnitt statt Einpassen: In einer Reihe gleich großer Kacheln stört ein Hochformat mehr als ein beschnittener Rand. |
+| `jpeg_quality` | 82 | Vom Original nicht zu unterscheiden, rund ein Drittel kleiner als 95. |
+
+Von dort gehen die Werte an alle drei Verbraucher — den Bildspeicher, den
+Controller und den Browser (`window.locationPage.upload`, damit eine zu große
+Datei gemeldet wird, *bevor* acht Megabyte übertragen sind). Im JavaScript
+steht keine zweite Zahl.
+
+### Die Obergrenze soll später je Konto gelten
+
+Gebaut ist das **noch nicht** — es gibt eine Zahl und keine Tabelle.
+Vorbereitet ist der Weg dorthin trotzdem: Gelesen wird die Grenze
+ausschließlich über `App\Helper\ImageStore::maxImages($user_id)`. Der
+Parameter steht schon da und wird heute nicht beachtet. Kommt die Staffelung,
+bekommt genau dieser Methodenrumpf seine Abfrage — und kein Aufrufer ändert
+sich. Wer die Zahl stattdessen direkt aus `config/uploads.php` liest, macht das
+kaputt; `tests/server_test.php` (Abschnitt 30) hält es fest.
 
 ---
 

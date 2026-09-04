@@ -308,14 +308,30 @@ window.addEventListener('DOMContentLoaded', function() {
             window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
         });
     }
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '1', 'Standort gespeichert.');
-    // success=0 wird ausschliesslich von der Beschreibungspruefung ausgeloest
-    // (LocationController::setLocation, strlen < 5). Die Stadt wird dort gar
-    // nicht geprueft - der alte Text nannte einen Grund, den es nicht gab.
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Nicht gespeichert: Die Beschreibung muss mindestens 5 Zeichen lang sein.', 'error');
+    // DIE ABLEHNUNGEN DES STANDORTFORMULARS.
+    //
+    // Sie kommen als Nummer in der Adresse zurueck, weil das Formular nach
+    // Post/Redirect/Get antwortet - der POST-Rumpf ist dabei weg, und eine
+    // Meldung im Rumpf waere es auch. Die Nummern vergibt
+    // App\Controller\LocationController::pruefeInhalt(); wer dort eine
+    // Pruefung ergaenzt, ergaenzt hier den Satz dazu.
+    //
+    // Ein "Standort gespeichert" steht hier NICHT mehr: Nach dem Speichern
+    // fuehrt der Weg auf die Standortseite, und die sagt es selbst - auch
+    // ohne JavaScript (LocationController::hinweisHtml).
+    //
+    // OHNE ZAHLEN. Die Grenzen stehen in den Konstanten des Controllers und
+    // gehen von dort an die Felder des Formulars (maxlength, min, max). Eine
+    // Zahl in diesem Satz waere eine zweite Fassung derselben Regel - und die
+    // Meldung waere die erste, die beim Aendern vergessen wird.
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Nicht gespeichert: Die Kurzbeschreibung ist zu kurz oder zu lang.', 'error');
     // success=2: die Koordinaten fehlten oder lagen ausserhalb des gueltigen
     // Bereichs (siehe LocationController::setLocation).
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '2', 'Nicht gespeichert: Bitte den Standort auf der Karte auswählen.', 'error');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '3', 'Nicht gespeichert: Bitte einen Titel angeben.', 'error');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '4', 'Der Standort konnte nicht gespeichert werden.', 'error');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '6', 'Nicht gespeichert: Die ausführliche Beschreibung ist zu lang.', 'error');
+    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '7', 'Nicht gespeichert: Die angegebene Dauer liegt außerhalb des erlaubten Bereichs.', 'error');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '5', 'Registrierung erfolgreich.');
     window.webrtcApp.utils.showSuccessAlertIfNeeded('change', '1', 'Passwort geändert.');
     // Hier stand ein Aufruf von ui.expandPanelForWideTableIfNeeded(): Er hat

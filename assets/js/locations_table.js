@@ -26,13 +26,13 @@ window.webrtcApp.locationsTable = {
         overview: {
             selector   : '#locationsTable',
             onlyOwn    : false,
-            showActions: ['call']
+            showActions: ['view']
         },
         // Die eigenen Standorte auf der Einstellungsseite
         own: {
             selector   : '#myLocationsTable',
             onlyOwn    : true,
-            showActions: ['edit', 'delete']
+            showActions: ['view', 'delete']
         }
     },
 
@@ -134,28 +134,39 @@ window.webrtcApp.locationsTable = {
     },
 
     /**
-     * Baut den Call-Button einer Zeile. Nur ein erreichbarer Nutzer ist anrufbar.
+     * Baut die Hauptaktion einer Zeile: den Weg zur Standortseite.
      *
-     * Der Knopf traegt AUCH die Standortkennung, nicht nur den Nutzer: Dieser
-     * Anruf geht von einem Standort aus, und daran haengt beim Server die
-     * Rollenvergabe - von einem Standort aus fuehrt der Angerufene
-     * (WebRTCController::callRoles).
+     * HIER STAND DER ANRUFKNOPF. Ein Klick darauf begann sofort eine
+     * Fuehrung - der Kunde hatte bis dahin einen Ortsnamen und eine Zeile
+     * Freitext gesehen. Der Weg fuehrt jetzt auf die Seite des Standorts
+     * (index.php?act=location&id=...), und erst dort steht der Anrufknopf.
+     *
+     * DASS DIE STANDORTKENNUNG NICHT VERLORENGEHT, ist damit nicht weniger
+     * wichtig, sondern genauso: Sie steht in der Adresse, die Standortseite
+     * haengt sie an ihren Anrufknopf, und der Server vergibt daran die
+     * Rollen - von einem Standort aus fuehrt der Angerufene, auch wenn er
+     * Admin ist (WebRTCController::callRoles).
+     *
+     * Ein Verweis und kein Knopf: Er fuehrt auf eine andere Seite. Damit
+     * laesst er sich in einem neuen Tab oeffnen, kopieren und weitergeben -
+     * alles, was ein Knopf nicht kann.
+     *
+     * Er ist NIE gesperrt. Auch einen Standort ohne Guide will man sich
+     * ansehen; ob von dort aus gerade eine Fuehrung beginnen kann, sagt die
+     * Seite. Die Verfuegbarkeit entscheidet nur noch, welches Gewicht der
+     * Verweis bekommt - dafuer bleibt statusView().callable die eine
+     * Auskunft.
      *
      * @param {Object} item - Datensatz aus der API
      * @returns {string} HTML
      */
-    callButtonHtml(item) {
+    viewLinkHtml(item) {
         const view = this.statusView(item.availability);
-        // Der Akzent statt Gruen, und gesperrt in Grau: Gruen heisst auf der
-        // Karte "Guide gerade verfuegbar". Die frueheren Inline-Styles fuer
-        // den gesperrten Zustand entfallen - das macht .btn:disabled selbst.
         return `
-            <button type="button"
-                class="btn btn-sm start-call-btn ${view.callable ? 'btn-primary' : 'btn-secondary'}"
-                data-userid="${this.esc(item.user_id)}"
-                data-locationid="${this.esc(item.id)}"
-                ${view.callable ? "" : "disabled aria-disabled='true'"}
-            >Anrufen</button>
+            <a class="btn btn-sm ${view.callable ? 'btn-primary' : 'btn-secondary'}"
+               href="index.php?act=location&id=${encodeURIComponent(item.id)}"
+               data-locationid="${this.esc(item.id)}"
+            >Ansehen</a>
         `;
     },
 
@@ -171,8 +182,8 @@ window.webrtcApp.locationsTable = {
         // Die Hauptaktion behaelt Text und Flaeche. Sie sagt, worum es in der
         // Liste ueberhaupt geht - als Symbol waere die Tabelle eine Reihe
         // gleich lauter Zeichen ohne Schwerpunkt.
-        if (options.showActions.includes("call")) {
-            actionBtns += this.callButtonHtml(item);
+        if (options.showActions.includes("view")) {
+            actionBtns += this.viewLinkHtml(item);
         }
 
         // Alles Weitere sind Nebenaktionen: Symbol ohne Rahmen, Rahmen und
@@ -181,15 +192,6 @@ window.webrtcApp.locationsTable = {
         // meldet.
         const ort = this.ortLabel(item);
 
-        if (options.showActions.includes("edit")) {
-            actionBtns += this.iconBtn({
-                klasse: 'edit-location-btn',
-                symbol: 'edit',
-                titel:  'Bearbeiten',
-                label:  'Standort ' + ort + ' bearbeiten',
-                id:     item.id
-            });
-        }
         if (options.showActions.includes("delete")) {
             actionBtns += this.iconBtn({
                 klasse: 'delete-location-btn',
@@ -301,7 +303,20 @@ window.webrtcApp.locationsTable = {
         // Beschreibung als klickbaren Text (für Popup/Modal)
         // Die Beschreibung stammt von einem anderen Nutzer und ging hier
         // frueher unmaskiert ins Dokument.
+        // Der Titel steht ueber der Beschreibung und ist der Weg zur
+        // Standortseite - dieselbe Adresse wie die Aktionsspalte. Zwei Wege
+        // zum selben Ziel sind hier richtig: In einer Tabelle klickt man auf
+        // das, worum es geht, und nicht suchend nach rechts.
+        //
+        // Standorte aus der Zeit vor migrations/011 haben keinen Titel; dann
+        // steht nur die Beschreibung da, so wie vorher.
+        const titel = String(item.title ?? '').trim();
+        const titelHtml = titel
+            ? `<a class="app-linklike" href="index.php?act=location&id=${encodeURIComponent(item.id)}">${this.esc(titel)}</a><br>`
+            : '';
+
         const descHtml = `
+            ${titelHtml}
             <span class="desc-hover app-linklike"
                 data-lat="${this.esc(item.latitude)}"
                 data-lng="${this.esc(item.longitude)}"
@@ -797,7 +812,11 @@ window.webrtcApp.locationsTable = {
                     // vollstaendig in der Statusspalte und wurde vorher an
                     // beiden Stellen gefuehrt.
 
-                    if (options.showActions.includes("call")) {
+                    // Die Aktionsspalte haengt an der Verfuegbarkeit: Der
+                    // Verweis auf die Standortseite wechselt sein Gewicht
+                    // (btn-primary/btn-secondary), sobald der Guide bereit
+                    // wird oder es nicht mehr ist.
+                    if (options.showActions.includes("view")) {
                         dt.cell(node, cols.actions).data(self.actionCellHtml(item, options));
                     }
                     changed = true;
@@ -963,35 +982,16 @@ window.webrtcApp.locationsTable = {
             if(isNaN(lat) || isNaN(lng)) return;
             this.showModalMap(lat, lng, country, city, description);
         });
-        // Call-Button-Click
-        $(options.tableSelector).on('click', '.start-call-btn', function() {
-            const userId = $(this).data('userid');
-            // Der Standort geht mit: Dieser Anruf beginnt an einem Ort, also
-            // ist es eine Fuehrung. Siehe callButtonHtml().
-            const locationId = $(this).data('locationid');
-            if(typeof window.webrtcApp?.rtc?.startCall === 'function') {
-                // startCall() setzt die Symbole selbst, sobald der Strom
-                // steht. Hier stand ein setTimeout(updateCallIcons(), 1000):
-                // Die Klammern riefen die Funktion sofort auf und uebergaben
-                // dem Zeitgeber deren Rueckgabewert - gewartet wurde nie.
-                window.webrtcApp.rtc.startCall(userId, locationId);
-            } else {
-                window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
-            }
-        });
-        // Edit-Button für eigene Locations
-        $(options.tableSelector)
-        .off('click', '.edit-location-btn')
-        .on('click', '.edit-location-btn', function() {
-            const locationId = $(this).data('locationid');
-            const $row = $(this).closest('tr');
-            const currentDescription = $row.find('.desc-hover').text().trim();
+        // Hier hingen zwei Handler: der Anrufknopf und der Dialog
+        // "Beschreibung aendern". Beide sind entfallen, und beide durch
+        // dasselbe ersetzt - den Verweis auf die Standortseite. Dort beginnt
+        // die Fuehrung, und dort bearbeitet der Guide seinen Standort. Ein
+        // Verweis braucht keinen Handler.
+        //
+        // Der Dialog konnte ohnehin nur ein Feld: die Beschreibung. Seit ein
+        // Standort Titel, ausfuehrliche Beschreibung, Dauer, Sprachen und
+        // Bilder hat, waere er das Formular fuer ein Fuenftel davon gewesen.
 
-            $('#editLocationId').val(locationId);
-            $('#currentDescription').val(currentDescription);
-            $('#newDescription').val('');
-            $('#editDescModal').modal('show');
-        });
         // Delete-Button für eigene Locations
         $(options.tableSelector)
             .off('click', '.delete-location-btn')
@@ -1128,7 +1128,7 @@ $(document).ready(function () {
         // Angabe kommt vom Server (ViewHelper::output) und steuert nur die
         // Anzeige; die Routen pruefen das Recht selbst.
         const extra = (window.userCan && window.userCan.blockLocation)
-            ? { showActions: ['call', 'block'] }
+            ? { showActions: ['view', 'block'] }
             : {};
         tabellen.bindEvents(tabellen.optionsFor('overview', extra));
     }
@@ -1143,42 +1143,7 @@ $(document).ready(function () {
         });
     }
 
-    // Edit-Formular absenden
-    $('#editDescForm').off('submit').on('submit', function(e) {
-        e.preventDefault();
-
-        const locationId = $('#editLocationId').val();
-        const newDesc = $('#newDescription').val().trim();
-
-        if (!newDesc) {
-            window.webrtcApp.notify.error('Bitte eine neue Beschreibung eingeben.');
-            return;
-        }
-
-        $.ajax({
-            url: 'index.php?act=edit_location_desc',
-            method: 'POST',
-            data: {
-                id: locationId,
-                description: newDesc
-            },
-            dataType: 'json',
-            success: function(response) {
-                if (response.success) {
-                    $('#editDescModal').modal('hide');
-                    window.webrtcApp.notify.success('Beschreibung geändert.');
-                    // Dritte Kopie derselben Tabellenkonfiguration - jetzt aus
-                    // TABLES.
-                    window.webrtcApp.locationsTable.loadLocationsTable(
-                        window.webrtcApp.locationsTable.optionsFor('own')
-                    );
-                } else {
-                    window.webrtcApp.notify.error(response.error || 'Die Beschreibung konnte nicht geändert werden.');
-                }
-            },
-            error: function() {
-                window.webrtcApp.notify.error('Die Beschreibung konnte nicht geändert werden.');
-            }
-        });
-    });
+    // Hier stand das Absenden des Dialogs "Beschreibung aendern". Der
+    // Dialog ist entfallen - bearbeitet wird auf der Standortseite
+    // (index.php?act=location&id=...), und zwar alle Felder statt nur eines.
 });

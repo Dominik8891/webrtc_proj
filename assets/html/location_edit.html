@@ -1,0 +1,128 @@
+<!--
+    Das Bearbeitungsformular der Standortseite. Gefuellt von
+    App\Controller\LocationController::bearbeitenHtml(), gesteuert von
+    assets/js/location_page.js.
+
+    ES WIRD NUR FUER DEN EIGENTUEMER GEBAUT. Ein fremder Browser bekommt
+    dieses Formular gar nicht erst geliefert. Das ist Anzeige und keine
+    Absicherung - die Routen dahinter pruefen das Eigentum erneut, und die
+    WHERE-Klausel der Statements ein drittes Mal.
+
+    WARUM ES HIER STEHT UND NICHT AUF EINER EIGENEN SEITE
+    ----------------------------------------------------
+    Weil der Guide beim Bearbeiten sehen will, was er aendert. Auf einer
+    getrennten Seite haette er ein Formular ohne das Ergebnis daneben - und
+    bei den Bildern faellt genau das ins Gewicht: Reihenfolge und Auswahl
+    beurteilt man an der Ansicht, nicht an einer Liste von Dateinamen.
+
+    WAS SICH HIER NICHT AENDERN LAESST: Land, Stadt und Koordinaten. Sie
+    haengen an location.city_id; ein Punkt, den man ueber die Landesgrenze
+    zieht, machte aus "Lissabon, Portugal" eine Zeile, die nicht mehr stimmt.
+    Ein Standort an einem anderen Ort ist ein anderer Standort und wird ueber
+    "Standort anbieten" angelegt - dort gibt es die Karte und die
+    Laenderauswahl dafuer.
+
+    PLATZHALTER
+    -----------
+      ###E_LOCATION_ID###    Kennung, geht an alle vier Routen mit
+      ###E_TITLE###          bisheriger Titel
+      ###E_SHORT###          bisherige Kurzbeschreibung
+      ###E_LONG###           bisherige ausfuehrliche Beschreibung
+      ###E_DURATION###       bisherige Dauer in Minuten (leer = nicht angegeben)
+      ###E_LANGUAGES###      die Kaestchen der Sprachauswahl, gebaut aus
+                             App\Helper\Languages
+      ###E_IMAGES###         die vorhandenen Bilder als Kacheln
+      ###E_MAXIMAGES###      Obergrenze aus config/uploads.php
+      ###E_TITLE_MAX###      Zeichengrenzen, damit im Formular dieselben
+      ###E_SHORT_MAX###      Zahlen stehen wie in der Pruefung des Servers -
+      ###E_LONG_MAX###       sie kommen aus den Konstanten des Controllers
+      ###E_DURATION_MIN###   und nicht aus einer zweiten Liste hier
+      ###E_DURATION_MAX###
+
+    IDs, die das Skript braucht: loc-edit, loc-edit-toggle, loc-edit-form,
+    loc-image-list, loc-image-input, loc-image-add, loc-image-count.
+-->
+<section class="app-panel loc-edit" id="loc-edit" style="margin-top: var(--app-space-4);">
+    <div class="app-panel__head">
+        <h2 class="app-page-head__title">Ihr Standort</h2>
+        <button type="button" class="btn btn-secondary btn-sm" id="loc-edit-toggle"
+                aria-expanded="false" aria-controls="loc-edit-body">Bearbeiten</button>
+    </div>
+
+    <div class="app-panel__body" id="loc-edit-body" hidden>
+
+        <form id="loc-edit-form" action="index.php?act=update_location" method="post" autocomplete="off">
+            <input type="hidden" name="id" value="###E_LOCATION_ID###">
+
+            <div class="app-field">
+                <label for="edit-title" class="form-label">Titel</label>
+                <input type="text" id="edit-title" name="title" class="form-control"
+                       maxlength="###E_TITLE_MAX###" required
+                       placeholder="Worum geht es bei dieser Führung?"
+                       value="###E_TITLE###">
+            </div>
+
+            <div class="app-field">
+                <label for="edit-short" class="form-label">Kurzbeschreibung</label>
+                <input type="text" id="edit-short" name="description" class="form-control"
+                       maxlength="###E_SHORT_MAX###" required
+                       placeholder="Eine Zeile – sie steht auf der Karte und in der Liste"
+                       value="###E_SHORT###">
+                <p class="loc-hint">Diese Zeile sehen andere im Kartenfenster
+                   und in der Standortliste. Der ausführliche Text steht nur hier.</p>
+            </div>
+
+            <div class="app-field">
+                <label for="edit-long" class="form-label">Ausführliche Beschreibung</label>
+                <textarea id="edit-long" name="description_long" class="form-control" rows="8"
+                          maxlength="###E_LONG_MAX###"
+                          placeholder="Was zeigen Sie? Wo treffen wir uns? Was sollte man wissen?">###E_LONG###</textarea>
+            </div>
+
+            <div class="app-field">
+                <label for="edit-duration" class="form-label">Typische Dauer (Minuten)</label>
+                <input type="number" id="edit-duration" name="duration" class="form-control"
+                       min="###E_DURATION_MIN###" max="###E_DURATION_MAX###" step="5"
+                       placeholder="z. B. 45" value="###E_DURATION###">
+                <p class="loc-hint">Leer lassen, wenn es keine übliche Dauer gibt.</p>
+            </div>
+
+            <fieldset class="app-field">
+                <legend class="form-label">Sprachen, in denen Sie führen</legend>
+                <div class="loc-choices">
+                    ###E_LANGUAGES###
+                </div>
+            </fieldset>
+
+            <div class="app-actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <button type="button" class="btn btn-secondary" id="loc-edit-cancel">Abbrechen</button>
+            </div>
+        </form>
+
+        <hr>
+
+        <!-- Bilder. Sie werden einzeln hochgeladen und wirken sofort - ohne
+             das Formular darueber abzuschicken. Das ist Absicht: Ein Bild
+             hochzuladen ist eine abgeschlossene Handlung, und wer sie erst
+             mit "Speichern" bestaetigen muesste, verlöre sie beim
+             Zurückgehen. -->
+        <h3 class="app-page-head__title app-text-sm">Bilder</h3>
+        <p class="loc-hint" id="loc-image-count">
+            Bis zu ###E_MAXIMAGES### Bilder. Das erste ist das Titelbild.
+        </p>
+
+        <ul class="loc-edit__images" id="loc-image-list">
+            ###E_IMAGES###
+        </ul>
+
+        <div class="app-actions">
+            <!-- Das echte Dateifeld bleibt verborgen: Ein <input type="file">
+                 laesst sich nicht gestalten, und der Knopf daneben soll
+                 aussehen wie jeder andere Knopf der Anwendung. -->
+            <input type="file" id="loc-image-input" accept="image/jpeg,image/png,image/webp" hidden>
+            <button type="button" class="btn btn-secondary" id="loc-image-add">Bild hinzufügen</button>
+        </div>
+
+    </div>
+</section>

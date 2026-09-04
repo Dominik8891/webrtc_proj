@@ -18,6 +18,10 @@ require_once $ROOT . '/class/Helper/Permission.php';
 require_once $ROOT . '/class/Controller/WebRTCController.php';
 require_once $ROOT . '/class/Controller/UserController.php';
 require_once $ROOT . '/class/Model/Location.php';
+require_once $ROOT . '/class/Model/LocationImage.php';
+require_once $ROOT . '/class/Helper/ImageStore.php';
+require_once $ROOT . '/class/Helper/Languages.php';
+require_once $ROOT . '/class/Helper/LocationView.php';
 require_once $ROOT . '/class/Model/GuideRole.php';
 require_once $ROOT . '/class/Helper/Theme.php';
 require_once $ROOT . '/class/Helper/ViewHelper.php';
@@ -39,6 +43,10 @@ use App\Controller\WebRTCController;
 use App\Controller\UserController;
 use App\Controller\LocationController;
 use App\Model\Location;
+use App\Model\LocationImage;
+use App\Helper\ImageStore;
+use App\Helper\Languages;
+use App\Helper\LocationView;
 use App\Model\GuideRole;
 use App\Helper\Role;
 use App\Helper\Auth;
@@ -141,6 +149,17 @@ class FakeStatement {
 class FakeConnection {
     public $statements = [];
     public function prepare($sql) { $s = new FakeStatement($sql); $this->statements[] = $s; return $s; }
+
+    // Transaktionen: App\Model\LocationImage::reorder() setzt alle Updates
+    // in eine, damit nicht zwei Bilder auf derselben Position stehen
+    // bleiben, wenn es in der Mitte abbricht. Die Attrappe schreibt nur mit,
+    // ob sie geoeffnet und geschlossen wurde.
+    public $transaktionen = [];
+    private $offen = false;
+    public function beginTransaction() { $this->offen = true;  $this->transaktionen[] = 'begin';    return true; }
+    public function commit()           { $this->offen = false; $this->transaktionen[] = 'commit';   return true; }
+    public function rollBack()         { $this->offen = false; $this->transaktionen[] = 'rollback'; return true; }
+    public function inTransaction()    { return $this->offen; }
 }
 $fake = new FakeConnection();
 PdoConnect::$connection = $fake;
@@ -587,9 +606,16 @@ ok('die drei ungeschuetzten Endpunkte haengen jetzt an einem Recht');
 // Karte, und ein Gast soll das Angebot sehen koennen, bevor er sich
 // entscheidet. Die Route gibt dafuer nur Ort, Beschreibung und einen von drei
 // Verfuegbarkeitswerten heraus - siehe Abschnitt 13.
+//
+// location.view ebenso, und aus demselben Grund: Die Seite eines Standorts
+// ist die Adresse, die ein Guide weitergibt. Ein geteilter Link, der beim
+// Empfaenger auf dem Anmeldeformular endet, wird nicht weitergegeben. Auch
+// diese Seite gibt einem Gast keine user_id heraus - er kann von dort aus
+// also niemanden anrufen, sondern landet bei der Anmeldung.
 $oeffentlich = [Permission::SYSTEM_HOME, Permission::AUTH_LOGIN, Permission::AUTH_SIGNUP,
                 Permission::AUTH_PASSWORD_RESET, Permission::AUTH_EMAIL_VERIFY,
-                Permission::AUTH_TWOFACTOR_VERIFY, Permission::LOCATION_MAP_PUBLIC];
+                Permission::AUTH_TWOFACTOR_VERIFY, Permission::LOCATION_MAP_PUBLIC,
+                Permission::LOCATION_VIEW];
 sort($oeffentlich);
 $gast = Permission::rightsOf(Permission::GUEST);
 sort($gast);
@@ -1305,8 +1331,11 @@ foreach (explode(',', $t[1]) as $stueck) {
     }
 }
 sort($spalten);
+// title steht seit migrations/011 dabei: Das Kartenfenster zeigt die
+// Ueberschrift des Angebots statt nur des Ortsnamens. Er ist Inhalt des
+// Angebots wie die Beschreibung auch - keine Personenangabe.
 $erlaubt = ['availability', 'city_name', 'country_name', 'description', 'id',
-            'latitude', 'longitude'];
+            'latitude', 'longitude', 'title'];
 sort($erlaubt);
 check($spalten === $erlaubt,
     "die oeffentliche Karte liefert andere Spalten als erlaubt:\n  ist:      "
@@ -2261,7 +2290,11 @@ $vergiss->setAccessible(true);
 
 $eingabe = [
     'country' => '7', 'city' => 'Berlin', 'latitude' => '', 'longitude' => '',
-    'description' => 'Fuehrung durch die Altstadt',
+    'title'            => 'Altstadt zu Fuss',
+    'description'      => 'Fuehrung durch die Altstadt',
+    'description_long' => 'Zwei Stunden durch die Gassen.',
+    'duration'         => '90',
+    'languages'        => 'de,en',
 ];
 $merke->invoke(null, $eingabe);
 check($hole->invoke(null) === $eingabe, 'die gemerkten Eingaben kommen nicht zurueck');
@@ -2294,10 +2327,52 @@ $vorlage = ViewHelper::template($ROOT . '/assets/html/set_location.html');
 $gefuellt = LocationController::fuelleFormular($vorlage, $eingabe);
 
 check(strpos($gefuellt, 'value="Fuehrung durch die Altstadt"') !== false,
-    'die Beschreibung steht nicht wieder im Feld');
+    'die Kurzbeschreibung steht nicht wieder im Feld');
+check(strpos($gefuellt, 'value="Altstadt zu Fuss"') !== false, 'der Titel fehlt');
+check(strpos($gefuellt, 'Zwei Stunden durch die Gassen.') !== false,
+    'die ausfuehrliche Beschreibung fehlt');
+check(strpos($gefuellt, 'value="90"') !== false, 'die Dauer fehlt');
 check(strpos($gefuellt, 'data-vorher-land="7"') !== false, 'das Land fehlt');
 check(strpos($gefuellt, 'data-vorher-stadt="Berlin"') !== false, 'die Stadt fehlt');
-check(preg_match('/###[A-Z_]+###/', $gefuellt) === 0, 'es steht noch ein Platzhalter darin');
+
+// SECHS Platzhalter bleiben - alle sechs sind keine EINGABEN, sondern
+// Angaben des Servers, und fuelleFormular() setzt nur Eingaben ein:
+//
+//   die Sprachauswahl (eine Reihe von Kaestchen aus App\Helper\Languages)
+//   und die fuenf Grenzen der Felder, die aus den Konstanten des Controllers
+//   kommen - denselben, gegen die pruefeInhalt() prueft.
+//
+// Alle sechs setzt setLocationPage() ein.
+$erwarteteReste = ['###LANGUAGES###', '###TITLE_MAX###', '###SHORT_MAX###',
+                   '###LONG_MAX###', '###DURATION_MIN###', '###DURATION_MAX###'];
+preg_match_all('/###[A-Z_]+###/', $gefuellt, $rest);
+sort($rest[0]);
+$erwartetSortiert = $erwarteteReste;
+sort($erwartetSortiert);
+check($rest[0] === $erwartetSortiert,
+    "andere Platzhalter als erwartet:\n  ist:      " . implode(',', $rest[0])
+    . "\n  erwartet: " . implode(',', $erwartetSortiert));
+
+$seitenCode = methodenRumpf($locCode, 'setLocationPage');
+foreach ($erwarteteReste as $marke) {
+    check(strpos($seitenCode, $marke) !== false,
+        "setLocationPage() setzt $marke nicht ein");
+}
+ok('das Anlegeformular bekommt Sprachen und Grenzen vom Server, nicht als eigene Zahlen');
+
+// Und die Zahlen stehen NICHT in der Vorlage und nicht im JavaScript. Zwei
+// Fassungen derselben Regel liefen auseinander, und der Nutzer bekaeme eine
+// Absage fuer eine Eingabe, die das Feld ausdruecklich erlaubt hat.
+$rohForm = file_get_contents($ROOT . '/assets/html/set_location.html');
+foreach (['maxlength="120"', 'maxlength="200"', 'maxlength="5000"', 'max="480"'] as $zahl) {
+    check(strpos($rohForm, $zahl) === false,
+        "set_location.html traegt die Grenze $zahl als eigene Zahl");
+}
+$mainJs = file_get_contents($ROOT . '/assets/js/main.js');
+foreach (['200 Zeichen', '480 Minuten'] as $zahl) {
+    check(strpos($mainJs, $zahl) === false,
+        "assets/js/main.js nennt die Grenze '$zahl' als eigene Zahl");
+}
 ok('Beschreibung, Land und Stadt stehen wieder im Formular');
 
 // Die Beschreibung ist freier Text des Nutzers und landet in einem
@@ -2317,8 +2392,13 @@ check(strpos($boese, "Bad &#039; Ischl") !== false,
 ok('eingesetzte Werte koennen kein Markup oeffnen');
 
 // Ohne gemerkte Eingaben - der Normalfall - bleibt das Formular leer.
+// Uebrig bleiben wieder genau die sechs Angaben des Servers (siehe oben).
 $leer = LocationController::fuelleFormular($vorlage, []);
-check(preg_match('/###[A-Z_]+###/', $leer) === 0, 'im leeren Formular steht ein Platzhalter');
+preg_match_all('/###[A-Z_]+###/', $leer, $restLeer);
+sort($restLeer[0]);
+check($restLeer[0] === $erwartetSortiert,
+    'im leeren Formular stehen andere Platzhalter: ' . implode(',', $restLeer[0]));
+check(strpos($leer, 'value=""') !== false, 'kein einziges Feld ist leer vorbelegt');
 check(strpos($leer, 'data-vorher-land=""') !== false, 'das Land ist nicht leer');
 check(strpos($leer, 'id="description"') !== false && strpos($leer, 'value=""') !== false,
     'das Beschreibungsfeld ist nicht leer');
@@ -2356,5 +2436,401 @@ ok('die sichtbaren Pflichtfelder behalten ihres');
 check(strpos(methodenRumpf($locCode, 'setLocation'), 'is_numeric($latitude)') !== false,
     'der Server prueft die Koordinaten nicht mehr selbst');
 ok('der Server prueft die Koordinaten weiterhin selbst');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n29) Ein Standort hat Inhalt - und die Seite dazu\n");
+
+// DER BEFUND, DEN DIESER ABSCHNITT FESTHAELT
+// -----------------------------------------
+// Ein Standort bestand aus Land, Stadt, zwei Koordinaten und EINER Zeile
+// Freitext. Auf dieser Grundlage sollte ein Kunde entscheiden, ob er einen
+// Fremden losschickt. Dazugekommen sind Titel, ausfuehrliche Beschreibung,
+// Dauer, Sprachen und Bilder - und eine eigene Seite, die das zeigt.
+
+// --- Der Sprachkatalog steht an einer Stelle -------------------------------
+check(Languages::normalize(['de', 'en']) === 'de,en', 'zwei bekannte Sprachen');
+check(Languages::normalize('en,de') === 'de,en',
+    'die Reihenfolge ist die des Katalogs und nicht die der Eingabe');
+check(Languages::normalize(['de', 'de']) === 'de', 'Doppelungen fallen weg');
+check(Languages::normalize(['de', 'xx', 'klingon']) === 'de',
+    'unbekannte Kuerzel fallen weg, der Rest bleibt stehen');
+check(Languages::normalize([]) === '', 'keine Auswahl ist ein leerer Wert');
+check(Languages::normalize(null) === '', 'auch aus null wird nichts Gueltiges');
+check(Languages::normalize(['<script>']) === '',
+    'ein Markup-Versuch ueberlebt die Normalisierung nicht');
+check(Languages::names('de,en') === ['Deutsch', 'English'], 'die Namen kommen aus dem Katalog');
+ok('Languages::normalize laesst nur bekannte Kuerzel in fester Reihenfolge durch');
+
+// Der Katalog steht NUR in App\Helper\Languages. Eine zweite Liste im
+// Template oder im JavaScript liefe beim naechsten Eintrag auseinander.
+foreach (['assets/html/location_edit.html', 'assets/html/set_location.html',
+          'assets/js/location_page.js'] as $datei) {
+    $inhalt = file_get_contents($ROOT . '/' . $datei);
+    check(strpos($inhalt, 'Nederlands') === false && strpos($inhalt, 'Portugues') === false,
+        "$datei fuehrt eine eigene Sprachliste");
+}
+ok('die Sprachen stehen einmal im Katalog, nicht in jeder Vorlage');
+
+// --- Die Abfrage der Standortseite -----------------------------------------
+$seiteDb = new FakeConnection();
+PdoConnect::$connection = $seiteDb;
+(new Location())->selectOneForPage(5);
+check(count($seiteDb->statements) === 1, 'genau eine Abfrage fuer die Seite');
+$sql = $seiteDb->statements[0]->sql;
+
+foreach (['location.title', 'location.description_long', 'location.duration_minutes',
+          'location.languages', 'user.username'] as $spalte) {
+    check(strpos($sql, $spalte) !== false, "der Seite fehlt $spalte");
+}
+// DIESELBE Auswertung wie Karte und Liste. Eine Standortseite, die
+// "verfuegbar" anders beantwortet als die Nadel, von der aus man auf sie
+// geklickt hat, waere schlimmer als gar keine Angabe.
+check(strpos($sql, 'AS availability') !== false, 'die Seite wertet die Verfuegbarkeit nicht aus');
+foreach (['live', 'busy', 'idle'] as $wert) {
+    check(strpos($sql, "'$wert'") !== false, "Verfuegbarkeitswert '$wert' fehlt");
+}
+// KEIN Filter auf die Sperre: Der Eigentuemer und die Moderation sollen den
+// gesperrten Standort sehen - wer sonst noch darf, entscheidet der
+// Controller, und er braucht dafuer blocked und blocked_reason.
+check(strpos($sql, 'blocked = 0') === false,
+    'die Abfrage filtert die Sperre selbst - dann kaeme der Guide nicht mehr an seinen Standort');
+check(strpos($sql, 'location.blocked') !== false, 'die Sperre wird gar nicht mitgeliefert');
+ok('selectOneForPage liefert alles fuer die Seite, entscheidet aber nichts');
+
+// --- Die Sperre schlaegt jede Bereitschaft ---------------------------------
+class FakeZustandStatement {
+    public $sql; public static $zeile = [];
+    public function __construct($sql) { $this->sql = $sql; }
+    public function bindParam($k, &$v, $t = null) { return true; }
+    public function execute() { return true; }
+    public function fetch($m = null) { return self::$zeile; }
+    public function fetchAll($m = null) { return []; }
+}
+class FakeZustandConnection {
+    public function prepare($sql) { return new FakeZustandStatement($sql); }
+}
+PdoConnect::$connection = new FakeZustandConnection();
+
+FakeZustandStatement::$zeile = ['availability' => 'live', 'blocked' => 0];
+check((new Location())->availabilityOf(5) === 'live', 'ein freier Standort meldet live');
+
+FakeZustandStatement::$zeile = ['availability' => 'live', 'blocked' => 1];
+check((new Location())->availabilityOf(5) === 'idle',
+    'ein gesperrter Standort meldet weiterhin live - dann waere die Sperre wirkungslos');
+
+FakeZustandStatement::$zeile = false;
+check((new Location())->availabilityOf(5) === null, 'ein unbekannter Standort meldet nichts');
+check((new Location())->availabilityOf(0) === null, 'ohne Kennung wird gar nicht gefragt');
+ok('die Sperre schlaegt die Bereitschaft, auch in der Taktabfrage');
+
+// --- Die Routen der Seite ---------------------------------------------------
+check($routes['location'][2]           === Permission::LOCATION_VIEW, 'die Seite haengt am Ansichtsrecht');
+check($routes['location'][3]           === 'html', 'die Seite ist eine Seite');
+check($routes['location_image'][2]     === Permission::LOCATION_VIEW, 'die Bilder haengen am Ansichtsrecht');
+check($routes['get_location_state'][2] === Permission::LOCATION_VIEW, 'die Taktabfrage haengt am Ansichtsrecht');
+foreach (['update_location', 'upload_location_image', 'delete_location_image',
+          'sort_location_images'] as $route) {
+    check($routes[$route][2] === Permission::LOCATION_EDIT_OWN,
+        "$route haengt nicht am Bearbeitungsrecht");
+}
+check(!isset($routes['edit_location_desc']),
+    'die Route edit_location_desc steht noch in der Tabelle');
+check(strpos($locCode, 'editLocationDesc') === false,
+    'die Methode editLocationDesc steht noch im Controller');
+ok('die neuen Routen haengen am richtigen Recht, die alte ist weg');
+
+// --- Fremdeingabe kann keine Ersetzung des Servers ausloesen ----------------
+//
+// DIESE ANWENDUNG BAUT IHRE SEITEN MIT PLATZHALTERN, und
+// App\Helper\ViewHelper::output() laeuft NACH dem Controller ueber das ganze
+// Dokument. Eine Beschreibung, in der jemand einen Platzhalternamen schreibt,
+// bekaeme sonst an dieser Stelle den Inhalt des Servers eingesetzt.
+// htmlspecialchars sieht das nicht - an einer Raute ist nichts gefaehrlich,
+// gefaehrlich ist sie nur in DIESEM Bauverfahren.
+check(preg_match('/###[A-Z_]+###/', LocationView::esc('###USER###')) === 0,
+    'ein Platzhaltername aus Fremdeingabe ueberlebt die Maskierung');
+check(strpos(LocationView::esc('<script>x</script>'), '<script>') === false, 'Markup ist nicht maskiert');
+check(strpos(LocationView::esc('a "b" c'), '&quot;') !== false, 'Anfuehrungszeichen sind nicht maskiert');
+check(LocationView::esc('harmlos') === 'harmlos', 'gewoehnlicher Text wird veraendert');
+ok('esc() maskiert Markup UND entschaerft Platzhalternamen');
+
+// --- Die Seite wird wirklich gebaut ----------------------------------------
+//
+// App\Helper\LocationView ist eine reine Funktion: Werte rein, HTML raus.
+// Deshalb laesst sich hier die GANZE Seite bauen und ansehen, ohne eine
+// Anmeldung nachzustellen und ohne eine Datenbank.
+$standort = [
+    'id' => 7, 'user_id' => 3, 'latitude' => '38.7', 'longitude' => '-9.13',
+    'title'            => 'Alfama bei Nacht',
+    'description'      => 'Die alten Gassen nach Sonnenuntergang.',
+    'description_long' => "Wir starten am Miradouro.\n\nDann durch die Gassen.",
+    'duration_minutes' => 90, 'languages' => 'de,en',
+    'blocked' => 0, 'blocked_reason' => null,
+    'country_name' => 'Portugal', 'city_name' => 'Lissabon',
+    'username' => 'guide1', 'availability' => 'live',
+];
+$bilder = [
+    ['id' => 11, 'file_name' => str_repeat('a', 32), 'sort_order' => 0],
+    ['id' => 12, 'file_name' => str_repeat('b', 32), 'sort_order' => 1],
+];
+
+// 1. Der angemeldete Zuschauer: Er bekommt den Anrufknopf, und der traegt
+//    BEIDE Kennungen. Ginge die Standortkennung hier verloren, waere jede
+//    Fuehrung ueber einen Admin-Standort ein Gespraech ohne Fuehrung
+//    (WebRTCController::callRoles).
+$seiteGast    = LocationView::page($standort, $bilder,
+    ['eigen' => false, 'angemeldet' => false, 'viewer_id' => null]);
+$seiteKunde   = LocationView::page($standort, $bilder,
+    ['eigen' => false, 'angemeldet' => true,  'viewer_id' => 3]);
+$seiteEigner  = LocationView::page($standort, $bilder,
+    ['eigen' => true,  'angemeldet' => true,  'viewer_id' => null,
+     'grenzen' => ['max_images' => 5, 'max_bytes' => 100, 'max_source_edge' => 6000,
+                   'accept' => 'image/jpeg', 'titel_max' => 120, 'kurz_max' => 200,
+                   'lang_max' => 5000, 'dauer_min' => 5, 'dauer_max' => 480]]);
+
+check(preg_match('/loc-call-btn[^>]*data-userid="3"[^>]*data-locationid="7"/', $seiteKunde) === 1,
+    'am Anrufknopf der Standortseite fehlt eine der beiden Kennungen');
+check(strpos($seiteKunde, 'Führung starten') !== false, 'der Anrufknopf fehlt');
+ok('der angemeldete Zuschauer bekommt einen Knopf mit Standort- und Benutzerkennung');
+
+// 2. DER GAST BEKOMMT KEINE user_id. Ohne sie laesst sich von hier aus
+//    niemand anrufen - genau wie auf der oeffentlichen Karte. Statt eines
+//    Knopfes, der nichts tut, steht dort der Weg zur Anmeldung.
+check(strpos($seiteGast, 'data-userid') === false,
+    'die Standortseite gibt einem Gast die Benutzerkennung heraus');
+check(strpos($seiteGast, 'act=login_page') !== false, 'der Gast findet den Weg zur Anmeldung nicht');
+check(strpos($seiteGast, '"userId":null') !== false,
+    'die Seitendaten tragen fuer einen Gast eine Benutzerkennung');
+ok('ein Gast bekommt die Seite, aber keine Kennung zum Anrufen');
+
+// 3. Der Eigentuemer bekommt das Formular - und ruft sich nicht selbst an.
+check(strpos($seiteEigner, 'id="loc-edit-form"') !== false,
+    'der Eigentuemer bekommt kein Bearbeitungsformular');
+check(strpos($seiteEigner, 'loc-call-btn') === false,
+    'der Eigentuemer kann sich selbst anrufen');
+check(strpos($seiteKunde, 'id="loc-edit-form"') === false,
+    'das Bearbeitungsformular wird auch fremden Aufrufern geliefert');
+check(strpos($seiteGast, 'id="loc-edit-form"') === false,
+    'ein Gast bekommt das Bearbeitungsformular');
+ok('das Bearbeitungsformular erreicht nur den Eigentuemer');
+
+// 4. Kein Platzhalter ueberlebt - in keiner der drei Ansichten.
+foreach (['Gast' => $seiteGast, 'Kunde' => $seiteKunde, 'Eigentuemer' => $seiteEigner] as $wer => $html) {
+    check(preg_match('/###[A-Z_]+###/', $html, $rest) === 0,
+        "in der Ansicht fuer den $wer steht ein Platzhalter: " . ($rest[0] ?? ''));
+}
+// Inhalte, die dastehen muessen.
+check(strpos($seiteKunde, 'Alfama bei Nacht') !== false, 'der Titel fehlt');
+check(strpos($seiteKunde, 'Lissabon, Portugal') !== false, 'der Ort fehlt');
+check(strpos($seiteKunde, '1 Stunde 30 Minuten') !== false, 'die Dauer fehlt oder ist unlesbar');
+check(strpos($seiteKunde, 'Deutsch, English') !== false, 'die Sprachen fehlen');
+check(substr_count($seiteKunde, 'act=location_image') >= 4,
+    'die Bilder werden nicht ueber den Controller ausgeliefert');
+ok('die Seite traegt Titel, Ort, Dauer, Sprachen und Bilder');
+
+// 5. Fremdeingabe kann keine Ersetzung des Servers ausloesen - jetzt am
+//    fertigen Dokument geprueft und nicht nur an esc().
+$boeserStandort = array_merge($standort, [
+    'title'            => 'Ort ###USER### hier',
+    'description'      => '<script>alert(1)</script>',
+    'description_long' => 'Text ###CONTENT### und "Anfuehrung"',
+    'city_name'        => 'Bad ###LOGOUT### Ischl',
+]);
+$boeseSeite = LocationView::page($boeserStandort, [],
+    ['eigen' => false, 'angemeldet' => true, 'viewer_id' => 3]);
+check(preg_match('/###[A-Z_]+###/', $boeseSeite) === 0,
+    'ein Platzhaltername aus Fremdeingabe steht im fertigen Dokument');
+check(strpos($boeseSeite, '<script>alert(1)</script>') === false,
+    'Markup aus einer Beschreibung kommt unmaskiert ins Dokument');
+ok('Fremdeingabe loest keine Ersetzung des Servers aus und oeffnet kein Markup');
+
+// 6. Ein gesperrter Standort sagt es und bietet keine Fuehrung an.
+$gesperrt = LocationView::page(
+    array_merge($standort, ['blocked' => 1, 'blocked_reason' => 'Spam']), [],
+    ['eigen' => true, 'angemeldet' => true, 'viewer_id' => null, 'grenzen' => []]);
+check(strpos($gesperrt, 'Gesperrt') !== false, 'die Sperre wird nicht angezeigt');
+check(strpos($gesperrt, 'Spam') !== false, 'der Grund fehlt');
+check(strpos($gesperrt, 'app-tag--live') === false,
+    'ein gesperrter Standort steht auf verfuegbar');
+ok('ein gesperrter Standort zeigt Sperre und Grund und ist nie verfuegbar');
+
+// --- Jeder Platzhalter der neuen Vorlagen wird gefuellt ---------------------
+$viewCodeLoc = file_get_contents($ROOT . '/class/Helper/LocationView.php');
+foreach (['assets/html/location_page.html', 'assets/html/location_edit.html'] as $vorlageDatei) {
+    foreach (platzhalter($ROOT . '/' . $vorlageDatei) as $marke) {
+        check(strpos($viewCodeLoc, $marke) !== false,
+            "$marke aus $vorlageDatei wird in LocationView nicht ersetzt");
+    }
+}
+ok('location_page.html und location_edit.html haben keinen unbesetzten Platzhalter');
+
+// --- Die Ansicht entscheidet nichts ----------------------------------------
+//
+// Sie ist eine reine Funktion. Greift sie auf Sitzung, Anfrage oder
+// Konfiguration zu, entscheidet sie mit - und dann steht dieselbe Frage an
+// zwei Stellen.
+// Geprueft wird der CODE und nicht die Kommentare: In der Klassenbeschreibung
+// steht ausdruecklich, worauf sie nicht zugreift - das ist keine Verletzung
+// der Regel, sondern ihre Erklaerung.
+$viewOhneKommentar = stripPhpNoise($viewCodeLoc);
+foreach (['Auth::', 'Request::', '$_SESSION', '$_REQUEST', '$_GET', '$_POST',
+          'PdoConnect', 'ImageStore::'] as $verboten) {
+    check(strpos($viewOhneKommentar, $verboten) === false,
+        "LocationView greift auf $verboten zu - dann ist sie keine reine Funktion mehr");
+}
+ok('LocationView baut nur HTML und entscheidet nichts');
+
+// --- Sichtbarkeit ist keine Berechtigung ----------------------------------
+$eigenRumpf = methodenRumpf($locCode, 'eigenerStandortAusAnfrage');
+check(strpos($eigenRumpf, 'belongsToUser') !== false,
+    'die Bildrouten pruefen das Eigentum nicht');
+check(strpos(methodenRumpf($locCode, 'updateLocation'), 'belongsToUser') !== false,
+    'das Bearbeiten prueft das Eigentum nicht');
+// Und der Controller gibt die Benutzerkennung an genau einer Stelle heraus.
+$seitenRumpf = methodenRumpf($locCode, 'showLocationPage');
+check(strpos($seitenRumpf, "Auth::isLoggedIn() && !\$ist_eigen") !== false,
+    'die Bedingung fuer die Herausgabe der Benutzerkennung hat sich geaendert');
+ok('das Formular sieht nur der Eigentuemer, und geprueft wird es trotzdem');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n30) Bilder: ausserhalb des Webroots, geprueft, und ohne Reste\n");
+
+// --- Der Name kommt aus dem Programm, nicht aus der Anfrage ----------------
+//
+// Zwischen einer Datenbankzeile und dem Dateisystem soll keine Annahme
+// stehen, sondern eine Pruefung. 32 Hexzeichen koennen kein "..", keinen
+// Schraegstrich und kein Nullbyte enthalten.
+check(ImageStore::isValidName(str_repeat('a', 32)) === true, 'ein gueltiger Name wird abgelehnt');
+foreach (['../../etc/passwd', 'a/b', str_repeat('a', 31), str_repeat('a', 33),
+          'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', str_repeat('a', 32) . "\0", '', null, 42] as $boese) {
+    check(ImageStore::isValidName($boese) === false,
+        'unbrauchbarer Name wird angenommen: ' . var_export($boese, true));
+}
+ok('nur selbst vergebene Namen kommen ins Dateisystem');
+
+// pathFor() gibt bei einem unbrauchbaren Namen NICHTS zurueck - kein Pfad,
+// den ein Aufrufer versehentlich benutzt.
+ImageStore::setConfig([
+    'base_path' => '/tmp/webrtc-pruefung', 'max_images_per_location' => 5,
+    'max_file_bytes' => 1024, 'max_source_edge' => 100, 'full_edge' => 100,
+    'thumb_width' => 10, 'thumb_height' => 10, 'jpeg_quality' => 80,
+    'accepted_mime' => ['image/jpeg'],
+]);
+check(ImageStore::pathFor(7, '../../etc/passwd') === null, 'ein Ausbruchsversuch ergibt einen Pfad');
+check(ImageStore::pathFor(0, str_repeat('a', 32)) === null, 'ohne Standort ergibt sich ein Pfad');
+$voll  = ImageStore::pathFor(7, str_repeat('a', 32), 'full');
+$klein = ImageStore::pathFor(7, str_repeat('a', 32), 'thumb');
+check(substr($voll, -4) === '.jpg' && substr($klein, -6) === '_t.jpg',
+    'Vollansicht und Vorschau tragen nicht verschiedene Namen');
+check(strpos($voll, '/locations/7/') !== false, 'die Datei liegt nicht im Ordner ihres Standorts');
+// Ein unbekannter Groessenname liefert die Vollansicht und nicht etwa einen
+// Pfad aus dem Parameter - der kommt aus der Anfrage.
+check(ImageStore::pathFor(7, str_repeat('a', 32), '../x') === $voll,
+    'die Groessenangabe aus der Anfrage landet im Pfad');
+ok('pathFor baut nur Pfade, die diese Klasse selbst vergeben haben kann');
+
+// --- Die Obergrenze hat genau eine Lesestelle ------------------------------
+//
+// Sie soll sich spaeter je Konto unterscheiden koennen. Vorbereitet ist das
+// ueber ImageStore::maxImages($user_id) - kommt die Staffelung, bekommt genau
+// diese Methode ihre Abfrage. Wer die Zahl stattdessen direkt aus dem Array
+// liest, macht das kaputt.
+check(ImageStore::maxImages(1) === 5, 'die Vorgabe ist nicht mehr fuenf');
+foreach (quellDateien($ROOT . '/class', 'php') as $datei) {
+    if (basename($datei) === 'ImageStore.php') continue;
+    check(strpos(file_get_contents($datei), 'max_images_per_location') === false,
+        basename($datei) . ' liest die Obergrenze an ImageStore vorbei');
+}
+check(strpos(file_get_contents($ROOT . '/assets/js/location_page.js'), '= 5') === false,
+    'im JavaScript steht eine eigene Obergrenze');
+ok('die Obergrenze wird nur ueber ImageStore::maxImages gelesen');
+
+// --- Die Dateien liegen ausserhalb des Webroots ----------------------------
+ImageStore::setConfig(null);
+$uploadConfig = require $ROOT . '/config/uploads.php';
+check(is_string($uploadConfig['base_path']) && $uploadConfig['base_path'] !== '',
+    'kein Ablagepfad konfiguriert');
+// Der Vorgabepfad zeigt eine Ebene OBERHALB des Webroots - dieselbe Ebene wie
+// das Fehlerlog. Was unter dem Document Root liegt, ist ueber HTTP abrufbar,
+// und eine hochgeladene Datei ist Fremdeingabe.
+check(strpos($uploadConfig['base_path'], '/../../uploads') !== false,
+    'der Vorgabepfad liegt nicht oberhalb des Webroots: ' . $uploadConfig['base_path']);
+check(in_array('image/jpeg', $uploadConfig['accepted_mime'], true), 'JPEG wird nicht angenommen');
+check(!in_array('image/svg+xml', $uploadConfig['accepted_mime'], true),
+    'SVG wird angenommen - das ist ein Dokument mit Skript, kein Bild');
+ok('die Bilder liegen ausserhalb des Document Root, SVG ist nicht dabei');
+
+// --- Eigentum steht auch bei den Bildern in der WHERE-Klausel --------------
+$bildDb = new FakeConnection();
+PdoConnect::$connection = $bildDb;
+FakeStatement::$affected = 1;
+
+LocationImage::reorder(7, 3, [12, 9]);
+// EIN vorbereitetes Statement fuer alle Bilder, mehrfach ausgefuehrt - nicht
+// eines je Bild. Das ist der Sinn von prepare().
+check(count($bildDb->statements) === 1,
+    'das Statement wird je Bild neu vorbereitet: ' . count($bildDb->statements));
+// Alles in EINER Transaktion: Bricht es in der Mitte ab, stuenden sonst zwei
+// Bilder auf derselben Position und die Reihenfolge waere Zufall.
+check($bildDb->transaktionen === ['begin', 'commit'],
+    'das Sortieren laeuft nicht in einer Transaktion: ' . implode(',', $bildDb->transaktionen));
+$sql = $bildDb->statements[0]->sql;
+check(strpos($sql, 'location.user_id           = :user_id') !== false,
+    "der Eigentuemer fehlt beim Sortieren: $sql");
+check(strpos($sql, 'location_image.location_id = :location_id') !== false,
+    "der Standort fehlt beim Sortieren: $sql");
+check(LocationImage::reorder(7, 0, [12]) === false, 'ohne Benutzer wird sortiert');
+check(LocationImage::reorder(0, 3, [12]) === false, 'ohne Standort wird sortiert');
+check(LocationImage::reorder(7, 3, [])   === false, 'eine leere Reihenfolge wird gespeichert');
+ok('das Sortieren traegt Standort und Eigentuemer im Statement');
+
+// --- Reihenfolge der Schritte beim Hochladen und Loeschen ------------------
+//
+// HOCHLADEN: erst die Datei, dann die Zeile. Scheitert die Zeile, wird die
+// Datei wieder weggeraeumt - andersherum bliebe eine Zeile ohne Bild zurueck,
+// und die zeigt die Seite als kaputtes Bild an.
+$upRumpf = methodenRumpf($locCode, 'uploadImage');
+check(strpos($upRumpf, 'ImageStore::store') < strpos($upRumpf, 'LocationImage::add'),
+    'die Zeile entsteht vor der Datei');
+check(strpos($upRumpf, 'ImageStore::delete') > strpos($upRumpf, 'LocationImage::add'),
+    'eine Datei ohne Zeile wird nicht weggeraeumt');
+check(strpos($upRumpf, 'maxImages') < strpos($upRumpf, 'ImageStore::store'),
+    'die Obergrenze wird erst nach dem Annehmen geprueft');
+ok('beim Hochladen bleibt weder eine Zeile ohne Bild noch eine Datei ohne Zeile');
+
+// LOESCHEN: erst die Zeile, dann die Datei - genau andersherum, aus dem
+// gleichen Grund.
+$delRumpf = methodenRumpf($locCode, 'deleteImage');
+check(strpos($delRumpf, 'deleteOwned') < strpos($delRumpf, 'ImageStore::delete'),
+    'die Datei verschwindet vor der Zeile');
+ok('beim Loeschen verschwindet zuerst die Zeile');
+
+// --- Ein geloeschter Standort laesst keine Dateien zurueck -----------------
+//
+// Die Zeilen in location_image nimmt der Fremdschluessel (ON DELETE CASCADE),
+// die Dateien nicht - die Datenbank kennt das Dateisystem nicht.
+$loeschRumpf = methodenRumpf($locCode, 'deleteLocation');
+check(strpos($loeschRumpf, 'ImageStore::deleteLocationDir') !== false,
+    'die Bilddateien bleiben nach dem Loeschen des Standorts liegen');
+check(strpos($loeschRumpf, 'deleteLocation($location_id, $user_id)')
+      < strpos($loeschRumpf, 'ImageStore::deleteLocationDir'),
+    'die Dateien werden geloescht, bevor feststeht, dass der Standort dem Aufrufer gehoert');
+ok('mit dem Standort verschwinden auch seine Bilddateien');
+
+// --- Ein gesperrter Standort zeigt seine Bilder nicht ----------------------
+//
+// Sonst waere die Sperre wirkungslos, sobald jemand die Bild-ID kennt.
+$serveRumpf = methodenRumpf($locCode, 'serveImage');
+check(strpos($serveRumpf, "\$bild['blocked']") !== false,
+    'die Auslieferung prueft die Sperre nicht');
+check(strpos($serveRumpf, 'Permission::LOCATION_BLOCK') !== false,
+    'die Moderation kommt nicht mehr an gesperrte Bilder');
+check(strpos($serveRumpf, 'isValidName') !== false || strpos($serveRumpf, 'pathFor') !== false,
+    'der Dateiname geht ungeprueft ins Dateisystem');
+check(strpos($serveRumpf, 'nosniff') !== false,
+    'der Browser darf den Typ des ausgelieferten Bildes selbst erraten');
+check(strpos($serveRumpf, 'private') !== false,
+    'die Bilder duerfen in einem gemeinsamen Zwischenspeicher landen');
+ok('die Auslieferung prueft Sperre, Name und Typ');
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

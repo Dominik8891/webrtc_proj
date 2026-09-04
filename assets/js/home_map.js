@@ -6,8 +6,7 @@
  * Es holt die angebotenen Standorte und setzt sie als Nadeln auf eine
  * Leaflet-Karte. Vier Arten:
  *
- *   live  - ein Guide ist gerade erreichbar. Angemeldet fuehrt ein Klick zum
- *           Anruf, als Gast zur Anmeldung.
+ *   live  - ein Guide ist gerade erreichbar.
  *   busy  - ein Guide ist da, aber in einem anderen Gespraech.
  *   idle  - der Standort wird angeboten, gerade ist niemand vor Ort. Er
  *           bleibt sichtbar, sonst waere die Karte nachts leer und der
@@ -15,17 +14,31 @@
  *   mine  - ein eigener Standort. Erkennbar als solcher und ohne Anrufknopf:
  *           sich selbst ruft niemand an.
  *
+ * VON HIER AUS WIRD NICHT MEHR ANGERUFEN
+ * --------------------------------------
+ * Jede Nadel fuehrt auf die Seite ihres Standorts
+ * (index.php?act=location&id=...), und erst dort beginnt die Fuehrung. Vorher
+ * stand im Kartenfenster ein Knopf "Fuehrung starten": Ein Kunde schickte
+ * damit einen Fremden los, nachdem er einen Ortsnamen und eine Zeile Freitext
+ * gelesen hatte. Auf der Standortseite stehen Bilder, die ausfuehrliche
+ * Beschreibung, Dauer und Sprachen - und dort haengt der Anrufknopf, samt
+ * Standortkennung fuer die Rollenvergabe des Servers.
+ *
+ * Das gilt auch fuer den Gast: Sein Weg fuehrt jetzt auf die Standortseite,
+ * die er ebenfalls sehen darf, und die Anmeldung wird erst dort verlangt -
+ * dann weiss er wenigstens, wofuer.
+ *
  * ZWEI QUELLEN, JE NACH ANMELDUNG
  * -------------------------------
  * Nicht angemeldet:  get_map_locations
  *     Die oeffentliche Karte. Sie enthaelt Ort, Beschreibung und einen von
  *     drei Verfuegbarkeitswerten - keinen Benutzernamen, keine user_id.
- *     Deshalb kann ein Gast von hier aus auch niemanden anrufen; der Klick
- *     fuehrt zur Anmeldung.
+ *     Fuer den Verweis auf die Standortseite reicht das: Sie braucht nur die
+ *     Standortkennung.
  *
  * Angemeldet:  get_locations + get_my_locations
- *     Die fremden Standorte (mit user_id, sonst liesse sich nicht anrufen)
- *     und die eigenen. Die eigenen kommen aus einer zweiten Route, weil
+ *     Die fremden Standorte und die eigenen. Die eigenen kommen aus einer
+ *     zweiten Route, weil
  *     get_locations sie ausdruecklich ausspart ("WHERE user.id != :user_id")
  *     - fuer die Tabelle richtig, fuer eine Karte falsch: Wer seinen eigenen
  *     Standort nicht sieht, kann nicht pruefen, ob er richtig liegt.
@@ -148,16 +161,9 @@ window.webrtcApp.homeMap = {
      * Bindet die Ereignisse, die nicht an einer einzelnen Nadel haengen.
      */
     bindEvents() {
-        // Der Anrufknopf steckt im Kartenfenster einer Nadel. Leaflet baut das
-        // Fenster erst beim Oeffnen und wirft es beim Schliessen weg - deshalb
-        // ein Handler am Dokument statt einer je Knopf.
-        document.addEventListener('click', (e) => {
-            const btn = e.target.closest('.home-call-btn');
-            if (!btn) return;
-            e.preventDefault();
-            this.startCall(btn.getAttribute('data-userid'), btn.getAttribute('data-locationid'));
-        });
-
+        // Hier hing der Anrufknopf des Kartenfensters. Er ist entfallen: Der
+        // Weg ins Gespraech fuehrt ueber die Standortseite, und dorthin
+        // fuehrt ein gewoehnlicher Verweis - der braucht keinen Handler.
         document.getElementById('home-retry')?.addEventListener('click', () => {
             this.hideState();
             this.load(true);
@@ -181,33 +187,6 @@ window.webrtcApp.homeMap = {
             if (document.hidden) return;
             this.load(false);
         });
-    },
-
-    /**
-     * Startet den Anruf zu einem Guide.
-     *
-     * Derselbe Weg wie in der Tabellenansicht: Die Karte entscheidet nichts
-     * ueber den Ablauf des Calls, sie loest ihn nur aus - und sagt dabei, von
-     * WELCHEM Standort aus. Daran haengt beim Server die Rollenvergabe: Von
-     * einem Standort aus fuehrt der Angerufene, auch wenn er Admin ist
-     * (WebRTCController::callRoles).
-     *
-     * @param {string|number} userId
-     * @param {string|number|null} [locationId] Standort hinter der Nadel
-     */
-    startCall(userId, locationId) {
-        if (!userId) return;
-        if (typeof window.webrtcApp?.rtc?.startCall !== 'function') {
-            window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
-            return;
-        }
-        this.map?.closePopup();
-        window.webrtcApp.rtc.startCall(userId, locationId);
-        // Die Symbole fuer Kamera und Mikrofon haengen an der Verbindung, die
-        // erst aufgebaut wird. Kurz warten, dann nachziehen.
-        setTimeout(() => {
-            if (typeof window.updateCallIcons === 'function') window.updateCallIcons();
-        }, 1000);
     },
 
     /**
@@ -287,10 +266,10 @@ window.webrtcApp.homeMap = {
             lon        : parseFloat(item.longitude),
             city       : item.city_name || '',
             country    : item.country_name || '',
+            title      : item.title || '',
             description: item.description || '',
             status     : bekannt ? item.availability : 'idle',
             mine       : false,
-            userId     : null,          // gibt es in der oeffentlichen Antwort nicht
             blocked    : false,
             blockedReason: ''
         };
@@ -330,10 +309,15 @@ window.webrtcApp.homeMap = {
             lon        : parseFloat(item.longitude),
             city       : item.city_name || '',
             country    : item.country_name || '',
+            title      : item.title || '',
             description: item.description || '',
+            // KEINE userId mehr. Sie stand hier, um von der Karte aus
+            // anzurufen; das tut sie jetzt nicht mehr, und ein Feld, das
+            // niemand liest, wird beim naechsten Umbau doch wieder benutzt.
+            // Wer anrufen will, geht auf die Standortseite - die bekommt die
+            // Kennung vom Server, und zwar nur, wenn sie ihr zusteht.
             status     : status,
             mine       : !!mine,
-            userId     : item.user_id ?? null,
             blocked    : gesperrt,
             blockedReason: item.blocked_reason || ''
         };
@@ -526,14 +510,18 @@ window.webrtcApp.homeMap = {
      * @returns {string} HTML
      */
     popupHtml(item) {
-        const ort  = this.esc(item.city || 'Standort');
-        const land = this.esc(item.country);
-        const desc = this.esc(item.description);
+        // Der Titel steht oben, der Ort darunter: Er sagt, worum es geht,
+        // und der Ortsname allein tut das nicht. Standorte aus der Zeit vor
+        // migrations/011 haben keinen - dann tritt der Ort an seine Stelle,
+        // so wie es vorher war.
+        const titel = this.esc(item.title || item.city || 'Standort');
+        const ort   = this.esc([item.city, item.country].filter(Boolean).join(', '));
+        const desc  = this.esc(item.description);
 
         return `
             <div class="home-popup">
-                <p class="home-popup__place">${ort}</p>
-                ${land ? `<p class="home-popup__country">${land}</p>` : ''}
+                <p class="home-popup__place">${titel}</p>
+                ${ort ? `<p class="home-popup__country">${ort}</p>` : ''}
                 <div class="home-popup__meta">${this.popupTag(item)}</div>
                 ${desc ? `<p class="home-popup__desc">${desc}</p>` : ''}
                 ${this.popupAction(item)}
@@ -559,60 +547,59 @@ window.webrtcApp.homeMap = {
     },
 
     /**
-     * Der untere Teil des Kartenfensters: Knopf oder Hinweis.
+     * Der untere Teil des Kartenfensters: der Weg zur Standortseite und der
+     * Satz, der den Zustand erklaert.
      *
-     * Vier Faelle, und der wichtigste ist der Gast: Ihm fehlt die user_id
-     * (die oeffentliche Karte gibt keine heraus), also kann er von hier aus
-     * gar nicht anrufen. Statt eines Knopfes, der nichts tut, steht dort der
-     * Weg zur Anmeldung.
+     * FRUEHER STAND HIER DER ANRUFKNOPF. Ein Kunde schickte damit einen
+     * Fremden los, nachdem er einen Ortsnamen und eine Zeile Freitext gelesen
+     * hatte. Ein Kartenfenster ist auch der falsche Ort dafuer: Es ist ein
+     * paar Zentimeter gross und verschwindet beim naechsten Klick daneben.
+     *
+     * Der Verweis fuehrt IMMER auf die Standortseite - auch bei einem
+     * Standort ohne Guide und auch fuer einen Gast. Was von dort aus geht,
+     * entscheidet die Seite; sie kennt den Zustand genauer als ein
+     * Kartenfenster, das alle fuenfzehn Sekunden neu gezeichnet wird.
      *
      * @param {Object} item
      * @returns {string} HTML
      */
     popupAction(item) {
+        const ziel = 'index.php?act=location&id=' + encodeURIComponent(item.id);
+
         if (item.mine) {
             const gesperrt = item.blocked
                 ? `<p class="home-popup__note home-popup__note--danger">Gesperrt${item.blockedReason ? ': ' + this.esc(item.blockedReason) : ''}. Der Standort ist für andere nicht sichtbar.</p>`
                 : '';
             const sichtbar = item.status === 'live'
-                ? 'Sie sind online – für andere ist dieser Standort gerade hervorgehoben.'
-                : 'Solange Sie offline sind, wird dieser Standort gedämpft angezeigt.';
+                ? 'Sie sind bereit – für andere ist dieser Standort gerade hervorgehoben.'
+                : 'Solange Sie nicht bereit sind, wird dieser Standort gedämpft angezeigt.';
             return `
                 ${gesperrt}
                 <p class="home-popup__note">${sichtbar}</p>
                 <div class="home-popup__action">
-                    <a class="btn btn-secondary" href="index.php?act=settings">Eigene Standorte bearbeiten</a>
+                    <a class="btn btn-secondary" href="${ziel}">Standort ansehen und bearbeiten</a>
                 </div>`;
         }
 
-        if (item.status === 'live') {
-            if (!window.isLoggedIn) {
-                return `
-                    <p class="home-popup__note">Für eine Führung brauchen Sie ein Konto – die Verbindung läuft direkt zwischen Ihnen und dem Guide.</p>
-                    <div class="home-popup__action">
-                        <a class="btn btn-primary" href="index.php?act=login_page">Anmelden und starten</a>
-                        <a class="btn btn-secondary" href="index.php?act=signup_page">Konto anlegen</a>
-                    </div>`;
-            }
-            return `
-                <div class="home-popup__action">
-                    <button type="button" class="btn btn-success home-call-btn"
-                            data-userid="${this.esc(item.userId)}"
-                            data-locationid="${this.esc(item.id)}">
-                        Führung starten
-                    </button>
-                </div>`;
-        }
-
+        // Der Hinweis steht UNTER dem Verweis und ersetzt ihn nicht: Auch
+        // einen Standort ohne Guide will man sich ansehen - vielleicht kommt
+        // man morgen wieder.
+        let hinweis = '';
         if (item.status === 'busy') {
-            return '<p class="home-popup__note">Der Guide ist gerade in einer anderen Führung. Versuchen Sie es in ein paar Minuten noch einmal.</p>';
+            hinweis = 'Der Guide ist gerade in einer anderen Führung.';
+        } else if (item.blocked) {
+            hinweis = 'Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.';
+        } else if (item.status !== 'live') {
+            hinweis = 'Gerade ist niemand vor Ort. Der Standort bleibt buchbar, sobald der Guide bereit ist.';
         }
 
-        if (item.blocked) {
-            return '<p class="home-popup__note home-popup__note--danger">Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.</p>';
-        }
-
-        return '<p class="home-popup__note">Dieser Ort wird angeboten, aber gerade ist niemand da. Sobald der Guide online ist, erscheint er hier hervorgehoben.</p>';
+        return `
+            <div class="home-popup__action">
+                <a class="btn ${item.status === 'live' ? 'btn-success' : 'btn-secondary'}" href="${ziel}">
+                    ${item.status === 'live' ? 'Führung ansehen' : 'Standort ansehen'}
+                </a>
+            </div>
+            ${hinweis ? `<p class="home-popup__note">${this.esc(hinweis)}</p>` : ''}`;
     },
 
     /**

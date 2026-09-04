@@ -118,10 +118,34 @@ class Permission
     /** Standortübersicht aufrufen. */
     public const LOCATION_PAGE = 'location.page';
     /**
+     * Die Seite EINES Standorts aufrufen - und die Bilder darauf.
+     *
+     * Das zweite Standortrecht, das auch der Gast hat, und aus demselben
+     * Grund wie location.map_public: Diese Seite soll sich teilen lassen. Ein
+     * Link, der beim Empfänger auf dem Anmeldeformular endet, wird nicht
+     * weitergegeben.
+     *
+     * Es steht bewusst NEBEN location.map_public und nicht darin, obwohl
+     * beide heute dieselben Rollen haben: Die Seite zeigt mehr als die Karte -
+     * Titel, ausführliche Beschreibung, Dauer, Sprachen und Bilder. Wäre es
+     * dasselbe Recht, ließe sich der Umfang der öffentlichen Karte nicht mehr
+     * einschränken, ohne die Standortseite mit zu sperren.
+     *
+     * Was ein Gast dort NICHT bekommt, entscheidet weiterhin der Controller:
+     * keine user_id, also auch keinen Anruf. Der Knopf führt ihn zur
+     * Anmeldung (App\Controller\LocationController::showLocationPage).
+     *
+     * Dasselbe Recht trägt die Auslieferung der Bilder
+     * (index.php?act=location_image): Ein Bild ist Teil dieser Seite, und was
+     * auf der Seite zu sehen ist, muss auch geladen werden dürfen.
+     */
+    public const LOCATION_VIEW = 'location.view';
+    /**
      * Die oeffentliche Karte der Startseite abrufen.
      *
-     * Das EINZIGE Standortrecht, das auch der Gast hat - und es steht
-     * bewusst neben location.list statt darin: Die beiden Routen liefern
+     * Eines der beiden Standortrechte, die auch der Gast hat - das andere ist
+     * location.view, die Seite eines einzelnen Standorts. Beide stehen
+     * bewusst neben location.list statt darin: Die Routen liefern
      * nicht dieselben Daten. location.list gibt die volle Zeile samt
      * Benutzername und user_id heraus, location.map_public nur Ort,
      * Beschreibung und einen von drei Verfuegbarkeitswerten
@@ -219,6 +243,10 @@ class Permission
             // fuer einen Gast leer - und das Angebot damit unsichtbar,
             // bevor er sich ueberhaupt entscheiden kann.
             self::LOCATION_MAP_PUBLIC,
+            // Die Seite eines einzelnen Standorts. Sie ist die Adresse, die
+            // ein Guide weitergibt - ein geteilter Link muss beim Empfaenger
+            // die Fuehrung zeigen und nicht ein Anmeldeformular.
+            self::LOCATION_VIEW,
             self::AUTH_LOGIN,
             self::AUTH_SIGNUP,
             self::AUTH_PASSWORD_RESET,
@@ -251,6 +279,7 @@ class Permission
             self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
+            self::LOCATION_VIEW,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
@@ -286,6 +315,7 @@ class Permission
             self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
+            self::LOCATION_VIEW,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
@@ -322,6 +352,7 @@ class Permission
             self::USER_GUIDE_ROLE,
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
+            self::LOCATION_VIEW,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
@@ -369,6 +400,7 @@ class Permission
             self::USER_READ_NAME,
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
+            self::LOCATION_VIEW,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,

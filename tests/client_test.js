@@ -655,12 +655,14 @@ function ackLastMove(status = 'executed', reason) {
         };
 
         const zelle = tabelle.actionCellHtml(eintrag,
-            { showActions: ['call', 'edit', 'delete', 'block'] });
+            { showActions: ['view', 'delete', 'block'] });
 
         // Ein Symbolknopf je Nebenaktion, und die Hauptaktion behaelt Text.
-        assert.ok(zelle.includes('>Anrufen</button>'),
+        // Sie heisst jetzt "Ansehen" und ist ein Verweis: Der Weg fuehrt auf
+        // die Standortseite, und erst dort beginnt die Fuehrung.
+        assert.ok(zelle.includes('>Ansehen</a>'),
             'die Hauptaktion hat ihre Beschriftung verloren');
-        for (const symbol of ['edit', 'delete', 'block']) {
+        for (const symbol of ['delete', 'block']) {
             assert.ok(zelle.includes('app-iconbtn--' + symbol),
                 'Symbolknopf ' + symbol + ' fehlt');
         }
@@ -669,15 +671,15 @@ function ackLastMove(status = 'executed', reason) {
         // Jeder Symbolknopf traegt beides. Gezaehlt wird stur: so viele
         // aria-label und title wie Symbolknoepfe.
         const anzahl = (text, muster) => (text.match(muster) || []).length;
-        assert.strictEqual(anzahl(zelle, /app-iconbtn /g), 3, 'drei Symbolknoepfe erwartet');
-        assert.strictEqual(anzahl(zelle, /aria-label="/g), 3, 'nicht jeder Symbolknopf hat ein aria-label');
-        assert.strictEqual(anzahl(zelle, /title="/g), 3, 'nicht jeder Symbolknopf hat einen Tooltip');
+        assert.strictEqual(anzahl(zelle, /app-iconbtn /g), 2, 'zwei Symbolknoepfe erwartet');
+        assert.strictEqual(anzahl(zelle, /aria-label="/g), 2, 'nicht jeder Symbolknopf hat ein aria-label');
+        assert.strictEqual(anzahl(zelle, /title="/g), 2, 'nicht jeder Symbolknopf hat einen Tooltip');
         ok('jeder Symbolknopf hat aria-label und title');
 
         // Das aria-label nennt den Standort - sonst meldet ein
-        // Vorleseprogramm in einer langen Liste zwanzigmal "Bearbeiten"
-        // ohne zu sagen, was bearbeitet wird.
-        assert.ok(zelle.includes('aria-label="Standort Lissabon, Portugal bearbeiten"'),
+        // Vorleseprogramm in einer langen Liste zwanzigmal "Loeschen"
+        // ohne zu sagen, was geloescht wird.
+        assert.ok(zelle.includes('aria-label="Standort Lissabon, Portugal löschen"'),
             'das aria-label nennt den Standort nicht:\n' + zelle);
         ok('das aria-label nennt den Standort, nicht nur die Aktion');
 
@@ -1903,27 +1905,55 @@ function ackLastMove(status = 'executed', reason) {
         }
         ok('ohne brauchbaren Standort bleibt das Feld weg');
 
-        // Die Standortliste haengt die Kennung an ihren Anrufknopf. Ohne sie
-        // wuesste der Klickhandler nicht, von welchem Ort aus angerufen wird.
+        // DER WEG IST LAENGER GEWORDEN, DIE KENNUNG MUSS IHN TROTZDEM
+        // UEBERSTEHEN. Karte und Liste rufen nicht mehr selbst an; sie
+        // fuehren auf die Standortseite, und erst dort haengt der
+        // Anrufknopf. Die Kennung reist also ueber die Adresse mit - geht sie
+        // dabei verloren, faellt jede Fuehrung ueber einen Admin-Standort um,
+        // und zwar unbemerkt: Der Anruf kaeme zustande, nur ohne Fuehrung.
         const zelle = app.locationsTable.actionCellHtml(
             { id: 7, user_id: 3, availability: 'live', blocked: 0,
               country_name: 'Portugal', city_name: 'Lissabon', description: 'Alfama.' },
-            { showActions: ['call'] });
-        assert.ok(/start-call-btn[^>]*data-locationid="7"/.test(zelle),
-            'am Anrufknopf der Standortliste fehlt die Standortkennung:\n' + zelle);
-        ok('der Anrufknopf der Standortliste traegt seinen Standort');
+            { showActions: ['view'] });
+        assert.ok(/href="index\.php\?act=location&id=7"/.test(zelle),
+            'die Standortliste fuehrt nicht auf die Seite des Standorts:\n' + zelle);
+        assert.ok(!/start-call-btn/.test(zelle),
+            'die Standortliste ruft weiterhin selbst an');
+        ok('die Standortliste fuehrt auf die Standortseite und traegt die Kennung');
 
-        // Die Karte ebenso - und die Benutzerverwaltung ausdruecklich NICHT:
-        // Sie ruft eine Person an, nicht einen Ort.
+        // Die Karte ebenso.
         const fsQ = require('fs'), pathQ = require('path');
-        const karte = fsQ.readFileSync(pathQ.join(__dirname, '..', 'assets', 'js', 'home_map.js'), 'utf8');
-        assert.ok(/home-call-btn[\s\S]{0,200}data-locationid=/.test(karte),
-            'am Anrufknopf der Karte fehlt die Standortkennung');
-        const benutzerliste = fsQ.readFileSync(
-            pathQ.join(__dirname, '..', 'class', 'Controller', 'UserController.php'), 'utf8');
+        const liesQ = (...t) => fsQ.readFileSync(pathQ.join(__dirname, '..', ...t), 'utf8');
+        const karte = liesQ('assets', 'js', 'home_map.js');
+        assert.ok(/act=location&id=' \+ encodeURIComponent\(item\.id\)/.test(karte),
+            'das Kartenfenster fuehrt nicht auf die Seite des Standorts');
+        assert.ok(!/home-call-btn/.test(karte),
+            'im Kartenfenster steht weiterhin ein Anrufknopf');
+        ok('das Kartenfenster fuehrt auf die Standortseite');
+
+        // Und am Ende des Weges: Die Standortseite gibt BEIDES an startCall
+        // weiter - den Angerufenen und den Ort.
+        const seite = liesQ('assets', 'js', 'location_page.js');
+        assert.ok(/startCall\(userId, locationId\)/.test(seite),
+            'die Standortseite gibt die Standortkennung nicht an den Anruf weiter');
+        assert.ok(/data-locationid/.test(seite),
+            'die Standortseite liest die Standortkennung gar nicht');
+
+        // Der Knopf selbst kommt vom Server. Auch dort muss die Kennung
+        // dranhaengen - sonst hat der Klickhandler nichts zu lesen.
+        // (Gebaut wird er in App\Helper\LocationView; tests/server_test.php
+        // prueft das fertige Dokument.)
+        const locView = liesQ('class', 'Helper', 'LocationView.php');
+        assert.ok(/loc-call-btn[\s\S]{0,300}data-locationid/.test(locView),
+            'am Anrufknopf der Standortseite fehlt die Standortkennung');
+        ok('die Standortseite reicht die Kennung bis in den Anruf durch');
+
+        // Die Benutzerverwaltung ausdruecklich NICHT: Sie ruft eine Person
+        // an, nicht einen Ort.
+        const benutzerliste = liesQ('class', 'Controller', 'UserController.php');
         assert.ok(!/start-call-btn[\s\S]{0,400}data-locationid/.test(benutzerliste),
             'die Benutzerverwaltung schickt einen Standort mit - dann waere sie kein Direktanruf');
-        ok('die Karte gibt ihren Standort mit, die Benutzerverwaltung bewusst nicht');
+        ok('die Benutzerverwaltung bleibt ein Direktanruf ohne Ort');
     }
 
     console.error('\n39) Ein Anruf der Administration ist als solcher zu erkennen');
@@ -2252,14 +2282,26 @@ function ackLastMove(status = 'executed', reason) {
             'der alte user_status wirkt noch - dann gilt weiter "offener Tab = anrufbar"');
         ok('anrufbar ist allein, wer als verfuegbar gemeldet wird');
 
-        // Der Anrufknopf folgt derselben Auskunft.
+        // Der Verweis auf die Standortseite folgt derselben Auskunft - aber
+        // anders als frueher der Anrufknopf wird er NICHT gesperrt: Auch
+        // einen Standort ohne Guide will man sich ansehen. Die
+        // Verfuegbarkeit entscheidet nur noch ueber das Gewicht des
+        // Verweises, und ansehen kann man ihn immer.
         const ort = { id: 7, user_id: 3, blocked: 0, country_name: 'Portugal',
                       city_name: 'Lissabon', description: 'Alfama.' };
-        const anKnopf  = tabelle.callButtonHtml({ ...ort, availability: 'live' });
-        const ausKnopf = tabelle.callButtonHtml({ ...ort, availability: 'idle' });
-        assert.ok(!/disabled/.test(anKnopf),  'der Knopf ist beim verfuegbaren Guide gesperrt');
-        assert.ok(/disabled/.test(ausKnopf),  'der Knopf ist beim nicht verfuegbaren Guide offen');
-        ok('der Anrufknopf ist nur beim verfuegbaren Guide bedienbar');
+        const anVerweis  = tabelle.viewLinkHtml({ ...ort, availability: 'live' });
+        const ausVerweis = tabelle.viewLinkHtml({ ...ort, availability: 'idle' });
+        assert.ok(/btn-primary/.test(anVerweis),
+            'der verfuegbare Standort bekommt kein Gewicht');
+        assert.ok(/btn-secondary/.test(ausVerweis),
+            'der Standort ohne Guide steht so laut da wie ein verfuegbarer');
+        for (const verweis of [anVerweis, ausVerweis]) {
+            assert.ok(/href="index\.php\?act=location&id=7"/.test(verweis),
+                'der Verweis fuehrt nicht auf die Standortseite:\n' + verweis);
+            assert.ok(!/disabled/.test(verweis),
+                'der Verweis auf die Standortseite ist gesperrt - sie darf man immer ansehen');
+        }
+        ok('der Verweis fuehrt immer auf die Standortseite, nur mit anderem Gewicht');
 
         // --- Die eine Zahl steht an einer Stelle -------------------------
         // Die Frist gehoert in config/presence.php. Steht sie zusaetzlich im
@@ -2275,6 +2317,59 @@ function ackLastMove(status = 'executed', reason) {
                 datei.join('/') + ': die Frist steht als Zahl im Code');
         }
         ok('die Dauer der Bereitschaft steht an genau einer Stelle');
+    }
+
+    console.error('\n41) Die Standortseite');
+    {
+        const seite = app.locationPage;
+
+        // Ohne Seitendaten tut das Modul NICHTS. Die Abfrage haengt an
+        // window.locationPage und nicht an einem Element: Ein Element findet
+        // man auf jeder Seite, auf der jemand dieselbe id vergibt.
+        delete global.locationPage;
+        seite.daten = null;
+        seite.init();
+        assert.strictEqual(seite.daten, null, 'das Modul laeuft auf einer fremden Seite an');
+        ok('ohne Seitendaten meldet sich die Standortseite nicht');
+
+        // Die Zustandsmarke kennt dieselben drei Werte wie Karte und Server -
+        // und faellt bei allem anderen auf "kein Guide" zurueck. Ein
+        // unbekannter Wert darf nicht als "verfuegbar" durchrutschen.
+        assert.ok(/app-tag--live/.test(seite.stateTagHtml('live')), 'live faerbt nicht');
+        assert.ok(/app-tag--warn/.test(seite.stateTagHtml('busy')), 'busy faerbt nicht');
+        assert.ok(!/app-tag--live|app-tag--warn/.test(seite.stateTagHtml('idle')),
+            'idle sieht aus wie verfuegbar');
+        for (const unbekannt of ['online', 'verfuegbar', '', undefined, null]) {
+            assert.ok(!/app-tag--live/.test(seite.stateTagHtml(unbekannt)),
+                'aus ' + JSON.stringify(unbekannt) + ' wird "verfuegbar"');
+        }
+        ok('die Zustandsmarke kennt drei Werte und faellt sonst auf "kein Guide" zurueck');
+
+        // Die Dateipruefung VOR dem Hochladen. Sie ist eine Hoeflichkeit -
+        // verbindlich ist die des Servers -, aber sie erspart es dem Nutzer,
+        // acht Megabyte zu uebertragen und danach eine Absage zu bekommen.
+        //
+        // ENTSCHEIDEND: Die Grenzen kommen vom Server. Im JavaScript steht
+        // keine zweite Zahl, sonst liefen zwei Werte auseinander.
+        seite.daten = { upload: { maxBytes: 1000, accept: 'image/jpeg,image/png' } };
+        assert.strictEqual(seite.checkFile({ type: 'image/jpeg', size: 500 }), '',
+            'ein gueltiges Bild wird abgelehnt');
+        assert.ok(/zu groß/.test(seite.checkFile({ type: 'image/jpeg', size: 5000 })),
+            'eine zu grosse Datei kommt durch');
+        assert.ok(/Bildformat/.test(seite.checkFile({ type: 'application/pdf', size: 10 })),
+            'ein PDF kommt als Bild durch');
+        assert.ok(/Bildformat/.test(seite.checkFile({ type: 'image/svg+xml', size: 10 })),
+            'SVG kommt durch - das ist ein Dokument mit Skript, kein Bild');
+
+        // Ohne Grenzen vom Server wird NICHT abgelehnt: Der Server prueft
+        // ohnehin, und ein Client, der aus eigenem Antrieb sperrt, sperrt
+        // irgendwann etwas Erlaubtes.
+        seite.daten = {};
+        assert.strictEqual(seite.checkFile({ type: 'image/jpeg', size: 99999999 }), '',
+            'ohne Angaben vom Server lehnt der Client von sich aus ab');
+        ok('die Dateipruefung benutzt die Grenzen des Servers und keine eigenen');
+
+        seite.daten = null;
     }
 
     console.error('\n' + passed + ' Pruefungen bestanden.');

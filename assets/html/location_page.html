@@ -1,0 +1,97 @@
+<!--
+    Die Seite EINES Standorts. Gefuellt von
+    App\Controller\LocationController::showLocationPage(), gesteuert von
+    assets/js/location_page.js.
+
+    SIE IST DAS ZIEL JEDER NADEL UND JEDER LISTENZEILE. Vorher fuehrte ein
+    Klick auf eine Nadel unmittelbar in den Anruf - der Kunde schickte einen
+    Fremden los, ohne mehr gesehen zu haben als eine Zeile Freitext. Hier
+    steht, was er fuer seine Entscheidung braucht: Bilder, Titel,
+    Beschreibung, Dauer, Sprachen, der Ort auf einer Karte und ob der Guide
+    gerade da ist.
+
+    PLATZHALTER (alle vom Controller ersetzt)
+    -----------------------------------------
+      ###LOCATION_ID###  Kennung des Standorts, am Wurzelelement
+      ###NOTICE###       Rueckmeldung nach dem Speichern (Erfolg oder Fehler)
+      ###TITLE###        Ueberschrift des Angebots
+      ###PLACE###        "Stadt, Land"
+      ###STATE###        Zustandsmarke: verfuegbar, im Gespraech, niemand da
+      ###BLOCKED###      Hinweis auf eine Sperre (sonst leer)
+      ###GALLERY###      Bildergalerie oder der Hinweis, dass es keine gibt
+      ###SHORTTEXT###    Kurzbeschreibung als Anreisser
+      ###LONGTEXT###     Die ausfuehrliche Beschreibung
+      ###FACTS###        Dauer, Sprachen, Ort als Beschreibungsliste
+      ###ACTION###       Der Knopf, mit dem die Fuehrung beginnt - oder das,
+                         was fuer einen Gast an seiner Stelle steht
+      ###OWNER_TOOLS###  Das Bearbeitungsformular; leer fuer alle ausser dem
+                         Eigentuemer
+      ###PAGE_DATA###    Die Angaben fuer das Skript der Seite
+
+    IDs, die assets/js/location_page.js braucht und die erhalten bleiben
+    muessen: location-page, loc-state, loc-action, loc-map,
+    loc-gallery-main, loc-edit, loc-edit-toggle.
+-->
+<div class="app-page loc-page" id="location-page" data-locationid="###LOCATION_ID###">
+
+    ###NOTICE###
+
+    <div class="app-toolbar">
+        <div class="app-switch" role="group" aria-label="Zurück">
+            <a class="app-switch__item" href="index.php?act=home">Karte</a>
+            <a class="app-switch__item" href="index.php?act=show_locations_page">Liste</a>
+        </div>
+    </div>
+
+    ###BLOCKED###
+
+    <article class="loc">
+
+        <header class="loc__head">
+            <h1 class="app-page-head__title">###TITLE###</h1>
+            <p class="app-page-head__sub">###PLACE###</p>
+            <div class="loc__state" id="loc-state">###STATE###</div>
+        </header>
+
+        <div class="loc-gallery">
+            ###GALLERY###
+        </div>
+
+        <div class="loc__body">
+
+            <div class="loc__main">
+                ###SHORTTEXT###
+                ###LONGTEXT###
+            </div>
+
+            <aside class="loc__side">
+                <div class="app-panel">
+                    <div class="app-panel__body">
+                        <dl class="app-details app-text-sm">
+                            ###FACTS###
+                        </dl>
+                        <div class="loc__action" id="loc-action">
+                            ###ACTION###
+                        </div>
+                    </div>
+                </div>
+
+                <div class="app-panel">
+                    <div class="app-panel__body">
+                        <!-- Die kleine Karte. Sie zeigt den Treffpunkt, den
+                             der Guide selbst eingetragen hat - nicht die
+                             Position eines Menschen. Gebaut wird sie erst im
+                             Browser; ohne Leaflet bleibt der Kasten leer und
+                             die Angaben daneben stehen trotzdem. -->
+                        <div id="loc-map" class="loc__map"></div>
+                    </div>
+                </div>
+            </aside>
+
+        </div>
+    </article>
+
+    ###OWNER_TOOLS###
+</div>
+
+###PAGE_DATA###

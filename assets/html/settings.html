@@ -130,31 +130,8 @@
   </div>
 </div>
 
-<!-- Dialog: Beschreibung aendern -->
-<div class="modal fade" id="editDescModal" tabindex="-1" aria-labelledby="editDescModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="editDescModalLabel">Beschreibung ändern</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
-      </div>
-      <div class="modal-body">
-        <form id="editDescForm">
-          <div class="app-field">
-            <label for="currentDescription" class="form-label">Aktuelle Beschreibung</label>
-            <input type="text" class="form-control" id="currentDescription" readonly>
-          </div>
-          <div class="app-field">
-            <label for="newDescription" class="form-label">Neue Beschreibung</label>
-            <textarea class="form-control" id="newDescription" rows="3" required></textarea>
-          </div>
-          <input type="hidden" id="editLocationId">
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
-        <button type="submit" class="btn btn-primary" form="editDescForm">Speichern</button>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- Hier stand der Dialog "Beschreibung aendern". Er ist entfallen: Ein
+     Standort hat seit migrations/011 Titel, ausfuehrliche Beschreibung, Dauer,
+     Sprachen und Bilder - der Dialog konnte genau eines dieser Felder.
+     Bearbeitet wird auf der Standortseite (index.php?act=location&id=...),
+     erreichbar ueber "Ansehen" in der Tabelle oben. -->

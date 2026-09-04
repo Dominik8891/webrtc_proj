@@ -8,11 +8,35 @@
     PLATZHALTER (gefuellt von App\Controller\LocationController)
     ------------------------------------------------------------
     Sie tragen die Eingaben zurueck ins Formular, wenn der Server den
-    Standort abgelehnt hat (zu kurze Beschreibung, fehlende Koordinaten).
-    Ohne sie stand der Nutzer nach dem Ruecksprung vor einem leeren Feld
-    und musste die Beschreibung noch einmal tippen.
+    Standort abgelehnt hat (fehlender Titel, zu kurze Kurzbeschreibung,
+    unbrauchbare Dauer, fehlende Koordinaten). Ohne sie stand der Nutzer nach
+    dem Ruecksprung vor einem leeren Feld und musste alles noch einmal
+    tippen.
 
-      ###DESCRIPTION###  die eingetippte Beschreibung
+      ###TITLE###        der eingetippte Titel
+      ###DESCRIPTION###  die eingetippte Kurzbeschreibung
+      ###LONGTEXT###     die ausfuehrliche Beschreibung
+      ###DURATION###     die Dauer in Minuten
+      ###LANGUAGES###    die FERTIGEN Kaestchen der Sprachauswahl, gebaut aus
+                         App\Helper\Languages - der einen Stelle, an der der
+                         Katalog steht. Eine zweite Liste hier liefe beim
+                         naechsten Eintrag auseinander.
+
+    GRENZEN DER FELDER
+    ------------------
+    Sie kommen ebenfalls vom Server und stehen hier NICHT als Zahl:
+
+      ###TITLE_MAX###     Hoechstlaenge des Titels
+      ###SHORT_MAX###     Hoechstlaenge der Kurzbeschreibung
+      ###LONG_MAX###      Hoechstlaenge der ausfuehrlichen Beschreibung
+      ###DURATION_MIN###  kleinste erlaubte Dauer in Minuten
+      ###DURATION_MAX###  groesste erlaubte Dauer in Minuten
+
+    Es sind dieselben Zahlen, gegen die
+    App\Controller\LocationController::pruefeInhalt() prueft. Stuenden sie
+    hier zusaetzlich, zeigte das Formular irgendwann etwas anderes an, als der
+    Server durchlaesst - und der Nutzer bekaeme eine Absage fuer eine Eingabe,
+    die das Feld ausdruecklich erlaubt hat.
       ###LATITUDE###     Breitengrad, direkt im versteckten Feld
       ###LONGITUDE###    Laengengrad, ebenso
       ###COUNTRY_ID###   das gewaehlte Land als country.id
@@ -22,7 +46,8 @@
     ausgewaehlte <option>: Beide Listen baut erst map.js auf - das Land aus
     index.php?act=get_country, die Stadt aus der Nominatim-Suche. Eine
     Option, die der Server hier hineinschreibt, wuerde davon ueberschrieben.
-    Bei einem leeren Formular bleiben alle fuenf Platzhalter leer.
+    Bei einem leeren Formular bleiben alle Textplatzhalter leer und in der
+    Sprachauswahl ist nichts angehakt.
 -->
 <div class="app-page app-page--narrow" style="max-width: 720px;">
     <div class="app-toolbar">
@@ -62,11 +87,43 @@
                 </div>
 
                 <div class="app-field">
-                    <label for="description" class="form-label">Beschreibung</label>
-                    <input type="text" id="description" name="description" class="form-control"
-                           placeholder="Was gibt es dort zu sehen?"
-                           value="###DESCRIPTION###" required>
+                    <label for="title" class="form-label">Titel</label>
+                    <input type="text" id="title" name="title" class="form-control"
+                           maxlength="###TITLE_MAX###" required
+                           placeholder="Worum geht es bei dieser Führung?"
+                           value="###TITLE###">
                 </div>
+
+                <div class="app-field">
+                    <label for="description" class="form-label">Kurzbeschreibung</label>
+                    <input type="text" id="description" name="description" class="form-control"
+                           maxlength="###SHORT_MAX###" required
+                           placeholder="Eine Zeile – sie steht auf der Karte und in der Liste"
+                           value="###DESCRIPTION###">
+                    <p class="loc-hint">Diese Zeile sehen andere im Kartenfenster und in der
+                       Standortliste. Der ausführliche Text steht auf der Standortseite.</p>
+                </div>
+
+                <div class="app-field">
+                    <label for="description_long" class="form-label">Ausführliche Beschreibung</label>
+                    <textarea id="description_long" name="description_long" class="form-control"
+                              rows="6" maxlength="###LONG_MAX###"
+                              placeholder="Was zeigen Sie? Wo treffen wir uns? Was sollte man wissen?">###LONGTEXT###</textarea>
+                    <p class="loc-hint">Kann auch später ergänzt werden – auf der Standortseite.</p>
+                </div>
+
+                <div class="app-field">
+                    <label for="duration" class="form-label">Typische Dauer (Minuten)</label>
+                    <input type="number" id="duration" name="duration" class="form-control"
+                           min="###DURATION_MIN###" max="###DURATION_MAX###" step="5" placeholder="z. B. 45"
+                           value="###DURATION###">
+                    <p class="loc-hint">Leer lassen, wenn es keine übliche Dauer gibt.</p>
+                </div>
+
+                <fieldset class="app-field">
+                    <legend class="form-label">Sprachen, in denen Sie führen</legend>
+                    <div class="loc-choices" id="language-choices">###LANGUAGES###</div>
+                </fieldset>
 
                 <!-- Hier stand an beiden Feldern ein "required". Es hatte KEINE
                      Wirkung: Ein <input type="hidden"> ist von der Pruefung des

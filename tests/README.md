@@ -44,7 +44,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (141 Prüfungen)
+## Was `client_test.js` prüft (146 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -272,6 +272,28 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     `config/presence.php`. Weder `availability.js` noch `UserController.php`
     dürfen die Zahl selbst enthalten.
 
+### Die Standortseite (41)
+
+Das Modul `assets/js/location_page.js` meldet sich nur, wenn der Server seine
+Daten mitgeliefert hat (`window.locationPage`) — die Abfrage hängt bewusst
+nicht an einem Element, denn eine id findet man auf jeder Seite, auf der
+jemand dieselbe vergibt.
+
+Die Zustandsmarke kennt dieselben drei Werte wie Karte und Server und fällt
+bei allem anderen auf „kein Guide" zurück; insbesondere wird aus dem alten
+`online` kein „verfügbar".
+
+Die Dateiprüfung vor dem Hochladen benutzt **die Grenzen des Servers** und
+keine eigenen: Ohne Angaben lehnt der Client von sich aus gar nichts ab — der
+Server prüft ohnehin, und ein Client, der aus eigenem Antrieb sperrt, sperrt
+irgendwann etwas Erlaubtes. SVG und PDF kommen nicht durch.
+
+Abschnitt 38 ist mit dem Umbau gewachsen: Der Weg vom Klick zum Anruf ist
+länger geworden — Nadel oder Listenzeile führen jetzt auf die Standortseite —,
+und **die Standortkennung muss ihn überstehen**. Geprüft wird jede Station:
+der Verweis in der Liste, der Verweis im Kartenfenster, der Anrufknopf der
+Standortseite und die Übergabe an `rtc.startCall(userId, locationId)`.
+
 ### Zeitkonstanten im Test
 
 `client_test.js` setzt die Fristen aus `rtc.js` zu Beginn auf kurze Werte
@@ -280,7 +302,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (149 Prüfungen)
+## Was `server_test.php` prüft (174 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -524,6 +546,78 @@ die Tests nicht an. Das ist Absicht.
     Die PDO-Attrappe bildet dafür die Bereitschaftsabfrage nach: eine Spalte
     `rest` statt einer Benutzerzeile, und `available_until IS NOT NULL` im
     `WHERE`. Ohne das prüfte der Test gegen eine Antwort, die es so nie gibt.
+
+30. **Ein Standort hat Inhalt — und die Seite dazu** (Abschnitt 29 im Skript). `Languages::normalize()`
+    lässt nur bekannte Kürzel durch, verwirft Doppelungen und legt die
+    Reihenfolge fest (die des Katalogs, nicht die der Eingabe); eine zweite
+    Sprachliste in einer Vorlage oder im JavaScript fällt auf.
+    `selectOneForPage()` liefert alle neuen Felder samt ausgewerteter
+    Verfügbarkeit und filtert die Sperre **nicht** — sonst käme der Guide
+    nicht mehr an seinen eigenen gesperrten Standort. `availabilityOf()`
+    meldet für einen gesperrten Standort immer `idle`: Die Sperre schlägt
+    jede Bereitschaft.
+
+    Dann wird die **ganze Seite gebaut** — `App\Helper\LocationView` ist eine
+    reine Funktion, also geht das ohne Datenbank und ohne nachgestellte
+    Anmeldung. Geprüft werden drei Ansichten desselben Standorts:
+
+    - **Angemeldeter Zuschauer:** Der Anrufknopf trägt *beide* Kennungen
+      (`data-userid` und `data-locationid`). Geht die Standortkennung
+      verloren, wäre jede Führung über einen Admin-Standort ein Gespräch ohne
+      Führung — und das fiele nicht auf, weil der Anruf trotzdem zustande
+      käme.
+    - **Gast:** keine `data-userid`, keine `userId` in den Seitendaten,
+      stattdessen der Weg zur Anmeldung.
+    - **Eigentümer:** das Bearbeitungsformular; die beiden anderen bekommen
+      es nicht. Und er kann sich nicht selbst anrufen.
+
+    Dazu: kein Platzhalter überlebt in einer der drei Ansichten, und
+    **Fremdeingabe löst keine Ersetzung des Servers aus** — ein Titel mit dem
+    Text eines Platzhalternamens steht im fertigen Dokument nicht mehr als
+    solcher da, weder im Markup noch im `<script>`-Block mit den Seitendaten.
+    Diese Prüfung hat genau dort einen Fehler gefunden: Der Ortsname ging
+    durch `json_encode` statt durch `esc`.
+
+    Zuletzt eine Quelltextprüfung: `LocationView` darf nicht auf `Auth`,
+    `Request`, `$_SESSION`, `$_REQUEST`, `PdoConnect` oder `ImageStore`
+    zugreifen. Sobald sie das täte, entschiede sie mit — und dieselbe Frage
+    stünde an zwei Stellen.
+
+31. **Bilder: außerhalb des Webroots, geprüft, und ohne Reste** (Abschnitt 30 im Skript).
+    `ImageStore::isValidName()` nimmt nur 32 Hexzeichen an; `../../etc/passwd`,
+    ein Nullbyte oder Großbuchstaben werden abgewiesen, und `pathFor()` gibt
+    dann *nichts* zurück statt eines Pfades, den ein Aufrufer versehentlich
+    benutzt. Auch die Größenangabe aus der Anfrage kann keinen Pfad
+    beeinflussen.
+
+    Die **Obergrenze hat genau eine Lesestelle**: Keine Klasse außer
+    `ImageStore` liest `max_images_per_location`, und im JavaScript steht
+    keine eigene Zahl. Das hält die vorbereitete Staffelung je Konto offen —
+    sie ist heute ein Parameter, der nicht beachtet wird, und soll später eine
+    Abfrage in genau diesem Methodenrumpf werden.
+
+    Der Vorgabepfad liegt eine Ebene **oberhalb** des Document Root, und SVG
+    steht nicht in der Liste der angenommenen Formate: Das ist ein Dokument
+    mit Skriptfähigkeit, kein Bild.
+
+    Beim **Sortieren** stehen Standort *und* Eigentümer in der WHERE-Klausel,
+    und alle Updates laufen in einer Transaktion — bricht es in der Mitte ab,
+    stünden sonst zwei Bilder auf derselben Position.
+
+    Die **Reihenfolge der Schritte** ist in beiden Richtungen festgehalten:
+    Beim Hochladen erst die Datei, dann die Zeile (und die Datei wird
+    weggeräumt, wenn die Zeile scheitert); beim Löschen erst die Zeile, dann
+    die Datei. Eine Zeile ohne Bild zeigt die Seite als kaputtes Bild an, eine
+    Datei ohne Zeile belegt nur Platz.
+
+    Und: Beim Löschen eines Standorts wird `deleteLocationDir()` gerufen —
+    *nachdem* feststeht, dass der Standort dem Aufrufer gehörte. Der
+    Fremdschlüssel nimmt die Zeilen mit, die Dateien nicht; die Datenbank
+    kennt das Dateisystem nicht.
+
+    Die **Auslieferung** prüft die Sperre (sonst wäre sie wirkungslos, sobald
+    jemand die Bild-ID kennt), den Dateinamen und schickt `nosniff` und
+    `Cache-Control: private` mit.
 
 ## Grenzen
 

@@ -73,6 +73,10 @@ class Location
     private $latitude;
     private $longitude;
     private $description;
+    private $title;
+    private $description_long;
+    private $duration_minutes;
+    private $languages;
     private $blocked;
     private $blocked_reason;
 
@@ -105,6 +109,16 @@ class Location
                     $this->latitude       = $result['latitude'];
                     $this->longitude      = $result['longitude'];
                     $this->description    = $result['description'];
+                    // Die Felder aus migrations/011. Sie koennen fehlen -
+                    // aber nicht, weil die Migration ausbliebe (dann
+                    // scheiterte die Abfrage selbst), sondern weil sie bei
+                    // Bestandsdaten NULL sind. Ein leerer Titel ist ein
+                    // gueltiger Zustand und kein Fehler.
+                    $this->title            = $result['title'] ?? null;
+                    $this->description_long = $result['description_long'] ?? null;
+                    $this->duration_minutes = isset($result['duration_minutes'])
+                        ? (int)$result['duration_minutes'] : null;
+                    $this->languages        = $result['languages'] ?? null;
                     $this->blocked        = (int)($result['blocked'] ?? 0);
                     $this->blocked_reason = $result['blocked_reason'] ?? null;
                 } else {
@@ -157,14 +171,25 @@ class Location
     public function insertLocation($user_id, $city_id)
     {
         try {
-            $query = "INSERT INTO location ( user_id,  city_id,  longitude,  latitude,  description)
-                                    VALUES (:user_id, :city_id, :longitude, :latitude, :description)";
+            $query = "INSERT INTO location ( user_id,  city_id,  longitude,  latitude,
+                                             description,  title,  description_long,
+                                             duration_minutes,  languages)
+                                    VALUES (:user_id, :city_id, :longitude, :latitude,
+                                            :description, :title, :description_long,
+                                            :duration_minutes, :languages)";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':user_id', $user_id, \PDO::PARAM_INT);
             $stmt->bindParam(':city_id', $city_id, \PDO::PARAM_INT);
             $stmt->bindParam(':longitude', $this->longitude);
             $stmt->bindParam(':latitude', $this->latitude);
             $stmt->bindParam(':description', $this->description);
+            $stmt->bindParam(':title', $this->title);
+            $stmt->bindParam(':description_long', $this->description_long);
+            // PARAM_INT waere hier falsch: Die Dauer darf NULL sein
+            // ("nicht angegeben"), und PDO macht daraus mit PARAM_INT eine 0
+            // - also die Aussage "dauert null Minuten".
+            $stmt->bindParam(':duration_minutes', $this->duration_minutes);
+            $stmt->bindParam(':languages', $this->languages);
             $stmt->execute();
             return PdoConnect::$connection->lastInsertId();
         } catch (\PDOException $e) {
@@ -206,17 +231,27 @@ class Location
 
         try {
             $query = "UPDATE location SET
-                        longitude   = :longitude,
-                        latitude    = :latitude,
-                        description = :description
+                        longitude        = :longitude,
+                        latitude         = :latitude,
+                        description      = :description,
+                        title            = :title,
+                        description_long = :description_long,
+                        duration_minutes = :duration_minutes,
+                        languages        = :languages
                            WHERE id = :id
                              AND user_id = :user_id";
             $stmt = PdoConnect::$connection->prepare($query);
-            $stmt ->bindParam(':longitude'     , $this->longitude     );
-            $stmt ->bindParam(':latitude'      , $this->latitude      );
-            $stmt ->bindParam(':description'   , $this->description   );
-            $stmt ->bindParam(':id'            , $this->id            );
-            $stmt ->bindParam(':user_id'       , $user_id             );
+            $stmt ->bindParam(':longitude'       , $this->longitude       );
+            $stmt ->bindParam(':latitude'        , $this->latitude        );
+            $stmt ->bindParam(':description'     , $this->description     );
+            $stmt ->bindParam(':title'           , $this->title           );
+            $stmt ->bindParam(':description_long', $this->description_long);
+            // Ohne Typangabe, damit NULL auch NULL bleibt - siehe
+            // insertLocation().
+            $stmt ->bindParam(':duration_minutes', $this->duration_minutes);
+            $stmt ->bindParam(':languages'       , $this->languages       );
+            $stmt ->bindParam(':id'              , $this->id              );
+            $stmt ->bindParam(':user_id'         , $user_id               );
             $stmt->execute();
             return true;
         } catch (\PDOException $e) {
@@ -366,7 +401,8 @@ class Location
             $query = "SELECT user.id AS user_id, user.username,
                              " . self::AVAILABILITY_SQL . " AS availability,
                              country.country_name, city.city_name, location.id,
-                             location.latitude, location.longitude, location.description,
+                             location.latitude, location.longitude,
+                             location.title, location.description,
                              location.blocked, location.blocked_reason
                       FROM location
                       LEFT JOIN user    ON location.user_id = user.id
@@ -425,6 +461,7 @@ class Location
                              city.city_name,
                              location.latitude,
                              location.longitude,
+                             location.title,
                              location.description,
                              " . self::AVAILABILITY_SQL . " AS availability
                       FROM location
@@ -456,7 +493,8 @@ class Location
             $query = "SELECT user.id AS user_id, user.username,
                              " . self::AVAILABILITY_SQL . " AS availability,
                              country.country_name, city.city_name, location.id,
-                             location.latitude, location.longitude, location.description,
+                             location.latitude, location.longitude,
+                             location.title, location.description,
                              location.blocked, location.blocked_reason
                       FROM location
                       LEFT JOIN user    ON location.user_id = user.id
@@ -470,6 +508,104 @@ class Location
         } catch (\PDOException $e) {
             error_log('Fehler beim Laden der User-Locations: ' . $e->getMessage());
             return [];
+        }
+    }
+
+    /**
+     * EINEN Standort mit allem, was seine eigene Seite zeigt.
+     *
+     * WARUM NICHT DER KONSTRUKTOR
+     * ---------------------------
+     * new Location($id) laedt die Zeile fuer die BEARBEITUNG - Felder in ein
+     * Objekt, damit ein Setter sie aendern und updateLocation() sie
+     * zurueckschreiben kann. Diese Methode laedt sie fuer die ANZEIGE, und
+     * dafuer fehlen dort zwei Angaben, die gar nicht am Standort haengen:
+     * der Name des Guides und seine Verfuegbarkeit. Beides nachtraeglich mit
+     * einer zweiten Abfrage zu holen waere ein zweiter Weg zur selben Seite.
+     *
+     * Die Verfuegbarkeit kommt fertig ausgewertet aus AVAILABILITY_SQL -
+     * derselbe Ausdruck wie in Karte und Liste. Eine Standortseite, die
+     * "verfuegbar" anders beantwortet als die Nadel, von der aus man auf sie
+     * geklickt hat, waere schlimmer als gar keine Angabe.
+     *
+     * KEIN FILTER AUF DIE SPERRE. Wer einen gesperrten Standort sehen darf -
+     * sein Eigentuemer und die Moderation -, entscheidet der Controller; er
+     * bekommt dafuer blocked und blocked_reason mitgeliefert. Hier zu
+     * filtern hiesse, dass der Guide seinen eigenen gesperrten Standort nicht
+     * mehr aufrufen koennte, um ihn zu ueberarbeiten.
+     *
+     * @param int $in_id
+     * @return array<string,mixed>|null null, wenn es den Standort nicht gibt
+     */
+    public function selectOneForPage($in_id): ?array
+    {
+        $id = (int)$in_id;
+        if ($id < 1) return null;
+
+        try {
+            $query = "SELECT location.id, location.user_id,
+                             location.latitude, location.longitude,
+                             location.title, location.description,
+                             location.description_long,
+                             location.duration_minutes, location.languages,
+                             location.blocked, location.blocked_reason,
+                             country.country_name, city.city_name,
+                             user.username,
+                             " . self::AVAILABILITY_SQL . " AS availability
+                      FROM location
+                      JOIN user         ON location.user_id = user.id
+                      LEFT JOIN city    ON location.city_id = city.id
+                      LEFT JOIN country ON city.country_id = country.id
+                      WHERE location.id = :id";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $zeile = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $zeile ?: null;
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Laden der Standortseite: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Nur die Verfuegbarkeit eines Standorts.
+     *
+     * Die Standortseite fragt sie im Takt nach, damit der Knopf "Fuehrung
+     * starten" nicht anbietet, was gerade nicht geht. Dafuer die ganze Seite
+     * neu zu laden waere unverhaeltnismaessig, und die vollstaendige
+     * Standortliste zu holen ebenso - es geht um ein Wort.
+     *
+     * Derselbe Ausdruck wie ueberall sonst: AVAILABILITY_SQL. Eine zweite
+     * Auswertung waere eine zweite Antwort auf dieselbe Frage.
+     *
+     * @param int $in_id
+     * @return string|null 'live', 'busy', 'idle' - null, wenn es den Standort nicht gibt
+     */
+    public function availabilityOf($in_id): ?string
+    {
+        $id = (int)$in_id;
+        if ($id < 1) return null;
+
+        try {
+            $query = "SELECT " . self::AVAILABILITY_SQL . " AS availability,
+                             location.blocked
+                      FROM location
+                      JOIN user ON location.user_id = user.id
+                      WHERE location.id = :id";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $zeile = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (!$zeile) return null;
+
+            // Ein gesperrter Standort ist nie verfuegbar - dieselbe Regel wie
+            // auf der Karte (assets/js/home_map.js). Die Sperre schlaegt jede
+            // Bereitschaft.
+            return (int)$zeile['blocked'] === 1 ? 'idle' : (string)$zeile['availability'];
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Lesen der Verfuegbarkeit: ' . $e->getMessage());
+            return null;
         }
     }
 
@@ -556,6 +692,35 @@ class Location
     public function setLongitude($in_longitude) { $this->longitude = $in_longitude; }
     public function setLatitude($in_latitude)   { $this->latitude = $in_latitude; }
     public function setDescription($in_desc)    { $this->description = $in_desc; }
+    public function setTitle($in_title)         { $this->title = $in_title; }
+    public function setDescriptionLong($in_txt) { $this->description_long = $in_txt; }
+    /**
+     * Uebliche Dauer in Minuten.
+     *
+     * NULL und 0 sind hier NICHT dasselbe: NULL heisst "nicht angegeben" und
+     * wird auf der Seite gar nicht erst erwaehnt, 0 waere die Aussage "dauert
+     * keine Zeit". Deshalb geht ein leerer Wert als null durch und nicht als
+     * (int)'' - das waere 0.
+     *
+     * @param mixed $in_minutes
+     * @return void
+     */
+    public function setDurationMinutes($in_minutes)
+    {
+        $this->duration_minutes = ($in_minutes === null || $in_minutes === '')
+            ? null : (int)$in_minutes;
+    }
+    /**
+     * Sprachen als Kuerzelliste.
+     *
+     * Der Wert wird NICHT hier geprueft, sondern von
+     * App\Helper\Languages::normalize() im Controller - dort steht, was ein
+     * gueltiges Kuerzel ist, und dort steht es nur einmal.
+     *
+     * @param string|null $in_languages
+     * @return void
+     */
+    public function setLanguages($in_languages) { $this->languages = $in_languages; }
 
     // Getter 
     public function getId()            { return $this->id; }
@@ -567,4 +732,8 @@ class Location
     public function getLatitude()    { return $this->latitude; }
     public function getLongitude()   { return $this->longitude; }
     public function getDescription() { return $this->description; }
+    public function getTitle()            { return $this->title; }
+    public function getDescriptionLong()  { return $this->description_long; }
+    public function getDurationMinutes()  { return $this->duration_minutes; }
+    public function getLanguages()        { return $this->languages; }
 }

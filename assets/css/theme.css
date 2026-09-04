@@ -138,6 +138,11 @@
     --icon-trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M19 6l-1 14H6L5 6'/%3E%3Cpath d='M10 11v6M14 11v6'/%3E%3C/svg%3E");
     --icon-lock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E");
     --icon-unlock: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 7.5-2'/%3E%3C/svg%3E");
+    /* Pfeile fuer die Bildreihenfolge auf der Standortseite. Knoepfe statt
+       Ziehen: Ziehen funktioniert auf einem Mobilgeraet schlecht und mit der
+       Tastatur gar nicht. */
+    --icon-arrow-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 19V5'/%3E%3Cpath d='M5 12l7-7 7 7'/%3E%3C/svg%3E");
+    --icon-arrow-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14'/%3E%3Cpath d='M5 12l7 7 7-7'/%3E%3C/svg%3E");
     --icon-history: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l3.5 2'/%3E%3C/svg%3E");
 
     /* --- Schrift --------------------------------------------------------
@@ -2031,6 +2036,12 @@ table.dataTable td.dataTables_empty {
 }
 .app-iconbtn--history::before {
     -webkit-mask-image: var(--icon-history); mask-image: var(--icon-history);
+}
+.app-iconbtn--up::before {
+    -webkit-mask-image: var(--icon-arrow-up); mask-image: var(--icon-arrow-up);
+}
+.app-iconbtn--down::before {
+    -webkit-mask-image: var(--icon-arrow-down); mask-image: var(--icon-arrow-down);
 }
 
 /* Die Aktionszelle: Symbole eng beieinander, damit sie als eine Gruppe
