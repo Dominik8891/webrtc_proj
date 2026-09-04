@@ -396,7 +396,12 @@ und für eine spätere Abrechnung fehlt genau das.
 
 1. **Der Kunde fragt an** — auf der Standortseite, mit einem Wunschzeitpunkt.
    Vier Vorgaben stehen bereit (*jetzt sofort*, *in 1 Stunde*, *in 3 Stunden*,
-   *morgen um diese Zeit*), daneben ein Feld für jeden anderen Zeitpunkt.
+   *morgen um diese Zeit*), darunter ein Feld für jeden anderen Zeitpunkt.
+   **Ein Klick auf eine Vorgabe trägt den gemeinten Zeitpunkt in das Feld ein**
+   — die Wahl ist damit ablesbar, und beide Bedienelemente hängen sichtbar
+   zusammen. Wer das Feld selbst anfasst, hebt die Markierung auf; dann gilt
+   das Feld. Solange eine Vorgabe markiert ist, gilt *sie* — sonst verfiele
+   „jetzt sofort", sobald der eingetragene Zeitpunkt ein paar Minuten alt ist.
 2. **Der Guide antwortet** — annehmen oder ablehnen, auf der Seite *Anfragen*.
 3. **Nach der Zusage startet der Kunde die Führung** — mit demselben Knopf und
    demselben Weg wie vorher: `rtc.startCall` mit der Standortkennung, der

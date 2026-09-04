@@ -539,6 +539,12 @@ class LocationView
      * abgeschickt wird. Es gibt also nur EINE Angabe, die den Server
      * erreicht, und keine zweite Auslegung von "wann".
      *
+     * DAS FELD KOMMT LEER VOM SERVER, obwohl die erste Vorgabe markiert ist:
+     * Ein datetime-local-Feld traegt eine ORTSZEIT, und die Zeitzone des
+     * Browsers kennt der Server nicht. Gefuellt wird es sofort beim Aufbau
+     * (location_page.js, zeigeWunschzeit) - dort steht auch, warum die
+     * markierte Vorgabe und nicht das Feld den Ausschlag gibt.
+     *
      * ABGESCHICKT WIRD MIT SKRIPT. Das war beim Anrufknopf, der vorher hier
      * stand, nicht anders - eine Fuehrung ohne JavaScript gibt es in dieser
      * Anwendung nicht, denn auch das Gespraech selbst haengt daran.

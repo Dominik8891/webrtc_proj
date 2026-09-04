@@ -38,7 +38,9 @@ Antworten für `heartbeat` und `set_availability` (`__presenceCalls`,
 `__availableSeconds`, `__availabilityFail`). `window.addEventListener` wird
 ausdrücklich gesetzt: Node bringt am globalen Objekt ein eigenes mit, und
 dessen Handler ließen sich nicht auslösen.
-Für die Anfragen kommt dazu: `requests.js` wird mitgeladen, und die
+Für die Anfragen kommt dazu: `document.querySelector()` (die Attrappe liefert
+zurück, was `__querySelectorErgebnis` vorgibt — daran hängt, ob die markierte
+Vorgabe oder das Eingabefeld gilt), `requests.js` wird mitgeladen, und die
 Heartbeat-Antwort trägt die beiden Anfragenzahlen (`__requestCounts`) — genau
 wie beim Server, wo sie am Heartbeat hängen und nicht an einer eigenen
 Schleife. Ob das Skript auf der Anfragenseite steht, entscheidet
@@ -51,7 +53,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (158 Prüfungen)
+## Was `client_test.js` prüft (162 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -334,6 +336,15 @@ Standortseite und die Übergabe an `rtc.startCall(userId, locationId)`.
     gezeichnet wird nur, was sich wirklich geändert hat — sonst würde das
     Eingabefeld alle 15 Sekunden geleert.
 
+    Und die **sichtbare Wahl**: Ein Klick auf eine Vorgabe trägt den Zeitpunkt
+    in das Feld ein (die Vorgaben taten vorher etwas, wovon nichts zu sehen
+    war), und zwar in **Ortszeit** — geprüft gegen dieselben lokalen Getter und
+    dagegen, dass die Umrechnung nicht über `toISOString()` läuft, was in
+    Mitteleuropa ein bis zwei Stunden zu früh anzeigte. Ohne markierte Vorgabe
+    bleibt eine eigene Eingabe stehen. Und beim Abschicken gilt die **markierte
+    Vorgabe**, nicht das Feld: Sonst verfiele „jetzt sofort" nach ein paar
+    Minuten, weil der Zeitpunkt im Feld dann in der Vergangenheit läge.
+
 ### Zeitkonstanten im Test
 
 `client_test.js` setzt die Fristen aus `rtc.js` zu Beginn auf kurze Werte
@@ -342,7 +353,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (207 Prüfungen)
+## Was `server_test.php` prüft (209 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige

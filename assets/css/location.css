@@ -557,13 +557,44 @@
     color: var(--app-text);
 }
 
-/* Die gewaehlte Vorgabe. Der Akzent und nicht Gruen: Gruen heisst auf dieser
-   Seite "ein Guide ist gerade erreichbar". */
-.loc-req__preset--on,
-.loc-req__preset--on:hover {
-    background: var(--app-accent-soft);
+/* DIE GEWAEHLTE VORGABE - und zwar unuebersehbar.
+
+   Vorher trug sie nur eine leise Toenung und einen Rahmen; wer sie anklickte,
+   sah kaum einen Unterschied und hielt die Knoepfe fuer kaputt. Jetzt ist der
+   gewaehlte Knopf ausgefuellt, traegt einen Haken und liegt in einem Ring -
+   drei Merkmale statt eines.
+
+   DREI UND NICHT NUR FARBE: Haken und Gewicht wirken auch dort, wo Farbe
+   nicht ankommt - bei einer Farbsehschwaeche, auf einem blassen Schirm, im
+   Ausdruck. Dieselbe Ueberlegung wie bei den Zustandspunkten der Listen
+   (assets/css/theme.css, .app-state).
+
+   Der Akzent und nicht Gruen: Gruen heisst auf dieser Seite "ein Guide ist
+   gerade erreichbar". Die Schrift darauf kommt aus --app-text-on-accent und
+   nicht als festes Weiss: Im dunklen Profil ist der Akzent hell, und dort
+   steht dunkle Schrift darauf.
+
+   DER SELEKTOR NENNT BEIDE KLASSEN, und das ist noetig: Die Grundregel oben
+   (.loc-req__presets .btn) besteht ebenfalls aus zwei Klassen und wuerde eine
+   einzelne hier ueberstimmen - der gewaehlte Knopf bliebe weiss. Kein
+   !important dafuer: gleiches Gewicht, spaeter im Blatt, das genuegt. */
+.loc-req__presets .loc-req__preset--on,
+.loc-req__presets .loc-req__preset--on:hover,
+.loc-req__presets .loc-req__preset--on:focus {
+    background: var(--app-accent);
     border-color: var(--app-accent);
-    color: var(--app-accent-strong);
+    color: var(--app-text-on-accent);
+    font-weight: var(--app-weight-bold);
+    box-shadow: 0 0 0 3px var(--app-accent-ring);
+}
+
+/* Der Haken. Als Inhalt und nicht als Bild: eine Datei weniger, und er faerbt
+   sich mit der Schrift mit. Fuer Vorleseprogramme traegt der Knopf
+   aria-pressed (assets/js/location_page.js) - erzeugte Inhalte sind fuer sie
+   ohnehin kein verlaesslicher Traeger. */
+.loc-req__presets .loc-req__preset--on::before {
+    content: '✓';
+    margin-right: 6px;
 }
 
 .loc-req__custom {
@@ -575,6 +606,14 @@
     margin-bottom: var(--app-space-1);
     color: var(--app-text-muted);
     font-size: var(--app-text-sm);
+}
+
+/* Das Feld traegt seit dem Umbau die Auskunft, WANN die gewaehlte Vorgabe
+   liegt - es ist nicht mehr nur die Ausweichmoeglichkeit daneben. Deshalb
+   volle Breite und dieselbe Schriftgroesse wie der Rest der Spalte, statt
+   eines schmalen Kastens am Rand. */
+.loc-req__field {
+    width: 100%;
 }
 
 /* Der Zustand einer laufenden Anfrage: Marke, Satz, Knoepfe untereinander.

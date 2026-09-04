@@ -388,14 +388,32 @@ window.webrtcApp.locationPage = {
 
         // Wer eine Uhrzeit eintraegt, hat sich gegen die Vorgaben entschieden.
         // Sie bleiben stehen, sind aber nicht mehr ausgewaehlt - sonst
-        // stuenden zwei Antworten auf dieselbe Frage nebeneinander.
+        // stuenden zwei Antworten auf dieselbe Frage nebeneinander, und es
+        // waere nicht mehr erkennbar, welche gilt.
+        //
+        // Nur ECHTE Eingaben: Ein per Skript gesetztes .value loest kein
+        // input-Ereignis aus (zeigeWunschzeit).
         document.addEventListener('input', (e) => {
             if (e.target && e.target.id === 'loc-req-wish') this.loeseVorgaben();
         });
+
+        // Das serverseitig gelieferte Formular traegt "Jetzt sofort" bereits
+        // markiert, aber ein leeres Feld - der Server kennt die Uhr des
+        // Browsers nicht. Einmal nachziehen, damit Markierung und Zeit von
+        // Anfang an zusammenpassen.
+        this.zeigeWunschzeit();
     },
 
     /**
      * Waehlt einen der vorgegebenen Abstaende.
+     *
+     * DIE WAHL WIRD SICHTBAR: Der Knopf hebt sich ab, UND der gemeinte
+     * Zeitpunkt steht danach im Feld darunter. Vorher wurde das Feld beim
+     * Klick geleert - die Vorgaben taten also etwas, wovon auf der Seite
+     * nichts zu sehen war ausser einem dezenten Rahmen. Wer "In 1 Stunde"
+     * drueckt, will lesen koennen, wann das ist; und die beiden
+     * Bedienelemente gehoeren erkennbar zusammen, statt nebeneinanderher zu
+     * laufen.
      *
      * @param {HTMLElement} knopf
      */
@@ -403,11 +421,7 @@ window.webrtcApp.locationPage = {
         this.loeseVorgaben();
         knopf.classList.add('loc-req__preset--on');
         knopf.setAttribute('aria-pressed', 'true');
-
-        // Das Feld daneben wird geleert: Es gibt genau EINEN Wunschzeitpunkt,
-        // und er steht entweder in den Vorgaben oder im Feld.
-        const feld = document.getElementById('loc-req-wish');
-        if (feld) feld.value = '';
+        this.zeigeWunschzeit();
     },
 
     /** Nimmt allen Vorgaben die Auswahl. */
@@ -419,12 +433,69 @@ window.webrtcApp.locationPage = {
     },
 
     /**
+     * Traegt den gewaehlten Abstand als Zeitpunkt in das Feld ein.
+     *
+     * Aufgerufen beim Klick auf eine Vorgabe und einmal beim Aufbau der
+     * Seite: Der Server liefert "Jetzt sofort" vorgewaehlt aus, kann das Feld
+     * aber nicht fuellen - er kennt die Uhr des Browsers nicht. Ohne diesen
+     * Abgleich stuende beim ersten Blick eine Markierung ohne Zeit daneben.
+     *
+     * Ohne markierte Vorgabe passiert nichts: Dann hat der Nutzer selbst
+     * etwas eingetragen, und das wird nicht ueberschrieben.
+     *
+     * Das Setzen von .value loest KEIN input-Ereignis aus - die Markierung,
+     * die hier gerade gesetzt wurde, hebt sich also nicht selbst wieder auf
+     * (siehe bindRequest).
+     */
+    zeigeWunschzeit() {
+        const feld = document.getElementById('loc-req-wish');
+        if (!feld) return;
+
+        const gewaehlt = document.querySelector('.loc-req__preset--on');
+        if (!gewaehlt) return;
+
+        const sekunden = parseInt(gewaehlt.getAttribute('data-seconds'), 10) || 0;
+        feld.value = this.zeitFeldWert(sekunden);
+    },
+
+    /**
+     * Ein Abstand in Sekunden als Wert fuer ein datetime-local-Feld.
+     *
+     * ORTSZEIT, NICHT UTC. toISOString() waere der kurze Weg und der falsche:
+     * Es rechnet nach UTC um, und das Feld zeigte dann in Mitteleuropa eine
+     * bis zwei Stunden zu frueh. Zusammengesetzt wird deshalb aus den
+     * getFullYear/getMonth/...-Werten, die alle in der Zeitzone des Browsers
+     * stehen.
+     *
+     * Sekunden fallen weg - das Feld kennt nur Minuten.
+     *
+     * @param {number} sekunden Abstand von jetzt
+     * @returns {string} "JJJJ-MM-TTTHH:MM"
+     */
+    zeitFeldWert(sekunden) {
+        const ziel = new Date(Date.now() + (parseInt(sekunden, 10) || 0) * 1000);
+        const zwei = (n) => String(n).padStart(2, '0');
+
+        return ziel.getFullYear() + '-' + zwei(ziel.getMonth() + 1) + '-' + zwei(ziel.getDate())
+             + 'T' + zwei(ziel.getHours()) + ':' + zwei(ziel.getMinutes());
+    },
+
+    /**
      * Der gewaehlte Wunschzeitpunkt als ABSTAND in Sekunden.
      *
      * Ein Abstand und kein Datum, und zwar an dieser einen Stelle umgerechnet:
      * Der Server rechnet daraus an SEINER Uhr einen Zeitpunkt. Damit spielt es
      * keine Rolle, in welcher Zeitzone der Kunde sitzt und ob seine Uhr
      * richtig geht - "in einer Stunde" heisst fuer beide Seiten dasselbe.
+     *
+     * WENN EINE VORGABE MARKIERT IST, GILT SIE - auch wenn im Feld derselbe
+     * Zeitpunkt steht. Das Feld ZEIGT die Wahl, die Vorgabe TRAEGT sie. Der
+     * Unterschied wird nach ein paar Minuten sichtbar: "Jetzt sofort" bleibt
+     * "jetzt", waehrend der Zeitpunkt im Feld inzwischen in der Vergangenheit
+     * laege und die Anfrage abgewiesen wuerde.
+     *
+     * Sobald der Nutzer das Feld selbst anfasst, ist keine Vorgabe mehr
+     * markiert (siehe bindRequest) - dann gilt das Feld.
      *
      * @returns {number|null} Sekunden, oder null wenn nichts Gueltiges gewaehlt ist
      */
@@ -610,6 +681,11 @@ window.webrtcApp.locationPage = {
         bereich.innerHTML = this.daten.request
             ? this.anfrageZustandHtml(this.daten.request)
             : this.anfrageFormularHtml();
+
+        // Das frisch gebaute Formular traegt dieselbe Vorauswahl wie das des
+        // Servers - und dasselbe leere Feld. Auch hier nachziehen; bei einem
+        // Zustandskasten findet zeigeWunschzeit() kein Feld und tut nichts.
+        this.zeigeWunschzeit();
     },
 
     /**

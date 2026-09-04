@@ -88,6 +88,12 @@ global.document = {
         (global.__docListeners[art] = global.__docListeners[art] || []).push(fn);
     },
     querySelectorAll() { return []; },
+    // Einzelsuche: Was sie liefert, legt die Pruefung ueber
+    // __querySelectorErgebnis fest. Gebraucht fuer die Vorgabeknoepfe des
+    // Anfrageformulars - dort haengt an ".loc-req__preset--on", ob die
+    // markierte Vorgabe oder das Eingabefeld gilt (location_page.js,
+    // wunschSekunden).
+    querySelector() { return global.__querySelectorErgebnis || null; },
     createElement(tag) { return makeEl(tag); }
 };
 global.__docListeners = {};
@@ -381,6 +387,8 @@ global.__presenceCalls = [];
 global.__availableSeconds = 0;
 /** Auf true: die Anfrage scheitert. */
 global.__availabilityFail = false;
+/** Rueckgabe von document.querySelector() - null, solange nichts gesetzt ist. */
+global.__querySelectorErgebnis = null;
 /** Die beiden Anfragenzahlen, die der Heartbeat meldet. */
 global.__requestCounts = { incoming_open: 0, outgoing_accepted: 0 };
 global.__turnResponse = async () => ({

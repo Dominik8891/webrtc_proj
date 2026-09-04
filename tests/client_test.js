@@ -2615,6 +2615,75 @@ function ackLastMove(status = 'executed', reason) {
             'das geoeffnete Zeitfenster faellt nicht auf');
         ok('neu gezeichnet wird nur, was sich wirklich geaendert hat');
 
+        // --- Die Wahl muss man SEHEN --------------------------------------
+        //
+        // Die Vorgabeknoepfe taten vorher etwas, wovon auf der Seite nichts zu
+        // sehen war: Der Klick leerte das Feld darunter und setzte eine
+        // dezente Klasse. Wer "In 1 Stunde" drueckte, konnte nicht ablesen,
+        // wann das ist - und hielt die Knoepfe fuer kaputt.
+        seite.daten = { id: 7, userId: 3, availability: 'idle', request: null };
+
+        // Ueber getElementById, damit die Attrappe das Element anlegt.
+        const feld  = document.getElementById('loc-req-wish');
+        const knopf = document.createElement('button');
+        knopf.getAttribute = (n) => (n === 'data-seconds' ? '3600' : null);
+
+        feld.value = '';
+        global.__querySelectorErgebnis = knopf;   // dieser Knopf gilt als markiert
+        seite.waehleVorgabe(knopf);
+
+        assert.ok(knopf.classList.contains('loc-req__preset--on'), 'der Knopf wird nicht markiert');
+        assert.notStrictEqual(feld.value, '', 'die Wahl steht nicht im Feld');
+        assert.ok(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(feld.value),
+            'das Feld bekommt keinen gueltigen datetime-local-Wert: ' + feld.value);
+        ok('ein Klick auf eine Vorgabe traegt den Zeitpunkt sichtbar ins Feld');
+
+        // ORTSZEIT, NICHT UTC. toISOString() waere der kurze Weg und der
+        // falsche: Das Feld zeigte in Mitteleuropa ein bis zwei Stunden zu
+        // frueh. Geprueft wird gegen dieselben lokalen Getter - und dagegen,
+        // dass die Umrechnung nicht doch ueber UTC laeuft.
+        const zwei = (n) => String(n).padStart(2, '0');
+        const ziel = new Date(Date.now() + 3600 * 1000);
+        const erwartet = ziel.getFullYear() + '-' + zwei(ziel.getMonth() + 1) + '-' + zwei(ziel.getDate())
+                       + 'T' + zwei(ziel.getHours()) + ':' + zwei(ziel.getMinutes());
+        assert.strictEqual(seite.zeitFeldWert(3600), erwartet, 'der Zeitpunkt steht nicht in Ortszeit da');
+        assert.ok(!/toISOString/.test(seite.zeitFeldWert.toString()),
+            'die Umrechnung laeuft ueber UTC statt ueber die Ortszeit');
+        assert.strictEqual(seite.zeitFeldWert(0).length, 16, '"jetzt sofort" ergibt keinen Feldwert');
+        ok('der eingetragene Zeitpunkt steht in der Zeitzone des Browsers');
+
+        // UMGEKEHRT: Wer selbst etwas eintraegt, hat sich gegen die Vorgaben
+        // entschieden - dann ist keine mehr markiert, und das Feld gilt.
+        // (loeseVorgaben() laeuft ueber querySelectorAll; die Attrappe liefert
+        // dort eine leere Liste, geprueft wird deshalb die Wirkung von
+        // zeigeWunschzeit ohne Markierung.)
+        global.__querySelectorErgebnis = null;
+        feld.value = '2026-12-24T18:00';
+        seite.zeigeWunschzeit();
+        assert.strictEqual(feld.value, '2026-12-24T18:00',
+            'ohne markierte Vorgabe wird die eigene Eingabe ueberschrieben');
+        ok('eine eigene Eingabe bleibt stehen, wenn keine Vorgabe markiert ist');
+
+        // WAS GILT: die markierte Vorgabe, nicht das Feld. Sonst verfiele
+        // "Jetzt sofort" nach ein paar Minuten - der Zeitpunkt im Feld laege
+        // dann in der Vergangenheit und die Anfrage wuerde abgewiesen.
+        global.__querySelectorErgebnis = knopf;
+        feld.value = '2020-01-01T10:00';                       // laengst vorbei
+        assert.strictEqual(seite.wunschSekunden(), 3600,
+            'das Feld ueberstimmt die markierte Vorgabe');
+
+        global.__querySelectorErgebnis = null;
+        feld.value = seite.zeitFeldWert(7200);
+        const ausFeld = seite.wunschSekunden();
+        assert.ok(ausFeld > 7100 && ausFeld <= 7200,
+            'ohne Vorgabe wird das Feld nicht gelesen: ' + ausFeld);
+
+        feld.value = '2020-01-01T10:00';
+        assert.strictEqual(seite.wunschSekunden(), null,
+            'ein Zeitpunkt in der Vergangenheit wird angenommen');
+        ok('die markierte Vorgabe traegt die Wahl, das Feld zeigt sie nur');
+
+        global.__querySelectorErgebnis = null;
         seite.daten = null;
     }
 

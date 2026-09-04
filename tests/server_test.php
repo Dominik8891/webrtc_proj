@@ -3519,6 +3519,40 @@ foreach ([['class', 'Model', 'TourRequest.php'],
 }
 ok('die Fristen der Anfrage stehen nur in config/requests.php');
 
+// --- Die Wahl im Formular muss man SEHEN ------------------------------------
+//
+// Die Vorgabeknoepfe wirkten, aber ihre Wirkung war unsichtbar: eine leise
+// Toenung und ein Rahmen. Wer einen drueckte, hielt sie fuer kaputt. Der
+// gewaehlte Knopf ist deshalb AUSGEFUELLT und traegt einen Haken - Farbe,
+// Flaeche und Form, damit es auch dort ankommt, wo Farbe nicht ankommt.
+$locCss = file_get_contents($ROOT . '/assets/css/location.css');
+$anfang = strpos($locCss, '.loc-req__preset--on');
+check($anfang !== false, 'die gewaehlte Vorgabe hat keine eigene Gestaltung');
+$aktiv = substr($locCss, $anfang, 700);
+
+check(preg_match('/background:\s*var\(--app-accent\)/', $aktiv) === 1,
+    'die gewaehlte Vorgabe ist nicht ausgefuellt, sondern nur getoent');
+check(strpos($aktiv, 'var(--app-text-on-accent)') !== false,
+    'die Schrift auf dem Akzent kommt nicht aus der Variablen - im dunklen Profil waere sie unlesbar');
+check(strpos($aktiv, '::before') !== false && strpos($aktiv, "content: '✓'") !== false,
+    'der gewaehlte Knopf traegt kein Zeichen - Farbe allein ist zu wenig');
+check(preg_match('/\.loc-req__preset--on[^{]*\{[^}]*#[0-9a-fA-F]{3,6}/', $aktiv) !== 1,
+    'in der Gestaltung steht eine feste Farbe statt einer Variablen');
+ok('die gewaehlte Vorgabe ist ausgefuellt, beschriftet und profilfest');
+
+// Und das Skript traegt den Zeitpunkt wirklich ein - sonst stuende die
+// Markierung ohne Angabe da, was sie bedeutet.
+$seiteJs = file_get_contents($ROOT . '/assets/js/location_page.js');
+check(strpos($seiteJs, 'zeigeWunschzeit()') !== false, 'die Wahl wird nirgends ins Feld geschrieben');
+check(substr_count($seiteJs, 'this.zeigeWunschzeit();') >= 3,
+    'die Wahl wird nicht an allen drei Stellen nachgezogen (Klick, Aufbau, Neuzeichnen)');
+// Gesucht wird der AUFRUF (mit Punkt davor), nicht das Wort: Im Kommentar
+// steht ausdruecklich, warum toISOString hier falsch waere - das soll dort
+// stehen bleiben duerfen.
+check(strpos($seiteJs, '.toISOString(') === false,
+    'der Zeitpunkt wird ueber UTC gerechnet - das Feld traegt Ortszeit');
+ok('der gewaehlte Zeitpunkt steht sichtbar im Feld, in Ortszeit');
+
 // --- Die Rechte und die Routen ---------------------------------------------
 $routes = require $ROOT . '/config/routes.php';
 check(Permission::routeErrors($routes) === [], 'die Routentabelle ist fehlerhaft');
