@@ -22,6 +22,7 @@ require_once $ROOT . '/class/Model/Location.php';
 require_once $ROOT . '/class/Model/LocationImage.php';
 require_once $ROOT . '/class/Helper/ImageStore.php';
 require_once $ROOT . '/class/Helper/Languages.php';
+require_once $ROOT . '/class/Helper/Availability.php';
 require_once $ROOT . '/class/Helper/LocationView.php';
 require_once $ROOT . '/class/Model/GuideRole.php';
 require_once $ROOT . '/class/Helper/Theme.php';
@@ -48,6 +49,7 @@ use App\Model\Location;
 use App\Model\LocationImage;
 use App\Helper\ImageStore;
 use App\Helper\Languages;
+use App\Helper\Availability;
 use App\Helper\LocationView;
 use App\Model\GuideRole;
 use App\Helper\Role;
@@ -2731,10 +2733,16 @@ ok('Titel, Ort und Zustand liegen auf dem Bild');
 
 // Der Knopf steht VOR den Datenzeilen im Kasten - nicht dazwischen und nicht
 // darunter. Das war der Befund: Er sah aus wie die Fussnote der Angaben.
+// Gesucht wird ab dem Beginn des Kastens im vollen Text und nicht in einem
+// Ausschnitt fester Laenge: Zwischen Knopf und Datenzeilen steht inzwischen
+// der Kasten mit den ueblichen Zeiten, und ein zu kurzes Fenster liesse die
+// Datenzeilen herausfallen - die Pruefung schluege dann fehl, ohne dass sich
+// an der Rangfolge etwas geaendert haette.
 $ctaAnfang = strpos($seiteKunde, 'class="loc-cta"');
-$cta       = substr($seiteKunde, $ctaAnfang, 1200);
-check(strpos($cta, 'loc-cta__action') < strpos($cta, 'loc-facts'),
-    'die Datenzeilen stehen vor dem Knopf');
+$posKnopf  = strpos($seiteKunde, 'loc-cta__action', $ctaAnfang);
+$posDaten  = strpos($seiteKunde, 'loc-facts',       $ctaAnfang);
+check($posKnopf !== false && $posDaten !== false, 'Knopf oder Datenzeilen fehlen im Kasten');
+check($posKnopf < $posDaten, 'die Datenzeilen stehen vor dem Knopf');
 ok('der Knopf steht oben im Kasten, die Nebendaten darunter');
 
 // 3c. ZWEI ARTEN VON BILDERN, und sie stehen an zwei Stellen.
@@ -3659,6 +3667,366 @@ check(strpos($rtcCode, 'TourRequest::acceptedForCall') !== false
       || strpos($rtcCode, 'acceptedRequest') !== false,
     'die Zusage wird bei der Rollenvergabe nicht gelesen');
 ok('Beginn und Ende haengen an Offer und Hangup');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n32) Uebliche Zeiten: das Raster, die Ortszeit und der Hinweis\n");
+
+// DER ANLASS
+// Ein Kunde sah nur, ob ein Guide GERADE bereit ist. War er es nicht, blieb
+// offen, ob sich eine Anfrage fuer spaeter lohnt. Die ueblichen Zeiten sind
+// die Antwort - eine ORIENTIERUNG, kein Kalender.
+
+// --- 32a. Das Raster: 7 x 4, und die Stelle steht fest ---------------------
+//
+// Die Reihenfolge im Muster ist der Vertrag zwischen Formular, Datenbank,
+// Server und Browser. Wer sie verschiebt, verschiebt alle Angaben aller
+// Standorte - deshalb steht sie hier als Zahl und nicht als Beschreibung.
+check(Availability::LAENGE === 28, 'das Raster hat nicht mehr 7 x 4 Felder');
+check(count(Availability::tage()) === 7, 'es sind nicht sieben Wochentage');
+check(count(Availability::abschnitte()) === 4, 'es sind nicht vier Tagesabschnitte');
+check(array_keys(Availability::tage())[0] === 'mo', 'die Woche beginnt nicht am Montag');
+check(Availability::stelle(3, 3) === 15, 'Donnerstag abends liegt nicht auf Stelle 15');
+ok('sieben Tage, vier Abschnitte, und die Stelle im Muster ist festgelegt');
+
+// Die Abschnitte decken den Tag LUECKENLOS ab. Faende eine Stunde keinen
+// Abschnitt, faende auch kein Wunschzeitpunkt sein Feld - und die Zuordnung
+// fiele stillschweigend auf den ersten zurueck.
+$gefunden = [];
+for ($stunde = 0; $stunde < 24; $stunde++) {
+    $gefunden[Availability::abschnittFuerStunde($stunde)] = true;
+}
+check(count($gefunden) === 4, 'nicht jeder Abschnitt kommt im Tag vor');
+check(Availability::abschnittFuerStunde(23) === 'nacht', '23 Uhr ist nicht nachts');
+check(Availability::abschnittFuerStunde(3)  === 'nacht', '3 Uhr ist nicht nachts');
+check(Availability::abschnittFuerStunde(6)  === 'vormittag', '6 Uhr ist nicht vormittags');
+check(Availability::abschnittFuerStunde(21) === 'abend', '21 Uhr ist nicht abends');
+ok('die vier Abschnitte decken den Tag lueckenlos, die Nacht ueber Mitternacht hinweg');
+
+// --- 32b. Was aus dem Formular kommt, und was daraus wird ------------------
+//
+// Wie bei den Sprachen (Languages::normalize): Unbekanntes ist kein
+// Ablehnungsgrund, es ist einfach keine Angabe.
+$muster = Availability::normalize(['do-abend', 'sa-vormittag', 'quatsch',
+                                   'mo-mittagsschlaf', 'do-abend', 42, 'so-vormittag']);
+check(strlen($muster) === 28, 'normalize liefert kein Muster der festen Laenge');
+check($muster[15] === '1', 'Donnerstag abends fehlt im Muster');
+check($muster[Availability::stelle(5, 1)] === '1', 'Samstag vormittags fehlt im Muster');
+check($muster[Availability::stelle(6, 1)] === '1', 'Sonntag vormittags fehlt im Muster');
+check(substr_count($muster, '1') === 3, 'normalize hat Unbekanntes durchgelassen');
+check(Availability::normalize('do-abend') === Availability::leer(),
+    'normalize nimmt auch etwas an, das keine Liste ist');
+ok('normalize laesst nur bekannte Felder durch und zaehlt sie einmal');
+
+// Was aus der Datenbank kommt, ist nicht immer, was hineingeschrieben wurde:
+// Bestandsdaten haben NULL, und ein verstellter Wert kann jede Laenge haben.
+// Die Lesestellen sollen sich trotzdem auf 28 Zeichen verlassen koennen.
+check(strlen(Availability::muster(null)) === 28, 'NULL ergibt kein Muster');
+check(strlen(Availability::muster('11')) === 28, 'ein zu kurzer Wert wird nicht aufgefuellt');
+check(strlen(Availability::muster(str_repeat('1', 99))) === 28, 'ein zu langer Wert wird nicht gekuerzt');
+check(Availability::muster('1x1') === '101' . str_repeat('0', 25), 'Unsinn wird nicht zu Null');
+check(Availability::istLeer(null) === true, 'NULL gilt als Angabe');
+check(Availability::istLeer($muster) === false, 'ein gefuelltes Muster gilt als leer');
+check(Availability::hat($muster, 'do', 'abend') === true, 'hat() findet Donnerstag abends nicht');
+check(Availability::hat($muster, 'do', 'nacht') === false, 'hat() findet ein leeres Feld');
+check(Availability::hat($muster, 'xx', 'abend') === false, 'hat() nimmt einen unbekannten Tag an');
+ok('ein gespeicherter Wert wird immer zu 28 Zeichen, was auch darin stand');
+
+// --- 32c. Der Satz fasst zusammen, statt aufzuzaehlen ----------------------
+//
+// "Mo-Fr abends" liest sich auf einen Blick, fuenf Zeilen nicht. Genau darum
+// geht es bei einer Orientierung.
+$werktags = Availability::normalize(['mo-abend', 'di-abend', 'mi-abend', 'do-abend', 'fr-abend']);
+check(Availability::text($werktags) === 'Mo-Fr abends', 'aus fuenf Werktagen wird keine Strecke: ' . Availability::text($werktags));
+$wochenende = Availability::normalize(['sa-vormittag', 'so-vormittag']);
+check(Availability::text($wochenende) === 'Sa+So vormittags', 'zwei Tage werden nicht mit + verbunden');
+check(Availability::text(Availability::normalize(['do-abend'])) === 'Do abends', 'ein einzelner Tag steht nicht allein da');
+$gemischt = Availability::normalize(['mo-abend', 'mi-abend', 'sa-vormittag']);
+check(Availability::text($gemischt) === 'Sa vormittags, Mo, Mi abends',
+    'getrennte Tage werden falsch zusammengefasst: ' . Availability::text($gemischt));
+check(Availability::text(null) === '', 'ohne Angabe entsteht trotzdem ein Satz');
+ok('der Satz fasst aufeinanderfolgende Tage zusammen und schweigt ohne Angabe');
+
+// --- 32d. Gerechnet wird in der Zeitzone des STANDORTS ---------------------
+//
+// DAS IST DER KERN DER SACHE: "Donnerstags abends" gilt am Ort der Fuehrung.
+// Derselbe Moment ist in Lissabon Donnerstagabend und in Tokio schon
+// Freitagmorgen - wer in der falschen Zone rechnet, meldet dem Kunden das
+// Gegenteil dessen, was gilt.
+$moment = new DateTimeImmutable('2026-09-03 20:30:00', new DateTimeZone('Europe/Lisbon'));
+check(Availability::passt(Availability::normalize(['do-abend']), $moment, 'Europe/Lisbon') === true,
+    'Donnerstag 20:30 Ortszeit faellt nicht in "donnerstags abends"');
+check(Availability::passt(Availability::normalize(['do-abend']), $moment, 'Asia/Tokyo') === false,
+    'derselbe Moment in Tokio gerechnet gilt weiterhin als Donnerstagabend');
+// In Tokio ist derselbe Moment Freitag halb fuenf morgens - also nachts,
+// und die Nacht gehoert dem Kalendertag, auf den die Uhrzeit faellt.
+check(Availability::passt(Availability::normalize(['fr-nacht']), $moment, 'Asia/Tokyo') === true,
+    'in Tokio faellt dieser Moment nicht in die Nacht des Freitags');
+// Der Moment traegt seine eigene Zone mit - er darf in jeder ankommen.
+$selberMoment = $moment->setTimezone(new DateTimeZone('UTC'));
+check(Availability::passt(Availability::normalize(['do-abend']), $selberMoment, 'Europe/Lisbon') === true,
+    'die Zone des uebergebenen Zeitpunkts faelscht das Ergebnis');
+// Die Nacht laeuft ueber Mitternacht und gehoert dem Kalendertag.
+$nachts = new DateTimeImmutable('2026-09-04 02:00:00', new DateTimeZone('Europe/Lisbon'));
+check(Availability::passt(Availability::normalize(['fr-nacht']), $nachts, 'Europe/Lisbon') === true,
+    'zwei Uhr nachts faellt nicht in die Nacht ihres Kalendertages');
+// OHNE ANGABEN IST NICHTS AUSSERHALB: aus fehlender Auskunft folgt kein
+// Hinweis (siehe zeitenHtml und location_page.js).
+check(Availability::passt(null, $moment, 'Europe/Lisbon') === false,
+    'ohne Angaben passt jeder Zeitpunkt - dann waere die Pruefung sinnlos');
+ok('der Wunschzeitpunkt wird in der Zeitzone des Standorts gelesen, nicht in der des Kunden');
+
+// --- 32e. Woher die Zeitzone kommt -----------------------------------------
+//
+// Drei Stufen, alle mit PHP-Bordmitteln und ohne Netzaufruf: ein Land mit
+// einer Zone, ein Land mit mehreren gleichen, sonst die naechstgelegene.
+check(Availability::zoneFor('JP', 35.68, 139.76) === 'Asia/Tokyo', 'Japan hat nur eine Zone');
+check(Availability::zoneFor('DE', 48.14, 11.58) === 'Europe/Berlin',
+    'Deutschland bekommt nicht die gelaeufige Zone: ' . var_export(Availability::zoneFor('DE', 48.14, 11.58), true));
+check(Availability::zoneFor('US', 39.74, -104.99) === 'America/Denver',
+    'Denver wird nicht getroffen: ' . var_export(Availability::zoneFor('US', 39.74, -104.99), true));
+check(Availability::zoneFor('US', 40.71, -74.01) === 'America/New_York',
+    'New York wird nicht getroffen: ' . var_export(Availability::zoneFor('US', 40.71, -74.01), true));
+check(Availability::zoneFor('AU', -31.95, 115.86) === 'Australia/Perth',
+    'Perth wird nicht getroffen: ' . var_export(Availability::zoneFor('AU', -31.95, 115.86), true));
+check(Availability::zoneFor('PT', 38.72, -9.14) === 'Europe/Lisbon',
+    'Lissabon wird nicht getroffen: ' . var_export(Availability::zoneFor('PT', 38.72, -9.14), true));
+// Was PHP nicht kennt, wird nicht geraten.
+check(Availability::zoneFor('XX', 0, 0) === null, 'ein unbekanntes Land bekommt eine erfundene Zone');
+check(Availability::zoneFor('', 0, 0) === null, 'ohne Land entsteht trotzdem eine Zone');
+// Der Rueckfall ist UTC und nicht die Zeit des Servers: Eine unbekannte Zone
+// soll auffallen und nicht stillschweigend "wie bei uns" bedeuten.
+check(Availability::zone('Erfundene/Zone') === 'UTC', 'eine unbekannte Zone wird durchgereicht');
+check(Availability::istZone('Europe/Lisbon') === true, 'eine echte Zone gilt als unbekannt');
+check(Availability::istZone('Europe/Atlantis') === false, 'eine erfundene Zone gilt als bekannt');
+ok('die Zeitzone kommt aus Land und Koordinaten - mit Bordmitteln, ohne Netzaufruf');
+
+// Die lesbare Angabe traegt BEIDES: den Ort und den Abstand zu UTC. "UTC+1"
+// allein sagt nicht, wo das gilt; "Europe/Lisbon" allein nicht, wie weit es
+// vom Kunden weg ist.
+$winter = new DateTimeImmutable('2026-01-15 12:00:00', new DateTimeZone('UTC'));
+$sommer = new DateTimeImmutable('2026-07-15 12:00:00', new DateTimeZone('UTC'));
+check(Availability::zoneText('Europe/Berlin', $winter) === 'Europe/Berlin (UTC+1)',
+    'im Winter steht Berlin nicht auf UTC+1: ' . Availability::zoneText('Europe/Berlin', $winter));
+check(Availability::zoneText('Europe/Berlin', $sommer) === 'Europe/Berlin (UTC+2)',
+    'die Sommerzeit wird nicht mitgerechnet: ' . Availability::zoneText('Europe/Berlin', $sommer));
+check(Availability::zoneText('Asia/Kolkata', $winter) === 'Asia/Kolkata (UTC+5:30)',
+    'halbe Stunden fallen unter den Tisch: ' . Availability::zoneText('Asia/Kolkata', $winter));
+check(strpos(Availability::zoneText('America/New_York', $winter), 'UTC-5') !== false,
+    'westlich von UTC fehlt das Minus');
+ok('die Zone steht lesbar da, mit Sommerzeit und halben Stunden');
+
+// --- 32f. Die Zeiten gehoeren zum Standort und werden gespeichert ----------
+//
+// Nicht zum Konto: Derselbe Guide kann in der Altstadt abends und am Hafen
+// sonntags frueh unterwegs sein.
+$zeitDb = new FakeConnection();
+PdoConnect::$connection = $zeitDb;
+FakeStatement::$affected = 1;
+
+$locZeit = new Location();
+$refl    = new ReflectionObject($locZeit);
+$feld    = $refl->getProperty('id');
+$feld->setAccessible(true);
+$feld->setValue($locZeit, 42);
+$locZeit->setAvailabilitySlots($werktags);
+$locZeit->setTimezone('Europe/Lisbon');
+$locZeit->updateLocation(7);
+
+$sqlZeit = $zeitDb->statements[0]->sql;
+check(strpos($sqlZeit, 'availability_slots') !== false, 'die ueblichen Zeiten werden nicht gespeichert');
+check(strpos($sqlZeit, 'timezone') !== false, 'die Zeitzone wird nicht gespeichert');
+check($zeitDb->statements[0]->params[':slots'] === $werktags, 'das Muster kommt nicht am Statement an');
+check($zeitDb->statements[0]->params[':timezone'] === 'Europe/Lisbon', 'die Zone kommt nicht am Statement an');
+// Ein leeres Raster ist KEINE Angabe und wird NULL - nicht 28 Nullen. Sonst
+// liesse sich "nichts angegeben" nicht von "nie" unterscheiden.
+$locLeer = new Location();
+$locLeer->setAvailabilitySlots(Availability::leer());
+$locLeer->setTimezone('Erfundene/Zone');
+$refl2 = new ReflectionObject($locLeer);
+foreach (['availability_slots' => null, 'timezone' => null] as $name => $erwartet) {
+    $p = $refl2->getProperty($name);
+    $p->setAccessible(true);
+    check($p->getValue($locLeer) === $erwartet, "$name wird nicht auf NULL gesetzt");
+}
+ok('die Zeiten und die Zone haengen am Standort, ein leeres Raster wird NULL');
+
+// Die Seite braucht beide Spalten - und die Laenderkennung, aus der sich die
+// Zone notfalls ableiten laesst.
+$seiteDb2 = new FakeConnection();
+PdoConnect::$connection = $seiteDb2;
+(new Location())->selectOneForPage(5);
+$sqlSeite = $seiteDb2->statements[0]->sql;
+foreach (['availability_slots', 'timezone', 'iso2'] as $spalte) {
+    check(strpos($sqlSeite, $spalte) !== false, "der Seite fehlt $spalte");
+}
+ok('die Standortseite bekommt Raster, Zone und Laenderkennung aus einer Abfrage');
+
+// Der Controller nimmt die Auswahl entgegen - und leitet die Zone ab, wenn
+// keine gewaehlt wurde. Geraten wird dabei nichts: zoneFor kennt nur Land
+// und Koordinaten, und der Guide kann das Ergebnis ueberschreiben.
+$ctrlCode = file_get_contents($ROOT . '/class/Controller/LocationController.php');
+check(strpos($ctrlCode, 'Availability::normalize') !== false,
+    'die Auswahl aus dem Formular laeuft nicht durch normalize');
+check(strpos($ctrlCode, 'Availability::istZone') !== false,
+    'eine mitgeschickte Zone wird nicht geprueft');
+check(strpos($ctrlCode, 'Availability::zoneFor') !== false,
+    'ohne Auswahl wird keine Zone abgeleitet');
+check(strpos($ctrlCode, "\$_POST['availability']") !== false,
+    'das Raster wird nicht aus dem Formular gelesen');
+ok('der Controller prueft die Auswahl und leitet die Zone ab, statt sie zu raten');
+
+// --- 32g. Was der Kunde sieht ----------------------------------------------
+$standortZeit = $standort;
+$standortZeit['availability_slots'] = $werktags;
+$standortZeit['timezone']           = 'Europe/Lisbon';
+$standortZeit['iso2']               = 'PT';
+
+$seiteZeit = LocationView::page($standortZeit, $bilder,
+    ['eigen' => false, 'angemeldet' => true, 'viewer_id' => 3]);
+
+check(strpos($seiteZeit, 'loc-hours') !== false, 'die ueblichen Zeiten stehen nicht auf der Seite');
+check(strpos($seiteZeit, 'Mo-Fr abends') !== false, 'der Satz mit den Zeiten fehlt');
+check(strpos($seiteZeit, 'Europe/Lisbon (UTC') !== false, 'die Ortszeit steht nicht dabei');
+check(strpos($seiteZeit, 'data-timezone="Europe/Lisbon"') !== false,
+    'das Skript findet die Zone des Standorts nicht');
+// SIE STEHEN AM ANFRAGEKNOPF und nicht unten bei Dauer und Sprachen: Dort
+// faellt die Entscheidung, ob sich eine Anfrage lohnt.
+$posZeiten = strpos($seiteZeit, 'loc-hours');
+$posForm   = strpos($seiteZeit, 'loc-req-submit');
+$posFakten = strpos($seiteZeit, 'loc-facts');
+check($posForm < $posZeiten && $posZeiten < $posFakten,
+    'die ueblichen Zeiten stehen nicht zwischen Anfrageformular und Nebendaten');
+// Der Platz fuer den Hinweis ist da, aber leer: Was ausserhalb der Zeiten
+// liegt, weiss erst der Browser - er kennt die Zone des Kunden.
+check(strpos($seiteZeit, 'id="loc-req-hint"') !== false, 'der Platz fuer den Hinweis fehlt');
+check(preg_match('/id="loc-req-hint"[^>]*hidden/', $seiteZeit) === 1,
+    'der Hinweis steht von vornherein da, ohne dass etwas anzumerken waere');
+ok('der Kunde sieht die Zeiten samt Ortszeit, dort wo er den Zeitpunkt waehlt');
+
+// OHNE ANGABE SIEHT EIN KUNDE NICHTS. Ein Kasten "keine Zeiten angegeben"
+// waere eine Auskunft ueber das Formular des Guides und nicht ueber den
+// Standort. Der EIGENTUEMER bekommt den Hinweis - er kann etwas daran aendern.
+check(strpos($seiteKunde, 'loc-hours') === false,
+    'ohne Angaben steht beim Kunden ein leerer Kasten');
+check(strpos($seiteEigner, 'loc-hours--empty') !== false,
+    'der Eigentuemer wird nicht auf die fehlenden Zeiten hingewiesen');
+ok('ohne Angaben schweigt die Seite - ausser gegenueber dem Eigentuemer');
+
+// Die Seitendaten tragen Raster, Zone UND die Grenzen der Abschnitte. Die
+// Grenzen kommen vom Server, damit "abends" im Browser nicht bald etwas
+// anderes heisst als in der Datenbank.
+check(strpos($seiteZeit, '"hours"') !== false, 'die Seitendaten kennen die Zeiten nicht');
+$datenZeile = [];
+preg_match('/window\.locationPage\s*=\s*(\{.*?\});/s', $seiteZeit, $datenZeile);
+check(!empty($datenZeile[1]), 'die Seitendaten stehen nicht als Objekt in der Seite');
+$daten = json_decode($datenZeile[1], true);
+check(is_array($daten), 'die Seitendaten sind kein gueltiges JSON');
+check($daten['hours']['slots'] === $werktags, 'das Raster fehlt in den Seitendaten');
+check($daten['hours']['timezone'] === 'Europe/Lisbon', 'die Zone fehlt in den Seitendaten');
+check(count($daten['hours']['parts']) === 4, 'die Grenzen der Abschnitte fehlen in den Seitendaten');
+check($daten['hours']['parts'][0]['von'] === 22 && $daten['hours']['parts'][0]['bis'] === 6,
+    'die Nacht kommt im Browser mit anderen Grenzen an als auf dem Server');
+// Ohne Angaben ist slots null und nicht "0000...": Das Skript soll ohne
+// Auskunft nichts anmerken, und 28 Nullen liessen sich mit einer Angabe
+// verwechseln.
+preg_match('/window\.locationPage\s*=\s*(\{.*?\});/s', $seiteKunde, $ohneZeile);
+$datenOhne = json_decode($ohneZeile[1], true);
+check($datenOhne['hours']['slots'] === null, 'ohne Angaben stehen 28 Nullen in den Seitendaten');
+ok('Raster, Zone und Abschnittsgrenzen gehen einmal mit der Seite mit');
+
+// --- 32h. Was der Guide ausfuellt ------------------------------------------
+//
+// Die Namen der Felder gehen so an den Server, wie normalize sie erwartet -
+// Beschriftung, Wert und gespeicherte Stelle stammen aus derselben Tabelle.
+$raster = LocationView::zeitrasterHtml($werktags);
+check(substr_count($raster, '<input type="checkbox"') === 28, 'das Raster hat nicht 28 Kaestchen');
+check(substr_count($raster, 'name="availability[]"') === 28, 'die Kaestchen heissen nicht alle gleich');
+check(substr_count($raster, ' checked') === 5, 'die gespeicherte Auswahl steht nicht im Formular');
+check(strpos($raster, 'value="do-abend"') !== false, 'ein Feld traegt nicht die erwartete Kennung');
+check(strpos($raster, 'aria-label="Donnerstag abends"') !== false,
+    'ein Vorleseprogramm liest 28-mal dasselbe');
+// Die Uhrzeiten stehen in der Kopfzeile: "abends" heisst nicht ueberall
+// dasselbe, und der Kunde liest spaeter dieselben Grenzen.
+check(strpos($raster, '18-22') !== false, 'die Uhrzeiten fehlen an den Abschnitten');
+// Zeilen- und Spaltenkoepfe sind Knoepfe - eine Abkuerzung, kein Ersatz:
+// OHNE Skript bleiben es 28 gewoehnliche Kaestchen.
+check(substr_count($raster, 'data-zeile=') === 7, 'nicht jeder Tag laesst sich auf einmal setzen');
+check(substr_count($raster, 'data-spalte=') === 4, 'nicht jeder Abschnitt laesst sich auf einmal setzen');
+// Der Rundlauf: Was das Formular schickt, muss dasselbe Muster ergeben.
+preg_match_all('/name="availability\[\]" value="([^"]+)"[^>]*checked/', $raster, $treffer);
+check(Availability::normalize($treffer[1]) === $werktags,
+    'was das Formular zurueckschickt, ergibt ein anderes Muster');
+ok('das Raster im Formular und das gespeicherte Muster sind dieselbe Sache');
+
+// Die Zone steht daneben, vorbelegt mit der erkannten - aber nicht
+// festgenagelt: Die Ableitung kann an einer Zonengrenze danebenliegen, und
+// das letzte Wort hat der Guide.
+$auswahl = LocationView::zonenauswahlHtml('Europe/Lisbon');
+check(strpos($auswahl, 'name="timezone"') !== false, 'die Zone hat kein Feld im Formular');
+check(strpos($auswahl, '<option value="Europe/Lisbon" selected>') !== false,
+    'die erkannte Zone ist nicht vorbelegt');
+check(substr_count($auswahl, ' selected>') === 1, 'mehr als eine Zone ist vorbelegt');
+check(strpos($auswahl, 'Asia/Tokyo') !== false, 'die Liste der Zonen ist unvollstaendig');
+// Vorbelegt wird auch dann etwas, wenn nichts gespeichert ist - ein Feld
+// ohne Auswahl waere ein Formular, das sich nicht abschicken laesst.
+check(strpos(LocationView::zonenauswahlHtml(''), ' selected>') !== false,
+    'ohne gespeicherte Zone steht keine zur Auswahl bereit');
+$formular = LocationView::bearbeitenHtml($standortZeit, $bilder['cover'], $bilder['gallery'],
+    ['max_images' => 5, 'max_bytes' => 100, 'max_source_edge' => 6000, 'accept' => 'image/jpeg',
+     'titel_max' => 120, 'kurz_max' => 200, 'lang_max' => 5000, 'dauer_min' => 5,
+     'dauer_max' => 480, 'dauer_vorgabe' => 5]);
+check(strpos($formular, 'loc-grid') !== false, 'das Raster fehlt im Bearbeitungsformular');
+check(strpos($formular, 'name="timezone"') !== false, 'die Zone fehlt im Bearbeitungsformular');
+ok('Raster und Zone stehen im Bearbeitungsformular, die Zone vorbelegt und aenderbar');
+
+// Ohne gespeicherte Zone leitet die Seite sie ab, statt zu schweigen - oder,
+// schlimmer, die Zeit des Servers zu unterstellen.
+$ohneZone = $standortZeit;
+$ohneZone['timezone'] = null;
+check(LocationView::zoneVon($ohneZone) === 'Europe/Lisbon',
+    'ohne gespeicherte Zone wird nicht abgeleitet: ' . LocationView::zoneVon($ohneZone));
+$ohneAlles = $ohneZone;
+$ohneAlles['iso2'] = null;
+check(LocationView::zoneVon($ohneAlles) === 'UTC',
+    'ohne Land faellt die Seite nicht auf UTC zurueck');
+ok('ein Standort ohne gespeicherte Zone bekommt die abgeleitete, notfalls UTC');
+
+// --- 32i. Das Raster steht an EINER Stelle ---------------------------------
+//
+// Die Grenzen der Tagesabschnitte gehoeren in App\Helper\Availability. Eine
+// zweite Tabelle im Skript oder in der Vorlage liefe beim naechsten Eintrag
+// auseinander - dann hiesse "abends" im Browser etwas anderes als in der
+// Datenbank.
+$jsCode = file_get_contents($ROOT . '/assets/js/location_page.js');
+check(strpos($jsCode, 'nachmittags') === false && strpos($jsCode, "'vormittag'") === false,
+    'das Skript fuehrt eine eigene Tabelle der Tagesabschnitte');
+check(strpos($jsCode, 'hours.parts') !== false || strpos($jsCode, 'zeiten.parts') !== false,
+    'das Skript nimmt die Grenzen nicht vom Server');
+// Die Abkuerzung im Formular muss auch eingehaengt werden. Sie war einmal
+// gebaut, aber nicht aufgerufen - im Browser blieben die Zeilen- und
+// Spaltenkoepfe dann wirkungslos, ohne dass etwas gemeldet worden waere.
+$bindEdit = substr($jsCode, (int)strpos($jsCode, "\n    bindEdit() {"));
+$bindEdit = substr($bindEdit, 0, (int)strpos($bindEdit, "\n    },"));
+check(strpos($bindEdit, 'bindZeitraster') !== false,
+    'die Zeilen- und Spaltenkoepfe des Rasters werden nirgends eingehaengt');
+foreach (['assets/html/location_edit.html', 'assets/html/location_page.html'] as $datei) {
+    $inhalt = file_get_contents($ROOT . '/' . $datei);
+    check(strpos($inhalt, 'availability[]') === false,
+        "$datei baut das Raster selbst, statt es einsetzen zu lassen");
+}
+ok('die Grenzen der Abschnitte stehen einmal, nicht in jeder Schicht');
+
+// Die Wanderung liegt bei, und der Dump kennt die Spalten - sonst bekaeme
+// eine frische Datenbank sie nie.
+$wanderung = file_get_contents($ROOT . '/migrations/014_verfuegbarkeitszeiten.sql');
+$dump      = file_get_contents($ROOT . '/database.sql');
+foreach (['availability_slots', 'timezone'] as $spalte) {
+    check(strpos($wanderung, $spalte) !== false, "die Wanderung legt $spalte nicht an");
+    check(strpos($dump, $spalte) !== false, "im Dump fehlt $spalte");
+}
+check(strpos($wanderung, 'ADD COLUMN IF NOT EXISTS') !== false,
+    'die Wanderung laesst sich kein zweites Mal ausfuehren');
+ok('die neuen Spalten stehen in der Wanderung und im Dump');
 
 PdoConnect::$connection = new FakeConnection();
 

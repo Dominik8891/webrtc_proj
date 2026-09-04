@@ -53,7 +53,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (162 Prüfungen)
+## Was `client_test.js` prüft (169 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -353,7 +353,32 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (209 Prüfungen)
+44. **Die üblichen Zeiten: Ortszeit und ein Hinweis, keine Sperre** — Wochentag
+    und Stunde werden über `Intl` in der **Zone des Standorts** gelesen
+    (derselbe Moment ist in Lissabon Donnerstag 20 Uhr und in Tokio Freitag
+    halb fünf), und das Raster wird im Browser genauso gelesen wie auf dem
+    Server, die Nacht über Mitternacht eingeschlossen. Die Grenzen der
+    Abschnitte kommen dabei **vom Server** — das Skript führt keine zweite
+    Tabelle.
+
+    Der **Versatz** einer Zone gilt für einen Zeitpunkt und nicht allgemein
+    (Berlin im Januar gegen Berlin im Juli), halbe Stunden und das Minus
+    westlich von UTC werden geprüft — und dass die **Sekunden** eines
+    Zeitpunkts ihn nicht verschieben: Die formatierten Teile reichen nur bis
+    zur Minute, und ohne die Sekunden lag der Versatz für fast jeden Zeitpunkt
+    eine Minute daneben. „Gleiche Zone" hieß dann fast nie gleiche Zone.
+
+    Der **Hinweis** merkt an, statt zu sperren: Er nennt die üblichen Zeiten
+    und lädt zum Anfragen ein. Ohne Angaben des Guides und ohne Zone bleibt er
+    weg — eine falsche Zeit wäre schlechter als keine. Die **Ortszeit** steht
+    nur dabei, wenn sie von der des Kunden abweicht; in derselben Zone wäre
+    der Satz eine Zeile ohne Auskunft. Dasselbe gilt für den Abstand im Kasten
+    der üblichen Zeiten.
+
+    Und der Hinweis **folgt der Wahl** — beim Klick auf eine Vorgabe wie beim
+    Neuzeichnen des Formulars.
+
+## Was `server_test.php` prüft (228 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -811,6 +836,58 @@ die Tests nicht an. Das ist Absicht.
     Anruf nicht zustande; mit Zusage wird es eine Führung, obwohl der Schalter
     aus ist — aber **nur an ihrem Standort**. Ein Anruf ohne Standortkennung
     oder über einen fremden Standort öffnet nichts.
+
+33. **Übliche Zeiten: das Raster, die Ortszeit und der Hinweis** (Abschnitt 32
+    im Skript). Das Raster ist **7 × 4**, die Woche beginnt am Montag, und die
+    Stelle im Muster (`Wochentag × 4 + Abschnitt`) steht als Zahl in der
+    Prüfung: Sie ist der Vertrag zwischen Formular, Datenbank, Server und
+    Browser — wer sie verschiebt, verschiebt alle Angaben aller Standorte.
+    Die vier Abschnitte decken den Tag **lückenlos** (alle 24 Stunden werden
+    durchgezählt), und die Nacht läuft über Mitternacht.
+
+    `normalize()` lässt nur bekannte Felder durch und zählt jedes einmal —
+    wie bei den Sprachen ist Unbekanntes kein Ablehnungsgrund, sondern keine
+    Angabe. `muster()` liefert **immer** 28 Zeichen, was auch in der Spalte
+    stand: `NULL`, zu kurz, zu lang, Unsinn.
+
+    Der **Satz** fasst aufeinanderfolgende Tage zusammen (`Mo-Fr abends`,
+    `Sa+So vormittags`) und ist ohne Angabe leer.
+
+    **Gerechnet wird in der Zeitzone des Standorts.** Derselbe Moment ist in
+    Lissabon Donnerstagabend und in Tokio Freitag früh; beides wird geprüft,
+    und ebenso, dass die Zone des übergebenen Zeitpunkts das Ergebnis nicht
+    verfälscht. Ohne Angaben ist **nichts** außerhalb — aus fehlender Auskunft
+    folgt kein Hinweis.
+
+    Die **Zeitzone** kommt aus Land und Koordinaten, mit Bordmitteln und ohne
+    Netzaufruf; geprüft werden alle drei Stufen an echten Orten (Tokio,
+    München, Denver, New York, Perth, Lissabon) und der Rückfall: ein
+    unbekanntes Land bekommt `null`, eine unbekannte Zone wird zu `UTC` und
+    nicht zur Zeit des Servers. `zoneText()` trägt Ort **und** Abstand, mit
+    Sommerzeit und halben Stunden (`Asia/Kolkata (UTC+5:30)`).
+
+    Gespeichert wird **am Standort** und nicht am Konto; ein leeres Raster
+    wird `NULL` und nicht 28 Nullen, sonst ließe sich „nichts angegeben" nicht
+    von „nie" unterscheiden. Die Standortseite holt Raster, Zone **und**
+    Länderkennung in derselben Abfrage.
+
+    Was der **Kunde** sieht: die Zeiten samt Ortszeit, zwischen
+    Anfrageformular und Nebendaten — dort fällt die Entscheidung. Ohne
+    Angaben steht dort **nichts**; nur der Eigentümer bekommt den Hinweis. Der
+    Platz für die Anmerkung ist da, aber leer: Was außerhalb liegt, weiß erst
+    der Browser, denn er kennt die Zone des Kunden.
+
+    Was der **Guide** ausfüllt: 28 Kästchen, deren Werte durch `normalize()`
+    wieder dasselbe Muster ergeben (Rundlauf), mit `aria-label` je Kästchen
+    und den Uhrzeiten in der Kopfzeile. Die Zone steht als Auswahlfeld daneben
+    — vorbelegt mit der erkannten, aber änderbar; ohne gespeicherte Zone
+    leitet die Seite sie ab.
+
+    Und **an einer Stelle**: Weder das Skript noch die Vorlagen führen eine
+    eigene Tabelle der Tagesabschnitte; das Skript nimmt sie aus den
+    Seitendaten. Geprüft wird außerdem, dass die Abkürzung im Raster
+    (Zeilen- und Spaltenköpfe) auch eingehängt **wird** — sie war einmal
+    gebaut, aber nicht aufgerufen.
 
 ## Grenzen
 

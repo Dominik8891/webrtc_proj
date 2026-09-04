@@ -394,7 +394,9 @@ window.webrtcApp.locationPage = {
         // Nur ECHTE Eingaben: Ein per Skript gesetztes .value loest kein
         // input-Ereignis aus (zeigeWunschzeit).
         document.addEventListener('input', (e) => {
-            if (e.target && e.target.id === 'loc-req-wish') this.loeseVorgaben();
+            if (!e.target || e.target.id !== 'loc-req-wish') return;
+            this.loeseVorgaben();
+            this.pruefeZeit();
         });
 
         // Das serverseitig gelieferte Formular traegt "Jetzt sofort" bereits
@@ -402,6 +404,8 @@ window.webrtcApp.locationPage = {
         // Browsers nicht. Einmal nachziehen, damit Markierung und Zeit von
         // Anfang an zusammenpassen.
         this.zeigeWunschzeit();
+        this.zeigeZonenunterschied();
+        this.pruefeZeit();
     },
 
     /**
@@ -422,6 +426,7 @@ window.webrtcApp.locationPage = {
         knopf.classList.add('loc-req__preset--on');
         knopf.setAttribute('aria-pressed', 'true');
         this.zeigeWunschzeit();
+        this.pruefeZeit();
     },
 
     /** Nimmt allen Vorgaben die Auswahl. */
@@ -686,6 +691,7 @@ window.webrtcApp.locationPage = {
         // Servers - und dasselbe leere Feld. Auch hier nachziehen; bei einem
         // Zustandskasten findet zeigeWunschzeit() kein Feld und tut nichts.
         this.zeigeWunschzeit();
+        this.pruefeZeit();
     },
 
     /**
@@ -727,6 +733,7 @@ window.webrtcApp.locationPage = {
              +     '<label class="loc-req__label" for="loc-req-wish">Anderer Zeitpunkt</label>'
              +     '<input type="datetime-local" id="loc-req-wish" class="form-control loc-req__field">'
              +   '</div>'
+             +   '<p class="loc-req__hint" id="loc-req-hint" hidden></p>'
              +   '<button type="button" class="btn btn-success loc-req-submit"'
              +     ' data-locationid="' + (parseInt(this.daten.id, 10) || 0) + '">Führung anfragen</button>'
              + '</div>';
@@ -770,6 +777,226 @@ window.webrtcApp.locationPage = {
              +   '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
              +     ' data-id="' + id + '">Absagen</button>'
              + '</div>';
+    },
+
+    // -----------------------------------------------------------------
+    // Die ueblichen Zeiten
+    // -----------------------------------------------------------------
+
+    /**
+     * Haelt den Wunschzeitpunkt gegen die ueblichen Zeiten des Standorts.
+     *
+     * ZWEI AUSKUENFTE, und beide sind Hinweise und keine Sperre:
+     *
+     *   1. DIE ORTSZEIT, wenn Standort und Kunde in verschiedenen Zonen
+     *      liegen. "18 Uhr" heisst in Tokio etwas anderes als in Lissabon,
+     *      und verabredet wird die Zeit AM ORT DER FUEHRUNG.
+     *   2. DER HINWEIS, wenn der Zeitpunkt ausserhalb der ueblichen Zeiten
+     *      liegt. Anfragen darf man trotzdem - der Guide entscheidet, nicht
+     *      dieses Formular.
+     *
+     * Das RASTER kommt vom Server (daten.hours.parts) und steht nicht hier:
+     * Die Grenzen der Tagesabschnitte gehoeren an eine Stelle
+     * (App\Helper\Availability), sonst hiesse "abends" im Browser bald etwas
+     * anderes als in der Datenbank.
+     *
+     * Fehlt die Zeitzonenunterstuetzung des Browsers, bleibt der Hinweis
+     * leer: Er ist eine Zugabe, und eine falsche Zeit waere schlechter als
+     * keine.
+     */
+    pruefeZeit() {
+        const feld = document.getElementById('loc-req-hint');
+        if (!feld || !this.daten) return;
+
+        const zeiten = this.daten.hours;
+        const wunsch = this.wunschZeitpunkt();
+        if (!zeiten || !zeiten.timezone || !wunsch) { feld.hidden = true; return; }
+
+        const teile = this.teileIn(wunsch, zeiten.timezone);
+        if (!teile) { feld.hidden = true; return; }
+
+        const saetze = [];
+
+        // 1. Die Ortszeit - nur wenn sie sich von der des Kunden unterscheidet.
+        if (this.zonenversatz(wunsch, zeiten.timezone) !== this.eigenerVersatz(wunsch)) {
+            saetze.push('Das ist <strong>' + this.esc(teile.wochentag + ', ' + teile.stunde
+                      + ':' + teile.minute) + '</strong> Ortszeit am Treffpunkt.');
+        }
+
+        // 2. Der Hinweis ausserhalb der ueblichen Zeiten. Ohne Angaben des
+        //    Guides gibt es nichts anzumerken - aus fehlender Auskunft folgt
+        //    kein Vorwurf.
+        if (zeiten.slots && !this.imRaster(zeiten, teile)) {
+            saetze.push('Das liegt außerhalb der üblichen Zeiten ('
+                      + this.esc(zeiten.text) + '). Anfragen können Sie trotzdem – '
+                      + 'der Guide entscheidet.');
+        }
+
+        feld.innerHTML = saetze.join(' ');
+        feld.hidden = (saetze.length === 0);
+    },
+
+    /**
+     * Der gewaehlte Wunschzeitpunkt als Date.
+     *
+     * Er kommt aus derselben Quelle wie beim Abschicken (wunschSekunden):
+     * die markierte Vorgabe, sonst das Feld. Zwei Wege zur selben Frage
+     * waeren zwei Antworten - der Hinweis muss den Zeitpunkt meinen, der
+     * gleich beim Server ankommt.
+     *
+     * @returns {Date|null}
+     */
+    wunschZeitpunkt() {
+        const sekunden = this.wunschSekunden();
+        if (sekunden === null) return null;
+        return new Date(Date.now() + sekunden * 1000);
+    },
+
+    /**
+     * Wochentag, Stunde und Minute eines Zeitpunkts in einer Zeitzone.
+     *
+     * ueber Intl und nicht ueber eigene Rechnerei: Die Sommerzeit wechselt in
+     * jeder Zone zu einem anderen Datum, und diese Tabelle bringt der Browser
+     * mit. 'en-GB' und h23 stehen fest, damit die Teile ueberall gleich
+     * heissen - uebersetzt wird erst bei der Ausgabe.
+     *
+     * @param {Date}   datum
+     * @param {string} zone
+     * @returns {Object|null} { tag, wochentag, stunde, minute } oder null
+     */
+    teileIn(datum, zone) {
+        try {
+            const f = new Intl.DateTimeFormat('en-GB', {
+                timeZone: zone, hourCycle: 'h23',
+                weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
+            const t = {};
+            f.formatToParts(datum).forEach(teil => { t[teil.type] = teil.value; });
+
+            const tage = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            const tag  = tage.indexOf(t.weekday);
+            if (tag < 0) return null;
+
+            return {
+                tag:       tag,
+                wochentag: this.TAGE_LANG[tag],
+                stunde:    t.hour,
+                minute:    t.minute,
+                jahr:      t.year,
+                monat:     t.month,
+                datum:     t.day
+            };
+        } catch (e) {
+            // Ein Browser ohne Zeitzonendaten. Kein Fehlerfall - nur keine
+            // Auskunft.
+            return null;
+        }
+    },
+
+    /** Die Wochentage, wie sie im Hinweis stehen. */
+    TAGE_LANG: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
+
+    /**
+     * Faellt dieser Zeitpunkt in eines der angekreuzten Felder?
+     *
+     * Dieselbe Rechnung wie auf dem Server (Availability::passt): Stelle im
+     * Muster ist Wochentag mal Zahl der Abschnitte plus Abschnitt.
+     *
+     * @param {Object} zeiten Aus den Seitendaten
+     * @param {Object} teile  Aus teileIn()
+     * @returns {boolean}
+     */
+    imRaster(zeiten, teile) {
+        const abschnitte = zeiten.parts || [];
+        const stunde = parseInt(teile.stunde, 10);
+
+        let index = -1;
+        abschnitte.forEach((a, i) => {
+            if (index >= 0) return;
+            // Der Abschnitt ueber Mitternacht (von > bis) gilt in zwei
+            // Stuecken - dieselbe Regel wie in Availability.
+            const passt = (a.von > a.bis)
+                ? (stunde >= a.von || stunde < a.bis)
+                : (stunde >= a.von && stunde < a.bis);
+            if (passt) index = i;
+        });
+        if (index < 0) return false;
+
+        return zeiten.slots.charAt(teile.tag * abschnitte.length + index) === '1';
+    },
+
+    /**
+     * Wie viele Minuten liegt eine Zone vor UTC - zu diesem Zeitpunkt?
+     *
+     * "Zu diesem Zeitpunkt" ist der Kern: Im Juli steht Berlin anders zu UTC
+     * als im Januar. Gerechnet wird ueber den Umweg der formatierten Teile -
+     * die Zeitzonendaten hat nur der Browser.
+     *
+     * @param {Date}   datum
+     * @param {string} zone
+     * @returns {number|null}
+     */
+    zonenversatz(datum, zone) {
+        const t = this.teileIn(datum, zone);
+        if (!t) return null;
+
+        // Sekunden und Millisekunden werden UNVERAENDERT uebernommen: Die
+        // formatierten Teile reichen nur bis zur Minute, und wuerde hier auf
+        // Null gesetzt, was der Zeitpunkt an Sekunden traegt, faehrt die
+        // Differenz um bis zu einer Minute daneben - fast jede Sekunde einer
+        // Minute ergaebe dann einen Versatz, der um eine Minute zu klein ist.
+        // So bleibt der Unterschied ein glattes Vielfaches von 60000.
+        const alsUtc = Date.UTC(parseInt(t.jahr, 10), parseInt(t.monat, 10) - 1,
+                                parseInt(t.datum, 10), parseInt(t.stunde, 10),
+                                parseInt(t.minute, 10), datum.getUTCSeconds(),
+                                datum.getUTCMilliseconds());
+        return Math.round((alsUtc - datum.getTime()) / 60000);
+    },
+
+    /**
+     * Der Versatz der Zone des Kunden - also des Browsers.
+     *
+     * getTimezoneOffset() zaehlt andersherum (Minuten, die UTC voraus ist),
+     * deshalb das Minus.
+     *
+     * @param {Date} datum
+     * @returns {number}
+     */
+    eigenerVersatz(datum) {
+        return -datum.getTimezoneOffset();
+    },
+
+    /**
+     * Schreibt in den Kasten der ueblichen Zeiten, wie weit die Ortszeit von
+     * der des Kunden abweicht.
+     *
+     * NUR WENN SIE ABWEICHT. Steht der Kunde in derselben Zone, waere der
+     * Satz eine Zeile ohne Auskunft - und der haeufigste Fall ist, dass beide
+     * in derselben Zone sind.
+     */
+    zeigeZonenunterschied() {
+        const kasten = document.getElementById('loc-hours');
+        const ziel   = document.getElementById('loc-hours-diff');
+        if (!kasten || !ziel) return;
+
+        const zone = kasten.getAttribute('data-timezone');
+        if (!zone) return;
+
+        const jetzt = new Date();
+        const dort  = this.zonenversatz(jetzt, zone);
+        if (dort === null) return;
+
+        const unterschied = dort - this.eigenerVersatz(jetzt);
+        if (unterschied === 0) return;
+
+        const stunden = Math.abs(unterschied) / 60;
+        // Halbe und dreiviertel Stunden gibt es wirklich (Indien, Nepal,
+        // Teile Australiens) - deshalb keine ganzzahlige Rechnung.
+        const text = (Number.isInteger(stunden) ? stunden : stunden.toFixed(2).replace(/0+$/, '').replace('.', ','))
+                   + (stunden === 1 ? ' Stunde' : ' Stunden');
+
+        ziel.textContent = ' · dort ist es ' + text + (unterschied > 0 ? ' später' : ' früher') + ' als bei Ihnen';
     },
 
     /**
@@ -855,6 +1082,49 @@ window.webrtcApp.locationPage = {
         }
 
         this.bindImages();
+        this.bindZeitraster();
+    },
+
+    /**
+     * Die Schnellwahl im Zeitraster.
+     *
+     * Ein Klick auf einen Wochentag setzt oder loescht die ganze Zeile, ein
+     * Klick auf einen Tagesabschnitt die ganze Spalte. "Immer abends" sind
+     * damit ein Klick statt sieben.
+     *
+     * GESETZT WIRD, WAS FEHLT: Ist die Reihe noch nicht vollstaendig, wird
+     * sie vollstaendig; ist sie es schon, wird sie geleert. Das ist die
+     * Erwartung an einen solchen Knopf, und sie kommt ohne einen dritten
+     * Zustand aus.
+     *
+     * OHNE SKRIPT bleiben es 28 gewoehnliche Kaestchen: Das Formular
+     * funktioniert genauso, es dauert nur laenger. Deshalb sind die Kaestchen
+     * echte Eingabefelder und diese Knoepfe nur eine Abkuerzung.
+     */
+    bindZeitraster() {
+        const raster = document.querySelector('.loc-grid');
+        if (!raster) return;
+
+        raster.addEventListener('click', (e) => {
+            const knopf = e.target.closest('.loc-grid__all');
+            if (!knopf) return;
+            e.preventDefault();
+
+            const zeile  = knopf.getAttribute('data-zeile');
+            const spalte = knopf.getAttribute('data-spalte');
+
+            const felder = Array.from(raster.querySelectorAll('input[type="checkbox"]'))
+                .filter(feld => {
+                    const wert = feld.value || '';
+                    if (zeile)  return wert.indexOf(zeile + '-') === 0;
+                    if (spalte) return wert.slice(-(spalte.length + 1)) === '-' + spalte;
+                    return false;
+                });
+            if (felder.length === 0) return;
+
+            const alleAn = felder.every(feld => feld.checked);
+            felder.forEach(feld => { feld.checked = !alleAn; });
+        });
     },
 
     /**

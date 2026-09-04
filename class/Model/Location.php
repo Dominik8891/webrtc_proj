@@ -2,6 +2,8 @@
 
 namespace App\Model;
 
+use App\Helper\Availability;
+
 /**
  * Klasse zur Verwaltung von Locations (Orte) in der Datenbank.
  *
@@ -77,6 +79,20 @@ class Location
     private $description_long;
     private $duration_minutes;
     private $languages;
+
+    /**
+     * Die ueblichen Zeiten als 28-Zeichen-Muster (migrations/014).
+     *
+     * Gelesen und geschrieben ausschliesslich ueber App\Helper\Availability -
+     * hier steht der rohe Wert, wie er in der Spalte liegt.
+     */
+    private $availability_slots;
+
+    /** Zeitzone des Ortes, z. B. 'Europe/Lisbon'. NULL = noch nicht bestimmt. */
+    private $timezone;
+
+    /** Laendercode nach ISO 3166-1 alpha-2 - fuer die Ableitung der Zeitzone. */
+    private $iso2;
     private $blocked;
     private $blocked_reason;
 
@@ -89,7 +105,10 @@ class Location
     {
         if ($in_id > 0) {
             try {
-                $query = "SELECT location.*, country.country_name, city.city_name 
+                // country.iso2 kommt mit: Aus ihm und den Koordinaten leitet
+                // App\Helper\Availability die Zeitzone des Ortes ab, wenn der
+                // Standort noch keine traegt.
+                $query = "SELECT location.*, country.country_name, country.iso2, city.city_name 
                           FROM location
                           JOIN city    ON location.city_id = city.id 
                           JOIN country ON city.country_id = country.id
@@ -119,6 +138,12 @@ class Location
                     $this->duration_minutes = isset($result['duration_minutes'])
                         ? (int)$result['duration_minutes'] : null;
                     $this->languages        = $result['languages'] ?? null;
+                    // Die Felder aus migrations/014. Wie oben: Sie duerfen
+                    // fehlen, weil Bestandsdaten NULL tragen - "keine Angabe"
+                    // ist ein gueltiger Zustand.
+                    $this->availability_slots = $result['availability_slots'] ?? null;
+                    $this->timezone           = $result['timezone'] ?? null;
+                    $this->iso2               = $result['iso2'] ?? null;
                     $this->blocked        = (int)($result['blocked'] ?? 0);
                     $this->blocked_reason = $result['blocked_reason'] ?? null;
                 } else {
@@ -171,12 +196,19 @@ class Location
     public function insertLocation($user_id, $city_id)
     {
         try {
+            // availability_slots und timezone stehen mit in der Liste,
+            // obwohl das Anlegeformular sie noch nicht anbietet: Sie kommen
+            // dann als NULL an - "keine Angabe", der richtige Anfangszustand.
+            // Stuenden sie nicht hier, ginge die Eingabe stillschweigend
+            // verloren, sobald das Formular sie einmal anbietet.
             $query = "INSERT INTO location ( user_id,  city_id,  longitude,  latitude,
                                              description,  title,  description_long,
-                                             duration_minutes,  languages)
+                                             duration_minutes,  languages,
+                                             availability_slots,  timezone)
                                     VALUES (:user_id, :city_id, :longitude, :latitude,
                                             :description, :title, :description_long,
-                                            :duration_minutes, :languages)";
+                                            :duration_minutes, :languages,
+                                            :slots, :timezone)";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':user_id', $user_id, \PDO::PARAM_INT);
             $stmt->bindParam(':city_id', $city_id, \PDO::PARAM_INT);
@@ -190,6 +222,10 @@ class Location
             // - also die Aussage "dauert null Minuten".
             $stmt->bindParam(':duration_minutes', $this->duration_minutes);
             $stmt->bindParam(':languages', $this->languages);
+            // Ohne Typangabe, aus demselben Grund wie bei der Dauer: NULL
+            // soll NULL bleiben.
+            $stmt->bindParam(':slots', $this->availability_slots);
+            $stmt->bindParam(':timezone', $this->timezone);
             $stmt->execute();
             return PdoConnect::$connection->lastInsertId();
         } catch (\PDOException $e) {
@@ -237,7 +273,9 @@ class Location
                         title            = :title,
                         description_long = :description_long,
                         duration_minutes = :duration_minutes,
-                        languages        = :languages
+                        languages        = :languages,
+                        availability_slots = :slots,
+                        timezone           = :timezone
                            WHERE id = :id
                              AND user_id = :user_id";
             $stmt = PdoConnect::$connection->prepare($query);
@@ -250,6 +288,9 @@ class Location
             // insertLocation().
             $stmt ->bindParam(':duration_minutes', $this->duration_minutes);
             $stmt ->bindParam(':languages'       , $this->languages       );
+            // Ohne Typangabe, damit NULL NULL bleibt - siehe oben.
+            $stmt ->bindParam(':slots'           , $this->availability_slots);
+            $stmt ->bindParam(':timezone'        , $this->timezone        );
             $stmt ->bindParam(':id'              , $this->id              );
             $stmt ->bindParam(':user_id'         , $user_id               );
             $stmt->execute();
@@ -548,8 +589,13 @@ class Location
                              location.title, location.description,
                              location.description_long,
                              location.duration_minutes, location.languages,
+                             -- Die ueblichen Zeiten und die Zone, in der sie
+                             -- gelten (migrations/014). country.iso2 kommt
+                             -- mit, damit die Zone auch bei einem Standort
+                             -- ohne Eintrag abgeleitet werden kann.
+                             location.availability_slots, location.timezone,
                              location.blocked, location.blocked_reason,
-                             country.country_name, city.city_name,
+                             country.country_name, country.iso2, city.city_name,
                              user.username,
                              " . self::AVAILABILITY_SQL . " AS availability
                       FROM location
@@ -722,8 +768,39 @@ class Location
      */
     public function setLanguages($in_languages) { $this->languages = $in_languages; }
 
+    /**
+     * Die ueblichen Zeiten als Muster.
+     *
+     * Ein leeres Muster (nur Nullen) wird zu NULL: "keine Angabe" und "alle
+     * Felder abgewaehlt" sind dasselbe, und die Spalte soll nur eine Fassung
+     * davon kennen.
+     *
+     * @param mixed $in_slots
+     */
+    public function setAvailabilitySlots($in_slots)
+    {
+        $muster = Availability::muster($in_slots);
+        $this->availability_slots = Availability::istLeer($muster) ? null : $muster;
+    }
+
+    /**
+     * Die Zeitzone des Ortes.
+     *
+     * Nur eine Zone, die PHP kennt - sonst NULL. Ein unbekannter Name in der
+     * Spalte waere schlimmer als gar keiner: Er saehe aus wie eine Angabe.
+     *
+     * @param mixed $in_zone
+     */
+    public function setTimezone($in_zone)
+    {
+        $this->timezone = Availability::istZone($in_zone) ? (string)$in_zone : null;
+    }
+
     // Getter 
     public function getId()            { return $this->id; }
+    public function getIso2()          { return $this->iso2; }
+    public function getAvailabilitySlots() { return $this->availability_slots; }
+    public function getTimezone()      { return $this->timezone; }
     public function getUserId()        { return $this->user_id; }
     public function isBlocked()        { return (int)$this->blocked === 1; }
     public function getBlockedReason() { return $this->blocked_reason; }

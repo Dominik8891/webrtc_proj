@@ -80,6 +80,7 @@ class LocationView
                                        !empty($in_ansicht['angemeldet']),
                                        $in_ansicht['viewer_id'] ?? null,
                                        $in_ansicht['anfrage'] ?? null),
+            '###HOURS###'       => self::zeitenHtml($in_daten, $eigen),
             '###OWNER_TOOLS###' => $eigen
                                        ? self::bearbeitenHtml($in_daten, $cover, $gallery,
                                              (array)($in_ansicht['grenzen'] ?? []))
@@ -387,6 +388,82 @@ class LocationView
     }
 
     /**
+     * Die ueblichen Zeiten - direkt beim Anfrageknopf.
+     *
+     * WARUM SIE HIERHIN GEHOEREN: Ein Kunde sieht sonst nur, ob der Guide
+     * GERADE bereit ist. Ist er es nicht, bleibt offen, ob sich eine Anfrage
+     * fuer spaeter lohnt oder ob der Guide nur sonntags kann. Die Angabe
+     * steht deshalb dort, wo die Entscheidung faellt - im selben Kasten wie
+     * das Anfrageformular, nicht unten bei Dauer und Sprachen.
+     *
+     * ES IST EINE ORIENTIERUNG, KEIN KALENDER. Verboten ist nichts - eine
+     * Anfrage ausserhalb dieser Zeiten wird angemerkt und nicht abgewiesen
+     * (assets/js/location_page.js).
+     *
+     * DIE ORTSZEIT STEHT DABEI. "Donnerstags abends" heisst am Ort der
+     * Fuehrung, nicht beim Kunden; ohne die Zone verabreden sich beide auf
+     * verschiedene Uhrzeiten. Wie weit sie von der Zone des Kunden abweicht,
+     * ergaenzt das Skript - der Server kennt den Browser nicht.
+     *
+     * OHNE ANGABE SIEHT EIN KUNDE NICHTS. Ein Kasten "keine Zeiten angegeben"
+     * waere eine Auskunft ueber das Formular des Guides und nicht ueber den
+     * Standort. Der EIGENTUEMER dagegen bekommt einen Hinweis: Er kann etwas
+     * daran aendern.
+     *
+     * @param array<string,mixed> $in_daten
+     * @param bool                $in_eigen
+     * @return string HTML oder Leerstring
+     */
+    public static function zeitenHtml(array $in_daten, bool $in_eigen): string
+    {
+        $muster = $in_daten['availability_slots'] ?? null;
+        $zone   = self::zoneVon($in_daten);
+
+        if (Availability::istLeer($muster)) {
+            if (!$in_eigen) return '';
+
+            return '<div class="loc-hours loc-hours--empty">'
+                 .   '<span class="loc-hours__title">Übliche Zeiten</span>'
+                 .   '<p class="loc__note">Sie haben noch keine angegeben. Kunden sehen dann '
+                 .     'nicht, wann sich eine Anfrage lohnt – über <em>Bearbeiten</em> lässt '
+                 .     'sich das nachtragen.</p>'
+                 . '</div>';
+        }
+
+        return '<div class="loc-hours" id="loc-hours"'
+             .     ' data-timezone="' . self::esc($zone) . '">'
+             .   '<span class="loc-hours__title">Meistens unterwegs</span>'
+             .   '<p class="loc-hours__text">' . self::esc(Availability::text($muster)) . '</p>'
+             .   '<p class="loc-hours__zone">Ortszeit: ' . self::esc(Availability::zoneText($zone))
+             .     '<span class="loc-hours__diff" id="loc-hours-diff"></span></p>'
+             . '</div>';
+    }
+
+    /**
+     * Die Zeitzone eines Standorts - notfalls abgeleitet.
+     *
+     * Ein Standort, der seit migrations/014 noch nie gespeichert wurde,
+     * traegt keine Zone. Statt in diesem Fall zu schweigen - oder, schlimmer,
+     * die Zeit des Servers zu unterstellen - wird sie hier aus Land und
+     * Koordinaten abgeleitet, mit derselben Regel wie beim Speichern
+     * (App\Helper\Availability::zoneFor).
+     *
+     * @param array<string,mixed> $in_daten
+     * @return string
+     */
+    public static function zoneVon(array $in_daten): string
+    {
+        $zone = $in_daten['timezone'] ?? null;
+        if (Availability::istZone($zone)) return (string)$zone;
+
+        return Availability::zone(Availability::zoneFor(
+            $in_daten['iso2']      ?? null,
+            $in_daten['latitude']  ?? null,
+            $in_daten['longitude'] ?? null
+        ));
+    }
+
+    /**
      * Dauer und Sprachen als Beschreibungsliste.
      *
      * Was nicht angegeben ist, steht gar nicht da - eine Zeile "Dauer: keine
@@ -591,6 +668,7 @@ class LocationView
              .     '<label class="loc-req__label" for="loc-req-wish">Anderer Zeitpunkt</label>'
              .     '<input type="datetime-local" id="loc-req-wish" class="form-control loc-req__field">'
              .   '</div>'
+             .   '<p class="loc-req__hint" id="loc-req-hint" hidden></p>'
              .   '<button type="button" class="btn btn-success loc-req-submit"'
              .     ' data-locationid="' . (int)$in_daten['id'] . '">Führung anfragen</button>'
              . '</div>';
@@ -761,14 +839,33 @@ class LocationView
             'isOwn'        => $eigen,
             'userId'       => isset($in_ansicht['viewer_id']) && (int)$in_ansicht['viewer_id'] > 0
                                   ? (int)$in_ansicht['viewer_id'] : null,
-            // Beide Zahlen, denn beide Arten zaehlen gegen dieselbe
-            // Obergrenze - siehe maxImages.
+            // DIE UEBLICHEN ZEITEN samt Zone und Raster.
+            //
+            // Sie gehen mit, weil das Skript den Wunschzeitpunkt dagegen
+            // haelt, waehrend der Kunde ihn waehlt - eine Anfrage dafuer
+            // waere ein Abruf je Tastendruck. Das RASTER kommt vom Server und
+            // steht nicht im Skript: Die Grenzen der Tagesabschnitte gehoeren
+            // an eine Stelle (App\Helper\Availability), sonst hiesse
+            // "abends" im Browser bald etwas anderes als in der Datenbank.
+            'hours'        => [
+                'slots'    => Availability::istLeer($in_daten['availability_slots'] ?? null)
+                                  ? null
+                                  : Availability::muster($in_daten['availability_slots']),
+                'timezone' => self::zoneVon($in_daten),
+                'text'     => Availability::text($in_daten['availability_slots'] ?? null),
+                'parts'    => array_values(array_map(
+                    fn($a) => ['von' => (int)$a['von'], 'bis' => (int)$a['bis'], 'name' => $a['kurz']],
+                    Availability::abschnitte()
+                )),
+            ],
             // DIE LAUFENDE EIGENE ANFRAGE. Sie geht mit, damit das Skript
             // nach jedem Takt vergleichen kann, ob sich am Zustand etwas
             // geaendert hat - und nur dann den Aktionsbereich neu baut.
             // Fuer Gaeste und fuer den Eigentuemer ist sie null; das
             // entscheidet der Controller und nicht diese Klasse.
             'request'      => $in_ansicht['anfrage'] ?? null,
+            // Beide Zahlen, denn beide Arten zaehlen gegen dieselbe
+            // Obergrenze - siehe maxImages.
             'coverCount'   => isset($in_bilder['cover']) && $in_bilder['cover'] !== null ? 1 : 0,
             'imageCount'   => count((array)($in_bilder['gallery'] ?? [])),
             'maxImages'    => (int)($grenzen['max_images'] ?? 0),
@@ -846,6 +943,8 @@ class LocationView
                                         ? (string)(int)$in_daten['duration_minutes']
                                         : (string)(int)($in_grenzen['dauer_vorgabe'] ?? 0),
             '###E_LANGUAGES###'   => self::sprachauswahlHtml($in_daten['languages'] ?? ''),
+            '###E_SLOTS###'       => self::zeitrasterHtml($in_daten['availability_slots'] ?? ''),
+            '###E_TIMEZONE###'    => self::zonenauswahlHtml(self::zoneVon($in_daten)),
             '###E_COVER###'       => self::titelbildVerwaltungHtml($in_cover),
             '###E_IMAGES###'      => self::bildverwaltungHtml($in_gallery),
             '###E_IMAGECOUNT###'  => (string)(count($in_gallery) + ($in_cover === null ? 0 : 1)),
@@ -858,6 +957,110 @@ class LocationView
         ];
 
         return str_replace(array_keys($ersetzungen), array_values($ersetzungen), $vorlage);
+    }
+
+    /**
+     * Das Raster der ueblichen Zeiten als Tabelle aus Kaestchen.
+     *
+     * SIEBEN ZEILEN, VIER SPALTEN. Die Beschriftung der Spalten traegt die
+     * Uhrzeiten mit ("abends 18-22"), denn "abends" heisst nicht ueberall
+     * dasselbe - und der Kunde liest spaeter dieselben Grenzen.
+     *
+     * EINE TABELLE UND KEINE LISTE VON KAESTCHEN: Die Frage hat zwei
+     * Richtungen (welcher Tag, welche Tageszeit), und genau die zeigt ein
+     * Raster. Wer "immer abends" meint, sieht eine Spalte; wer "donnerstags"
+     * meint, eine Zeile. Die Kopfzeile und die Tagesspalte sind dabei
+     * anklickbar - das Skript setzt damit eine ganze Reihe
+     * (assets/js/location_page.js). Ohne Skript bleiben es 28 gewoehnliche
+     * Kaestchen.
+     *
+     * Die Namen der Felder ("availability[]" mit dem Wert "do-abend") gehen
+     * so an den Server, wie App\Helper\Availability::normalize() sie erwartet
+     * - Beschriftung, Wert und gespeicherte Stelle stammen aus derselben
+     * Tabelle.
+     *
+     * @param mixed $in_muster Gespeichertes Muster
+     * @return string HTML
+     */
+    public static function zeitrasterHtml($in_muster): string
+    {
+        $muster     = Availability::muster($in_muster);
+        $tage       = Availability::tage();
+        $abschnitte = Availability::abschnitte();
+
+        // Kopfzeile: die vier Tagesabschnitte samt Uhrzeiten.
+        $kopf = '<tr><td class="loc-grid__corner"></td>';
+        foreach ($abschnitte as $kennung => $a) {
+            $spanne = $a['von'] . '-' . $a['bis'];
+            $kopf .= '<th scope="col"><button type="button" class="loc-grid__all"'
+                  .  ' data-spalte="' . self::esc($kennung) . '"'
+                  .  ' title="Diesen Abschnitt an allen Tagen an- oder abwählen">'
+                  .  self::esc($a['kurz']) . '<span class="loc-grid__hours">'
+                  .  self::esc($spanne) . '</span></button></th>';
+        }
+        $kopf .= '</tr>';
+
+        $zeilen = '';
+        $t = 0;
+        foreach ($tage as $tag_kennung => $tag) {
+            $zeilen .= '<tr><th scope="row"><button type="button" class="loc-grid__all"'
+                    .  ' data-zeile="' . self::esc($tag_kennung) . '"'
+                    .  ' title="Diesen Tag ganz an- oder abwählen">'
+                    .  self::esc($tag['kurz']) . '</button></th>';
+
+            $a = 0;
+            foreach ($abschnitte as $abschnitt_kennung => $abschnitt) {
+                $wert = $tag_kennung . '-' . $abschnitt_kennung;
+                $an   = $muster[Availability::stelle($t, $a)] === '1';
+
+                // Das Kaestchen traegt seine Bedeutung im aria-label: In der
+                // Tabelle steht sie in Kopfzeile und Zeilenkopf, aber ein
+                // Vorleseprogramm liest sonst 28-mal "Kontrollkästchen".
+                $zeilen .= '<td><label class="loc-grid__cell">'
+                        .  '<input type="checkbox" name="availability[]"'
+                        .  ' value="' . self::esc($wert) . '"'
+                        .  ' aria-label="' . self::esc($tag['lang'] . ' ' . $abschnitt['kurz']) . '"'
+                        .  ($an ? ' checked' : '') . '>'
+                        .  '<span class="loc-grid__box" aria-hidden="true"></span>'
+                        .  '</label></td>';
+                $a++;
+            }
+            $zeilen .= '</tr>';
+            $t++;
+        }
+
+        return '<div class="loc-grid-wrap"><table class="loc-grid">'
+             . '<thead>' . $kopf . '</thead><tbody>' . $zeilen . '</tbody></table></div>';
+    }
+
+    /**
+     * Die Auswahl der Zeitzone.
+     *
+     * VORBELEGT MIT DER ERKANNTEN, aber nicht festgenagelt: Die Ableitung aus
+     * Land und Koordinaten trifft das Uebliche und kann an einer
+     * Zeitzonengrenze danebenliegen (App\Helper\Availability::zoneFor). Das
+     * letzte Wort hat der Guide - er steht dort.
+     *
+     * Die Liste ist die volle Liste der PHP-Zeitzonen. Sie ist lang, aber sie
+     * ist die richtige: Jede Auswahl daraus versteht auch der Browser des
+     * Kunden (dieselben IANA-Namen).
+     *
+     * @param string $in_gewaehlt
+     * @return string HTML
+     */
+    public static function zonenauswahlHtml(string $in_gewaehlt): string
+    {
+        $gewaehlt = Availability::zone($in_gewaehlt);
+        $optionen = '';
+
+        foreach (\DateTimeZone::listIdentifiers() as $zone) {
+            $optionen .= '<option value="' . self::esc($zone) . '"'
+                      .  ($zone === $gewaehlt ? ' selected' : '') . '>'
+                      .  self::esc($zone) . '</option>';
+        }
+
+        return '<select id="edit-timezone" name="timezone" class="form-select">'
+             . $optionen . '</select>';
     }
 
     /**

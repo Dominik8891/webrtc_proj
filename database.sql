@@ -531,6 +531,39 @@ CREATE TABLE IF NOT EXISTS `location` (
   -- Geschrieben ausschliesslich ueber App\Helper\Languages::normalize().
   `languages` varchar(64) DEFAULT NULL,
 
+  -- DIE UEBLICHEN ZEITEN. 28 Zeichen aus '0' und '1': sieben Wochentage mal
+  -- vier Tagesabschnitte (nachts 22-6, vormittags 6-12, nachmittags 12-18,
+  -- abends 18-22), Montag zuerst. Die Stelle im Text ist der Platz im Raster
+  -- (Wochentag * 4 + Abschnitt); Stelle 15, null-basiert, ist "Donnerstag
+  -- abends".
+  --
+  -- Es ist eine ORIENTIERUNG und kein Kalender: Ein Kunde soll erkennen, ob
+  -- sich eine Anfrage fuer Donnerstagabend lohnt oder ob der Guide nur
+  -- sonntags kann. Verboten ist nichts - eine Anfrage ausserhalb dieser
+  -- Zeiten wird angemerkt, nicht abgewiesen.
+  --
+  -- Warum eine Spalte und keine eigene Tabelle: Es sind 28 Ja/Nein-Angaben,
+  -- die immer vollstaendig gelesen und geschrieben werden - zusammen mit dem
+  -- Standort, auf dessen Seite sie stehen. Eine Suche bleibt moeglich:
+  -- SUBSTRING(availability_slots, 24, 1) = '1' ist "samstagabends".
+  --
+  -- Gelesen und geschrieben ausschliesslich ueber App\Helper\Availability.
+  -- NULL heisst "keine Angabe" - dann steht auf der Seite nichts dazu.
+  -- Bestehende Installationen: migrations/014_verfuegbarkeitszeiten.sql.
+  `availability_slots` char(28) DEFAULT NULL,
+
+  -- DIE ZEITZONE DES ORTES, z. B. 'Europe/Lisbon'.
+  --
+  -- Die ueblichen Zeiten gelten AM ORT DER FUEHRUNG. Ein Kunde in Tokio, der
+  -- diesen Standort ansieht, muss "donnerstags abends" als Lissabonner Abend
+  -- lesen - sonst verabreden sich beide auf verschiedene Uhrzeiten.
+  --
+  -- Gefuellt beim Speichern, abgeleitet aus Land und Koordinaten
+  -- (App\Helper\Availability::zoneFor) und vom Guide ueberschreibbar. NULL
+  -- heisst "noch nicht bestimmt"; die Anwendung leitet sie dann beim Lesen
+  -- ab.
+  `timezone` varchar(64) DEFAULT NULL,
+
   -- Moderation: Ein gesperrter Standort verschwindet aus der Uebersicht der
   -- anderen Nutzer (Location::selectAllLocations filtert blocked = 0), bleibt
   -- aber beim Guide stehen, der in seiner eigenen Liste den Grund sieht.

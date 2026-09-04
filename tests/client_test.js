@@ -2687,6 +2687,204 @@ function ackLastMove(status = 'executed', reason) {
         seite.daten = null;
     }
 
+    console.error('\n44) Die ueblichen Zeiten: Ortszeit und ein Hinweis, keine Sperre');
+    {
+        const seite = app.locationPage;
+
+        // Die Grenzen der Tagesabschnitte kommen VOM SERVER (Seitendaten,
+        // hours.parts) und stehen nicht im Skript. Sonst hiesse "abends" im
+        // Browser bald etwas anderes als in der Datenbank.
+        const abschnitte = [
+            { von: 22, bis: 6,  name: 'nachts' },
+            { von: 6,  bis: 12, name: 'vormittags' },
+            { von: 12, bis: 18, name: 'nachmittags' },
+            { von: 18, bis: 22, name: 'abends' }
+        ];
+        // Das Muster: 7 Tage mal 4 Abschnitte, Montag zuerst - dieselbe
+        // Zaehlung wie in App\Helper\Availability.
+        const stelle = (tag, abschnitt) => tag * 4 + abschnitt;
+        const muster = (...felder) => {
+            const m = '0'.repeat(28).split('');
+            felder.forEach(([t, a]) => { m[stelle(t, a)] = '1'; });
+            return m.join('');
+        };
+
+        // --- Wochentag und Stunde in einer fremden Zone -------------------
+        //
+        // ueber Intl und nicht ueber eigene Rechnerei: Die Sommerzeit
+        // wechselt in jeder Zone zu einem anderen Datum, und diese Tabelle
+        // bringt der Browser mit.
+        const moment = new Date(Date.UTC(2026, 8, 3, 19, 30));   // Do, 19:30 UTC
+        const inLissabon = seite.teileIn(moment, 'Europe/Lisbon');
+        assert.strictEqual(inLissabon.tag, 3, 'in Lissabon ist das kein Donnerstag');
+        assert.strictEqual(inLissabon.stunde, '20', 'in Lissabon ist es nicht 20 Uhr');
+        assert.strictEqual(inLissabon.wochentag, 'Donnerstag', 'der Wochentag steht nicht auf Deutsch da');
+
+        // DERSELBE MOMENT, andere Zone, anderer Tag. Genau daran haengt die
+        // ganze Rechnung: "Donnerstags abends" gilt AM ORT DER FUEHRUNG.
+        const inTokio = seite.teileIn(moment, 'Asia/Tokyo');
+        assert.strictEqual(inTokio.tag, 4, 'in Tokio ist derselbe Moment kein Freitag');
+        assert.strictEqual(inTokio.stunde, '04', 'in Tokio ist es nicht halb fuenf morgens');
+        assert.strictEqual(seite.teileIn(moment, 'Erfundene/Zone'), null,
+            'eine unbekannte Zone liefert trotzdem eine Auskunft');
+        ok('Wochentag und Stunde werden in der Zeitzone des Standorts gelesen');
+
+        // --- Faellt der Zeitpunkt in ein angekreuztes Feld? ---------------
+        //
+        // Dieselbe Rechnung wie auf dem Server (Availability::passt).
+        const doAbend = { slots: muster([3, 3]), timezone: 'Europe/Lisbon', text: 'Do abends', parts: abschnitte };
+        assert.strictEqual(seite.imRaster(doAbend, inLissabon), true,
+            'Donnerstag 20 Uhr faellt nicht in "donnerstags abends"');
+        assert.strictEqual(seite.imRaster(doAbend, inTokio), false,
+            'derselbe Moment gilt in Tokio weiterhin als Donnerstagabend');
+
+        // Die Nacht laeuft ueber Mitternacht (22-6) und gehoert dem
+        // Kalendertag, auf den die Uhrzeit faellt - die einzige Stelle im
+        // Raster, an der 'von' groesser ist als 'bis'.
+        const frNacht = { slots: muster([4, 0]), timezone: 'Asia/Tokyo', text: 'Fr nachts', parts: abschnitte };
+        assert.strictEqual(seite.imRaster(frNacht, inTokio), true,
+            'halb fuenf morgens faellt nicht in die Nacht ihres Kalendertages');
+        assert.strictEqual(seite.imRaster(frNacht, { tag: 4, stunde: '23' }), true,
+            '23 Uhr faellt nicht in die Nacht');
+        assert.strictEqual(seite.imRaster(frNacht, { tag: 4, stunde: '06' }), false,
+            'sechs Uhr frueh gilt noch als Nacht');
+        ok('das Raster wird im Browser genauso gelesen wie auf dem Server');
+
+        // --- Der Versatz einer Zone, zu diesem Zeitpunkt ------------------
+        //
+        // "Zu diesem Zeitpunkt" ist der Kern: Im Juli steht Berlin anders zu
+        // UTC als im Januar.
+        const winter = new Date(Date.UTC(2026, 0, 15, 12, 0));
+        const sommer = new Date(Date.UTC(2026, 6, 15, 12, 0));
+        assert.strictEqual(seite.zonenversatz(winter, 'Europe/Berlin'), 60,
+            'Berlin steht im Januar nicht auf UTC+1');
+        assert.strictEqual(seite.zonenversatz(sommer, 'Europe/Berlin'), 120,
+            'die Sommerzeit wird nicht mitgerechnet');
+        assert.strictEqual(seite.zonenversatz(winter, 'Asia/Kolkata'), 330,
+            'halbe Stunden fallen unter den Tisch');
+        assert.strictEqual(seite.zonenversatz(winter, 'America/New_York'), -300,
+            'westlich von UTC fehlt das Minus');
+        assert.strictEqual(seite.zonenversatz(winter, 'UTC'), 0, 'UTC steht nicht auf null');
+        assert.strictEqual(seite.eigenerVersatz(winter), -winter.getTimezoneOffset(),
+            'der Versatz des Browsers wird andersherum gezaehlt');
+
+        // DIE SEKUNDEN DUERFEN NICHT VERLORENGEHEN. Die formatierten Teile
+        // reichen nur bis zur Minute; wuerde die Rechnung sie auf Null
+        // setzen, laege der Versatz fuer fast jeden Zeitpunkt eine Minute
+        // daneben - und "gleiche Zone" hiesse dann fast nie gleiche Zone.
+        const mitSekunden = new Date(Date.UTC(2026, 0, 15, 12, 0, 47, 123));
+        assert.strictEqual(seite.zonenversatz(mitSekunden, 'Europe/Berlin'), 60,
+            'die Sekunden des Zeitpunkts verschieben den Versatz');
+        assert.strictEqual(seite.zonenversatz(mitSekunden, 'UTC'), 0,
+            'ein Zeitpunkt mit Sekunden steht nicht mehr auf UTC');
+        ok('der Versatz einer Zone gilt fuer einen Zeitpunkt, nicht allgemein');
+
+        // --- Der Hinweis am Formular --------------------------------------
+        //
+        // ER SPERRT NICHTS. Eine Anfrage ausserhalb der ueblichen Zeiten ist
+        // erlaubt - der Guide entscheidet, nicht dieses Formular.
+        const hinweis = document.getElementById('loc-req-hint');
+        const eigene  = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        // "Jetzt sofort" als markierte Vorgabe: der Wunschzeitpunkt ist der
+        // Augenblick, und der faellt in ein volles Raster.
+        const jetzt = document.createElement('button');
+        jetzt.setAttribute('data-seconds', '0');
+        global.__querySelectorErgebnis = jetzt;
+
+        seite.daten = {
+            id: 7, userId: 3, availability: 'idle', request: null,
+            hours: { slots: '1'.repeat(28), timezone: eigene, text: 'immer', parts: abschnitte }
+        };
+        seite.pruefeZeit();
+        assert.strictEqual(hinweis.hidden, true,
+            'innerhalb der ueblichen Zeiten steht trotzdem ein Hinweis da');
+
+        // Dasselbe Raster, aber leer angekreuzt: jetzt liegt jeder Zeitpunkt
+        // ausserhalb. Der Satz merkt es an und laedt zum Anfragen ein.
+        seite.daten.hours.slots = '0'.repeat(28);
+        seite.daten.hours.text  = 'Do abends';
+        seite.pruefeZeit();
+        assert.strictEqual(hinweis.hidden, false, 'ausserhalb der Zeiten fehlt der Hinweis');
+        assert.ok(/außerhalb der üblichen Zeiten/.test(hinweis.innerHTML),
+            'der Hinweis sagt nicht, worum es geht: ' + hinweis.innerHTML);
+        assert.ok(/Do abends/.test(hinweis.innerHTML), 'die ueblichen Zeiten stehen nicht im Hinweis');
+        assert.ok(/trotzdem/.test(hinweis.innerHTML),
+            'der Hinweis liest sich wie ein Verbot statt wie eine Anmerkung');
+
+        // OHNE ANGABEN DES GUIDES GIBT ES NICHTS ANZUMERKEN. Aus einer
+        // fehlenden Auskunft folgt kein Vorwurf.
+        seite.daten.hours.slots = null;
+        seite.pruefeZeit();
+        assert.strictEqual(hinweis.hidden, true, 'ohne Angaben wird trotzdem etwas angemerkt');
+
+        // Und ohne Zone gar nichts: eine falsche Zeit waere schlechter als
+        // keine.
+        seite.daten.hours = { slots: '0'.repeat(28), timezone: null, text: '', parts: abschnitte };
+        seite.pruefeZeit();
+        assert.strictEqual(hinweis.hidden, true, 'ohne Zone wird trotzdem gerechnet');
+        ok('der Hinweis merkt an, statt zu sperren - und schweigt ohne Auskunft');
+
+        // --- Beide Zeiten, wenn sie auseinanderfallen ---------------------
+        //
+        // Verabredet wird die Zeit AM ORT DER FUEHRUNG. Liegt der Kunde in
+        // einer anderen Zone, muss die Ortszeit dabeistehen - sonst
+        // verabreden sich beide auf verschiedene Uhrzeiten.
+        const fremd = ['Asia/Tokyo', 'America/New_York', 'Pacific/Auckland']
+            .find(z => seite.zonenversatz(new Date(), z) !== seite.eigenerVersatz(new Date()));
+        assert.ok(fremd, 'keine Zone gefunden, die vom Browser abweicht');
+
+        seite.daten.hours = { slots: '1'.repeat(28), timezone: fremd, text: 'immer', parts: abschnitte };
+        seite.pruefeZeit();
+        assert.strictEqual(hinweis.hidden, false, 'die abweichende Ortszeit wird verschwiegen');
+        assert.ok(/Ortszeit am Treffpunkt/.test(hinweis.innerHTML),
+            'der Satz nennt die Ortszeit nicht: ' + hinweis.innerHTML);
+        assert.ok(!/außerhalb/.test(hinweis.innerHTML),
+            'ein volles Raster gilt als ausserhalb');
+
+        // In DERSELBEN Zone waere der Satz eine Zeile ohne Auskunft.
+        seite.daten.hours.timezone = eigene;
+        seite.pruefeZeit();
+        assert.strictEqual(hinweis.hidden, true,
+            'in derselben Zone steht die Ortszeit trotzdem da');
+        ok('die Ortszeit steht dabei, wenn sie von der des Kunden abweicht - sonst nicht');
+
+        // Der Kasten mit den ueblichen Zeiten bekommt denselben Vergleich,
+        // aber als Abstand: "dort ist es zwei Stunden spaeter".
+        const kasten = document.getElementById('loc-hours');
+        const ziel   = document.getElementById('loc-hours-diff');
+        kasten.setAttribute('data-timezone', eigene);
+        ziel.textContent = '';
+        seite.zeigeZonenunterschied();
+        assert.strictEqual(ziel.textContent, '',
+            'in derselben Zone steht ein Unterschied im Kasten');
+
+        kasten.setAttribute('data-timezone', fremd);
+        seite.zeigeZonenunterschied();
+        assert.ok(/dort ist es/.test(ziel.textContent),
+            'der Unterschied fehlt im Kasten: ' + ziel.textContent);
+        assert.ok(/(später|früher)/.test(ziel.textContent),
+            'der Kasten sagt nicht, in welche Richtung');
+        ok('der Kasten der ueblichen Zeiten sagt, wie weit die Ortszeit abweicht');
+
+        // Der Hinweis wird nachgezogen, wenn sich die Wahl aendert - an
+        // beiden Stellen, an denen sie sich aendern kann.
+        seite.daten.hours = { slots: '0'.repeat(28), timezone: eigene, text: 'Do abends', parts: abschnitte };
+        hinweis.hidden = true;
+        seite.waehleVorgabe(jetzt);
+        assert.strictEqual(hinweis.hidden, false,
+            'ein Klick auf eine Vorgabe zieht den Hinweis nicht nach');
+
+        hinweis.hidden = true;
+        seite.renderAktion();
+        assert.strictEqual(hinweis.hidden, false,
+            'ein neu gebautes Formular kommt ohne Hinweis');
+        ok('der Hinweis folgt der Wahl - beim Klick wie beim Neuzeichnen');
+
+        global.__querySelectorErgebnis = null;
+        seite.daten = null;
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

@@ -630,6 +630,159 @@
     width: 100%;
 }
 
+/* ---------------------------------------------------------------------------
+   Die ueblichen Zeiten - im Kasten der Handlung
+   ---------------------------------------------------------------------------
+   Sie stehen zwischen Anfrageformular und Nebendaten, und das ist Absicht:
+   Ein Kunde entscheidet hier, ob sich eine Anfrage lohnt. Abgesetzt durch
+   eine Linie, aber im selben Kasten - Auskunft ZUR Handlung, nicht Beiwerk
+   wie Dauer und Sprachen.
+   --------------------------------------------------------------------------- */
+.loc-hours {
+    padding: var(--app-space-3) var(--app-space-4);
+    border-top: 1px solid var(--app-border);
+    font-size: var(--app-text-sm);
+}
+
+.loc-hours__title {
+    display: block;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Die Zeiten selbst sind die Aussage - sie tragen das Gewicht. */
+.loc-hours__text {
+    margin: var(--app-space-1) 0 0;
+    font-weight: var(--app-weight-medium);
+}
+
+.loc-hours__zone {
+    margin: var(--app-space-1) 0 0;
+    color: var(--app-text-muted);
+}
+
+/* Der Hinweis unter dem Anfrageformular: Ortszeit und, wenn noetig, die
+   Anmerkung ausserhalb der ueblichen Zeiten. KEINE Fehlerfarbe - es ist
+   nichts falsch daran, ausserhalb anzufragen; der Guide entscheidet. */
+.loc-req__hint {
+    margin: 0 0 var(--app-space-3);
+    padding: var(--app-space-2) var(--app-space-3);
+    border-left: 3px solid var(--app-warn);
+    background: var(--app-warn-soft);
+    color: var(--app-text);
+    font-size: var(--app-text-sm);
+}
+
+/* ---------------------------------------------------------------------------
+   Das Raster im Bearbeitungsformular
+   ---------------------------------------------------------------------------
+   Sieben Zeilen, vier Spalten. Eine Tabelle und keine Liste: Die Frage hat
+   zwei Richtungen - welcher Tag, welche Tageszeit -, und genau die zeigt ein
+   Raster.
+   --------------------------------------------------------------------------- */
+.loc-grid-wrap {
+    overflow-x: auto;      /* auf einem Telefon schiebbar statt gequetscht */
+}
+
+.loc-grid {
+    border-collapse: collapse;
+    width: 100%;
+    max-width: 420px;
+}
+
+.loc-grid th,
+.loc-grid td {
+    padding: 2px;
+    text-align: center;
+}
+
+/* Zeilen- und Spaltenkopf sind Knoepfe: ein Klick setzt die ganze Reihe.
+   Sie sehen aus wie Beschriftung und nicht wie Knoepfe - sie sind eine
+   Abkuerzung, keine Hauptsache. */
+.loc-grid__all {
+    display: block;
+    width: 100%;
+    padding: var(--app-space-1);
+    border: 0;
+    border-radius: var(--app-radius-sm);
+    background: transparent;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-medium);
+    line-height: 1.3;
+    cursor: pointer;
+}
+
+.loc-grid__all:hover {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
+}
+
+/* Die Uhrzeiten unter dem Namen des Abschnitts: "abends" allein heisst nicht
+   ueberall dasselbe, und der Kunde liest spaeter dieselben Grenzen. */
+.loc-grid__hours {
+    display: block;
+    font-weight: var(--app-weight-normal);
+    opacity: 0.75;
+}
+
+.loc-grid__cell {
+    display: block;
+    cursor: pointer;
+}
+
+/* Das eigentliche Kaestchen bleibt im Dokument - es traegt die Eingabe und
+   die Tastaturbedienung -, wird aber nur fuer das Auge ersetzt: Ein
+   Standard-Kaestchen ist in einem Raster aus 28 Feldern kaum zu treffen. */
+.loc-grid__cell input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+/* Der GEDECKTE Grund und nicht der weisse: Ein weisses Feld mit Rahmen sieht
+   in einem Formular aus wie ein Eingabefeld, in das man tippen soll. Ein
+   leeres Kaestchen ist aber eine Angabe, die fehlt - kein Feld, das gefuellt
+   werden will. */
+.loc-grid__box {
+    display: block;
+    height: 32px;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface-sunken);
+    transition: background var(--app-transition), border-color var(--app-transition);
+}
+
+.loc-grid__cell:hover .loc-grid__box {
+    border-color: var(--app-text-faint);
+}
+
+/* Angekreuzt: ausgefuellt und mit Haken - dieselbe Sprache wie bei den
+   Vorgabeknoepfen des Anfrageformulars. Farbe allein waere in einem Raster
+   aus 28 Feldern zu wenig. */
+.loc-grid__cell input:checked + .loc-grid__box {
+    background: var(--app-accent);
+    border-color: var(--app-accent);
+}
+
+.loc-grid__cell input:checked + .loc-grid__box::after {
+    content: '✓';
+    display: block;
+    color: var(--app-text-on-accent);
+    font-size: var(--app-text-sm);
+    line-height: 32px;
+}
+
+/* Die Tastaturbedienung muss sichtbar bleiben, obwohl das Kaestchen selbst
+   unsichtbar ist. */
+.loc-grid__cell input:focus-visible + .loc-grid__box {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+}
+
 /* 4: Die Nebendaten. Abgesetzt vom Knopf durch eine Linie und einen ruhigeren
    Grund - sie sind Auskunft, keine Handlung. */
 .loc-facts {

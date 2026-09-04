@@ -29,6 +29,10 @@
       ###E_SHORT###          bisherige Kurzbeschreibung
       ###E_LONG###           bisherige ausfuehrliche Beschreibung
       ###E_DURATION###       bisherige Dauer in Minuten (leer = nicht angegeben)
+      ###E_SLOTS###          das Raster der ueblichen Zeiten (7 Tage mal 4
+                             Abschnitte), gebaut aus App\Helper\Availability
+      ###E_TIMEZONE###       die Auswahl der Zeitzone, vorbelegt mit der
+                             erkannten
       ###E_LANGUAGES###      die Kaestchen der Sprachauswahl, gebaut aus
                              App\Helper\Languages
       ###E_COVER###          das gewaehlte Titelbild - oder der Hinweis, dass
@@ -99,6 +103,37 @@
                     ###E_LANGUAGES###
                 </div>
             </fieldset>
+
+            <!--
+                Die ueblichen Zeiten. Ein Raster aus sieben Tagen und vier
+                Abschnitten - eine Orientierung fuer den Kunden, kein
+                Kalender. Gebaut wird es von App\Helper\LocationView aus
+                App\Helper\Availability; die Kopfzeile und die Tagesspalte
+                stehen dort, damit Beschriftung und gespeicherte Stelle
+                zusammen an einem Ort liegen.
+
+                Die Schnellwahl an Zeile und Spalte ("alle abends") haengt in
+                assets/js/location_page.js. Ohne Skript bleiben es 28 ganz
+                gewoehnliche Kaestchen - das Formular funktioniert dann
+                genauso, es dauert nur laenger.
+            -->
+            <fieldset class="app-field">
+                <legend class="form-label">Wann sind Sie üblicherweise unterwegs?</legend>
+                <p class="loc-hint">
+                    Grobe Orientierung für Kunden – keine feste Zusage. Anfragen zu anderen
+                    Zeiten bleiben möglich.
+                </p>
+                ###E_SLOTS###
+            </fieldset>
+
+            <div class="app-field">
+                <label for="edit-timezone" class="form-label">Zeitzone des Ortes</label>
+                ###E_TIMEZONE###
+                <p class="loc-hint">
+                    Ihre Zeiten gelten am Ort der Führung. Kunden in anderen Zeitzonen sehen
+                    beides. Vorbelegt ist die Zone, die sich aus Land und Koordinaten ergibt.
+                </p>
+            </div>
 
             <div class="app-actions">
                 <button type="submit" class="btn btn-primary">Speichern</button>

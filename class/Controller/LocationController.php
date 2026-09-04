@@ -5,6 +5,7 @@ use App\Model\Location;
 use App\Model\LocationImage;
 use App\Model\TourRequest;
 use App\Helper\Auth;
+use App\Helper\Availability;
 use App\Helper\ImageStore;
 use App\Helper\Languages;
 use App\Helper\LocationView;
@@ -410,6 +411,22 @@ class LocationController
     }
 
     /**
+     * Die angekreuzten Zeitfelder aus dem Formular.
+     *
+     * Wie bei den Sprachen: Der Wert wird NICHT ueber App\Helper\Request
+     * geholt, denn der liefert nur Skalare - hier kommt eine Liste
+     * ("do-abend", "sa-vormittag", ...). Geprueft wird sie in
+     * App\Helper\Availability::normalize().
+     *
+     * @return array
+     */
+    private static function rohZeiten()
+    {
+        $roh = $_POST['availability'] ?? $_GET['availability'] ?? [];
+        return is_array($roh) ? $roh : [];
+    }
+
+    /**
      * Prueft Titel, Beschreibungen, Dauer und Sprachen aus der Anfrage.
      *
      * DIE EINE STELLE, an der steht, was ein gueltiger Standortinhalt ist.
@@ -485,6 +502,18 @@ class LocationController
             // auswaehlt, bietet eben keine an - das ist eine Angabe und kein
             // Fehler.
             'languages'        => Languages::normalize(self::rohSprachen()) ?: null,
+            // DIE UEBLICHEN ZEITEN sind - wie die Sprachen - nie ein
+            // Ablehnungsgrund: normalize() verwirft, was das Raster nicht
+            // kennt, und laesst den Rest stehen. Wer nichts auswaehlt, macht
+            // eben keine Angabe; das ist eine Aussage und kein Fehler.
+            'availability'     => Availability::normalize(self::rohZeiten()),
+            // Die Zeitzone kommt entweder aus dem Formular (der Guide hat die
+            // erkannte ueberschrieben) oder gleich gar nicht - dann leitet
+            // sie der Aufrufer aus dem Standort ab. Ein unbekannter Name wird
+            // hier zu null und faellt damit auf die Ableitung zurueck; er
+            // saehe sonst aus wie eine Angabe.
+            'timezone'         => Availability::istZone(Request::g('timezone'))
+                                      ? (string)Request::g('timezone') : null,
         ]];
     }
 
@@ -517,6 +546,24 @@ class LocationController
         $in_location->setDescriptionLong($in_werte['description_long']);
         $in_location->setDurationMinutes($in_werte['duration_minutes']);
         $in_location->setLanguages($in_werte['languages']);
+        $in_location->setAvailabilitySlots($in_werte['availability'] ?? null);
+
+        // DIE ZONE STEHT AM STANDORT, damit "donnerstags abends" fuer jeden
+        // Betrachter denselben Abend meint. Hat der Guide keine gewaehlt,
+        // wird sie aus Land und Koordinaten abgeleitet
+        // (App\Helper\Availability::zoneFor) - ohne neue Abhaengigkeit und
+        // ohne Netzaufruf. Bleibt auch das ohne Ergebnis (unbekanntes Land),
+        // wird nichts gespeichert: Eine falsche Zone waere schlechter als
+        // keine.
+        $zone = $in_werte['timezone'] ?? null;
+        if ($zone === null) {
+            $zone = Availability::zoneFor(
+                $in_location->getIso2(),
+                $in_location->getLatitude(),
+                $in_location->getLongitude()
+            );
+        }
+        $in_location->setTimezone($zone);
     }
 
     /**

@@ -6,7 +6,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 
 ## 💡 Das Konzept
 * **Interaktive Steuerung:** Der Zuschauer navigiert den Guide über ein Steuerkreuz (vorwärts, zurück, links, rechts) und ein Tastenpaar für die Blickrichtung. Beim Guide löst jede Anweisung ein Tonsignal in seiner Sprache und eine bildschirmfüllende Anzeige aus — gesteuert wird über Tasten und Töne, nicht über Sprache, damit die Anwendung weltweit funktioniert. Die Befehle laufen über einen eigenen WebRTC-Datenkanal, getrennt vom Chat, als versioniertes JSON-Protokoll mit Rollen, Bestätigung und Sperre — vollständig beschrieben in [`PROTOKOLL.md`](PROTOKOLL.md).
-* **Geo-Präsenz:** Guides hinterlegen Standorte in der Datenbank, die für User sichtbar sind. Jeder Standort hat eine **eigene, teilbare Seite** mit Bildern, Titel, ausführlicher Beschreibung, Dauer, Sprachen und Karte — von dort aus beginnt die Führung, und dort bearbeitet der Guide sein Angebot (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)).
+* **Geo-Präsenz:** Guides hinterlegen Standorte in der Datenbank, die für User sichtbar sind. Jeder Standort hat eine **eigene, teilbare Seite** mit Bildern, Titel, ausführlicher Beschreibung, Dauer, Sprachen, den **üblichen Zeiten samt Zeitzone des Ortes** und Karte — von dort aus beginnt die Führung, und dort bearbeitet der Guide sein Angebot (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)).
 * **Anfrage statt Anruf:** Eine Führung beginnt mit einer **Anfrage samt Wunschzeitpunkt**, die der Guide annimmt oder ablehnt — „jetzt sofort" ist dabei ein Zeitpunkt unter anderen und kein Sonderfall. Erst nach der Zusage wird angerufen. Damit müssen nicht mehr beide Seiten zufällig im selben Moment können (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)).
 * **Echtzeit-Kommunikation:** P2P-Video/Audio mit minimaler Latenz.
 
@@ -50,13 +50,19 @@ mariadb -u <user> -p <datenbank> < migrations/010_verfuegbarkeit.sql
 mariadb -u <user> -p <datenbank> < migrations/011_standort_inhalt.sql
 mariadb -u <user> -p <datenbank> < migrations/012_titelbild.sql
 mariadb -u <user> -p <datenbank> < migrations/013_anfragen.sql
+mariadb -u <user> -p <datenbank> < migrations/014_verfuegbarkeitszeiten.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)). Alle sind idempotent und löschen nichts.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)). Alle sind idempotent und löschen nichts.
 
 **Nach `011` braucht die Anwendung ein Ablageverzeichnis für Bilder**, sonst lässt sich kein Bild hochladen; alles andere läuft unverändert weiter. Siehe [Bilder](#bilder-ablage-formate-größen).
 
 **Nach `013` beginnt die Aufzeichnung bei null.** Vergangene Führungen sind nirgends festgehalten und lassen sich nicht nachtragen — es gab dafür keinen Datensatz, und genau deshalb gibt es die Tabelle.
+
+**Nach `014` ist bei jedem Standort „keine Angabe" eingetragen** — kein Guide
+hat bisher Zeiten hinterlegt, und erfunden wird nichts. Auf der Standortseite
+steht dann nichts dazu, und eine Anfrage ist zu jedem Zeitpunkt möglich, wie
+bisher.
 
 **Nach `010` steht kein Guide mehr auf bereit.** Das ist Absicht: Die Bereitschaft ist eine Entscheidung, und die hat vorher niemand getroffen. Jeder Guide legt den Schalter in der Kopfleiste um, sobald er die Seite das nächste Mal öffnet. Nach `005` müssen sich alle Nutzer neu anmelden — die Anwendung verwirft alte Sitzungen von selbst, weil sie sonst die falsche Rolle trügen.
 
@@ -545,6 +551,8 @@ auf dem eine Entscheidung hätte fußen können.
 | Typische Dauer | `location.duration_minutes` | In Minuten, **mit 5 vorbelegt** (`LocationController::DAUER_VORGABE`). Wer das Feld nicht anfasst, speichert fünf Minuten; `NULL` — "nicht angegeben", die Seite erwähnt die Dauer dann gar nicht — kommt nur zustande, wenn der Guide das Feld ausdrücklich leert. |
 | Sprachen | `location.languages` | Kürzel nach ISO 639-1, kommagetrennt (`de,en`). Der Katalog steht in `App\Helper\Languages` und **nur dort**. |
 | Bilder | Tabelle `location_image` | Je Bild eine Zeile mit Reihenfolge und **Verwendung** (`role`): ein `cover` füllt den Kopf der Seite, alle `gallery` stehen als Beispielbilder darunter. Die Dateien liegen außerhalb des Webroots. |
+| Übliche Zeiten | `location.availability_slots` | 28 Zeichen aus `0` und `1` — sieben Wochentage mal vier Tagesabschnitte. Eine **Orientierung**, kein Kalender (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)). |
+| Zeitzone | `location.timezone` | Die Zone **am Ort der Führung**, z. B. `Europe/Lisbon`. Wird beim Speichern aus Land und Koordinaten abgeleitet und lässt sich überschreiben. |
 
 **Die bisherige Beschreibung ist nicht verlorengegangen und auch nicht
 verschoben worden.** `location.description` steht unverändert an seinem Platz
@@ -779,6 +787,121 @@ dem man gerade steht. Auf dieser Seite stimmte beides nicht — man ist weder au
 der Karte noch in der Liste, sondern bei *einem* Standort. Ein Umschalter ohne
 aktuellen Zustand ist keiner; er sah nur so aus. An seiner Stelle steht
 „← Zurück zur Übersicht" und führt auf die Karte der Startseite.
+
+### Übliche Zeiten und die Zeitzone des Ortes
+
+#### Das Problem
+
+Der Verfügbarkeitsschalter beantwortet genau eine Frage: *Kann der Guide
+jetzt sofort?* Steht er auf aus — und das ist der Normalfall —, blieb offen,
+ob sich eine Anfrage für später überhaupt lohnt oder ob der Guide nur
+sonntags kann. Der Kunde konnte anfragen, aber er fragte ins Blaue.
+
+#### Was der Guide einträgt
+
+Ein Raster aus **sieben Wochentagen mal vier Tagesabschnitten**:
+
+| Abschnitt | Uhrzeiten |
+|---|---|
+| nachts | 22–6 |
+| vormittags | 6–12 |
+| nachmittags | 12–18 |
+| abends | 18–22 |
+
+Vier Abschnitte und nicht drei, weil es Nachtführungen gibt — bei drei fiele
+die Nacht hinten herunter. Die Nacht ist zugleich der einzige Abschnitt, der
+über Mitternacht läuft; sie gehört dem Kalendertag, auf den die Uhrzeit
+fällt. „Donnerstags nachts" heißt also Donnerstag 22–24 Uhr **und**
+Donnerstag 0–6 Uhr.
+
+Feiner wäre nicht besser: Wer eine Uhrzeit auf die Viertelstunde einträgt,
+gibt eine Zusage ab — und genau das ist hier nicht gemeint. Die Angabe ist
+eine **Orientierung**; verabredet wird über die Anfrage.
+
+Die Grenzen stehen in `App\Helper\Availability` und **nur dort**. Der Browser
+bekommt sie mit den Seitendaten (`hours.parts`) und führt keine zweite
+Tabelle — sonst hieße „abends" im Browser bald etwas anderes als in der
+Datenbank.
+
+#### Warum am Standort und nicht am Konto
+
+Derselbe Guide kann in der Altstadt abends und am Hafen sonntags früh
+unterwegs sein. Die Zeiten stehen deshalb in `location` und nicht in
+`guide_profile`.
+
+Gespeichert wird **eine Spalte** und keine eigene Tabelle: Es sind 28
+Ja/Nein-Angaben, die immer vollständig gelesen und vollständig geschrieben
+werden — zusammen mit dem Standort, auf dessen Seite sie stehen. Eine Suche
+bleibt trotzdem möglich (`SUBSTRING(availability_slots, 24, 1)` für
+„samstagabends").
+
+#### Was der Kunde sieht
+
+Im selben Kasten wie das Anfrageformular, unter dem Knopf:
+
+> **Meistens unterwegs**
+> Sa+So vormittags, Mo–Fr abends
+> Ortszeit: Europe/Lisbon (UTC+1) · dort ist es 8 Stunden früher als bei Ihnen
+
+Aufeinanderfolgende Tage werden zusammengefasst (`Mo-Fr`, `Sa+So`, `Do`) —
+fünf Zeilen wären keine Orientierung auf einen Blick.
+
+Wählt der Kunde einen Zeitpunkt **außerhalb** dieser Zeiten, steht unter dem
+Feld ein Hinweis:
+
+> Das liegt außerhalb der üblichen Zeiten (Sa+So vormittags, Mo–Fr abends).
+> Anfragen können Sie trotzdem – der Guide entscheidet.
+
+**Er sperrt nichts.** Der Knopf bleibt offen, die Anfrage geht durch. Wer
+außerhalb anfragt, weiß danach nur, dass er es tut.
+
+**Ohne Angaben schweigt die Seite.** Ein Kasten „keine Zeiten angegeben" wäre
+eine Auskunft über das Formular des Guides und nicht über den Standort. Der
+Eigentümer bekommt an derselben Stelle einen Hinweis — er kann etwas daran
+ändern.
+
+#### Die Zeitzone: beide Zeiten, wenn sie auseinanderfallen
+
+Die Zeiten gelten **am Ort der Führung**. Ein Kunde in Tokio, der einen
+Standort in Lissabon ansieht, muss „donnerstags abends" als Lissabonner Abend
+lesen — sonst verabreden sich beide auf verschiedene Uhrzeiten.
+
+Deshalb steht die Zone am Standort, und deshalb steht beim Kunden **beides**:
+im Kasten der Abstand zur eigenen Zone, am gewählten Zeitpunkt die Ortszeit
+am Treffpunkt. Sind beide in derselben Zone, steht keins von beidem da — ein
+Satz ohne Auskunft ist schlechter als keiner.
+
+Woher die Zone kommt, in drei Stufen (`Availability::zoneFor`, beim
+Speichern des Standorts):
+
+1. Hat das Land **eine** Zone (Japan, Portugal ohne Inseln), ist sie es.
+2. Haben alle Zonen des Landes **denselben Versatz** — jetzt und in einem
+   halben Jahr, also auch über die Sommerzeit hinweg —, ist die Wahl
+   gleichgültig; dann die erste. Das ist die geläufige: `Europe/Berlin` vor
+   `Europe/Busingen`.
+3. Sonst die Zone, deren **Bezugspunkt am nächsten** liegt. PHP liefert zu
+   jeder Zone Koordinaten (`DateTimeZone::getLocation`); damit trifft es
+   Denver gegen New York und Perth gegen Sydney.
+
+Das ist **PHP-Bordmittel** — keine neue Abhängigkeit, kein Netzaufruf beim
+Speichern, keine mehrere Megabyte großen Zonengrenzen. Der Preis: An einer
+Zeitzonengrenze kann Stufe 3 danebenliegen. Deshalb steht die erkannte Zone
+als Auswahlfeld im Bearbeitungsformular — **das letzte Wort hat der Guide.**
+
+Ein Standort, der seit `014` noch nie gespeichert wurde, trägt keine Zone.
+Die Seite leitet sie dann beim Lesen mit derselben Regel ab; geschrieben wird
+sie beim nächsten Speichern. Ist auch das Land unbekannt, ist der Rückfall
+**UTC** — bewusst nicht die Zeit des Servers: Eine unbekannte Zone soll
+auffallen und nicht stillschweigend „wie bei uns" bedeuten.
+
+#### Das Raster im Formular
+
+Sieben Zeilen, vier Spalten, 28 Kästchen. Die Spaltenköpfe tragen die
+Uhrzeiten mit („abends 18–22"), denn der Kunde liest später dieselben
+Grenzen. Zeilen- und Spaltenköpfe sind Knöpfe: Ein Klick setzt „immer abends"
+oder „donnerstags ganz". Das ist eine **Abkürzung, kein Ersatz** — ohne
+JavaScript bleiben es 28 gewöhnliche Kästchen, und das Formular funktioniert
+genauso, es dauert nur länger.
 
 ### Karte und Liste führen dorthin
 
