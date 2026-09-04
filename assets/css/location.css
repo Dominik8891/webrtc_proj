@@ -5,117 +5,405 @@
    Sie benutzt ausschliesslich die Variablen aus theme.css - Farben, Abstaende
    und Rundungen stehen dort und nur dort. Hier steht die Anordnung.
 
-   AUFBAU: Bilder oben ueber die volle Breite, darunter zwei Spalten - links
-   der Text, rechts die Angaben, der Knopf und die Karte. Auf schmalen
-   Geraeten fallen die Spalten untereinander, und die rechte kommt ZUERST:
-   Wer auf dem Telefon eine Fuehrung starten will, soll dafuer nicht an einer
-   Beschreibung vorbeiscrollen muessen.
+   DIE RANGFOLGE, UM DIE ES GEHT
+   -----------------------------
+   Vorher war die Seite eine Reihe gleichrangiger Kaesten: Ueberschrift,
+   Bildkasten, Textkasten, Datenkasten, Kartenkasten - alle mit demselben
+   Rahmen, demselben Abstand, demselben Gewicht. Eine Seite ohne Anfang und
+   ohne Schwerpunkt.
+
+     1. Das Bild fuehrt, randlos und ohne Kasten.
+     2. Titel, Ort und Zustand liegen DARAUF.
+     3. Die ausfuehrliche Beschreibung folgt unmittelbar.
+     4. Dauer, Sprachen und Ort stehen rechts in einer schmalen Spalte, die
+        beim Scrollen mitlaeuft - auf schmalen Geraeten darunter.
+     5. Der Knopf steht oben in dieser Spalte, nicht zwischen den Datenzeilen.
+     6. Die Karte steht unten.
    =========================================================================== */
 
+/* DIE SEITE SELBST IST NICHT BESCHRAENKT - beschraenkt ist, was darin steht.
+   Genau umgekehrt wie vorher, und das ist der Grund, warum das Bild jetzt
+   ueber die volle Breite laufen kann: Waere die Seite auf 1080 Punkte
+   begrenzt, muesste das Bild aus ihr ausbrechen, und ein Ausbruch mit
+   Vielfachen der Fensterbreite bringt auf jedem zweiten Geraet einen
+   waagerechten Rollbalken mit.
+
+   Die aeussere Grenze zieht ohnehin der Inhaltsbereich der Anwendung
+   (.app-page in assets/html/index.html, 1200 Punkte). */
+/* Die Masse hier rechnen mit dem AUSSENMASS: Eine Hoechstbreite von 1128
+   Punkten meint die Flaeche einschliesslich ihres Innenabstands. Genau so
+   verhaelt sich die Anwendung ueberall - aber nur, weil Bootstrap das global
+   setzt. Diese Datei sagt es fuer ihre eigene Seite selbst: Bliebe das CDN
+   einmal aus, verschoebe sich sonst die Schrift auf dem Bild gegen den Text
+   darunter, und niemand wuesste warum. */
+.loc-page,
+.loc-page *,
+.loc-page *::before,
+.loc-page *::after {
+    box-sizing: border-box;
+}
+
 .loc-page {
-    max-width: 1080px;
+    max-width: none;
+
+    /* DIE BREITE DER LESBAREN SPALTE - an einer Stelle. Sie gilt fuer den
+       Rumpf, fuer die Meldungen, fuer das Bearbeitungsformular UND fuer die
+       Schrift auf dem Bild: Der Titel soll genau ueber dem Text darunter
+       anfangen und nicht um ein paar Punkte daneben. */
+    --loc-column: 1080px;
 }
 
-/* --- Kopf ---------------------------------------------------------------- */
-
-.loc__head {
-    margin-bottom: var(--app-space-4);
+/* Alles ausser dem Bild bleibt eine lesbare Spalte in der Mitte: die
+   Meldungen oben, der zweispaltige Rumpf und das Bearbeitungsformular. */
+.loc-page > .alert,
+.loc__body,
+.loc-edit {
+    max-width: var(--loc-column);
+    margin-inline: auto;
 }
 
-.loc__state {
-    display: flex;
-    align-items: center;
-    gap: var(--app-space-3);
-    flex-wrap: wrap;
-    margin-top: var(--app-space-2);
-}
+/* ===========================================================================
+   1 + 2: Das Bild und was darauf liegt
+   =========================================================================== */
 
-.loc__hint {
-    color: var(--app-text-muted);
-    font-size: var(--app-text-sm);
-}
+/* RANDLOS heisst: Der Aussenabstand des Inhaltsbereichs wird hier wieder
+   abgezogen. .app-main traegt rundherum --app-space-5; ein negativer
+   Aussenabstand derselben Groesse laesst das Bild genau bis an die Kante des
+   Inhaltsbereichs laufen - und keinen Punkt weiter, also entsteht auch kein
+   waagerechter Rollbalken.
 
-/* --- Bildergalerie ------------------------------------------------------- */
-
-.loc-gallery {
-    margin-bottom: var(--app-space-5);
-}
-
-.loc-gallery__main {
-    margin: 0;
-    border-radius: var(--app-radius);
+   Nach OBEN nur dann, wenn das Bild wirklich das Erste auf der Seite ist.
+   Steht darueber eine Meldung ("Gespeichert." oder ein Sperrhinweis), bleibt
+   der Abstand - sonst klebte die Meldung am Bild. */
+.loc-hero {
+    position: relative;
+    margin-inline: calc(var(--app-space-5) * -1);
+    margin-bottom: var(--app-space-6);
     overflow: hidden;
+    background: var(--app-surface-sunken);
+    /* Die Schrift liegt auf dem Bild und ist deshalb hell - unabhaengig vom
+       Farbprofil. Der Verlauf darunter sorgt fuer den Kontrast. */
+    color: #fff;
+    isolation: isolate;
+}
+
+.loc:first-child .loc-hero {
+    margin-top: calc(var(--app-space-5) * -1);
+}
+
+/* Der Bildrahmen. Feste Hoehe mit Ausschnitt statt freier Hoehe: Sonst
+   springt die halbe Seite, sobald ein Hochformat an die Stelle eines
+   Querformats tritt - und beim Blaettern waere genau das der Normalfall. */
+.loc-hero__frame {
+    position: relative;
+    height: clamp(280px, 46vw, 520px);
+}
+
+/* Ohne Bilder kein bildschirmhoher grauer Kasten: Er verspricht ein Bild,
+   das nicht kommt. Ein flacher Streifen reicht - aber hoch genug, dass der
+   Umschalter oben und der Titel unten nebeneinander Platz haben und sich
+   nicht ueberlagern. Das war der Fehler des ersten Versuchs: 150 Punkte
+   Hoehe, und der Titelblock legte sich ueber die Zeile darueber. */
+.loc-hero__frame--empty {
+    height: clamp(190px, 24vw, 240px);
     background: var(--app-surface-sunken);
 }
 
-.loc-gallery__main img {
-    display: block;
-    width: 100%;
-    /* Feste Hoehe mit Ausschnitt statt freier Hoehe: Sonst springt die halbe
-       Seite, sobald ein Hochformat an die Stelle eines Querformats tritt. */
-    height: clamp(220px, 42vw, 460px);
-    object-fit: cover;
-}
-
-.loc-gallery__strip {
-    display: flex;
-    gap: var(--app-space-2);
-    margin-top: var(--app-space-2);
-    /* Waagerecht schiebbar statt umbrechend: Fuenf Vorschauen sollen eine
-       Zeile bleiben, auch wenn der Platz nicht reicht. */
-    overflow-x: auto;
-    padding-bottom: var(--app-space-1);
-}
-
-.loc-gallery__thumb {
-    flex: 0 0 auto;
-    display: block;
-    width: 108px;
-    height: 72px;
-    border-radius: var(--app-radius-sm);
-    overflow: hidden;
-    /* Der Rahmen ist im Ruhezustand schon da, nur durchsichtig: So springt
-       nichts, wenn das aktive Bild wechselt. */
-    border: 2px solid transparent;
-    opacity: .72;
-    transition: opacity .12s ease, border-color .12s ease;
-}
-
-.loc-gallery__thumb img {
-    display: block;
+/* Alle Bilder liegen uebereinander, sichtbar ist eines. Geblendet statt
+   geschoben: Ein Schieben braucht eine Spur mit fester Breite, und die muss
+   bei jeder Fenstergroesse neu gerechnet werden. */
+.loc-hero__slide {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    opacity: 0;
+    transition: opacity .25s ease;
 }
 
-.loc-gallery__thumb:hover,
-.loc-gallery__thumb:focus-visible {
+.loc-hero__slide.is-active {
     opacity: 1;
 }
 
-.loc-gallery__thumb.is-active {
-    opacity: 1;
-    border-color: var(--app-accent);
+/* Der Verlauf zwischen Bild und Schrift. Er sitzt unten, wo die Schrift
+   liegt, und laesst das Bild oben unberuehrt. Ohne ihn ist weisse Schrift auf
+   einem hellen Foto unlesbar - und ein Kasten hinter der Schrift waere wieder
+   ein Kasten. */
+.loc-hero__scrim {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(to bottom,
+            rgba(0, 0, 0, .45) 0,
+            rgba(0, 0, 0, 0) 28%,
+            rgba(0, 0, 0, 0) 45%,
+            rgba(0, 0, 0, .72) 100%);
 }
 
-/* --- Zwei Spalten -------------------------------------------------------- */
+/* Ohne Bild braucht es keinen Verlauf - dort steht die Schrift auf der
+   Flaeche und nimmt die gewoehnliche Textfarbe. Der Umschalter ebenso: Sein
+   dunkler Grund ist fuer ein Foto gedacht und saehe auf einer hellen Flaeche
+   aus wie ein Fremdkoerper. */
+.loc-hero__frame--empty ~ .loc-hero__scrim {
+    display: none;
+}
 
+.loc-hero__frame--empty ~ .loc-hero__text {
+    color: var(--app-text);
+    text-shadow: none;
+}
+
+.loc-hero__frame--empty ~ .loc-hero__bar .app-switch--onimage {
+    background: var(--app-surface);
+    border-color: var(--app-border);
+    backdrop-filter: none;
+}
+
+.loc-hero__frame--empty ~ .loc-hero__bar .app-switch__item {
+    color: var(--app-text-muted);
+}
+
+.loc-hero__frame--empty ~ .loc-hero__bar .app-switch__item:hover {
+    color: var(--app-text);
+    background: var(--app-surface-sunken);
+}
+
+/* Der Umschalter und die Schrift liegen zwar auf einem randlosen Bild, aber
+   nicht am Bildrand: Sie richten sich an derselben Spalte aus wie der Text
+   darunter. Absolut positioniert mit left/right 0 und einer Hoechstbreite
+   zentriert der Aussenabstand "auto" den Kasten - dasselbe Mittel wie beim
+   Rumpf, nur eine Ebene hoeher. */
+.loc-hero__bar,
+.loc-hero__text,
+.loc-hero__dots {
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    max-width: calc(var(--loc-column) + 2 * var(--app-space-5));
+    padding-inline: var(--app-space-5);
+}
+
+.loc-hero__bar {
+    position: absolute;
+    top: var(--app-space-4);
+    z-index: 2;
+    /* Der Kasten geht ueber die ganze Spalte, der Umschalter darin steht
+       links - sonst waere er so breit wie die Seite und faenge jeden Klick
+       daneben ab. */
+    pointer-events: none;
+}
+
+.loc-hero__bar > * {
+    pointer-events: auto;
+}
+
+/* Der Umschalter liegt auf einem Foto und braucht dort seinen eigenen Grund -
+   der helle Flaechenton aus theme.css verschwindet auf einem hellen Bild. */
+.app-switch--onimage {
+    background: rgba(0, 0, 0, .45);
+    border-color: rgba(255, 255, 255, .28);
+    backdrop-filter: blur(6px);
+}
+
+.app-switch--onimage .app-switch__item {
+    color: rgba(255, 255, 255, .82);
+}
+
+.app-switch--onimage .app-switch__item:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, .16);
+}
+
+/* Titel, Ort und Zustand. Sie liegen unten links auf dem Bild - dort, wo der
+   Verlauf am dunkelsten ist. */
+.loc-hero__text {
+    position: absolute;
+    bottom: 0;
+    z-index: 2;
+    padding-block: var(--app-space-5);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+}
+
+/* Rechts Platz lassen, damit der Titel nicht unter die Punkte laeuft. */
+.loc-hero__title,
+.loc-hero__place {
+    max-width: calc(100% - 120px);
+}
+
+.loc-hero__state {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--app-space-2);
+    text-shadow: none;
+}
+
+.loc-hero__title {
+    margin: 0;
+    font-size: var(--app-text-xl);
+    line-height: var(--app-leading-tight);
+    color: inherit;
+}
+
+.loc-hero__place {
+    margin: var(--app-space-1) 0 0;
+    font-size: var(--app-text-md);
+    opacity: .88;
+}
+
+/* Der Hinweis fuer den Eigentuemer ("Sie sind bereit ...") steht neben der
+   Marke und darf sie nicht ueberstimmen. */
+.loc__hint {
+    font-size: var(--app-text-sm);
+    opacity: .85;
+}
+
+/* --- Blaettern ----------------------------------------------------------- */
+
+/* Die Pfeile liegen am Rand des Bildes, mittig in der Hoehe. Sie sind gross
+   genug fuer den Daumen und ruhig genug, um das Bild nicht zu zerschneiden. */
+.loc-hero__nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 3;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, .3);
+    border-radius: var(--app-radius-pill);
+    background: rgba(0, 0, 0, .4);
+    color: #fff;
+    cursor: pointer;
+    transition: background var(--app-transition), transform var(--app-transition);
+}
+
+.loc-hero__nav::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: currentColor;
+    -webkit-mask-position: center;  mask-position: center;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-size: 1.15rem;     mask-size: 1.15rem;
+}
+
+/* Die Pfeile stehen als Maske in theme.css, wie jedes andere Symbol der
+   Anwendung auch - gedreht, weil dort ein Auf- und ein Abwaertspfeil liegen
+   und ein viertes Symbol fuer dieselbe Form Verschwendung waere. */
+.loc-hero__nav--prev { left: var(--app-space-4); }
+.loc-hero__nav--next { right: var(--app-space-4); }
+
+.loc-hero__nav--prev::before {
+    -webkit-mask-image: var(--icon-arrow-up); mask-image: var(--icon-arrow-up);
+    transform: rotate(-90deg);
+}
+
+.loc-hero__nav--next::before {
+    -webkit-mask-image: var(--icon-arrow-up); mask-image: var(--icon-arrow-up);
+    transform: rotate(90deg);
+}
+
+.loc-hero__nav:hover {
+    background: rgba(0, 0, 0, .62);
+}
+
+.loc-hero__nav:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+/* Die Punkte sagen, wie viele Bilder es gibt und wo man steht - das sagen
+   zwei Pfeile nicht. Sie sind Verweise auf das jeweilige Bild: Ohne
+   JavaScript oeffnet ein Klick darauf das Bild, statt ins Leere zu greifen. */
+.loc-hero__dots {
+    position: absolute;
+    bottom: var(--app-space-5);
+    z-index: 3;
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--app-space-2);
+    pointer-events: none;
+}
+
+.loc-hero__dots > * {
+    pointer-events: auto;
+}
+
+.loc-hero__dot {
+    display: block;
+    width: 9px;
+    height: 9px;
+    border-radius: var(--app-radius-pill);
+    background: rgba(255, 255, 255, .45);
+    border: 1px solid rgba(0, 0, 0, .25);
+    transition: background var(--app-transition), transform var(--app-transition);
+}
+
+.loc-hero__dot:hover {
+    background: rgba(255, 255, 255, .8);
+}
+
+.loc-hero__dot.is-active {
+    background: #fff;
+    transform: scale(1.25);
+}
+
+.loc-hero__dot:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+/* ===========================================================================
+   3 bis 6: Text links, Nebendaten rechts
+   =========================================================================== */
+
+/* DAS RASTER, und warum es mit benannten Bereichen arbeitet:
+   Die Reihenfolge im Dokument ist Beschreibung, schmale Spalte, Karte - so
+   fallen sie auf einem Telefon richtig untereinander (der Knopf VOR der
+   Karte). Auf breiten Bildschirmen soll die Karte aber LINKS UNTER dem Text
+   stehen und nicht unter der schmalen Spalte. Mit benannten Bereichen steht
+   beides an einer Stelle und nicht als Reihe von "order"-Zahlen, die man
+   einzeln nachrechnen muss. */
 .loc__body {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 320px;
-    gap: var(--app-space-5);
+    grid-template-areas:
+        "main    side"
+        "meeting side";
+    gap: var(--app-space-6);
     align-items: start;
 }
 
+.loc__main    { grid-area: main; }
+.loc__side    { grid-area: side; }
+.loc__meeting { grid-area: meeting; }
+
+/* --- 3: Die Beschreibung ------------------------------------------------- */
+
+/* Der Anreisser steht groesser als der Fliesstext darunter: Er ist die
+   Zusammenfassung, nicht der erste Absatz. */
 .loc__lead {
+    margin: 0 0 var(--app-space-4);
     font-size: var(--app-text-md);
+    line-height: var(--app-leading);
     color: var(--app-text);
-    margin-bottom: var(--app-space-4);
 }
 
-.loc__main .loc__text p {
+.loc__text p {
     margin-bottom: var(--app-space-3);
     line-height: var(--app-leading);
+}
+
+/* Eine Textspalte wird ab einer gewissen Breite unlesbar - das Auge findet
+   den Zeilenanfang nicht mehr. Die Grenze liegt grosszuegig, weil das Raster
+   die Spalte ohnehin schon auf rund 700 Punkte bringt; sie greift erst auf
+   sehr breiten Bildschirmen. */
+.loc__main {
+    max-width: 75ch;
 }
 
 .loc__empty {
@@ -123,26 +411,104 @@
     font-size: var(--app-text-sm);
 }
 
+.loc__h2 {
+    margin: 0 0 var(--app-space-3);
+    font-size: var(--app-text-md);
+    font-weight: var(--app-weight-bold);
+}
+
+/* --- 6: Die Karte, unten ------------------------------------------------- */
+
+.loc__meeting {
+    /* Kein eigener Abstand nach oben mehr - den setzt die Luecke des
+       Rasters. Zwei Abstaende uebereinander waren doppelt so gross wie
+       gedacht. */
+    min-width: 0;
+}
+
+.loc__map {
+    height: 260px;
+    border-radius: var(--app-radius);
+    overflow: hidden;
+    border: 1px solid var(--app-border);
+}
+
+/* --- 4 + 5: Die schmale Spalte ------------------------------------------- */
+
+/* Der Knopf laeuft beim Scrollen mit: Wer unten in der Beschreibung
+   angekommen ist, soll ihn nicht wieder suchen muessen.
+   
+   Zwei Elemente, und beide werden gebraucht: Die Spalte spannt sich ueber
+   BEIDE Rasterzeilen (align-self: stretch), damit der Kasten darin ueberhaupt
+   Weg zum Mitlaufen hat - ein Kasten, der genau so hoch ist wie sein
+   Behaelter, bleibt stehen, egal was an ihm steht. */
 .loc__side {
-    display: flex;
-    flex-direction: column;
-    gap: var(--app-space-4);
+    grid-area: side;
+    align-self: stretch;
 }
 
-.loc__action {
-    margin-top: var(--app-space-4);
+.loc-cta {
+    position: sticky;
+    top: var(--app-space-5);
 }
 
-/* Der Knopf traegt die Hauptaktion der Seite - er nimmt die volle Breite
-   seiner Spalte ein, damit er nicht wie eine Nebenaktion neben den Angaben
-   steht. */
-.loc__action .btn {
+.loc-cta {
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface);
+    box-shadow: var(--app-shadow-sm);
+    overflow: hidden;
+}
+
+/* 5: DER KNOPF STEHT OBEN und nimmt die volle Breite. Vorher stand er unter
+   drei Datenzeilen und sah aus wie deren Fussnote - dabei ist er die
+   Handlung, um die es auf dieser Seite geht. */
+.loc-cta__action {
+    padding: var(--app-space-4);
+}
+
+.loc-cta__action .btn {
     width: 100%;
 }
 
+/* Zwei Knoepfe untereinander (Gast: anmelden / Konto anlegen) statt
+   nebeneinander - in einer 320px-Spalte waeren sie sonst zwei Streifen. */
+.loc-cta__action .app-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-2);
+}
+
+/* 4: Die Nebendaten. Abgesetzt vom Knopf durch eine Linie und einen ruhigeren
+   Grund - sie sind Auskunft, keine Handlung. */
+.loc-facts {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--app-space-2) var(--app-space-4);
+    margin: 0;
+    padding: var(--app-space-4);
+    border-top: 1px solid var(--app-border);
+    background: var(--app-surface-sunken);
+    font-size: var(--app-text-sm);
+}
+
+.loc-facts:empty {
+    display: none;
+}
+
+.loc-facts > dt {
+    margin: 0;
+    color: var(--app-text-muted);
+    font-weight: var(--app-weight-normal);
+}
+
+.loc-facts > dd {
+    margin: 0;
+    font-weight: var(--app-weight-medium);
+}
+
 .loc__note {
-    margin-top: var(--app-space-2);
-    margin-bottom: 0;
+    margin: var(--app-space-2) 0 0;
     color: var(--app-text-muted);
     font-size: var(--app-text-sm);
 }
@@ -157,19 +523,85 @@
     font-size: var(--app-text-sm);
 }
 
-.loc__map {
-    height: 220px;
-    border-radius: var(--app-radius-sm);
-    overflow: hidden;
-}
+/* --- Schmale Geraete ------------------------------------------------------ */
 
 @media (max-width: 900px) {
+    /* Untereinander in der Reihenfolge des Dokuments: Beschreibung, Knopf
+       samt Angaben, Karte. */
     .loc__body {
         grid-template-columns: 1fr;
+        grid-template-areas:
+            "main"
+            "side"
+            "meeting";
+        gap: var(--app-space-5);
     }
-    /* Die Handlung zuerst: Auf dem Telefon steht der Knopf ueber der
-       Beschreibung, nicht darunter. */
-    .loc__side { order: -1; }
+
+    /* Der Kasten laeuft nicht mehr mit: Ein mitlaufender Kasten nimmt auf
+       einem Telefon den halben Bildschirm. */
+    .loc-cta {
+        position: static;
+    }
+
+    .loc__main {
+        max-width: none;
+    }
+
+    /* Das Bild bleibt randlos und braucht auf einem schmalen Geraet MEHR
+       Hoehe, nicht weniger: Der Titel bricht dort auf zwei bis drei Zeilen
+       um und liegt auf dem Bild. Bei 200 Punkten Hoehe stand er quer ueber
+       dem Motiv und mitten in den Blaetterpfeilen. */
+    .loc-hero__frame {
+        height: clamp(300px, 78vw, 420px);
+    }
+
+    .loc-hero__bar,
+    .loc-hero__text,
+    .loc-hero__dots {
+        padding-inline: var(--app-space-4);
+    }
+
+    .loc-hero__text {
+        padding-block: var(--app-space-4);
+    }
+
+    .loc-hero__title,
+    .loc-hero__place {
+        max-width: none;
+    }
+
+    .loc-hero__title {
+        font-size: var(--app-text-lg);
+    }
+
+    /* Die Punkte ruecken in die Mitte: Rechts unten stuenden sie sonst genau
+       dort, wo auf schmalen Geraeten der Titel endet. */
+    /* Die Punkte nach OBEN RECHTS, gegenueber dem Umschalter: Unten waeren
+       sie genau dort, wo der Titel auf zwei Zeilen endet. */
+    .loc-hero__dots {
+        top: var(--app-space-4);
+        bottom: auto;
+        align-items: center;
+        height: 2rem;
+    }
+
+    /* Die Pfeile hoeher, damit sie ueber und nicht in der Schrift liegen. */
+    .loc-hero__nav {
+        top: 38%;
+    }
+
+    .loc-hero__bar {
+        top: var(--app-space-3);
+    }
+
+    .loc-hero__nav {
+        width: 2.25rem;
+        height: 2.25rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .loc-hero__slide { transition: none; }
 }
 
 /* --- Bearbeiten ---------------------------------------------------------- */

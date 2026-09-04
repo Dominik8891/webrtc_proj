@@ -2399,6 +2399,17 @@ sort($restLeer[0]);
 check($restLeer[0] === $erwartetSortiert,
     'im leeren Formular stehen andere Platzhalter: ' . implode(',', $restLeer[0]));
 check(strpos($leer, 'value=""') !== false, 'kein einziges Feld ist leer vorbelegt');
+
+// Ein Feld ist NICHT leer: die Dauer. Sie traegt ihre Vorgabe.
+check(preg_match('/id="duration"[\s\S]{0,200}value="5"/', $leer) === 1,
+    'im leeren Anlegeformular fehlt die Vorgabe fuer die Dauer');
+
+// Aber nur, wenn ueberhaupt nichts gemerkt ist. Hat der Nutzer das Feld beim
+// abgelehnten Versuch ausdruecklich geleert, bleibt es leer - sonst schriebe
+// der Ruecksprung ihm eine Angabe zurueck, die er gerade weggenommen hat.
+$geleert = LocationController::fuelleFormular($vorlage, ['duration' => '']);
+check(preg_match('/id="duration"[\s\S]{0,200}value=""/', $geleert) === 1,
+    'ein ausdruecklich geleertes Dauerfeld wird wieder gefuellt');
 check(strpos($leer, 'data-vorher-land=""') !== false, 'das Land ist nicht leer');
 check(strpos($leer, 'id="description"') !== false && strpos($leer, 'value=""') !== false,
     'das Beschreibungsfeld ist nicht leer');
@@ -2613,6 +2624,112 @@ check(strpos($seiteKunde, 'id="loc-edit-form"') === false,
 check(strpos($seiteGast, 'id="loc-edit-form"') === false,
     'ein Gast bekommt das Bearbeitungsformular');
 ok('das Bearbeitungsformular erreicht nur den Eigentuemer');
+
+// DIE DAUER HAT EINE VORGABE. Ein Standort ohne Dauer bekommt sie im
+// Formular trotzdem eingetragen - ein leeres Feld waere dort eine stille
+// Aufforderung, es leer zu lassen. Die Zahl kommt aus den Grenzen und steht
+// weder in der Vorlage noch in der Ansicht.
+$grenzenBsp = ['max_images' => 5, 'max_bytes' => 100, 'max_source_edge' => 6000,
+               'accept' => 'image/jpeg', 'titel_max' => 120, 'kurz_max' => 200,
+               'lang_max' => 5000, 'dauer_min' => 5, 'dauer_max' => 480,
+               'dauer_vorgabe' => 5];
+$ohneDauer = LocationView::bearbeitenHtml(
+    array_merge($standort, ['duration_minutes' => null]), [], $grenzenBsp);
+check(preg_match('/id="edit-duration"[^>]*value="5"/s', $ohneDauer) === 1
+      || preg_match('/id="edit-duration"[\s\S]{0,200}value="5"/', $ohneDauer) === 1,
+    'ohne eigene Dauer steht die Vorgabe nicht im Feld');
+
+$mitDauer = LocationView::bearbeitenHtml($standort, [], $grenzenBsp);
+check(preg_match('/id="edit-duration"[\s\S]{0,200}value="90"/', $mitDauer) === 1,
+    'eine vorhandene Dauer wird von der Vorgabe ueberschrieben');
+
+// Die Vorgabe ist eine EIGENE Konstante und nicht die Untergrenze: Das sind
+// zwei Aussagen, und wer die eine aendert, meint selten die andere mit.
+$refLoc = new ReflectionClass(LocationController::class);
+check($refLoc->getConstant('DAUER_VORGABE') === 5, 'die Vorgabe ist nicht 5 Minuten');
+check(strpos(file_get_contents($ROOT . '/class/Helper/LocationView.php'), 'dauer_vorgabe') !== false,
+    'die Ansicht liest die Vorgabe nicht aus den Grenzen');
+check(strpos(methodenRumpf($locCode, 'grenzen'), 'DAUER_VORGABE') !== false,
+    'die Vorgabe wird nicht an die Ansicht weitergereicht');
+ok('die Dauer ist mit 5 Minuten vorbelegt, eine vorhandene bleibt stehen');
+
+// 3b. DIE RANGFOLGE DER SEITE. Vorher war sie eine Reihe gleichrangiger
+//     Kaesten; die Beschreibung stand ganz unten unter der Karte, und der
+//     Knopf klemmte zwischen zwei Datenzeilen. Geprueft wird die Reihenfolge
+//     im Dokument, denn genau die entscheidet auf einem Telefon, was zuerst
+//     kommt - und auf breiten Bildschirmen ordnet das Raster daraus zwei
+//     Spalten (assets/css/location.css).
+$reihenfolge = [
+    'Bild'          => 'loc-hero',
+    'Beschreibung'  => 'loc__main',
+    'Knopf'         => 'loc-cta__action',
+    'Karte'         => 'loc__meeting',
+];
+$vorher = -1;
+$vorname = '';
+foreach ($reihenfolge as $was => $marke) {
+    $pos = strpos($seiteKunde, $marke);
+    check($pos !== false, "$was fehlt auf der Seite ($marke)");
+    check($pos > $vorher, "$was steht vor '$vorname' - die Rangfolge stimmt nicht");
+    $vorher = $pos;
+    $vorname = $was;
+}
+ok('Bild, Beschreibung, Knopf und Karte stehen in dieser Reihenfolge');
+
+// Titel, Ort und Zustand liegen AUF dem Bild und nicht in einer eigenen
+// Zeile darueber: Sie stehen zwischen <header class="loc-hero"> und dessen
+// Ende.
+$heroAnfang = strpos($seiteKunde, 'class="loc-hero"');
+$heroEnde   = strpos($seiteKunde, '</header>', $heroAnfang);
+$hero       = substr($seiteKunde, $heroAnfang, $heroEnde - $heroAnfang);
+foreach (['loc-hero__title' => 'Der Titel',
+          'loc-hero__place' => 'Der Ort',
+          'loc-state'       => 'Die Zustandsmarke'] as $marke => $was) {
+    check(strpos($hero, $marke) !== false, "$was liegt nicht auf dem Bild");
+}
+check(strpos($hero, 'Alfama bei Nacht') !== false, 'der Titeltext steht nicht im Bildbereich');
+ok('Titel, Ort und Zustand liegen auf dem Bild');
+
+// Der Knopf steht VOR den Datenzeilen im Kasten - nicht dazwischen und nicht
+// darunter. Das war der Befund: Er sah aus wie die Fussnote der Angaben.
+$ctaAnfang = strpos($seiteKunde, 'class="loc-cta"');
+$cta       = substr($seiteKunde, $ctaAnfang, 1200);
+check(strpos($cta, 'loc-cta__action') < strpos($cta, 'loc-facts'),
+    'die Datenzeilen stehen vor dem Knopf');
+ok('der Knopf steht oben im Kasten, die Nebendaten darunter');
+
+// 3c. DIE GALERIE. Ein Bild je Eintrag, genau eines sichtbar, und die Punkte
+//     sind Verweise auf das jeweilige Bild - ohne JavaScript oeffnet ein
+//     Klick darauf das Bild, statt ins Leere zu greifen.
+check(substr_count($seiteKunde, 'loc-hero__slide') === 2, 'nicht ein Bild je Eintrag');
+check(substr_count($seiteKunde, 'loc-hero__slide is-active') === 1,
+    'es ist nicht genau ein Bild sichtbar');
+check(substr_count($seiteKunde, 'loc-hero__dot') === 3,   // 2 Punkte + der Behaelter
+    'die Punkte fehlen oder sind zu viele');
+check(preg_match('/loc-hero__dot[^>]*href="index\.php\?act=location_image/', $seiteKunde) === 1,
+    'die Punkte sind keine Verweise auf das Bild - ohne Skript greifen sie ins Leere');
+check(substr_count($seiteKunde, 'data-slide-step') === 2, 'die beiden Pfeile fehlen');
+
+// EIN Bild braucht keine Blaetterung. Pfeile, die nirgends hinfuehren, sind
+// schlimmer als keine.
+$eines = LocationView::page($standort, [$bilder[0]],
+    ['eigen' => false, 'angemeldet' => true, 'viewer_id' => 3]);
+check(substr_count($eines, 'loc-hero__slide') === 1, 'ein Bild ergibt nicht ein Bild');
+check(strpos($eines, 'data-slide-step') === false, 'ein einzelnes Bild bekommt Pfeile');
+check(strpos($eines, 'loc-hero__dot') === false, 'ein einzelnes Bild bekommt Punkte');
+ok('geblaettert wird nur, wo es etwas zu blaettern gibt');
+
+// KEIN Bild: ein ruhiger Streifen, auf dem der Titel trotzdem steht - und
+// kein Satz darueber, dass es keine Bilder gibt. Dass keine da sind, sieht
+// man; ein Satz macht aus einer stillen Leerstelle eine Meldung.
+$ohneBild = LocationView::page($standort, [],
+    ['eigen' => false, 'angemeldet' => true, 'viewer_id' => 3]);
+check(strpos($ohneBild, 'loc-hero__frame--empty') !== false, 'der leere Streifen fehlt');
+check(strpos($ohneBild, 'loc-hero__slide') === false, 'ohne Bilder steht ein Bild da');
+check(strpos($ohneBild, 'keine Bilder') === false,
+    'die Seite meldet dem Besucher, dass Bilder fehlen');
+check(strpos($ohneBild, 'Alfama bei Nacht') !== false, 'der Titel fehlt auf dem leeren Streifen');
+ok('ohne Bilder bleibt ein Streifen mit Titel, ohne Meldung');
 
 // 4. Kein Platzhalter ueberlebt - in keiner der drei Ansichten.
 foreach (['Gast' => $seiteGast, 'Kunde' => $seiteKunde, 'Eigentuemer' => $seiteEigner] as $wer => $html) {

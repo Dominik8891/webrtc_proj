@@ -93,6 +93,23 @@ class LocationController
     private const DAUER_MAX = 480;
 
     /**
+     * Womit das Dauerfeld vorbelegt ist.
+     *
+     * EIGENE KONSTANTE, obwohl sie heute dieselbe Zahl traegt wie
+     * DAUER_MIN: Das sind zwei verschiedene Aussagen. Die Untergrenze sagt
+     * "kuerzer geht nicht", die Vorgabe sagt "das steht im Feld, solange
+     * niemand etwas anderes eintraegt". Wer die eine aendert, meint selten
+     * die andere mit.
+     *
+     * WAS DAS BEDEUTET: Ein Guide, der das Feld nicht anfasst, speichert
+     * fuenf Minuten - und auf der Standortseite steht dann "Dauer: 5
+     * Minuten". Das ist eine Aussage. "Nicht angegeben" (NULL in der Spalte,
+     * und die Seite erwaehnt die Dauer dann gar nicht) kommt nur noch
+     * zustande, wenn er das Feld ausdruecklich leert.
+     */
+    private const DAUER_VORGABE = 5;
+
+    /**
      * Legt die Eingaben eines abgelehnten Formulars in der Sitzung ab.
      *
      * WARUM UEBERHAUPT
@@ -186,6 +203,17 @@ class LocationController
         foreach ($marken as $marke => $feld) {
             $wert = $werte[$feld] ?? '';
             $wert = is_scalar($wert) ? (string)$wert : '';
+
+            // Die Dauer ist das einzige Feld mit einer VORGABE: Ohne gemerkte
+            // Eingabe steht dort nicht nichts, sondern DAUER_VORGABE.
+            //
+            // Nur wenn ueberhaupt nichts gemerkt ist. Hat der Nutzer das Feld
+            // beim abgelehnten Versuch ausdruecklich geleert, bleibt es leer -
+            // sonst schriebe der Ruecksprung ihm eine Angabe zurueck, die er
+            // gerade weggenommen hat.
+            if ($feld === 'duration' && !array_key_exists('duration', $werte)) {
+                $wert = (string)self::DAUER_VORGABE;
+            }
             $vorlage = str_replace(
                 $marke,
                 htmlspecialchars($wert, ENT_QUOTES, 'UTF-8'),
@@ -785,6 +813,7 @@ class LocationController
             'lang_max'        => self::LANG_MAX,
             'dauer_min'       => self::DAUER_MIN,
             'dauer_max'       => self::DAUER_MAX,
+            'dauer_vorgabe'   => self::DAUER_VORGABE,
         ];
     }
 

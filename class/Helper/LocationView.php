@@ -210,16 +210,29 @@ class LocationView
     }
 
     /**
-     * Die Bildergalerie.
+     * Der Bildrahmen, der die Seite anfuehrt - samt Blaetterung.
      *
-     * Ohne Bilder bleibt eine ehrliche Leerstelle statt eines Platzhalters,
-     * der so tut, als gaebe es eines. Ein grauer Kasten mit Kameraymbol
-     * verspricht ein Bild, das nicht kommt.
+     * ER IST RANDLOS UND OHNE KASTEN. Vorher stand hier eine gerundete
+     * Flaeche mit Hintergrund, also ein Kasten unter mehreren gleichrangigen.
+     * Jetzt liegt das Bild ueber die volle Breite des Inhaltsbereichs und
+     * traegt Titel, Ort und Zustand auf sich; die Anordnung macht
+     * assets/css/location.css, hier steht nur, was darin liegt.
      *
-     * Das erste Bild ist gross, die uebrigen stehen als Vorschau darunter.
-     * Das Umschalten macht assets/js/location_page.js; ohne JavaScript sind
-     * alle Bilder trotzdem erreichbar, denn jede Vorschau ist ein Verweis
-     * auf die Vollansicht.
+     * ALLE BILDER STEHEN IM DOKUMENT, nur eines ist sichtbar. Das ist der
+     * Unterschied zu einem Bildwechsel, der die Adresse des einen Bildes
+     * austauscht: So blaettert der Browser ohne einen neuen Abruf, und die
+     * bereits geladenen Bilder sind sofort da.
+     *
+     * OHNE JAVASCRIPT bleibt das erste Bild stehen - das Titelbild, das der
+     * Guide selbst nach vorn gestellt hat. Die Seite ist damit vollstaendig
+     * benutzbar: Titel, Beschreibung, Angaben und der Knopf haengen nicht am
+     * Blaettern. Die Punkte unter dem Bild sind trotzdem VERWEISE auf das
+     * jeweilige Bild und keine Knoepfe - ohne Skript oeffnet ein Klick darauf
+     * das Bild, statt ins Leere zu greifen.
+     *
+     * OHNE BILDER gibt es keinen leeren Fotokasten, sondern einen flachen
+     * Streifen: Der Titel muss auch dann irgendwo stehen, und eine
+     * bildschirmhohe graue Flaeche verspricht ein Bild, das nicht kommt.
      *
      * @param array<int,array<string,mixed>> $in_bilder Aus LocationImage::forLocation()
      * @param string                         $in_titel  Fuer den Alternativtext
@@ -227,34 +240,80 @@ class LocationView
      */
     public static function galerieHtml(array $in_bilder, string $in_titel): string
     {
+        $alt = self::esc($in_titel);
+
+        // OHNE BILDER bleibt ein ruhiger Streifen, auf dem Titel, Ort und
+        // Zustand stehen - kein leerer Fotokasten und auch kein Satz "hier
+        // gibt es keine Bilder". Dass keine da sind, sieht man; ein Satz
+        // darueber macht aus einer stillen Leerstelle eine Meldung. Der
+        // Guide erfaehrt es an der Stelle, an der er etwas dagegen tun kann:
+        // im Bearbeitungsformular.
         if ($in_bilder === []) {
-            return '<p class="loc__empty">Zu diesem Standort gibt es noch keine Bilder.</p>';
+            return '<div class="loc-hero__frame loc-hero__frame--empty"></div>';
         }
 
-        $erstes = (int)$in_bilder[0]['id'];
-        $alt    = self::esc($in_titel);
-
-        $html = '<figure class="loc-gallery__main">'
-              . '<img id="loc-gallery-main" src="' . self::bildUrl($erstes, 'full') . '"'
-              . ' alt="' . $alt . '" loading="lazy">'
-              . '</figure>';
-
-        // Eine einzelne Vorschau unter einem einzelnen Bild waere dasselbe
-        // Bild zweimal.
-        if (count($in_bilder) < 2) return $html;
-
-        $kacheln = '';
+        // Die Bilder. Nur das erste traegt is-active; die uebrigen liegen
+        // bereit und werden vom Skript hereingeschoben.
+        //
+        // loading: Das erste Bild EAGER, alle weiteren lazy. Es ist das
+        // Groesste auf der Seite und steht ganz oben - haengte es an einem
+        // spaeteren Ladevorgang, saehe der Besucher zuerst eine graue
+        // Flaeche.
+        $slides = '';
         foreach ($in_bilder as $nr => $bild) {
             $id = (int)$bild['id'];
-            $kacheln .= '<a class="loc-gallery__thumb' . ($nr === 0 ? ' is-active' : '') . '"'
-                     . ' href="' . self::bildUrl($id, 'full') . '"'
-                     . ' data-full="' . self::bildUrl($id, 'full') . '">'
-                     . '<img src="' . self::bildUrl($id, 'thumb') . '"'
-                     . ' alt="' . $alt . ' – Bild ' . ($nr + 1) . '" loading="lazy">'
-                     . '</a>';
+            $slides .= '<img class="loc-hero__slide' . ($nr === 0 ? ' is-active' : '') . '"'
+                    . ' src="' . self::bildUrl($id, 'full') . '"'
+                    . ' alt="' . $alt . ($nr === 0 ? '' : ' – Bild ' . ($nr + 1)) . '"'
+                    . ' loading="' . ($nr === 0 ? 'eager' : 'lazy') . '"'
+                    . ' data-slide="' . $nr . '">';
         }
 
-        return $html . '<div class="loc-gallery__strip">' . $kacheln . '</div>';
+        $frame = '<div class="loc-hero__frame">' . $slides . '</div>';
+
+        // Ein einzelnes Bild braucht keine Blaetterung. Pfeile, die nirgends
+        // hinfuehren, sind schlimmer als keine.
+        if (count($in_bilder) < 2) return $frame;
+
+        return $frame . self::blaetternHtml($in_bilder, $alt);
+    }
+
+    /**
+     * Pfeile und Punkte zum Blaettern.
+     *
+     * ZWEI BEDIENWEGE, und das ist kein Zufall: Die Pfeile sind gross und
+     * liegen am Rand des Bildes - dorthin greift man mit der Maus. Die Punkte
+     * sagen, wie viele Bilder es ueberhaupt gibt und an welcher Stelle man
+     * steht; das sagen zwei Pfeile nicht.
+     *
+     * Die Pfeile sind KNOEPFE (ohne Skript nutzlos, deshalb tragen sie kein
+     * href, das ins Leere fuehrt), die Punkte sind VERWEISE auf das jeweilige
+     * Bild (ohne Skript oeffnen sie es). So ist jedes Bild auch ohne
+     * JavaScript erreichbar.
+     *
+     * @param array<int,array<string,mixed>> $in_bilder
+     * @param string                         $in_alt Bereits maskiert
+     * @return string HTML
+     */
+    private static function blaetternHtml(array $in_bilder, string $in_alt): string
+    {
+        $anzahl = count($in_bilder);
+
+        $pfeile = '<button type="button" class="loc-hero__nav loc-hero__nav--prev"'
+                . ' data-slide-step="-1" aria-label="Vorheriges Bild"></button>'
+                . '<button type="button" class="loc-hero__nav loc-hero__nav--next"'
+                . ' data-slide-step="1" aria-label="Nächstes Bild"></button>';
+
+        $punkte = '';
+        foreach ($in_bilder as $nr => $bild) {
+            $punkte .= '<a class="loc-hero__dot' . ($nr === 0 ? ' is-active' : '') . '"'
+                    . ' href="' . self::bildUrl((int)$bild['id'], 'full') . '"'
+                    . ' data-slide-to="' . $nr . '"'
+                    . ' aria-label="Bild ' . ($nr + 1) . ' von ' . $anzahl . '"></a>';
+        }
+
+        return $pfeile
+             . '<div class="loc-hero__dots" role="group" aria-label="Bilder">' . $punkte . '</div>';
     }
 
     /**
@@ -591,8 +650,13 @@ class LocationView
             // Attribut. Maskiert wird trotzdem genauso - ein "</textarea>"
             // im Text beendete sonst das Feld.
             '###E_LONG###'        => self::esc($in_daten['description_long'] ?? ''),
+            // Die Dauer mit ihrer Vorgabe, wenn der Standort keine traegt.
+            // Bestandsdaten haben keine (migrations/011 setzt sie nicht), und
+            // ein leeres Feld waere dort eine stille Aufforderung, es leer zu
+            // lassen. Die Zahl kommt aus den Grenzen und steht hier nicht.
             '###E_DURATION###'    => ($in_daten['duration_minutes'] ?? null) !== null
-                                        ? (string)(int)$in_daten['duration_minutes'] : '',
+                                        ? (string)(int)$in_daten['duration_minutes']
+                                        : (string)(int)($in_grenzen['dauer_vorgabe'] ?? 0),
             '###E_LANGUAGES###'   => self::sprachauswahlHtml($in_daten['languages'] ?? ''),
             '###E_IMAGES###'      => self::bildverwaltungHtml($in_bilder),
             '###E_MAXIMAGES###'   => (string)(int)($in_grenzen['max_images']   ?? 0),

@@ -10,9 +10,10 @@
  * Dinge, die ohne Skript nicht gehen:
  *
  *   1. Die kleine Karte mit dem Treffpunkt.
- *   2. Das Umschalten in der Bildergalerie. Ohne Skript ist jede Vorschau
- *      ein Verweis auf die Vollansicht - dann oeffnet ein Klick eben das
- *      Bild statt es hier zu tauschen.
+ *   2. Das Blaettern durch die Bilder. Ohne Skript bleibt das erste stehen -
+ *      das Titelbild, das der Guide selbst nach vorn gestellt hat -, und die
+ *      Punkte darunter sind Verweise auf das jeweilige Bild: Ein Klick
+ *      oeffnet es dann eben, statt es hier zu tauschen.
  *   3. Der Verfuegbarkeitszustand im Takt. Ohne ihn stuende auf einer lange
  *      offenen Seite ein "Jetzt verfuegbar" von vor einer Stunde.
  *   4. Das Bearbeiten samt Bildverwaltung - nur beim Eigentuemer, und nur,
@@ -69,7 +70,7 @@ window.webrtcApp.locationPage = {
         this.daten = window.locationPage;
 
         this.initMap();
-        this.bindGallery();
+        this.bindSlider();
         this.bindCall();
         this.startAutoRefresh();
 
@@ -120,28 +121,79 @@ window.webrtcApp.locationPage = {
     // Bildergalerie
     // -----------------------------------------------------------------
 
+    /** Nummer des gerade sichtbaren Bildes. */
+    slide: 0,
+
+    /** Die Bilder und die Punkte darunter, in derselben Reihenfolge. */
+    slides: [],
+    dots: [],
+
     /**
-     * Ein Klick auf eine Vorschau tauscht das grosse Bild.
+     * Haengt die Blaetterung ein.
      *
-     * Der Handler haengt am Behaelter und nicht an jeder Kachel: Die
-     * Bildverwaltung baut die Liste beim Loeschen und Sortieren neu auf, und
-     * einzelne Handler waeren danach weg.
+     * ALLE BILDER STEHEN SCHON IM DOKUMENT (App\Helper\LocationView), nur
+     * eines ist sichtbar. Hier wird nur umgeschaltet - es wird keine Adresse
+     * getauscht und nichts nachgeladen, also ist der Wechsel sofort da.
+     *
+     * DREI BEDIENWEGE, und alle drei landen in derselben Methode:
+     * die Pfeile am Bildrand, die Punkte darunter und die Pfeiltasten.
+     * Letztere nur, wenn nicht gerade in einem Feld getippt wird - sonst
+     * blaetterte das Bild, waehrend der Guide in seiner Beschreibung nach
+     * links geht.
      */
-    bindGallery() {
-        const strip = document.querySelector('.loc-gallery__strip');
-        const main  = document.getElementById('loc-gallery-main');
-        if (!strip || !main) return;
+    bindSlider() {
+        const hero = document.getElementById('loc-hero');
+        if (!hero) return;
 
-        strip.addEventListener('click', (e) => {
-            const kachel = e.target.closest('.loc-gallery__thumb');
-            if (!kachel) return;
-            // Erst hier: Ohne Skript soll der Verweis das Bild oeffnen.
-            e.preventDefault();
+        this.slides = Array.from(hero.querySelectorAll('.loc-hero__slide'));
+        this.dots   = Array.from(hero.querySelectorAll('.loc-hero__dot'));
+        if (this.slides.length < 2) return;
 
-            main.src = kachel.getAttribute('data-full');
-            strip.querySelectorAll('.loc-gallery__thumb').forEach(
-                el => el.classList.toggle('is-active', el === kachel));
+        hero.addEventListener('click', (e) => {
+            const pfeil = e.target.closest('[data-slide-step]');
+            if (pfeil) {
+                e.preventDefault();
+                this.showSlide(this.slide + parseInt(pfeil.getAttribute('data-slide-step'), 10));
+                return;
+            }
+
+            const punkt = e.target.closest('[data-slide-to]');
+            if (punkt) {
+                // Erst hier: Ohne Skript soll der Verweis das Bild oeffnen.
+                e.preventDefault();
+                this.showSlide(parseInt(punkt.getAttribute('data-slide-to'), 10));
+            }
         });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+            // Nicht blaettern, waehrend jemand schreibt.
+            const ziel = e.target;
+            if (ziel && /^(INPUT|TEXTAREA|SELECT)$/.test(ziel.tagName || '')) return;
+            if (ziel && ziel.isContentEditable) return;
+
+            this.showSlide(this.slide + (e.key === 'ArrowLeft' ? -1 : 1));
+        });
+    },
+
+    /**
+     * Zeigt ein Bild.
+     *
+     * Die Nummer laeuft im Kreis: Hinter dem letzten Bild kommt wieder das
+     * erste. Ein Pfeil, der am Ende nichts mehr tut, sieht kaputt aus, und
+     * ihn dort zu sperren hiesse, bei jedem Wechsel zwei Knoepfe umzuschalten.
+     *
+     * @param {number} nr Kann ueber die Grenzen hinausgehen
+     */
+    showSlide(nr) {
+        const anzahl = this.slides ? this.slides.length : 0;
+        if (anzahl < 2) return;
+
+        // Modulo zweimal: In JavaScript ist (-1 % 5) gleich -1 und nicht 4.
+        this.slide = ((nr % anzahl) + anzahl) % anzahl;
+
+        this.slides.forEach((el, i) => el.classList.toggle('is-active', i === this.slide));
+        this.dots.forEach((el, i)   => el.classList.toggle('is-active', i === this.slide));
     },
 
     // -----------------------------------------------------------------

@@ -373,7 +373,7 @@ auf dem eine Entscheidung hätte fußen können.
 | Titel | `location.title` | Die Überschrift des Angebots. Steht im Kartenfenster, in der Liste und auf der Seite. |
 | Kurzbeschreibung | `location.description` | **Unverändert** die eine Zeile für Kartenfenster und Liste. Dort ist Kürze richtig — ein Absatz in einem Kartenfenster ist unlesbar. |
 | Ausführliche Beschreibung | `location.description_long` | Mehrzeilig, nur auf der Standortseite. |
-| Typische Dauer | `location.duration_minutes` | In Minuten. `NULL` heißt "nicht angegeben" und ist etwas anderes als 0. |
+| Typische Dauer | `location.duration_minutes` | In Minuten, **mit 5 vorbelegt** (`LocationController::DAUER_VORGABE`). Wer das Feld nicht anfasst, speichert fünf Minuten; `NULL` — "nicht angegeben", die Seite erwähnt die Dauer dann gar nicht — kommt nur zustande, wenn der Guide das Feld ausdrücklich leert. |
 | Sprachen | `location.languages` | Kürzel nach ISO 639-1, kommagetrennt (`de,en`). Der Katalog steht in `App\Helper\Languages` und **nur dort**. |
 | Bilder | Tabelle `location_image` | Je Bild eine Zeile mit Reihenfolge. Die Dateien liegen außerhalb des Webroots. |
 
@@ -413,6 +413,68 @@ nichts tut, steht dort der Weg zur Anmeldung. Dieselbe Entscheidung wie bei der
 die Moderation zu sehen.** Für alle anderen antwortet sie so wie für einen
 Standort, den es nicht gibt: Zwei unterscheidbare Antworten wären eine Auskunft
 darüber, welche IDs belegt sind.
+
+### Der Aufbau der Seite
+
+Die erste Fassung war eine Reihe **gleichrangiger Kästen**: Überschrift,
+Bildkasten, Textkasten, Datenkasten, Kartenkasten — alle mit demselben Rahmen,
+demselben Abstand, demselben Gewicht. Eine Seite ohne Anfang und ohne
+Schwerpunkt, auf der ausgerechnet das Wichtigste unterging: das Bild und die
+ausführliche Beschreibung, die ganz unten unter der Karte stand.
+
+Jetzt hat die Seite eine Rangfolge:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  [Karte|Liste]                                        ● ○ ○  │  ← auf dem Bild
+│                                                              │
+│   ‹                    B I L D                            ›  │  ← randlos, volle
+│                                                              │     Breite, blätterbar
+│  ● Jetzt verfügbar                                           │
+│  Alfama bei Nacht – durch die ältesten Gassen Lissabons       │  ← Titel auf dem Bild
+│  Lissabon, Portugal                                          │
+└──────────────────────────────────────────────────────────────┘
+
+   Die alten Gassen nach Sonnenuntergang …        ┌──────────────┐
+                                                  │ Führung      │  ← der Knopf zuerst
+   Wir treffen uns am Miradouro de Santa Luzia,   │  starten     │
+   wenn die Sonne gerade hinter dem Tejo …        ├──────────────┤
+                                                  │ Dauer  1:30  │  ← Nebendaten darunter
+   Sie bestimmen den Weg. Über das Steuerkreuz …  │ Sprachen …   │
+                                                  │ Ort     …    │
+   Treffpunkt                                     └──────────────┘
+   ┌────────────────────────┐                      läuft beim
+   │        Karte           │  ← Beiwerk, unten    Scrollen mit
+   └────────────────────────┘
+```
+
+| | |
+|---|---|
+| **Das Bild führt** | Randlos über die volle Breite des Inhaltsbereichs, ohne Kasten drumherum. Der Aussenabstand des Inhaltsbereichs wird dafür mit einem negativen Aussenabstand derselben Größe wieder abgezogen — nicht mit einem Vielfachen der Fensterbreite, das auf jedem zweiten Gerät einen waagerechten Rollbalken mitbringt. |
+| **Titel, Ort und Zustand liegen darauf** | Sie gehören zum Bild, nicht in eine eigene Zeile daneben. Ein Verlauf zwischen Bild und Schrift sorgt für den Kontrast; ein Kasten hinter der Schrift wäre wieder ein Kasten. |
+| **Die Beschreibung folgt unmittelbar** | Sie ist der Grund, warum jemand die Seite liest. |
+| **Der Knopf steht oben in der schmalen Spalte** | Nicht zwischen den Datenzeilen, wo er wie deren Fußnote aussah. Die Spalte läuft beim Scrollen mit: Wer unten in der Beschreibung angekommen ist, soll ihn nicht wieder suchen müssen. |
+| **Dauer, Sprachen und Ort darunter** | Sie sind Auskunft, keine Handlung — abgesetzt durch eine Linie und einen ruhigeren Grund. |
+| **Die Karte steht unten** | Beiwerk. |
+
+**Auf schmalen Geräten fällt alles untereinander**, und zwar in dieser
+Reihenfolge: Bild, Beschreibung, Knopf mit Angaben, Karte. Das ist auch die
+Reihenfolge im Dokument; auf breiten Bildschirmen ordnet erst das Raster
+(`grid-template-areas`) die Karte nach links unter den Text. Andersherum — die
+Karte im Dokument vor der schmalen Spalte — stünden auf einem Telefon 260 Punkte
+Beiwerk zwischen der Beschreibung und der Handlung, um die es geht.
+
+**Die Galerie** hält alle Bilder im Dokument und blendet eines ein; geblättert
+wird mit den Pfeilen am Bildrand, den Punkten darunter oder den Pfeiltasten
+(letztere nicht, während jemand in ein Feld tippt). Ohne JavaScript bleibt das
+Titelbild stehen — und die Punkte sind **Verweise auf das jeweilige Bild**, also
+öffnet ein Klick es dann eben, statt ins Leere zu greifen.
+
+**Ohne Bilder** gibt es keinen leeren Fotokasten und auch keinen Satz darüber,
+dass Bilder fehlen: ein ruhiger Streifen, auf dem Titel, Ort und Zustand
+trotzdem stehen. Dass keine da sind, sieht man; ein Satz macht daraus eine
+Meldung. Der Guide erfährt es dort, wo er etwas dagegen tun kann — im
+Bearbeitungsformular.
 
 ### Karte und Liste führen dorthin
 

@@ -1,92 +1,131 @@
 <!--
     Die Seite EINES Standorts. Gefuellt von
-    App\Controller\LocationController::showLocationPage(), gesteuert von
+    App\Helper\LocationView::page(), gesteuert von
     assets/js/location_page.js.
 
     SIE IST DAS ZIEL JEDER NADEL UND JEDER LISTENZEILE. Vorher fuehrte ein
     Klick auf eine Nadel unmittelbar in den Anruf - der Kunde schickte einen
-    Fremden los, ohne mehr gesehen zu haben als eine Zeile Freitext. Hier
-    steht, was er fuer seine Entscheidung braucht: Bilder, Titel,
-    Beschreibung, Dauer, Sprachen, der Ort auf einer Karte und ob der Guide
-    gerade da ist.
+    Fremden los, ohne mehr gesehen zu haben als eine Zeile Freitext.
 
-    PLATZHALTER (alle vom Controller ersetzt)
-    -----------------------------------------
+    DER AUFBAU UND WARUM ER SO IST
+    ------------------------------
+    Vorher war die Seite eine Reihe gleichrangiger Kaesten: Ueberschrift,
+    Bildkasten, Textkasten, Datenkasten, Kartenkasten. Alles gleich laut, und
+    das Wichtigste - das Bild und die ausfuehrliche Beschreibung - ging darin
+    unter. Jetzt hat die Seite eine Rangfolge:
+
+      1. DAS BILD FUEHRT. Randlos ueber die volle Breite des Inhaltsbereichs,
+         ohne Kasten drumherum. Bei mehreren Bildern laesst sich blaettern.
+      2. TITEL, ORT UND ZUSTAND LIEGEN DARAUF, nicht in einer eigenen Zeile
+         darueber. Sie gehoeren zum Bild, nicht neben es.
+      3. DIE AUSFUEHRLICHE BESCHREIBUNG steht unmittelbar darunter. Sie ist
+         der Grund, warum jemand die Seite liest.
+      4. DAUER, SPRACHEN UND ORT sind Nebendaten und stehen in der schmalen
+         Spalte rechts, die beim Scrollen mitlaeuft. Auf schmalen Geraeten
+         darunter.
+      5. DER KNOPF steht OBEN in dieser Spalte und nicht zwischen den
+         Datenzeilen: Er ist die Handlung, um die es auf der Seite geht.
+      6. DIE KARTE ist Beiwerk und steht unten.
+
+    PLATZHALTER (alle von LocationView ersetzt)
+    -------------------------------------------
       ###LOCATION_ID###  Kennung des Standorts, am Wurzelelement
       ###NOTICE###       Rueckmeldung nach dem Speichern (Erfolg oder Fehler)
+      ###BLOCKED###      Hinweis auf eine Sperre (sonst leer)
+      ###GALLERY###      Der Bildrahmen samt Blaetterung - oder, ohne Bilder,
+                         ein flacher Streifen, auf dem der Titel trotzdem
+                         lesbar ist
       ###TITLE###        Ueberschrift des Angebots
       ###PLACE###        "Stadt, Land"
       ###STATE###        Zustandsmarke: verfuegbar, im Gespraech, niemand da
-      ###BLOCKED###      Hinweis auf eine Sperre (sonst leer)
-      ###GALLERY###      Bildergalerie oder der Hinweis, dass es keine gibt
-      ###SHORTTEXT###    Kurzbeschreibung als Anreisser
-      ###LONGTEXT###     Die ausfuehrliche Beschreibung
-      ###FACTS###        Dauer, Sprachen, Ort als Beschreibungsliste
       ###ACTION###       Der Knopf, mit dem die Fuehrung beginnt - oder das,
                          was fuer einen Gast an seiner Stelle steht
+      ###FACTS###        Dauer, Sprachen, Ort als Beschreibungsliste
+      ###SHORTTEXT###    Kurzbeschreibung als Anreisser
+      ###LONGTEXT###     Die ausfuehrliche Beschreibung
       ###OWNER_TOOLS###  Das Bearbeitungsformular; leer fuer alle ausser dem
                          Eigentuemer
       ###PAGE_DATA###    Die Angaben fuer das Skript der Seite
 
     IDs, die assets/js/location_page.js braucht und die erhalten bleiben
-    muessen: location-page, loc-state, loc-action, loc-map,
-    loc-gallery-main, loc-edit, loc-edit-toggle.
+    muessen: location-page, loc-hero, loc-state, loc-action, loc-map,
+    loc-edit, loc-edit-toggle.
 -->
 <div class="app-page loc-page" id="location-page" data-locationid="###LOCATION_ID###">
 
+    <!-- Meldungen stehen VOR dem Bild. Sie sind selten und dann wichtig:
+         Wer gerade gespeichert hat oder dessen Standort gesperrt wurde, soll
+         es lesen, bevor er sich das Foto ansieht. Ist nichts zu melden -
+         der Regelfall -, bleibt hier nichts stehen und das Bild fuehrt die
+         Seite an. -->
     ###NOTICE###
-
-    <div class="app-toolbar">
-        <div class="app-switch" role="group" aria-label="Zurück">
-            <a class="app-switch__item" href="index.php?act=home">Karte</a>
-            <a class="app-switch__item" href="index.php?act=show_locations_page">Liste</a>
-        </div>
-    </div>
-
     ###BLOCKED###
 
     <article class="loc">
 
-        <header class="loc__head">
-            <h1 class="app-page-head__title">###TITLE###</h1>
-            <p class="app-page-head__sub">###PLACE###</p>
-            <div class="loc__state" id="loc-state">###STATE###</div>
-        </header>
+        <!-- 1 und 2: Das Bild, und darauf der Titel. -->
+        <header class="loc-hero" id="loc-hero">
 
-        <div class="loc-gallery">
             ###GALLERY###
-        </div>
+
+            <!-- Der Verlauf liegt zwischen Bild und Schrift. Ohne ihn ist
+                 weisse Schrift auf einem hellen Foto unlesbar, und ein
+                 Kasten hinter der Schrift waere wieder ein Kasten. -->
+            <div class="loc-hero__scrim" aria-hidden="true"></div>
+
+            <!-- Der Weg zurueck liegt auf dem Bild, damit ueber dem Bild
+                 nichts steht. -->
+            <div class="loc-hero__bar">
+                <div class="app-switch app-switch--onimage" role="group" aria-label="Zurück">
+                    <a class="app-switch__item" href="index.php?act=home">Karte</a>
+                    <a class="app-switch__item" href="index.php?act=show_locations_page">Liste</a>
+                </div>
+            </div>
+
+            <div class="loc-hero__text">
+                <div class="loc-hero__state" id="loc-state">###STATE###</div>
+                <h1 class="loc-hero__title">###TITLE###</h1>
+                <p class="loc-hero__place">###PLACE###</p>
+            </div>
+        </header>
 
         <div class="loc__body">
 
+            <!-- 3: Die Beschreibung, unmittelbar unter dem Bild. -->
             <div class="loc__main">
                 ###SHORTTEXT###
                 ###LONGTEXT###
             </div>
 
+            <!-- 4 und 5: Die schmale Spalte. Der Knopf steht OBEN, die
+                 Nebendaten darunter - nicht umgekehrt und nicht dazwischen. -->
             <aside class="loc__side">
-                <div class="app-panel">
-                    <div class="app-panel__body">
-                        <dl class="app-details app-text-sm">
-                            ###FACTS###
-                        </dl>
-                        <div class="loc__action" id="loc-action">
-                            ###ACTION###
-                        </div>
+                <div class="loc-cta">
+                    <div class="loc-cta__action" id="loc-action">
+                        ###ACTION###
                     </div>
-                </div>
-
-                <div class="app-panel">
-                    <div class="app-panel__body">
-                        <!-- Die kleine Karte. Sie zeigt den Treffpunkt, den
-                             der Guide selbst eingetragen hat - nicht die
-                             Position eines Menschen. Gebaut wird sie erst im
-                             Browser; ohne Leaflet bleibt der Kasten leer und
-                             die Angaben daneben stehen trotzdem. -->
-                        <div id="loc-map" class="loc__map"></div>
-                    </div>
+                    <dl class="loc-facts">
+                        ###FACTS###
+                    </dl>
                 </div>
             </aside>
+
+            <!-- 6: Die Karte. Sie zeigt den Treffpunkt, den der Guide selbst
+                 eingetragen hat - nicht die Position eines Menschen. Gebaut
+                 wird sie erst im Browser; ohne Leaflet bleibt die Flaeche
+                 leer und alles andere steht trotzdem.
+
+                 SIE STEHT IM DOKUMENT NACH DER SCHMALEN SPALTE, obwohl sie
+                 auf breiten Bildschirmen LINKS UNTER dem Text erscheint. Das
+                 ordnet das Raster (grid-template-areas). Der Grund steht auf
+                 einem Telefon: Dort fallen die Bereiche untereinander, und
+                 dann muss der Knopf VOR der Karte kommen - eine
+                 Kartenflaeche zwischen Beschreibung und Knopf waere 260
+                 Punkte Beiwerk vor der Handlung, um die es geht. -->
+            <section class="loc__meeting">
+                <h2 class="loc__h2">Treffpunkt</h2>
+                <div id="loc-map" class="loc__map"></div>
+            </section>
 
         </div>
     </article>

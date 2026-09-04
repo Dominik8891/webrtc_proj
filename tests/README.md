@@ -44,7 +44,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (146 Prüfungen)
+## Was `client_test.js` prüft (148 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -288,6 +288,14 @@ keine eigenen: Ohne Angaben lehnt der Client von sich aus gar nichts ab — der
 Server prüft ohnehin, und ein Client, der aus eigenem Antrieb sperrt, sperrt
 irgendwann etwas Erlaubtes. SVG und PDF kommen nicht durch.
 
+Das **Blättern** durch die Bilder wird an `showSlide()` geprüft, ohne DOM:
+Die Nummer läuft im Kreis, und zwar in beide Richtungen. Rückwärts ist die
+Stelle, an der eine naive Rechnung scheitert — in JavaScript ist `(-1 % 3)`
+gleich `-1` und nicht `2`, ohne die zweite Modulo-Rechnung wäre danach gar kein
+Bild mehr sichtbar. Geprüft wird außerdem, dass immer genau ein Bild sichtbar
+ist, dass der markierte Punkt zum sichtbaren Bild gehört und dass ein einzelnes
+Bild sich nicht weiterblättern lässt.
+
 Abschnitt 38 ist mit dem Umbau gewachsen: Der Weg vom Klick zum Anruf ist
 länger geworden — Nadel oder Listenzeile führen jetzt auf die Standortseite —,
 und **die Standortkennung muss ihn überstehen**. Geprüft wird jede Station:
@@ -302,7 +310,7 @@ ein Durchlauf über eine Minute. Geprüft wird dadurch das *Verhalten*, nicht di
 konkrete Sekundenzahl — werden die Konstanten in `rtc.js` geändert, schlagen
 die Tests nicht an. Das ist Absicht.
 
-## Was `server_test.php` prüft (174 Prüfungen)
+## Was `server_test.php` prüft (180 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -577,6 +585,30 @@ die Tests nicht an. Das ist Absicht.
     solcher da, weder im Markup noch im `<script>`-Block mit den Seitendaten.
     Diese Prüfung hat genau dort einen Fehler gefunden: Der Ortsname ging
     durch `json_encode` statt durch `esc`.
+
+    Der **Aufbau der Seite** wird an derselben gerenderten Seite geprüft, denn
+    er war der Befund: Vorher eine Reihe gleichrangiger Kästen, die
+    Beschreibung ganz unten unter der Karte, der Knopf zwischen zwei
+    Datenzeilen. Festgehalten wird die Reihenfolge im Dokument — Bild,
+    Beschreibung, Knopf, Karte —, denn genau die entscheidet auf einem Telefon,
+    was zuerst kommt; auf breiten Bildschirmen ordnet erst das Raster daraus
+    zwei Spalten. Dazu: Titel, Ort und Zustandsmarke stehen innerhalb des
+    `<header class="loc-hero">`, liegen also auf dem Bild und nicht in einer
+    Zeile darüber, und im Kasten der schmalen Spalte steht der Knopf vor den
+    Datenzeilen.
+
+    Die **Galerie**: ein Bild je Eintrag, genau eines sichtbar, die Punkte sind
+    Verweise auf das jeweilige Bild (ohne JavaScript greifen sie sonst ins
+    Leere). Ein einzelnes Bild bekommt weder Pfeile noch Punkte — Pfeile, die
+    nirgends hinführen, sind schlimmer als keine. Kein Bild: ein Streifen mit
+    dem Titel, und ausdrücklich **kein** Satz darüber, dass Bilder fehlen.
+
+    Die **Dauer** ist mit 5 Minuten vorbelegt: Ein Standort ohne eigene Dauer
+    zeigt sie im Formular, eine vorhandene bleibt stehen, und ein ausdrücklich
+    geleertes Feld wird beim Rücksprung nicht wieder gefüllt — sonst schriebe
+    die Anwendung dem Nutzer eine Angabe zurück, die er gerade weggenommen hat.
+    `DAUER_VORGABE` ist eine eigene Konstante und nicht die Untergrenze: zwei
+    Aussagen, und wer die eine ändert, meint selten die andere mit.
 
     Zuletzt eine Quelltextprüfung: `LocationView` darf nicht auf `Auth`,
     `Request`, `$_SESSION`, `$_REQUEST`, `PdoConnect` oder `ImageStore`

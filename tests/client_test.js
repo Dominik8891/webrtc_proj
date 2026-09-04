@@ -2370,6 +2370,58 @@ function ackLastMove(status = 'executed', reason) {
         ok('die Dateipruefung benutzt die Grenzen des Servers und keine eigenen');
 
         seite.daten = null;
+
+        // --- Das Blaettern -------------------------------------------------
+        // showSlide() bekommt Zahlen, die ueber die Grenzen hinausgehen: Die
+        // Pfeile rechnen einfach +1 und -1. Sie laufen deshalb im Kreis -
+        // ein Pfeil, der am Ende nichts mehr tut, sieht kaputt aus, und ihn
+        // dort zu sperren hiesse, bei jedem Wechsel zwei Knoepfe
+        // umzuschalten.
+        const machBild = () => {
+            const klassen = new Set();
+            return { klassen, classList: {
+                toggle(n, an) { if (an) klassen.add(n); else klassen.delete(n); }
+            } };
+        };
+        seite.slides = [machBild(), machBild(), machBild()];
+        seite.dots   = [machBild(), machBild(), machBild()];
+        const sichtbar = () => seite.slides.findIndex(b => b.klassen.has('is-active'));
+
+        seite.showSlide(0);
+        assert.strictEqual(sichtbar(), 0, 'das erste Bild wird nicht sichtbar');
+
+        seite.showSlide(seite.slide + 1);
+        assert.strictEqual(sichtbar(), 1, 'der Vorwaertspfeil bewegt nichts');
+
+        // Ueber das Ende hinaus: zurueck zum ersten.
+        seite.showSlide(3);
+        assert.strictEqual(sichtbar(), 0, 'hinter dem letzten Bild kommt nicht wieder das erste');
+
+        // UND ZURUECK UEBER DEN ANFANG. Das ist die Stelle, an der eine
+        // naive Rechnung scheitert: In JavaScript ist (-1 % 3) gleich -1 und
+        // nicht 2 - ohne die zweite Modulo-Rechnung stuende hier -1 und es
+        // waere gar kein Bild mehr sichtbar.
+        seite.showSlide(-1);
+        assert.strictEqual(sichtbar(), 2, 'vor dem ersten Bild kommt nicht das letzte');
+
+        // Immer genau EINES sichtbar, und die Punkte zeigen dasselbe.
+        assert.strictEqual(seite.slides.filter(b => b.klassen.has('is-active')).length, 1,
+            'es ist nicht genau ein Bild sichtbar');
+        assert.strictEqual(seite.dots.findIndex(b => b.klassen.has('is-active')), sichtbar(),
+            'der markierte Punkt gehoert nicht zum sichtbaren Bild');
+        ok('das Blaettern laeuft im Kreis, auch rueckwaerts');
+
+        // Mit einem einzelnen Bild passiert gar nichts - dann gibt es auch
+        // keine Pfeile, die etwas ausloesen koennten.
+        seite.slides = [machBild()];
+        seite.dots   = [machBild()];
+        seite.slide  = 0;
+        seite.showSlide(1);
+        assert.strictEqual(seite.slide, 0, 'ein einzelnes Bild laesst sich weiterblaettern');
+        ok('ein einzelnes Bild kennt kein Blaettern');
+
+        seite.slides = [];
+        seite.dots = [];
     }
 
     console.error('\n' + passed + ' Pruefungen bestanden.');
