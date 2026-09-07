@@ -1251,6 +1251,41 @@ fwrite(STDERR, "\n12) Jeder Platzhalter im Template wird auch gefuellt\n");
  * @param string $datei
  * @return string[]
  */
+/**
+ * Wie tief stehen Formulare in diesem HTML ineinander?
+ *
+ * HTML KENNT KEINE VERSCHACHTELTEN FORMULARE, und der Parser meldet das
+ * nicht: Er verwirft das innere <form> ersatzlos und schliesst mit dessen
+ * </form> das AEUSSERE. Alles, was im Quelltext danach kommt, gehoert dann zu
+ * keinem Formular mehr - es steht sichtbar auf der Seite, wird beim Absenden
+ * aber nicht mitgeschickt. Ein Fehler, den man an der Seite nicht sieht,
+ * sondern erst an den Daten danach.
+ *
+ * Gezaehlt wird auf Textebene und nicht mit einem Parser: Genau der wuerde
+ * das Problem ja wegraeumen, statt es zu zeigen. Kommentare fallen vorher
+ * heraus - in den Vorlagen dieser Anwendung stehen die Platzhalter samt
+ * Beispielmarkup im einleitenden Kommentarblock.
+ *
+ * @param string $html
+ * @return int 1 ist in Ordnung, alles darueber ist der Fehler
+ */
+function formularTiefe(string $html): int {
+    $roh = preg_replace('/<!--.*?-->/s', '', $html);
+
+    $tiefe = 0;
+    $max   = 0;
+    preg_match_all('#</?form\b#i', (string)$roh, $treffer);
+    foreach ($treffer[0] as $marke) {
+        if (strpos($marke, '/') !== false) {
+            $tiefe = max(0, $tiefe - 1);
+        } else {
+            $tiefe++;
+            $max = max($max, $tiefe);
+        }
+    }
+    return $max;
+}
+
 function platzhalter($datei) {
     preg_match_all('/###[A-Z_]+###/', file_get_contents($datei), $treffer);
     return array_values(array_unique($treffer[0]));
@@ -4510,6 +4545,103 @@ foreach ([Permission::GUEST, Role::TRIAL, Role::USER] as $rolle) {
         'ein Profil laesst sich nicht ansehen');
 }
 ok('ansehen darf jeder, bearbeiten nur, wer Standorte anbietet');
+
+// --- Das Formular traegt, was schon da ist ---------------------------------
+//
+// DER BEFUND
+// Das Formular zum Entfernen des Bildes stand INNERHALB des Hauptformulars.
+// HTML kennt keine verschachtelten Formulare: Der Parser verwirft das innere
+// <form> ersatzlos, und sein </form> schliesst dann das AEUSSERE. Anzeigename,
+// Selbstbeschreibung, Sprachen und der Knopf "Profil speichern" standen
+// anschliessend ausserhalb jedes Formulars.
+//
+// Sichtbar war davon nichts - die Werte standen im Quelltext, nur eben in
+// keinem Formular. Bemerkbar machte es sich erst beim Speichern: Die Felder
+// wurden nicht mitgeschickt und mit Leerwerten ueberschrieben, und "Bild
+// entfernen" gehoerte dem Hauptformular und lud ein Bild hoch, statt eines zu
+// loeschen.
+$profilVoll = [
+    'user_id' => 3, 'username' => 'guide1', 'type_id' => Role::GUIDE,
+    'display_name' => 'Maria S.', 'about' => 'Ich zeige Lissabon.',
+    'languages' => 'de,pt', 'avatar_file' => str_repeat('d', 32),
+];
+$formular = GuideView::formularHtml($profilVoll, [
+    'name_max' => GuideProfile::NAME_MAX, 'about_max' => GuideProfile::ABOUT_MAX,
+    'max_bytes' => 8388608, 'accept' => 'image/jpeg',
+]);
+
+check(strpos($formular, 'value="Maria S."') !== false,
+    'der gespeicherte Anzeigename steht nicht im Feld');
+check(strpos($formular, '>Ich zeige Lissabon.</textarea>') !== false,
+    'die gespeicherte Selbstbeschreibung steht nicht im Feld');
+foreach (['de', 'pt'] as $code) {
+    check(preg_match('/id="guide-lang-' . $code . '"[^>]*checked/', $formular) === 1,
+        "die gewaehlte Sprache $code ist nicht angehakt");
+}
+check(preg_match('/id="guide-lang-en"[^>]*checked/', $formular) === 0,
+    'eine nicht gewaehlte Sprache ist angehakt');
+check(strpos($formular, 'Bild entfernen') !== false,
+    'ein hochgeladenes Bild laesst sich nicht entfernen');
+
+// Ohne Bild gibt es nichts zu entfernen - und deshalb auch keinen Knopf und
+// kein zweites Formular.
+$ohneBild = GuideView::formularHtml(
+    array_merge($profilVoll, ['avatar_file' => null]), []);
+check(strpos($ohneBild, 'Bild entfernen') === false,
+    'ohne Bild steht dort ein Knopf, der nichts zu tun hat');
+check(strpos($ohneBild, 'guide-avatar-delete') === false,
+    'ohne Bild steht dort ein Formular, das nichts zu tun hat');
+ok('das Formular zeigt, was gespeichert ist - Name, Text, Haken und Bild');
+
+// --- Kein Formular steht in einem Formular ---------------------------------
+//
+// Die Regel dahinter, und nicht nur der eine Fall: Verschachtelte Formulare
+// gibt es in HTML nicht, und der Parser meldet nichts - er verwirft das
+// innere und schliesst mit dessen </form> das aeussere. Was danach im
+// Quelltext steht, gehoert zu keinem Formular mehr und wird beim Absenden
+// nicht mitgeschickt.
+//
+// Geprueft werden die fertigen Formulare DIESER Anwendung und alle Vorlagen.
+$formularQuellen = [
+    'GuideView::formularHtml'    => $formular,
+    'LocationView::bearbeitenHtml' => LocationView::bearbeitenHtml(
+        $standort, null, [], ['dauer_vorgabe' => 5]),
+];
+foreach (glob($ROOT . '/assets/html/*.html') as $vorlage) {
+    $formularQuellen[basename($vorlage)] = file_get_contents($vorlage);
+}
+foreach ($formularQuellen as $name => $html) {
+    check(formularTiefe($html) <= 1,
+        "$name verschachtelt Formulare - der Parser wirft das innere weg und "
+        . "schliesst mit dessen </form> das aeussere");
+}
+ok('kein Formular steht in einem Formular');
+
+// DER KNOPF UND SEIN FORMULAR finden sich ueber das form-Attribut: Der Knopf
+// steht beim Bild, das Formular dahinter. Das ist der einzige Weg, der beides
+// erlaubt - die richtige Stelle in der Seite UND ein eigenes Ziel.
+check(preg_match('/<button[^>]*form="guide-avatar-delete"[^>]*>Bild entfernen/', $formular) === 1,
+    'der Knopf zeigt nicht auf das Formular zum Entfernen');
+check(strpos($formular, '<form id="guide-avatar-delete"') !== false,
+    'das Formular zum Entfernen fehlt');
+// Es steht HINTER dem Hauptformular. Stuende es davor oder darin, waere es
+// wieder derselbe Fehler.
+check(strpos($formular, '<form id="guide-avatar-delete"')
+      > strpos($formular, '</form>'),
+    'das Formular zum Entfernen steht nicht hinter dem Hauptformular');
+
+// MIT RUECKFRAGE, und zwar ueber dieselbe Stelle wie ueberall sonst:
+// data-confirm am Formular, ausgewertet von assets/js/ui.js.
+check(strpos($formular, 'data-confirm=') !== false,
+    'das Entfernen fragt nicht nach');
+check(strpos($formular, 'data-confirm-danger') !== false,
+    'die Rueckfrage steht nicht als endgueltig da');
+$uiJs = file_get_contents($ROOT . '/assets/js/ui.js');
+check(strpos($uiJs, 'bindConfirmForms') !== false,
+    'die Rueckfrage wird nirgends ausgewertet');
+check(strpos(file_get_contents($ROOT . '/assets/js/main.js'), 'bindConfirmForms()') !== false,
+    'die Rueckfrage wird nicht eingehaengt');
+ok('das Entfernen hat ein eigenes Ziel und fragt vorher nach');
 
 // --- Wessen Profil bearbeitet wird, steht in der Sitzung -------------------
 //

@@ -507,9 +507,17 @@ window.webrtcApp.notify = {
     success(text) { this.toast(text); },
     error(text)   { this.toast(text); },
     alert(opt)    { this.toast(typeof opt === 'string' ? opt : (opt && opt.text)); return Promise.resolve(); },
-    confirm()     { return Promise.resolve(true); },
+    // Die gestellten Rueckfragen werden mitgeschrieben, und die Antwort laesst
+    // sich steuern: Eine Rueckfrage, die immer "ja" sagt, prueft nur den
+    // halben Weg - der Abbruch ist der Fall, in dem NICHTS passieren darf.
+    confirm(opt)  {
+        global.__confirms.push(opt || {});
+        return Promise.resolve(global.__confirmAntwort !== false);
+    },
     prompt()      { return Promise.resolve(''); }
 };
+global.__confirms = [];
+global.__confirmAntwort = true;
 window.webrtcApp.uiRtc = { setEndCallButtonVisible() {}, getUsername: async () => 'Partner' };
 window.webrtcApp.uiChat = { updatePollingState() {} };
 

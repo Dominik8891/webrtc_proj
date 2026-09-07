@@ -53,7 +53,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (170 Prüfungen)
+## Was `client_test.js` prüft (173 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -387,7 +387,24 @@ die Tests nicht an. Das ist Absicht.
     Und der Hinweis **folgt der Wahl** — beim Klick auf eine Vorgabe wie beim
     Neuzeichnen des Formulars.
 
-## Was `server_test.php` prüft (246 Prüfungen)
+### Formulare, die vorher fragen (45)
+
+`bindConfirmForms()` in `assets/js/ui.js` hängt eine Rückfrage an jedes
+Formular mit `data-confirm` — delegiert am Dokument, also auch für Formulare,
+die erst später in die Seite kommen. Geprüft wird: ein Formular **ohne** das
+Attribut wird nicht angehalten; mit dem Attribut kommen Überschrift,
+Knopfbeschriftung und `danger` aus den Attributen des Formulars; ein
+**Abbruch** schickt nichts ab.
+
+Und die Stelle, an der so etwas gern kaputtgeht: Nach dem Ja wird das
+Formular über `requestSubmit()` erneut abgeschickt, und das löst ein **neues**
+submit-Ereignis aus. Ohne die Marke `data-confirmed` fragte der Zuhörer dabei
+wieder — endlos. Die Attrappe des Formulars löst das zweite Ereignis deshalb
+wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
+herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
+Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
+
+## Was `server_test.php` prüft (249 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1003,6 +1020,31 @@ die Tests nicht an. Das ist Absicht.
       und `resigned_at` nicht an; `GuideRole` schreibt umgekehrt weder
       Anzeigenamen noch Bild. `joined_at` steht unter `COALESCE` — sonst wären
       am Tag eines Bedingungswechsels alle Guides neu.
+    * **Das Formular zeigt, was gespeichert ist** — Anzeigename im `value`,
+      Selbstbeschreibung im `<textarea>`, die gewählten Sprachen angehakt
+      (und die nicht gewählten nicht), der Knopf zum Entfernen des Bildes nur
+      dann, wenn es eines gibt.
+
+      Dahinter steht ein Befund: Das Formular zum Entfernen stand **innerhalb**
+      des Hauptformulars. HTML kennt keine verschachtelten Formulare — der
+      Parser verwirft das innere `<form>` ersatzlos, und sein `</form>`
+      schließt dann das **äußere**. Anzeigename, Selbstbeschreibung, Sprachen
+      und der Knopf „Profil speichern" standen anschließend außerhalb jedes
+      Formulars. Zu sehen war davon nichts; die Werte standen im Quelltext,
+      nur eben in keinem Formular. Bemerkbar wurde es erst an den Daten: Die
+      Felder wurden nicht mitgeschickt und beim Speichern mit Leerwerten
+      überschrieben, und „Bild entfernen" gehörte dem Hauptformular und lud
+      ein Bild hoch, statt eines zu löschen.
+    * **Kein Formular steht in einem Formular** — und zwar als Regel, nicht
+      als Einzelfall: geprüft werden die fertigen Formulare der Anwendung
+      **und alle Vorlagen** in `assets/html`. Gezählt wird auf Textebene und
+      nicht mit einem Parser; genau der würde das Problem ja wegräumen,
+      statt es zu zeigen.
+    * **Das Entfernen hat ein eigenes Ziel und fragt vorher nach** — der Knopf
+      steht beim Bild und findet sein Formular über das `form`-Attribut, das
+      Formular selbst steht **hinter** dem Hauptformular. Die Rückfrage hängt
+      als `data-confirm` am Formular und wird von `assets/js/ui.js`
+      ausgewertet (siehe Abschnitt 45 der Client-Prüfungen).
     * **Wessen Profil bearbeitet wird, steht in der Sitzung.** Beide
       Schreibrouten nehmen nur POST an und lesen keine Benutzerkennung aus der
       Anfrage. Beim Bild ist die Reihenfolge festgehalten: Datei, dann Zeile,

@@ -1227,6 +1227,22 @@ POST, danach eine Weiterleitung zurück).
 soll für den Eigentümer genauso aussehen wie für alle anderen. Er bekommt dort
 nur eine Marke „Ihr Profil" und den Weg zum Formular.
 
+**Das Bild entfernen** geht über einen eigenen Knopf beim Bild — mit
+Rückfrage, danach stehen wieder die Initialen da. Sein Formular steht
+**hinter** dem Hauptformular und nicht darin; der Knopf findet es über sein
+`form`-Attribut. Das sieht umständlich aus und ist der einzige Weg, der
+funktioniert: HTML kennt keine verschachtelten Formulare. Der Parser verwirft
+das innere `<form>` ersatzlos, und sein `</form>` schließt dann das äußere —
+alles, was danach im Quelltext steht, gehört zu keinem Formular mehr und wird
+beim Absenden nicht mitgeschickt. Zu sehen ist davon nichts; es fällt erst an
+den Daten auf. `tests/server_test.php` prüft die Regel für alle Formulare
+dieser Anwendung und alle Vorlagen.
+
+Die Rückfrage selbst hängt als `data-confirm` am Formular und wird von
+`assets/js/ui.js` (`bindConfirmForms`) durch denselben Dialog geschickt wie
+das Löschen eines Standorts. Ein neues Formular, das nachfragen soll, braucht
+damit ein Attribut und keine Zeile JavaScript.
+
 **Wessen Profil bearbeitet wird, steht in der Sitzung** — eine Benutzerkennung
 aus der Anfrage liest der Controller nicht. Beide Routen nehmen ausschließlich
 POST an.

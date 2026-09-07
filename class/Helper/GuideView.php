@@ -475,10 +475,38 @@ class GuideView
      * von beiden die Eingaben des anderen verwirft. Das Entfernen des Bildes
      * ist der einzige eigene Weg, weil es das Gegenteil von "speichern" ist.
      *
+     * ZWEI FORMULARE NEBENEINANDER, NIE INEINANDER
+     * --------------------------------------------
+     * Das Formular zum Entfernen steht HINTER dem Hauptformular und ist leer;
+     * der Knopf bleibt oben beim Bild und findet es ueber sein
+     * form-Attribut. Das sieht umstaendlich aus und ist der einzige Weg, der
+     * funktioniert.
+     *
+     * DER BEFUND, aus dem diese Anordnung entstanden ist: Vorher stand das
+     * kleine Formular INNERHALB des grossen. HTML kennt keine verschachtelten
+     * Formulare - der Parser verwirft das innere <form> ersatzlos, und sein
+     * </form> schliesst dann das AEUSSERE. Alles, was danach kam - der
+     * Anzeigename, die Selbstbeschreibung, die Sprachen und der Knopf
+     * "Profil speichern" - stand anschliessend ausserhalb jedes Formulars.
+     *
+     * Die Folgen waren genau die drei gemeldeten: Die Felder wurden nicht
+     * mitgeschickt (und beim Speichern mit Leerwerten ueberschrieben), die
+     * Haken ebenso wenig - und "Bild entfernen" gehoerte dem Hauptformular
+     * und lud ein Bild hoch, statt eines zu loeschen. Sichtbar war davon
+     * nichts: Die Werte standen im Quelltext, nur eben in keinem Formular.
+     *
+     * MIT RUECKFRAGE. Das Entfernen loescht die Datei; danach stehen wieder
+     * die Initialen da. Gefragt wird ueber data-confirm am Formular
+     * (App\Helper\ViewHelper baut nichts dazu, das macht
+     * assets/js/ui.js#bindConfirmForms) - dieselbe Rueckfrage wie beim
+     * Loeschen eines Standorts, und derselbe Dialog.
+     *
      * OHNE JAVASCRIPT VOLLSTAENDIG BEDIENBAR: normales POST, danach eine
-     * Weiterleitung zurueck auf die Einstellungen. Die Bilderverwaltung eines
-     * Standorts laeuft ueber fetch, weil dort mehrere Bilder sortiert werden;
-     * hier gibt es genau eines.
+     * Weiterleitung zurueck auf die Einstellungen. Dann faellt allerdings die
+     * Rueckfrage weg und das Bild ist nach einem Klick fort - so wie beim
+     * Loeschen eines Standorts, das ohne Skript gar nicht erst geht. Ein
+     * verlorenes Profilbild laedt man wieder hoch; ein Klick, der nichts tut,
+     * waere schlechter.
      *
      * @param array<string,mixed> $in_profil  Aus GuideProfile::forUser()
      * @param array<string,mixed> $in_grenzen Obergrenzen fuer die Felder und
@@ -502,10 +530,26 @@ class GuideView
         $vorschau = Avatar::html(GuideProfile::nameAus($in_profil),
                         self::avatarUrl($in_profil, 'full'), 'guide-form__avatar');
 
+        // Der Knopf steht beim Bild, das Formular dazu hinter dem
+        // Hauptformular - verbunden ueber das form-Attribut. Siehe oben,
+        // warum es nicht andersherum geht.
         $entfernen = $hat_bild
-            ? '<form action="index.php?act=guide_avatar_delete" method="post" class="guide-form__remove">'
-              . '<button type="submit" class="btn btn-secondary btn-sm">Bild entfernen</button>'
-              . '</form>'
+            ? '<button type="submit" form="guide-avatar-delete"'
+              . ' class="btn btn-secondary btn-sm guide-form__remove">Bild entfernen</button>'
+            : '';
+
+        // Leer, und das ist richtig: Es traegt keine Eingabe, sondern nur die
+        // Adresse und die Rueckfrage. Was entfernt wird, steht nicht in der
+        // Anfrage - es ist immer das Bild des Angemeldeten
+        // (App\Controller\GuideProfileController).
+        $entfernenFormular = $hat_bild
+            ? '<form id="guide-avatar-delete" action="index.php?act=guide_avatar_delete"'
+              . ' method="post"'
+              . ' data-confirm-title="Profilbild entfernen?"'
+              . ' data-confirm="Das Bild wird gelöscht. Auf Ihren Standortseiten und'
+              . ' in Ihrem Profil stehen danach wieder Ihre Initialen. Ein neues Bild'
+              . ' können Sie jederzeit hochladen."'
+              . ' data-confirm-ok="Entfernen" data-confirm-danger="1"></form>'
             : '';
 
         return '<form action="index.php?act=guide_profile_save" method="post"'
@@ -561,7 +605,10 @@ class GuideView
              . '<div class="app-actions">'
              .   '<button type="submit" class="btn btn-primary">Profil speichern</button>'
              . '</div>'
-             . '</form>';
+             . '</form>'
+
+             // HINTER dem Hauptformular, nicht darin.
+             . $entfernenFormular;
     }
 
     /**

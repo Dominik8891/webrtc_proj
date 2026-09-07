@@ -2915,6 +2915,105 @@ function ackLastMove(status = 'executed', reason) {
         seite.daten = null;
     }
 
+    console.error('\n45) Formulare, die vorher fragen');
+    {
+        // DER BEFUND, aus dem das entstanden ist: "Bild entfernen" stand als
+        // eigenes <form> INNERHALB des Profilformulars. HTML kennt das nicht -
+        // der Parser warf das innere weg, und der Knopf gehoerte anschliessend
+        // dem Hauptformular. Er lud ein Bild hoch, statt eines zu loeschen.
+        //
+        // Die Reparatur trennt die beiden Formulare (der Knopf findet seines
+        // ueber das form-Attribut) und haengt die Rueckfrage an ein Attribut
+        // am Formular. Geprueft wird hier der zweite Teil: dass ein
+        // data-confirm wirklich fragt, dass ein Abbruch NICHTS abschickt und
+        // dass ein Formular ohne das Attribut unbehelligt bleibt.
+        const schicke = (form) => {
+            let verhindert = false;
+            global.__fireDoc('submit', {
+                target: form,
+                preventDefault() { verhindert = true; }
+            });
+            return verhindert;
+        };
+        // requestSubmit() loest im Browser ein NEUES submit-Ereignis aus -
+        // genau daran haengt die Schleifengefahr, gegen die die Marke
+        // data-confirmed steht. Die Attrappe macht es deshalb genauso; eine,
+        // die nur mitzaehlt, wuerde die Gefahr gar nicht erst herstellen.
+        const baueFormular = (attr) => {
+            const werte = attr || {};
+            return {
+                tagName: 'FORM',
+                dataset: {},
+                abgeschickt: 0,
+                getAttribute(n) { return n in werte ? werte[n] : null; },
+                hasAttribute(n) { return n in werte; },
+                requestSubmit() { this.abgeschickt++; schicke(this); }
+            };
+        };
+
+        global.__docListeners['submit'] = [];
+        app.ui.bindConfirmForms();
+
+        // 1. Ohne data-confirm passiert gar nichts - der Zuhoerer haelt kein
+        //    fremdes Formular an.
+        global.__confirms.length = 0;
+        const schlicht = baueFormular({});
+        assert.strictEqual(schicke(schlicht), false,
+            'ein Formular ohne Rueckfrage wird angehalten');
+        assert.strictEqual(global.__confirms.length, 0, 'es wurde ohne Anlass gefragt');
+        ok('ein gewoehnliches Formular geht seinen Weg');
+
+        // 2. Mit data-confirm wird gefragt - und bis zur Antwort nichts
+        //    abgeschickt.
+        const loeschen = baueFormular({
+            'data-confirm': 'Das Bild wird gelöscht.',
+            'data-confirm-title': 'Profilbild entfernen?',
+            'data-confirm-ok': 'Entfernen',
+            'data-confirm-danger': '1'
+        });
+        global.__confirms.length = 0;
+        global.__confirmAntwort = false;
+        assert.strictEqual(schicke(loeschen), true, 'das Absenden wurde nicht angehalten');
+        assert.strictEqual(global.__confirms.length, 1, 'es wurde nicht gefragt');
+        assert.strictEqual(global.__confirms[0].title, 'Profilbild entfernen?',
+            'die Ueberschrift kommt nicht vom Formular');
+        assert.strictEqual(global.__confirms[0].confirmText, 'Entfernen',
+            'die Beschriftung kommt nicht vom Formular');
+        assert.strictEqual(global.__confirms[0].danger, true,
+            'die Rueckfrage steht nicht als endgueltig da');
+        await new Promise(r => setTimeout(r, 0));
+        assert.strictEqual(loeschen.abgeschickt, 0,
+            'nach dem Abbruch wurde trotzdem abgeschickt');
+        ok('die Rueckfrage kommt vom Formular, und ein Abbruch schickt nichts ab');
+
+        // 3. Bestaetigt: genau EINMAL abgeschickt, und die Marke faellt danach
+        //    weg - beim naechsten Mal wird wieder gefragt.
+        global.__confirmAntwort = true;
+        global.__confirms.length = 0;
+        schicke(loeschen);
+        await new Promise(r => setTimeout(r, 0));
+        // GENAU EINMAL: Das zweite submit-Ereignis, das requestSubmit()
+        // ausloest, laeuft an der Rueckfrage vorbei - sonst fragte das
+        // Formular endlos.
+        assert.strictEqual(loeschen.abgeschickt, 1, 'nach dem Ja wurde nicht abgeschickt');
+        assert.strictEqual(global.__confirms.length, 1,
+            'das bestaetigte Absenden fragt noch einmal: ' + global.__confirms.length);
+        assert.strictEqual(loeschen.dataset.confirmed, undefined,
+            'die Marke bleibt stehen - dann fragt das Formular nie wieder');
+
+        // Und beim naechsten Versuch wird wieder gefragt.
+        global.__confirms.length = 0;
+        schicke(loeschen);
+        assert.strictEqual(global.__confirms.length, 1,
+            'beim naechsten Mal wird nicht mehr gefragt');
+        await new Promise(r => setTimeout(r, 0));
+        assert.strictEqual(loeschen.abgeschickt, 2, 'das zweite Ja kam nicht durch');
+        ok('bestaetigt wird einmal abgeschickt, danach fragt es wieder');
+
+        global.__confirmAntwort = true;
+        global.__confirms.length = 0;
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

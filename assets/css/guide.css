@@ -321,6 +321,10 @@
     min-width: 0;
 }
 
+/* "Bild entfernen". Der Knopf steht beim Bild, sein Formular liegt hinter dem
+   Hauptformular (siehe App\Helper\GuideView::formularHtml) - verschachtelte
+   Formulare gibt es in HTML nicht. Fuer die Gestaltung macht das keinen
+   Unterschied: Der Knopf steht da, wo er hingehoert. */
 .guide-form__remove {
     margin-top: var(--app-space-2);
 }

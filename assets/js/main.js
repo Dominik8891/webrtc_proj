@@ -203,6 +203,9 @@ window.webrtcApp.init = function() {
     window.webrtcApp.ui.showLocationButton();
     window.webrtcApp.ui.showAllLocationsButton();
     window.webrtcApp.ui.bindUserMenu();
+    // Rueckfragen an Formularen (data-confirm). Delegiert am Dokument, also
+    // einmal je Seite und unabhaengig davon, welche Formulare darauf stehen.
+    window.webrtcApp.ui.bindConfirmForms();
 
     // ---------- Overlays der Call-Ansicht: Chat und Geraeteauswahl -------
     //

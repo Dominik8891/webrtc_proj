@@ -97,6 +97,76 @@ window.webrtcApp.ui = {
     },
 
     /**
+     * Fragt vor dem Absenden nach - bei jedem Formular, das es verlangt.
+     *
+     * WOZU
+     * ----
+     * Ein Formular, das etwas loescht, soll vorher fragen. Bisher ging das
+     * nur bei Knoepfen, hinter denen ein fetch-Aufruf steckt
+     * (locations_table.js) - ein gewoehnliches Formular, das per POST
+     * abgeschickt wird, hatte keine Stelle dafuer.
+     *
+     * WIE ES ANGEMELDET WIRD
+     * ----------------------
+     * Am Formular selbst, nicht hier:
+     *
+     *   data-confirm         der Text der Rueckfrage (PFLICHT - ohne ihn
+     *                        passiert nichts)
+     *   data-confirm-title   die Ueberschrift
+     *   data-confirm-ok      Beschriftung des bestaetigenden Knopfes
+     *   data-confirm-danger  gesetzt: roter Knopf, fuer alles Endgueltige
+     *
+     * Damit braucht ein neues Formular keine Zeile JavaScript mehr, sondern
+     * ein Attribut - und die Rueckfrage sieht ueberall gleich aus, weil sie
+     * durch denselben Dialog geht (notify.confirm).
+     *
+     * DELEGIERT AM DOKUMENT, damit auch Formulare erfasst werden, die erst
+     * spaeter in die Seite kommen.
+     *
+     * WARUM DIE MARKE data-confirmed NOETIG IST
+     * -----------------------------------------
+     * Nach dem Bestaetigen wird dasselbe Formular erneut abgeschickt -
+     * requestSubmit() loest das submit-Ereignis noch einmal aus, und ohne die
+     * Marke fragte dieser Zuhoerer wieder. Die Marke faellt danach sofort
+     * weg: Wer das Formular ein zweites Mal abschickt, wird ein zweites Mal
+     * gefragt.
+     *
+     * OHNE JAVASCRIPT bleibt das Formular ein gewoehnliches Formular und wird
+     * ohne Rueckfrage abgeschickt. Das ist die bewusste Reihenfolge: erst
+     * muss es funktionieren, dann bequem sein.
+     */
+    bindConfirmForms: function() {
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (!form || form.tagName !== 'FORM') return;
+
+            const text = form.getAttribute('data-confirm');
+            if (!text) return;
+
+            if (form.dataset.confirmed === 'ja') {
+                delete form.dataset.confirmed;
+                return;
+            }
+
+            e.preventDefault();
+            window.webrtcApp.notify.confirm({
+                title:       form.getAttribute('data-confirm-title') || 'Sind Sie sicher?',
+                text:        text,
+                confirmText: form.getAttribute('data-confirm-ok') || 'Ja',
+                danger:      form.hasAttribute('data-confirm-danger')
+            }).then(ja => {
+                if (!ja) return;
+                form.dataset.confirmed = 'ja';
+                // requestSubmit() und nicht submit(): Es geht denselben Weg
+                // wie ein Klick auf den Knopf und laesst die Pruefung der
+                // Felder laufen. submit() ueberspringt beides.
+                if (typeof form.requestSubmit === 'function') form.requestSubmit();
+                else form.submit();
+            });
+        });
+    },
+
+    /**
      * Schliesst das Benutzermenue, wenn daneben geklickt oder Escape
      * gedrueckt wird.
      *
