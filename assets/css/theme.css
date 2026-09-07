@@ -1738,6 +1738,116 @@ a:hover {
     margin-top: var(--app-space-3);
 }
 
+/* ===========================================================================
+   DIE KARTE AM RAND
+
+   Eine Flaeche, die sich nach einem Ereignis unten links meldet und wieder
+   verschwindet: die Frage nach der Bewertung (assets/js/review.js) und der
+   Hinweis an den Guide, dass eine Fuehrung noch nicht beendet ist
+   (assets/js/tour.js).
+
+   SIE IST KEIN DIALOG, und daran haengt die halbe Gestaltung: Sie sperrt die
+   Seite nicht ab, verdunkelt nichts und laesst sich wegklicken. Wer
+   weiterlesen will, liest weiter. Ein Dialog waere fuer eine Frage, die auch
+   spaeter noch beantwortet werden kann, das falsche Mittel.
+
+   SIE STEHT UNTEN LINKS und nicht unten rechts, obwohl rechts die gewohnte
+   Ecke waere: Dort stapeln sich die Chatfenster - dieselbe Ecke, dieselbe
+   Breite. Zwei Dinge an einem Platz sind eines zu viel.
+
+   IHRE EBENE liegt knapp UNTER der der Chatfenster und weit unter der
+   Anrufansicht (9999): Waehrend eines Gespraechs erscheint sie ohnehin nicht,
+   und auf einem Telefon, wo beide die volle Breite nehmen, hat das
+   Chatfenster Vorrang - es ist offen, weil jemand es geoeffnet hat.
+
+   Die Form steht HIER und nicht in review.css: Es gibt sie zweimal, und zwei
+   Fassungen derselben Flaeche liefen beim ersten Umbau auseinander. Was die
+   einzelne Karte ausmacht - Sterne, Knoepfe, Texte -, steht in ihrer eigenen
+   Datei.
+   =========================================================================== */
+
+.app-ask {
+    position: fixed;
+    left: var(--app-space-4);
+    bottom: var(--app-space-4);
+    z-index: 999;
+    width: 360px;
+    max-width: calc(100vw - 2 * var(--app-space-4));
+    padding: var(--app-space-4);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    background: var(--app-surface-raised);
+    box-shadow: var(--app-shadow-lg);
+    animation: app-ask-in 180ms ease-out;
+}
+
+@keyframes app-ask-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* Wer Bewegung abgestellt hat, bekommt keine. */
+@media (prefers-reduced-motion: reduce) {
+    .app-ask { animation: none; }
+}
+
+.app-ask__close {
+    position: absolute;
+    top: var(--app-space-2);
+    right: var(--app-space-2);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--app-radius);
+    background: transparent;
+    color: var(--app-text-faint);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.app-ask__close:hover,
+.app-ask__close:focus-visible {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
+}
+
+/* Der Einleitungssatz. Rechts bleibt Platz fuer das Schliesskreuz. */
+.app-ask__lead {
+    margin: 0 var(--app-space-6) var(--app-space-3) 0;
+    font-size: var(--app-text-base);
+    line-height: var(--app-leading);
+    color: var(--app-text);
+}
+
+.app-ask__actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--app-space-2);
+    margin-top: var(--app-space-3);
+}
+
+.app-ask__foot {
+    margin: var(--app-space-3) 0 0;
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+    line-height: var(--app-leading);
+}
+
+/* Auf schmalen Geraeten ueber die volle Breite: Eine 360 Punkte breite Karte
+   auf einem 360 Punkte breiten Telefon waere eine Karte mit Rand aus Zufall. */
+@media (max-width: 480px) {
+    .app-ask {
+        left: var(--app-space-3);
+        right: var(--app-space-3);
+        bottom: var(--app-space-3);
+        width: auto;
+        max-width: none;
+    }
+}
+
 /* Auf schmalen Geraeten nimmt das Fenster die volle Breite. */
 @media (max-width: 480px) {
     #chat-popup-container {
@@ -3109,6 +3219,12 @@ input[type="file"]:not(.form-control) {
 
 table.dataTable td.col-description { min-width: 200px; }
 table.dataTable td.col-actions     { min-width: 130px; }
+/* Die Bewertung: Sterne, Zahl und Anzahl nebeneinander - oder der laengere
+   Ersatztext "Neu - 3 Fuehrungen". Ohne Mindestbreite quetscht die
+   Responsive-Erweiterung die Sternreihe auf zwei Zeilen, statt die Spalte
+   einzuklappen (die Kopfzelle "Bewertung" allein ist schmaler als ihr
+   Inhalt). */
+table.dataTable td.col-review      { min-width: 150px; }
 
 /* ---------------------------------------------------------------------------
    Zustandsanzeige auf sehr schmalen Schirmen

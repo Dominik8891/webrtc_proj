@@ -123,7 +123,7 @@ class TourRequest
     /**
      * Der GERECHNETE Zustand als SQL-Ausdruck.
      *
-     * Zwei Faelle, in denen der Spaltenwert nicht mehr gilt:
+     * Drei Faelle, in denen der Spaltenwert nicht mehr gilt:
      *
      *   1. Eine OFFENE Anfrage, deren expires_at verstrichen ist. Der
      *      Zeitpunkt steht seit dem Anlegen in der Zeile und traegt beide
@@ -131,9 +131,13 @@ class TourRequest
      *      verstrichenen Wunschzeitpunkt.
      *   2. Eine ANGENOMMENE Anfrage, zu der es nie ein Gespraech gab und
      *      deren Zeitfenster vorbei ist. Die Verabredung ist verstrichen.
+     *   3. Eine BEGONNENE Fuehrung, die niemand beendet hat und deren Frist
+     *      fuer den Wiedereinstieg abgelaufen ist (closedSql). Sie ist
+     *      durchgefuehrt - und wird damit bewertbar, ohne dass der Cronjob
+     *      gelaufen sein muss.
      *
-     * Ein einmal begonnenes Gespraech faellt nicht mehr in diesen Fall:
-     * started_at ist gesetzt, und was stattgefunden hat, laeuft nicht ab.
+     * Ein einmal begonnenes Gespraech laeuft nicht mehr AB (Fall 2): Was
+     * stattgefunden hat, verfaellt nicht. Es geht nur zu (Fall 3).
      *
      * @param string $in_alias Tabellenalias in der Abfrage
      * @return string SQL-Ausdruck, der einen der Zustaende liefert
@@ -156,8 +160,106 @@ class TourRequest
                        AND $a.started_at IS NULL
                        AND DATE_ADD($a.wish_at, INTERVAL $nach SECOND) <= NOW()
                        THEN '" . self::STATUS_EXPIRED . "'
+                  WHEN $a.status = '" . self::STATUS_ACCEPTED . "'
+                       AND $a.started_at IS NOT NULL
+                       AND " . self::closedSql($a) . "
+                       THEN '" . self::STATUS_DONE . "'
                   ELSE $a.status
                 END";
+    }
+
+    /**
+     * Ist diese Fuehrung ZU - als SQL-Bedingung?
+     *
+     * DIE FRAGE, um die es beim Beenden geht, und sie hat drei Antworten:
+     *
+     *   1. Der Guide hat sie beendet (closed_at gesetzt, status 'done'). Das
+     *      ist der Regelfall und die einzige Antwort, die jemand ausgesprochen
+     *      hat.
+     *   2. Er hat es vergessen, aber seit dem letzten Auflegen ist die Frist
+     *      fuer den Wiedereinstieg verstrichen (config/requests.php:
+     *      rejoin_window). Dann war es das Ende, auch ohne Klick.
+     *   3. Es kam nie ein Auflegen an - ein Absturz, ein Netz, das weg blieb.
+     *      Dann gibt es keinen Zeitpunkt, ab dem die Frist zaehlen koennte,
+     *      und es zaehlt der Beginn samt der viel laengeren Reissleine
+     *      ('stale_call'). Sie muss die laengste Fuehrung ueberdauern.
+     *
+     * GERECHNET UND NICHT GEGLAUBT, wie der Ablauf einer Anfrage: Die Frist
+     * wirkt sofort und auch dann, wenn der Cronjob gar nicht eingerichtet ist;
+     * er schreibt nur fest, was hier ohnehin schon gilt (closeStale).
+     *
+     * WAS NICHT DAZUGEHOERT: eine Anfrage, die nie begonnen hat. Sie laeuft
+     * ab (siehe statusSql), aber sie ist keine beendete Fuehrung - der
+     * Aufrufer prueft started_at, wo es darauf ankommt.
+     *
+     * @param string $in_alias Tabellenalias in der Abfrage
+     * @return string SQL-Bedingung
+     */
+    public static function closedSql(string $in_alias = 'r'): string
+    {
+        $a      = self::alias($in_alias);
+        $config = self::config();
+        $rejoin = (int)$config['rejoin_window'];
+        $stale  = (int)$config['stale_call'];
+
+        return "($a.status = '" . self::STATUS_DONE . "'
+                 OR $a.closed_at IS NOT NULL
+                 OR ($a.ended_at IS NOT NULL
+                     AND DATE_ADD($a.ended_at, INTERVAL $rejoin SECOND) <= NOW())
+                 OR ($a.ended_at IS NULL
+                     AND $a.started_at IS NOT NULL
+                     AND DATE_ADD($a.started_at, INTERVAL $stale SECOND) <= NOW()))";
+    }
+
+    /**
+     * Hat diese Fuehrung STATTGEFUNDEN und ist sie zu - als SQL-Bedingung?
+     *
+     * DIE GRUNDLAGE DER BEWERTUNG (App\Model\TourReview) und der Zaehlung
+     * "N Fuehrungen durchgefuehrt". Zwei Bedingungen, und beide sind noetig:
+     *
+     *   begonnen  started_at ist gesetzt - es kam wirklich ein Gespraech
+     *             zustande. Eine zugesagte, aber nie gestartete Anfrage
+     *             laeuft ab und ist keine Fuehrung.
+     *   zu        closedSql - der Guide hat beendet, oder die Frist fuer den
+     *             Wiedereinstieg ist verstrichen.
+     *
+     * GERECHNET UND NICHT NUR AUS DER SPALTE GELESEN: Ein vergessener
+     * Abschluss macht die Fuehrung nach der Frist trotzdem bewertbar, ohne
+     * dass der Cronjob gelaufen sein muss. Wer hier nur `status = 'done'`
+     * prueft, verschiebt die Bewertung auf den naechsten Lauf eines Jobs, der
+     * womoeglich gar nicht eingerichtet ist.
+     *
+     * @param string $in_alias
+     * @return string SQL-Bedingung
+     */
+    public static function conductedSql(string $in_alias = 'r'): string
+    {
+        $a = self::alias($in_alias);
+
+        return "($a.started_at IS NOT NULL AND " . self::closedSql($a) . ")";
+    }
+
+    /**
+     * Laeuft diese Fuehrung noch - als SQL-Bedingung?
+     *
+     * Das Gegenstueck zu closedSql, und die Bedingung, an der drei Dinge
+     * haengen: der Wiedereinstieg beider Seiten, der Knopf "Fuehrung beenden"
+     * beim Guide und die Zahl in seiner Kopfleiste.
+     *
+     * BEGONNEN UND NICHT ZU. Eine zugesagte, aber nie begonnene Fuehrung
+     * laeuft nicht - sie steht noch aus, und dafuer gibt es das Zeitfenster um
+     * den Wunschzeitpunkt (callableSql).
+     *
+     * @param string $in_alias
+     * @return string SQL-Bedingung
+     */
+    public static function runningSql(string $in_alias = 'r'): string
+    {
+        $a = self::alias($in_alias);
+
+        return "($a.status = '" . self::STATUS_ACCEPTED . "'
+                 AND $a.started_at IS NOT NULL
+                 AND NOT " . self::closedSql($a) . ")";
     }
 
     /**
@@ -167,11 +269,23 @@ class TourRequest
      * die Zulassung des Anrufs im Signaling und das Festhalten des Beginns.
      * Sie steht deshalb hier und nicht dreimal nachgebaut.
      *
-     * Erlaubt ist der Anruf im vereinbarten ZEITFENSTER um den
-     * Wunschzeitpunkt (config/requests.php: call_window_before / _after) -
-     * und zwar auch dann, wenn das Gespraech schon einmal lief: Bricht die
-     * Verbindung ab, waere ein Rueckruf sonst gesperrt, obwohl die
-     * Verabredung noch gilt. Deshalb zaehlt neben 'accepted' auch 'done'.
+     * ZWEI FAELLE, und sie haben verschiedene Uhren:
+     *
+     *   DER ERSTE START. Erlaubt im vereinbarten ZEITFENSTER um den
+     *   Wunschzeitpunkt (config/requests.php: call_window_before / _after).
+     *   Das ist die Verabredung.
+     *
+     *   DER WIEDEREINSTIEG. Eine begonnene und noch nicht beendete Fuehrung
+     *   ist anrufbar, solange die Frist seit dem letzten Auflegen laeuft
+     *   (runningSql) - unabhaengig vom Zeitfenster. Bricht die Verbindung um
+     *   17:59 ab und endete das Fenster um 18:00, waere die Fuehrung sonst
+     *   mitten im Satz vorbei.
+     *
+     * HIER STAND FRUEHER 'done' NEBEN 'accepted' - genau das war der Fehler:
+     * Eine abgeschlossene Fuehrung blieb anrufbar, solange das Zeitfenster
+     * lief, und der Kunde konnte sie beliebig oft neu starten. Was zu ist,
+     * ist jetzt nicht mehr anrufbar; was unterbrochen ist, faellt in den
+     * zweiten Fall und ist nicht mehr 'done' (migrations/017).
      *
      * Abgelehnt, abgebrochen und abgelaufen sind nie anrufbar.
      *
@@ -185,9 +299,11 @@ class TourRequest
         $vor    = (int)$config['call_window_before'];
         $nach   = (int)$config['call_window_after'];
 
-        return "($a.status IN ('" . self::STATUS_ACCEPTED . "', '" . self::STATUS_DONE . "')
-                 AND NOW() >= DATE_SUB($a.wish_at, INTERVAL $vor SECOND)
-                 AND NOW() <= DATE_ADD($a.wish_at, INTERVAL $nach SECOND))";
+        return "(($a.status = '" . self::STATUS_ACCEPTED . "'
+                  AND $a.started_at IS NULL
+                  AND NOW() >= DATE_SUB($a.wish_at, INTERVAL $vor SECOND)
+                  AND NOW() <= DATE_ADD($a.wish_at, INTERVAL $nach SECOND))
+                 OR " . self::runningSql($a) . ")";
     }
 
     /**
@@ -300,11 +416,26 @@ class TourRequest
     private static function spalten(string $in_alias = 'r'): string
     {
         $a = self::alias($in_alias);
+        $config = self::config();
+        $rejoin = (int)$config['rejoin_window'];
+
         return "$a.id, $a.location_id, $a.guide_user_id, $a.customer_user_id,
                 $a.wish_at, $a.created_at, $a.expires_at,
-                $a.decided_at, $a.started_at, $a.ended_at,
+                $a.decided_at, $a.started_at, $a.ended_at, $a.closed_at,
                 " . self::statusSql($a) . " AS status,
                 " . self::callableSql($a) . " AS callable,
+                -- LAEUFT NOCH: begonnen und nicht beendet. Daran haengen der
+                -- Wiedereinstieg auf beiden Seiten und der Knopf \"Fuehrung
+                -- beenden\" beim Guide. Die Ansicht rechnet nichts nach.
+                " . self::runningSql($a) . " AS running,
+                -- Wie lange der Wiedereinstieg noch offen steht. Negativ oder
+                -- NULL heisst: nicht mehr. Der Browser zeigt damit an, wie
+                -- lange die Fuehrung noch zu retten ist, ohne selbst eine
+                -- Frist zu kennen.
+                CASE WHEN $a.ended_at IS NULL THEN NULL
+                     ELSE TIMESTAMPDIFF(SECOND, NOW(),
+                              DATE_ADD($a.ended_at, INTERVAL $rejoin SECOND))
+                END AS rejoin_in,
                 TIMESTAMPDIFF(SECOND, NOW(), $a.wish_at)    AS wish_in,
                 TIMESTAMPDIFF(SECOND, NOW(), $a.expires_at) AS expires_in";
     }
@@ -492,6 +623,13 @@ class TourRequest
      *                       nicht gelaufen sind - dort wartet die Fuehrung
      *                       auf ihn. Eine begonnene zaehlt nicht mehr mit:
      *                       Sie wartet nicht, sie laeuft.
+     *   tours_running       eigene Fuehrungen, die begonnen und nicht beendet
+     *                       sind. Sie sind der DRITTE Fall von "hier wartet
+     *                       etwas auf dich": Der Guide muss sie beenden,
+     *                       sonst bleibt der Startknopf beim Kunden stehen
+     *                       und die Bewertung wird nie faellig. Wer die Karte
+     *                       nach dem Auflegen weggeklickt hat, findet sie
+     *                       ueber diese Zahl wieder.
      *
      * Sie gehen mit der Antwort des Heartbeats mit und nicht ueber eine
      * eigene Abfrage im Takt: Der Heartbeat laeuft ohnehin alle zehn
@@ -501,11 +639,11 @@ class TourRequest
      * EINE Abfrage fuer beide Zahlen, denn es ist dieselbe Zeilenmenge.
      *
      * @param int $in_user_id
-     * @return array{incoming_open:int, outgoing_accepted:int}
+     * @return array{incoming_open:int, outgoing_accepted:int, tours_running:int}
      */
     public static function counters($in_user_id): array
     {
-        $leer    = ['incoming_open' => 0, 'outgoing_accepted' => 0];
+        $leer    = ['incoming_open' => 0, 'outgoing_accepted' => 0, 'tours_running' => 0];
         $user_id = (int)$in_user_id;
         if ($user_id < 1) return $leer;
 
@@ -517,13 +655,16 @@ class TourRequest
                             AND $status = '" . self::STATUS_OPEN . "')     AS incoming_open,
                         SUM(r.customer_user_id = :customer
                             AND r.started_at IS NULL
-                            AND $status = '" . self::STATUS_ACCEPTED . "') AS outgoing_accepted
+                            AND $status = '" . self::STATUS_ACCEPTED . "') AS outgoing_accepted,
+                        SUM(r.guide_user_id = :guide3
+                            AND " . self::runningSql('r') . ")             AS tours_running
                       FROM tour_request r
                       WHERE (r.guide_user_id = :guide2 OR r.customer_user_id = :customer2)
                         AND r.status IN ('" . self::STATUS_OPEN . "', '" . self::STATUS_ACCEPTED . "')";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':guide',     $user_id, \PDO::PARAM_INT);
             $stmt->bindParam(':guide2',    $user_id, \PDO::PARAM_INT);
+            $stmt->bindParam(':guide3',    $user_id, \PDO::PARAM_INT);
             $stmt->bindParam(':customer',  $user_id, \PDO::PARAM_INT);
             $stmt->bindParam(':customer2', $user_id, \PDO::PARAM_INT);
             $stmt->execute();
@@ -533,6 +674,7 @@ class TourRequest
             return [
                 'incoming_open'     => (int)($zeile['incoming_open'] ?? 0),
                 'outgoing_accepted' => (int)($zeile['outgoing_accepted'] ?? 0),
+                'tours_running'     => (int)($zeile['tours_running'] ?? 0),
             ];
         } catch (\PDOException $e) {
             error_log('Fehler beim Zaehlen der Anfragen: ' . $e->getMessage());
@@ -742,20 +884,39 @@ class TourRequest
     }
 
     /**
-     * Haelt das Ende der Fuehrung fest - und macht sie damit zu einer
-     * durchgefuehrten.
+     * Haelt fest, dass gerade aufgelegt wurde.
+     *
+     * DAS IST NICHT DAS ENDE DER FUEHRUNG, und genau darin lag der Fehler:
+     * Auflegen ist zweideutig. Es kann heissen "wir sind fertig" - oder "das
+     * Netz ist weg". Vorher setzte jedes Auflegen den Zustand auf 'done'; die
+     * Fuehrung war damit abgeschlossen, blieb aber ueber das Zeitfenster
+     * weiter anrufbar (der alte callableSql liess 'done' zu). Der Kunde
+     * konnte sie beliebig oft neu starten, und die Frage nach der Bewertung
+     * kam, waehrend der Guide noch zurueck in die Leitung wollte.
+     *
+     * Geschrieben wird deshalb nur noch der ZEITPUNKT. Beendet wird
+     * ausdruecklich vom Guide (finish); bis dahin gilt die Fuehrung als
+     * unterbrochen, und ab diesem Zeitpunkt laeuft die Frist fuer den
+     * Wiedereinstieg (config/requests.php: rejoin_window, ausgewertet in
+     * closedSql).
+     *
+     * UEBERSCHRIEBEN WIRD BEI JEDEM AUFLEGEN. Steigt jemand wieder ein und
+     * legt erneut auf, faengt die Frist von vorn an - sie zaehlt ab dem
+     * letzten Auflegen und nicht ab dem ersten. Deshalb steht hier, anders
+     * als frueher, kein "ended_at IS NULL" in der Bedingung.
      *
      * Aufgerufen vom Signaling beim 'hangup'. WELCHE SEITE AUFLEGT, IST
      * OFFEN: Der Guide kann es sein oder der Kunde. Deshalb wird das Paar in
      * beide Richtungen geprueft und nicht angenommen, der Absender sei der
      * Kunde.
      *
-     * Getroffen wird nur eine Fuehrung, die BEGONNEN hat. Ein Anruf, der nie
-     * zustande kam, macht aus einer Anfrage keine durchgefuehrte Fuehrung.
+     * Getroffen wird nur eine Fuehrung, die BEGONNEN und noch nicht beendet
+     * ist. Ein Anruf, der nie zustande kam, hinterlaesst hier nichts, und
+     * eine abgeschlossene Fuehrung bekommt kein neues Ende angehaengt.
      *
      * @param int $in_user_a Absender des hangup
      * @param int $in_user_b Empfaenger
-     * @return bool true, wenn eine Fuehrung abgeschlossen wurde
+     * @return bool true, wenn ein Auflegen festgehalten wurde
      */
     public static function markEnded($in_user_a, $in_user_b): bool
     {
@@ -765,11 +926,10 @@ class TourRequest
 
         try {
             $query = "UPDATE tour_request r
-                         SET r.ended_at = NOW(),
-                             r.status   = '" . self::STATUS_DONE . "'
+                         SET r.ended_at = NOW()
                        WHERE r.started_at IS NOT NULL
-                         AND r.ended_at IS NULL
-                         AND r.status IN ('" . self::STATUS_ACCEPTED . "', '" . self::STATUS_DONE . "')
+                         AND r.closed_at IS NULL
+                         AND r.status = '" . self::STATUS_ACCEPTED . "'
                          AND ((r.customer_user_id = :a1 AND r.guide_user_id = :b1)
                            OR (r.customer_user_id = :b2 AND r.guide_user_id = :a2))
                        ORDER BY r.started_at DESC
@@ -782,8 +942,157 @@ class TourRequest
             $stmt->execute();
             return $stmt->rowCount() > 0;
         } catch (\PDOException $e) {
-            error_log('Fehler beim Abschliessen einer Fuehrung: ' . $e->getMessage());
+            error_log('Fehler beim Festhalten des Auflegens: ' . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Der GUIDE beendet die Fuehrung.
+     *
+     * DIE EINE STELLE, an der aus einer laufenden Fuehrung eine
+     * durchgefuehrte wird - ausdruecklich und von der Seite, die es weiss.
+     * Erst danach verschwindet der Startknopf beim Kunden (callableSql), erst
+     * danach wird die Bewertung faellig (App\Model\TourReview::create prueft
+     * denselben Zustand).
+     *
+     * WARUM DER GUIDE UND NICHT DER KUNDE: Der Guide ist vor Ort. Er weiss,
+     * ob die Fuehrung vorbei ist oder ob er gerade nur durch einen Tunnel
+     * faehrt. Der Kunde sieht in beiden Faellen dasselbe - eine abgebrochene
+     * Verbindung.
+     *
+     * DIE ZUSTAENDIGKEIT STEHT IN DER WHERE-KLAUSEL und nicht nur im
+     * Controller: guide_user_id = :guide. Eine Rechtetabelle kann nicht
+     * wissen, wessen Fuehrung das ist.
+     *
+     * ended_at WIRD NICHT UEBERSCHRIEBEN, wenn es schon steht: Es ist das
+     * Ende des GESPRAECHS, dieser Klick ist ein Verwaltungsakt und kommt
+     * womoeglich zehn Minuten spaeter. Nur wenn nie ein Auflegen ankam, wird
+     * es hier nachgetragen - dann ist dieser Zeitpunkt das Beste, was es
+     * gibt.
+     *
+     * @param int $in_id
+     * @param int $in_guide_id
+     * @return bool true, wenn wirklich eine Zeile getroffen wurde
+     */
+    public static function finish($in_id, $in_guide_id): bool
+    {
+        $id    = (int)$in_id;
+        $guide = (int)$in_guide_id;
+        if ($id < 1 || $guide < 1) return false;
+
+        try {
+            $query = "UPDATE tour_request r
+                         SET r.closed_at = NOW(),
+                             r.ended_at  = COALESCE(r.ended_at, NOW()),
+                             r.status    = '" . self::STATUS_DONE . "'
+                       WHERE r.id             = :id
+                         AND r.guide_user_id  = :guide
+                         AND r.started_at IS NOT NULL
+                         AND r.closed_at IS NULL";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':id',    $id,    \PDO::PARAM_INT);
+            $stmt->bindParam(':guide', $guide, \PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->rowCount() > 0;
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Beenden einer Fuehrung: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Die Fuehrung, die zwischen diesen beiden gerade LAEUFT.
+     *
+     * WOZU: Die Rollenvergabe im Signaling braucht eine zweite Quelle. Bisher
+     * galt "wer angerufen wird, fuehrt" - das ist richtig, solange der Kunde
+     * waehlt. Beim Wiedereinstieg darf aber auch der Guide waehlen, und dann
+     * waere der KUNDE der Angerufene und damit der Guide, samt Steuerkreuz
+     * auf den Falschen.
+     *
+     * In dieser Zeile steht, wer der Guide ist. Existiert zwischen den beiden
+     * eine laufende Fuehrung, entscheidet sie ueber die Rollen - und nicht
+     * die Frage, wer gewaehlt hat (App\Controller\WebRTCController::callRoles).
+     *
+     * Das erweitert die Rollenvergabe, ohne sie aufzuweichen: Der Guide
+     * dieser Zeile wurde beim Anlegen der Anfrage aus dem STANDORT
+     * uebernommen und nie behauptet, und die Zeile gilt nur, solange die
+     * Fuehrung laeuft (runningSql). Niemand kann sich darueber eine Rolle
+     * geben, die er nicht schon hatte.
+     *
+     * @param int $in_user_a
+     * @param int $in_user_b
+     * @return array<string,mixed>|null Zeile mit id, guide_user_id,
+     *         customer_user_id und location_id - oder null
+     */
+    public static function runningBetween($in_user_a, $in_user_b): ?array
+    {
+        $a = (int)$in_user_a;
+        $b = (int)$in_user_b;
+        if ($a < 1 || $b < 1 || $a === $b) return null;
+
+        try {
+            $query = "SELECT r.id, r.guide_user_id, r.customer_user_id, r.location_id
+                        FROM tour_request r
+                       WHERE " . self::runningSql('r') . "
+                         AND ((r.customer_user_id = :a1 AND r.guide_user_id = :b1)
+                           OR (r.customer_user_id = :b2 AND r.guide_user_id = :a2))
+                       ORDER BY r.started_at DESC
+                       LIMIT 1";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':a1', $a, \PDO::PARAM_INT);
+            $stmt->bindParam(':a2', $a, \PDO::PARAM_INT);
+            $stmt->bindParam(':b1', $b, \PDO::PARAM_INT);
+            $stmt->bindParam(':b2', $b, \PDO::PARAM_INT);
+            $stmt->execute();
+            $zeile = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $zeile ?: null;
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Suchen einer laufenden Fuehrung: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Die Fuehrung, die dieser GUIDE gerade offen hat.
+     *
+     * Sie geht mit der Antwort des Heartbeats mit - wie die offene Bewertung
+     * beim Kunden und aus demselben Grund: Nach dem Auflegen laedt die Seite
+     * auf Telefonen neu, und was in diesem Moment auf dem Bildschirm stand,
+     * waere weg. So findet der Guide die Karte "Fuehrung beenden" auf jeder
+     * Seite wieder (App\Controller\UserController::heartbeat).
+     *
+     * EINE, nicht alle: Zwei Fuehrungen gleichzeitig gibt es nicht, und wer
+     * doch zwei offene haette, bekaeme nicht zwei Karten uebereinander.
+     *
+     * @param int $in_guide_id
+     * @return array<string,mixed>|null
+     */
+    public static function runningForGuide($in_guide_id): ?array
+    {
+        $guide = (int)$in_guide_id;
+        if ($guide < 1) return null;
+
+        try {
+            $query = "SELECT " . self::spalten('r') . ",
+                             l.title, city.city_name,
+                             partner.username AS partner_name
+                        FROM tour_request r
+                        LEFT JOIN location l   ON l.id = r.location_id
+                        LEFT JOIN city         ON city.id = l.city_id
+                        LEFT JOIN user partner ON partner.id = r.customer_user_id
+                       WHERE r.guide_user_id = :guide
+                         AND " . self::runningSql('r') . "
+                       ORDER BY r.started_at DESC
+                       LIMIT 1";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':guide', $guide, \PDO::PARAM_INT);
+            $stmt->execute();
+            $zeile = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $zeile ?: null;
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Laden der laufenden Fuehrung: ' . $e->getMessage());
+            return null;
         }
     }
 
@@ -836,35 +1145,59 @@ class TourRequest
     }
 
     /**
-     * Schliesst Fuehrungen ab, deren Ende nie angekommen ist.
+     * Schreibt Fuehrungen fest, die niemand beendet hat.
      *
-     * Das Ende kommt vom 'hangup'. Stuerzt ein Browser ab oder faellt das
-     * Netz aus, kommt es nie - die Zeile stuende sonst fuer immer als
-     * laufende Fuehrung da.
+     * DAS IST AUFRAEUMEN UND KEINE PRUEFUNG, wie expireDue(): Ob eine
+     * Fuehrung zu ist, entscheidet nirgends dieser Aufruf, sondern closedSql()
+     * in jeder einzelnen Abfrage. Ohne den Cronjob laeuft alles genauso, nur
+     * traegt die Spalte dann dauerhaft 'accepted', obwohl die Fuehrung
+     * laengst durchgefuehrt ist.
      *
-     * ended_at BLEIBT LEER. Ein geschaetztes Ende waere eine Erfindung, und
-     * an dieser Spalte haengt spaeter eine Abrechnung. "Beginn bekannt, Ende
-     * unbekannt" ist die ehrliche Auskunft.
+     * Zwei Faelle, dieselben zwei wie in closedSql():
+     *   1. Es wurde aufgelegt, aber niemand hat beendet, und die Frist fuer
+     *      den Wiedereinstieg ist verstrichen (rejoin_window). Der Regelfall:
+     *      Der Guide hat den Knopf vergessen.
+     *   2. Es kam nie ein Auflegen an - Absturz, Netz weg. Dann zaehlt der
+     *      Beginn samt der langen Reissleine (stale_call).
+     *
+     * closed_at BLEIBT LEER, und ended_at wird nicht erfunden. Beide Spalten
+     * halten fest, was jemand getan hat; hier hat niemand etwas getan. "Ende
+     * unbekannt" ist die ehrliche Auskunft - an ended_at haengt spaeter eine
+     * Abrechnung.
      *
      * @return int Anzahl der geaenderten Zeilen
      */
     public static function closeStale(): int
     {
         $config = self::config();
-        $frist  = (int)$config['stale_call'];
+        $stale  = (int)$config['stale_call'];
+        $rejoin = (int)$config['rejoin_window'];
+        $summe  = 0;
 
         try {
-            return (int)PdoConnect::$connection->exec(
+            $summe += (int)PdoConnect::$connection->exec(
                 "UPDATE tour_request
                     SET status = '" . self::STATUS_DONE . "'
                   WHERE status = '" . self::STATUS_ACCEPTED . "'
                     AND started_at IS NOT NULL
+                    AND closed_at IS NULL
+                    AND ended_at IS NOT NULL
+                    AND ended_at <= DATE_SUB(NOW(), INTERVAL $rejoin SECOND)"
+            );
+
+            $summe += (int)PdoConnect::$connection->exec(
+                "UPDATE tour_request
+                    SET status = '" . self::STATUS_DONE . "'
+                  WHERE status = '" . self::STATUS_ACCEPTED . "'
+                    AND started_at IS NOT NULL
+                    AND closed_at IS NULL
                     AND ended_at IS NULL
-                    AND started_at <= DATE_SUB(NOW(), INTERVAL $frist SECOND)"
+                    AND started_at <= DATE_SUB(NOW(), INTERVAL $stale SECOND)"
             );
         } catch (\PDOException $e) {
             error_log('Fehler beim Abschliessen haengender Fuehrungen: ' . $e->getMessage());
-            return 0;
         }
+
+        return $summe;
     }
 }

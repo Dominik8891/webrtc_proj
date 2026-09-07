@@ -158,7 +158,10 @@ window.webrtcApp.review = {
         this.offen = fuehrung.id;
 
         const karte = document.createElement('section');
-        karte.className = 'rev-ask';
+        // Die FLAECHE kommt aus .app-ask (theme.css) - dieselbe wie beim
+        // Hinweis an den Guide. .rev-ask traegt nur, was diese Karte
+        // ausmacht.
+        karte.className = 'app-ask rev-ask';
         karte.id = 'rev-ask';
         // Die Karte meldet sich, aber sie unterbricht nicht: "polite" laesst
         // ein Vorleseprogramm den laufenden Satz zu Ende sprechen. Ein
@@ -207,21 +210,21 @@ window.webrtcApp.review = {
                    +  ' aria-label="' + this.esc(name) + '"><span aria-hidden="true">★</span></button>';
         }
 
-        return '<button type="button" class="rev-ask__close" aria-label="Schließen">×</button>'
-             + '<p class="rev-ask__lead">Wie war die Führung mit <strong>' + wer + '</strong>?' + was + '</p>'
+        return '<button type="button" class="app-ask__close" aria-label="Schließen">×</button>'
+             + '<p class="app-ask__lead">Wie war die Führung mit <strong>' + wer + '</strong>?' + was + '</p>'
              + '<div class="rev-ask__stars" role="group" aria-label="Sterne">' + sterne + '</div>'
              + '<p class="rev-ask__word" id="rev-ask-word"></p>'
              + '<label class="rev-ask__label" for="rev-ask-text">Wenn Sie mögen, ein paar Sätze</label>'
              + '<textarea id="rev-ask-text" class="form-control rev-ask__text" rows="3"'
              +   ' maxlength="' + (parseInt(skala.bodyMax, 10) || 1000) + '"'
              +   ' placeholder="Was sollten andere wissen?"></textarea>'
-             + '<div class="rev-ask__actions">'
+             + '<div class="app-ask__actions">'
              +   '<button type="button" class="btn btn-secondary btn-sm rev-ask__later">'
              +     (vonSelbst ? 'Später' : 'Abbrechen')
              +   '</button>'
              +   '<button type="button" class="btn btn-primary btn-sm rev-ask__send" disabled>Absenden</button>'
              + '</div>'
-             + '<p class="rev-ask__foot">Ihr Name steht nicht dabei. Der Guide kann die '
+             + '<p class="app-ask__foot">Ihr Name steht nicht dabei. Der Guide kann die '
              +   'Bewertung nicht ändern und nicht löschen.</p>';
     },
 
@@ -260,7 +263,7 @@ window.webrtcApp.review = {
             });
         });
 
-        karte.querySelector('.rev-ask__close')?.addEventListener('click', () => {
+        karte.querySelector('.app-ask__close')?.addEventListener('click', () => {
             this.ueberspringen(fuehrung.id);
         });
         karte.querySelector('.rev-ask__later')?.addEventListener('click', () => {
@@ -480,28 +483,99 @@ window.webrtcApp.review = {
     },
 
     /**
-     * Eine Sternreihe zum ANSEHEN, fuer die Listen der Anfragenseite.
+     * Eine Sternreihe zum ANSEHEN.
      *
      * Sie ist die Zwillingsschwester von App\Helper\ReviewView::sterneHtml()
      * und steht aus demselben Grund hier wie die Zustandsmarken in
-     * requests.js: Die Zeilen jener Seite baut der Browser, weil sie sich
-     * aendern, waehrend man hinsieht. Halbe Sterne gibt es hier nicht - in
-     * einer Liste steht immer die Bewertung EINER Fuehrung, und die ist ganz.
+     * requests.js: Die Zeilen der Anfragenseite, die Kartenfenster und die
+     * Standortliste baut der Browser, weil sie sich aendern, waehrend man
+     * hinsieht.
+     *
+     * HALBE STERNE wie auf dem Server: Ein Durchschnitt wird auf halbe
+     * gerundet, eine einzelne Bewertung ist ohnehin ganz und bleibt es dabei.
      *
      * @param {number} wert
      * @returns {string} HTML
      */
     sterneHtml(wert) {
-        const skala = window.reviewScale || { max: 5 };
-        const voll  = Math.max(0, Math.min(parseInt(skala.max, 10) || 5, parseInt(wert, 10) || 0));
+        const max   = parseInt((window.reviewScale || {}).max, 10) || 5;
+        const zahl  = Math.max(0, Math.min(max, parseFloat(wert) || 0));
+        const halbe = Math.round(zahl * 2) / 2;
 
         let html = '';
-        for (let i = 1; i <= (parseInt(skala.max, 10) || 5); i++) {
-            html += '<span class="rev-star' + (i <= voll ? ' rev-star--on' : '') + '"'
-                 +  ' aria-hidden="true">★</span>';
+        for (let i = 1; i <= max; i++) {
+            let klasse = 'rev-star';
+            if (halbe >= i)            klasse += ' rev-star--on';
+            else if (halbe >= i - 0.5) klasse += ' rev-star--half';
+            html += '<span class="' + klasse + '" aria-hidden="true">★</span>';
         }
-        return '<span class="rev-stars" role="img" aria-label="' + voll + ' von '
-             + (skala.max || 5) + ' Sternen">' + html + '</span>';
+        return '<span class="rev-stars" role="img" aria-label="'
+             + this.esc(this.zahlText(zahl) + ' von ' + max + ' Sternen') + '">'
+             + html + '</span>';
+    },
+
+    /**
+     * Die Bewertung in EINER Zeile - fuer das Kartenfenster einer Nadel und
+     * fuer die Standortliste.
+     *
+     * DORT, WO EIN KUNDE ZWISCHEN STANDORTEN WAEHLT, gehoert die Auskunft hin
+     * - nicht erst auf die Seite, die er aufruft, nachdem er sich schon
+     * entschieden hat, welche er ansieht.
+     *
+     * ES GILT DIESELBE REGEL WIE AUF DER STANDORTSEITE: Unterhalb der
+     * Schwelle steht kein Durchschnitt, sondern die Zahl der durchgefuehrten
+     * Fuehrungen. Entschieden ist das im Modell (App\Model\TourReview) - der
+     * Server liefert den Durchschnitt dann gar nicht erst mit, und dieses
+     * Modul rechnet nichts nach. Es kennt die Schwelle nicht einmal.
+     *
+     * @param {Object} zahlen { count, average, tours } aus der API
+     * @returns {string} HTML - Leerstring, wenn es nichts zu sagen gibt
+     */
+    kurzHtml(zahlen) {
+        if (!zahlen) return '';
+
+        const anzahl  = parseInt(zahlen.count, 10)  || 0;
+        const touren  = parseInt(zahlen.tours, 10)  || 0;
+        const schnitt = (zahlen.average === null || zahlen.average === undefined
+                         || zahlen.average === '')
+                      ? null : parseFloat(zahlen.average);
+
+        if (schnitt !== null && !isNaN(schnitt)) {
+            return '<span class="rev-short">'
+                 +   this.sterneHtml(schnitt)
+                 +   '<span class="rev-short__value">' + this.esc(this.zahlText(schnitt)) + '</span>'
+                 +   '<span>(' + anzahl + ')</span>'
+                 + '</span>';
+        }
+
+        // Kein Durchschnitt. Was hier steht, ist eine TATSACHE und keine
+        // Wertung - und bei einem Standort, an dem noch nie jemand gefuehrt
+        // hat, steht gar nichts: "0 Fuehrungen" ist keine Auskunft.
+        if (touren < 1) return '';
+
+        const text = 'Neu · ' + (touren === 1 ? 'eine Führung' : touren + ' Führungen')
+                   + (anzahl > 0
+                      ? (anzahl === 1 ? ', eine Bewertung' : ', ' + anzahl + ' Bewertungen')
+                      : '');
+
+        return '<span class="rev-short rev-short--young">' + this.esc(text) + '</span>';
+    },
+
+    /**
+     * Eine Zahl mit Komma statt Punkt - und ohne ",0".
+     *
+     * Dieselbe Regel wie in App\Helper\ReviewView::zahl(): "4,3" auf einer
+     * deutschen Seite, und "5" statt "5,0" - die Nachkommastelle sagt nur
+     * dann etwas, wenn dort etwas steht.
+     *
+     * @param {number} wert
+     * @returns {string}
+     */
+    zahlText(wert) {
+        const zahl = Math.round((parseFloat(wert) || 0) * 10) / 10;
+        return Number.isInteger(zahl)
+            ? String(zahl)
+            : zahl.toFixed(1).replace('.', ',');
     },
 
     /**

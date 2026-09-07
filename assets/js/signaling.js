@@ -255,6 +255,15 @@ window.webrtcApp.signaling = {
             // jeden Seitenwechsel.
             const bewertung = window.webrtcApp.review;
             if (bewertung && daten) bewertung.sync(daten.review);
+
+            // UND DIE LAUFENDE FUEHRUNG BEIM GUIDE. Das Gegenstueck dazu:
+            // Solange er nicht beendet hat, gilt die Fuehrung als
+            // unterbrochen - beide koennen wieder einsteigen, und der Kunde
+            // wird noch nicht nach einer Bewertung gefragt. Die beiden
+            // schliessen einander also aus; sie fahren trotzdem gemeinsam
+            // mit, weil ein Konto beide Seiten sein kann.
+            const fuehrung = window.webrtcApp.tour;
+            if (fuehrung && daten) fuehrung.sync(daten.tour);
         })
         // Ein ausgefallener Heartbeat aendert nichts: Der naechste Takt kommt,
         // und bis dahin laeuft die Anzeige lokal weiter. Ohne diesen Zweig

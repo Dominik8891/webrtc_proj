@@ -216,13 +216,19 @@ class ViewHelper
      * jeder Seite der Anwendung. Dieselbe Ueberlegung wie beim
      * Bereitschaftsschalter daneben, mit dem er die Zeile teilt.
      *
-     * ZWEI ZAHLEN, EIN ZAEHLER. Er meint immer dasselbe: "hier wartet etwas
+     * DREI ZAHLEN, EIN ZAEHLER. Er meint immer dasselbe: "hier wartet etwas
      * auf dich".
      *
      *   eingehend   Anfragen an die eigenen Standorte, die noch keine Antwort
      *               haben - der Guide ist am Zug.
      *   ausgehend   eigene Anfragen, die angenommen wurden - der Kunde kann
      *               losgehen.
+     *   laufend     eigene Fuehrungen, die begonnen und nicht beendet sind.
+     *               Der Guide muss sie beenden; solange er das nicht tut,
+     *               bleibt der Startknopf beim Kunden stehen und die Bewertung
+     *               wird nie faellig. Wer die Karte nach dem Auflegen
+     *               weggeklickt hat, findet die Fuehrung ueber diese Zahl
+     *               wieder.
      *
      * Ein Konto kann beides zugleich sein, und deshalb steht der Zaehler bei
      * JEDEM angemeldeten Konto und nicht nur bei Guides: Auch ein Zuschauer
@@ -234,31 +240,37 @@ class ViewHelper
      * nur nachgezogen wird die Zahl dann nicht (assets/js/requests.js holt sie
      * sich aus der Antwort des Heartbeats).
      *
-     * @param array{incoming_open:int, outgoing_accepted:int} $zahlen
+     * @param array{incoming_open:int, outgoing_accepted:int, tours_running:int} $zahlen
      * @return string HTML
      */
     private static function requestsBadge(array $zahlen): string
     {
         $eingehend = max(0, (int)($zahlen['incoming_open'] ?? 0));
         $ausgehend = max(0, (int)($zahlen['outgoing_accepted'] ?? 0));
-        $summe     = $eingehend + $ausgehend;
+        $laufend   = max(0, (int)($zahlen['tours_running'] ?? 0));
+        $summe     = $eingehend + $ausgehend + $laufend;
 
         // Der Titel sagt, WAS wartet - die Zahl allein sagt es nicht. Er wird
         // im Browser mit derselben Regel neu gebaut (requests.js), damit an
         // beiden Stellen dasselbe steht.
-        $titel = 'Ihre Anfragen';
-        if ($eingehend > 0 && $ausgehend > 0) {
-            $titel = $eingehend . ' Anfrage(n) warten auf Ihre Antwort, '
-                   . $ausgehend . ' Ihrer Anfragen wurde(n) angenommen';
-        } elseif ($eingehend > 0) {
-            $titel = $eingehend . ' Anfrage(n) warten auf Ihre Antwort';
-        } elseif ($ausgehend > 0) {
-            $titel = $ausgehend . ' Ihrer Anfragen wurde(n) angenommen';
+        $teile = [];
+        if ($eingehend > 0) {
+            $teile[] = $eingehend . ' Anfrage(n) warten auf Ihre Antwort';
         }
+        if ($ausgehend > 0) {
+            $teile[] = $ausgehend . ' Ihrer Anfragen wurde(n) angenommen';
+        }
+        // Zuletzt, aber am dringendsten: Eine nicht beendete Fuehrung haelt
+        // den Startknopf beim Kunden offen.
+        if ($laufend > 0) {
+            $teile[] = $laufend . ' Führung(en) sind noch nicht beendet';
+        }
+        $titel = $teile === [] ? 'Ihre Anfragen' : implode(', ', $teile);
 
         return '<a class="app-requests' . ($summe > 0 ? ' app-requests--on' : '') . '"'
              . ' id="requests-badge" href="index.php?act=requests_page"'
              . ' data-incoming="' . $eingehend . '" data-outgoing="' . $ausgehend . '"'
+             . ' data-running="' . $laufend . '"'
              . ' title="' . htmlspecialchars($titel) . '">'
              .   '<span class="app-requests__text">Anfragen</span>'
              .   '<span class="app-requests__count" id="requests-count"'

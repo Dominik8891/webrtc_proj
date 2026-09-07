@@ -199,6 +199,47 @@ window.webrtcApp.locationsTable = {
     },
 
     /**
+     * Baut die Spalte "Bewertung" einer Zeile.
+     *
+     * WARUM EINE EIGENE SPALTE UND KEIN ZUSATZ ZUR BESCHREIBUNG: Diese Liste
+     * ist ausdruecklich die Ansicht "zum Durchsuchen und Sortieren"
+     * (assets/html/locations_table.html). Dann soll man auch nach dem
+     * sortieren koennen, wonach man auswaehlt.
+     *
+     * SORTIERT WIRD UEBER data-order UND NICHT UEBER DEN TEXT. DataTables
+     * nimmt sonst den Zellinhalt, und der ist eine Reihe Sterne: "★★★★☆"
+     * sortiert nach nichts. In data-order steht der Zahlenwert.
+     *
+     * UNBEWERTETE STANDORTE BEKOMMEN -1 und landen damit am Ende, statt sich
+     * zwischen die Ein-Stern-Bewertungen zu mischen: "noch keine Bewertung"
+     * ist nicht dasselbe wie "schlecht bewertet", und genau diese
+     * Verwechslung soll die Schwelle ja verhindern.
+     *
+     * Gebaut wird die Zeile von assets/js/review.js - dieselbe wie im
+     * Kartenfenster.
+     *
+     * @param {Object} item
+     * @returns {string} HTML einer <td>
+     */
+    reviewCellHtml(item) {
+        const modul = window.webrtcApp.review;
+
+        const schnitt = (item.review_average === null || item.review_average === undefined)
+                      ? null : parseFloat(item.review_average);
+        const ordnung = (schnitt === null || isNaN(schnitt)) ? -1 : schnitt;
+
+        const inhalt = modul
+            ? modul.kurzHtml({
+                  count  : item.review_count,
+                  average: item.review_average,
+                  tours  : item.review_tours
+              })
+            : '';
+
+        return `<td data-order="${ordnung}">${inhalt}</td>`;
+    },
+
+    /**
      * Baut die Aktionsspalte einer Zeile.
      * @param {Object} item
      * @param {Object} options
@@ -357,6 +398,7 @@ window.webrtcApp.locationsTable = {
             <td>${index + 1}</td>
             <td>${view.icon}</td>
             ${options.onlyOwn ? "" : `<td>${this.guideCellHtml(item)}</td>`}
+            ${this.reviewCellHtml(item)}
             <td>${this.esc(item.country_name ?? '')}</td>
             <td>${this.esc(item.city_name ?? '')}</td>
             <td>${descHtml}</td>
@@ -380,8 +422,8 @@ window.webrtcApp.locationsTable = {
      */
     columnKeys(options) {
         return options.onlyOwn
-            ? ['nr', 'status',         'country', 'city', 'description', 'actions']
-            : ['nr', 'status', 'user', 'country', 'city', 'description', 'actions'];
+            ? ['nr', 'status',         'review', 'country', 'city', 'description', 'actions']
+            : ['nr', 'status', 'user', 'review', 'country', 'city', 'description', 'actions'];
     },
 
     /**
@@ -503,7 +545,12 @@ window.webrtcApp.locationsTable = {
                 // stehen - eine Fehlerzeile direkt ins tbody wuerde DataTables
                 // aus dem Tritt bringen.
                 if (!$.fn.DataTable.isDataTable($table)) {
-                    $table.find('tbody').html('<tr><td colspan="7">Fehler beim Laden der Daten.</td></tr>');
+                    // Die Spaltenzahl kommt aus columnKeys() und steht nicht
+                    // als Zahl im Text: Sonst waere sie die naechste Stelle,
+                    // die beim Ergaenzen einer Spalte vergessen wird.
+                    const spalten = self.columnKeys(options).length;
+                    $table.find('tbody').html(
+                        '<tr><td colspan="' + spalten + '">Fehler beim Laden der Daten.</td></tr>');
                 }
             }
         });
@@ -686,10 +733,11 @@ window.webrtcApp.locationsTable = {
     COLUMN_PRIORITY: {
         actions:     1,   // der Anruf - bleibt am laengsten
         status:      2,   // ist gerade jemand da?
-        city:        3,
-        country:     4,
-        user:        5,   // der Name des Guides
-        nr:          6,
+        review:      3,   // wie war es bei anderen? - danach wird gewaehlt
+        city:        4,
+        country:     5,
+        user:        6,   // der Name des Guides
+        nr:          7,
         description: 10   // weicht als Erstes
     },
 

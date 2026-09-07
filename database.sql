@@ -784,8 +784,25 @@ CREATE TABLE IF NOT EXISTS `tour_request` (
   -- Gespraech. started_at gesetzt und ended_at dauerhaft NULL heisst: das
   -- Ende ist nie angekommen (Absturz) - der Cronjob schliesst solche Zeilen
   -- ab, ohne ein Ende zu erfinden.
+  -- Beginn und LETZTES AUFLEGEN.
+  --
+  -- ended_at ist NICHT das Ende der Fuehrung, sondern der Zeitpunkt, zu dem
+  -- zuletzt aufgelegt wurde - Auflegen ist zweideutig ("wir sind fertig" oder
+  -- "das Netz ist weg"). Ab diesem Zeitpunkt laeuft die Frist fuer den
+  -- Wiedereinstieg (config/requests.php: rejoin_window).
   `started_at` datetime DEFAULT NULL,
   `ended_at` datetime DEFAULT NULL,
+
+  -- Wann der GUIDE die Fuehrung ausdruecklich beendet hat. NULL heisst: noch
+  -- nicht beendet - dann koennen beide Seiten wieder einsteigen, und der
+  -- Kunde wird noch nicht nach einer Bewertung gefragt.
+  --
+  -- NEBEN ended_at und nicht statt dessen: Das eine ist das ehrliche Ende des
+  -- GESPRAECHS (und die Grundlage einer spaeteren Abrechnung), das andere ein
+  -- Verwaltungsakt, der zehn Minuten spaeter kommen kann.
+  --
+  -- Bestehende Installationen: migrations/017_fuehrung_beenden.sql.
+  `closed_at` datetime DEFAULT NULL,
 
   PRIMARY KEY (`id`),
 

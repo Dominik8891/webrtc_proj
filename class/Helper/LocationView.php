@@ -726,6 +726,12 @@ class LocationView
      *                'callable' - der Server rechnet es aus dem Zeitfenster
      *                um den Wunschzeitpunkt aus, und diese Ansicht rechnet
      *                nichts nach.
+     *   laeuft       Sie hat BEGONNEN und ist nicht beendet ('running'). Dann
+     *                ist derselbe Knopf ein Wiedereinstieg und kein Start:
+     *                Das Gespraech ist abgerissen, und der Guide hat die
+     *                Fuehrung noch nicht beendet. Zurueckziehen geht dann
+     *                nicht mehr - was stattgefunden hat, wird nicht
+     *                nachtraeglich zu "abgebrochen".
      *
      * Der Knopf steht auch dann da, wenn das Fenster noch nicht laeuft - nur
      * gesperrt. Sonst spraenge das Layout in dem Moment, in dem er auftaucht;
@@ -753,21 +759,43 @@ class LocationView
                  . '</div>';
         }
 
-        $text = $anrufbar
-            ? 'Der Guide hat zugesagt. Sie können jetzt starten – er wird angerufen.'
-            : 'Der Guide hat für ' . $wann . ' zugesagt. Kurz vorher lässt sich die '
-            . 'Führung von hier aus starten.';
+        // LAEUFT SIE SCHON? Dann ist der Knopf kein Start, sondern ein
+        // Wiedereinstieg - die Fuehrung hat begonnen, das Gespraech ist
+        // abgerissen, und der Guide hat sie noch nicht beendet. Der Server
+        // rechnet das aus (App\Model\TourRequest::runningSql); diese Ansicht
+        // rechnet nichts nach.
+        //
+        // WARUM DAS EINEN UNTERSCHIED MACHT: "Führung starten" bei einer
+        // Fuehrung, die gerade laeuft, liest sich wie ein zweiter Termin. Und
+        // zurueckziehen laesst sie sich nicht mehr - was stattgefunden hat,
+        // wird nicht nachtraeglich zu "abgebrochen". Beenden darf sie
+        // ausserdem nur der Guide.
+        $laeuft = !empty($in_anfrage['running']);
+
+        if ($laeuft) {
+            $text = $anrufbar
+                ? 'Die Führung läuft noch – die Verbindung ist abgerissen. Sie können '
+                . 'wieder einsteigen; Ihr Guide beendet die Führung, wenn Sie fertig sind.'
+                : 'Die Führung läuft noch. Ihr Guide beendet sie, wenn Sie fertig sind.';
+        } else {
+            $text = $anrufbar
+                ? 'Der Guide hat zugesagt. Sie können jetzt starten – er wird angerufen.'
+                : 'Der Guide hat für ' . $wann . ' zugesagt. Kurz vorher lässt sich die '
+                . 'Führung von hier aus starten.';
+        }
 
         return '<div class="loc-req loc-req--state" id="loc-request">'
-             .   '<span class="app-tag app-tag--live"><span class="app-dot"></span>Angenommen</span>'
+             .   '<span class="app-tag app-tag--live"><span class="app-dot"></span>'
+             .     ($laeuft ? 'Läuft' : 'Angenommen') . '</span>'
              .   '<p class="loc__note">' . self::esc($text) . '</p>'
              .   '<button type="button" class="btn ' . ($anrufbar ? 'btn-success' : 'btn-secondary')
              .     ' loc-call-btn"' . ($anrufbar ? '' : ' disabled aria-disabled="true"')
              .     ($anrufbar ? ' data-userid="' . (int)$in_ziel_user_id . '"'
                               . ' data-locationid="' . (int)$in_daten['id'] . '"' : '')
-             .     '>Führung starten</button>'
-             .   '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
-             .     ' data-id="' . (int)($in_anfrage['id'] ?? 0) . '">Absagen</button>'
+             .     '>' . ($laeuft ? 'Wieder einsteigen' : 'Führung starten') . '</button>'
+             .   ($laeuft ? ''
+                          : '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
+                          . ' data-id="' . (int)($in_anfrage['id'] ?? 0) . '">Absagen</button>')
              . '</div>';
     }
 

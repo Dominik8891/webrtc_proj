@@ -304,6 +304,13 @@ class WebRTCController
      * Angerufener) auf und bekommen deshalb zwingend zueinander passende
      * Rollen.
      *
+     * VOR ALLEM ANDEREN steht seit dem ausdruecklichen Beenden einer Fuehrung
+     * (migrations/017) der WIEDEREINSTIEG: Laeuft zwischen den beiden noch
+     * eine begonnene, nicht beendete Fuehrung, entscheidet DEREN Zeile ueber
+     * die Rollen - und nicht die Frage, wer gewaehlt hat. Nur so darf sich
+     * nach einem Abbruch auch der Guide zurueckmelden, ohne dass der Kunde
+     * zum Guide wird. Siehe den Kommentar im Rumpf.
+     *
      * @param int      $callerId   Wer angerufen hat
      * @param int      $calleeId   Wer angerufen wurde
      * @param int|null $locationId Standort, von dem der Anruf ausging;
@@ -315,6 +322,34 @@ class WebRTCController
     public static function callRoles($callerId, $calleeId, $locationId = null)
     {
         $fuehrung = ['caller' => self::ROLE_VIEWER, 'callee' => self::ROLE_GUIDE];
+
+        // DER WIEDEREINSTIEG IN EINE LAUFENDE FUEHRUNG - und die einzige
+        // Stelle, an der NICHT die Frage entscheidet, wer gewaehlt hat.
+        //
+        // WARUM ES SIE BRAUCHT: Bricht die Verbindung ab, soll beides gehen -
+        // der Kunde ruft noch einmal an, oder der Guide meldet sich zurueck.
+        // Mit der Regel "wer angerufen wird, fuehrt" waere im zweiten Fall der
+        // KUNDE der Guide, samt Steuerkreuz auf den Falschen und ohne Bild
+        // vom Ort.
+        //
+        // WARUM DAS NICHTS AUFWEICHT: Wer der Guide ist, steht in der Zeile
+        // der Fuehrung. Dort ist die Kennung beim Anlegen der Anfrage AUS DEM
+        // STANDORT uebernommen worden und nie behauptet worden
+        // (App\Controller\RequestController::create), die Fuehrung hat
+        // bereits begonnen, und die Zeile gilt nur, solange sie laeuft -
+        // begonnen, nicht beendet, und die Frist fuer den Wiedereinstieg
+        // laeuft noch (App\Model\TourRequest::runningSql). Niemand bekommt
+        // hier eine Rolle, die er nicht schon hatte.
+        //
+        // Die Standortkennung des Offers spielt dabei keine Rolle: Sie ist
+        // eine Behauptung des Anrufers, die Zeile ist die Aufzeichnung.
+        // Deshalb steht diese Pruefung VOR allen anderen.
+        $laufend = TourRequest::runningBetween($callerId, $calleeId);
+        if ($laufend !== null) {
+            return ((int)$calleeId === (int)$laufend['guide_user_id'])
+                ? $fuehrung
+                : ['caller' => self::ROLE_GUIDE, 'callee' => self::ROLE_VIEWER];
+        }
 
         // OHNE BEREITSCHAFT KEINE FUEHRUNG - egal auf welchem der beiden Wege
         // sie zustande kaeme. Das ist die eigentliche Sperre: Ein Standort,

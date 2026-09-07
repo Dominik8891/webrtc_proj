@@ -82,6 +82,33 @@ return [
     'call_window_after'  => 7200,    // Sekunden (2 Stunden)
 
     /**
+     * Wie lange nach dem letzten Auflegen sich WIEDER EINSTEIGEN laesst.
+     *
+     * DAS PROBLEM DAHINTER: Auflegen ist zweideutig. Es kann heissen "wir
+     * sind fertig" - oder "das Netz ist weg". Vorher galt jedes Auflegen als
+     * das Ende der Fuehrung, und gleichzeitig blieb der Startknopf beim
+     * Kunden stehen, solange das Anruffenster lief: Die Fuehrung war
+     * abgeschlossen und liess sich trotzdem beliebig oft neu starten.
+     *
+     * Beendet wird eine Fuehrung deshalb AUSDRUECKLICH vom Guide
+     * (App\Model\TourRequest::finish). Bis dahin gilt sie als unterbrochen,
+     * und beide Seiten koennen wieder einsteigen - aber nicht unbegrenzt,
+     * sonst bliebe eine vergessene Fuehrung fuer immer offen und der Kunde
+     * wuerde nie nach einer Bewertung gefragt.
+     *
+     * DIE UHR LAEUFT AB DEM LETZTEN AUFLEGEN und nicht ab dem Beginn: Sonst
+     * waere eine zweistuendige Fuehrung nach anderthalb Stunden nicht mehr zu
+     * retten. Eine halbe Stunde reicht fuer ein Funkloch, einen Akkuwechsel
+     * und einen Browserabsturz samt Neustart; laenger ist es keine
+     * Unterbrechung mehr, sondern ein neuer Termin.
+     *
+     * Ausgewertet wird die Frist in JEDER Abfrage (TourRequest::closedSql),
+     * nicht erst vom Cronjob - dieselbe Regel wie beim Ablauf einer Anfrage:
+     * Sie wirkt auch dann, wenn der Job gar nicht eingerichtet ist.
+     */
+    'rejoin_window'      => 1800,    // Sekunden (30 Minuten)
+
+    /**
      * Wann eine begonnene Fuehrung ohne Ende als beendet gilt.
      *
      * Der Beginn kommt vom Offer, das Ende vom "hangup" - beides laeuft
@@ -93,6 +120,12 @@ return [
      * Der Cronjob setzt solche Zeilen auf "durchgefuehrt" und laesst ended_at
      * leer: Das Ende ist nicht bekannt, und ein geschaetzter Zeitpunkt waere
      * eine Erfindung.
+     *
+     * DIE REISSLEINE NEBEN rejoin_window: Diese Frist greift, wenn NIE ein
+     * Auflegen ankam - dann gibt es keinen Zeitpunkt, ab dem der
+     * Wiedereinstieg zaehlen koennte, und gerechnet wird ab dem Beginn. Sie
+     * ist deshalb viel laenger: Sie muss auch die laengste Fuehrung
+     * ueberdauern.
      */
     'stale_call'         => 14400,   // Sekunden (4 Stunden)
 ];

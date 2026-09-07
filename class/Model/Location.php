@@ -459,12 +459,25 @@ class Location
                              country.country_name, city.city_name, location.id,
                              location.latitude, location.longitude,
                              location.title, location.description,
-                             location.blocked, location.blocked_reason
+                             location.blocked, location.blocked_reason,
+                             -- DIE BEWERTUNG GEHOERT DORTHIN, WO GEWAEHLT
+                             -- WIRD. Vorher stand sie nur auf der
+                             -- Standortseite - also erst, nachdem ein Kunde
+                             -- sich schon entschieden hatte, welchen Standort
+                             -- er ansieht.
+                             --
+                             -- Der Durchschnitt kommt NUR mit, wenn es genug
+                             -- Bewertungen gibt; darunter ist er NULL und die
+                             -- Zahl der Fuehrungen tritt an seine Stelle.
+                             -- Entschieden ist das in App\Model\TourReview
+                             -- und nicht hier - und auch nicht im Browser.
+                             " . TourReview::aggregateColumnsSql() . "
                       FROM location
                       LEFT JOIN user          ON location.user_id = user.id
                       LEFT JOIN guide_profile ON guide_profile.user_id = user.id
                       LEFT JOIN city          ON location.city_id = city.id
                       LEFT JOIN country       ON city.country_id = country.id
+                      " . TourReview::aggregateJoinSql('location') . "
                       WHERE user.id != :user_id" . $blocked_filter;
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt ->bindParam(":user_id", $in_user_id);
@@ -520,11 +533,19 @@ class Location
                              location.longitude,
                              location.title,
                              location.description,
-                             " . self::AVAILABILITY_SQL . " AS availability
+                             " . self::AVAILABILITY_SQL . " AS availability,
+                             -- Auch fuer den GAST. Eine Bewertung ist eine
+                             -- Auskunft ueber ein oeffentliches Angebot - sie
+                             -- steht auf der Standortseite, die ein Gast
+                             -- ebenfalls aufrufen darf, und sie verraet
+                             -- nichts ueber einzelne Konten: nur Zahlen zu
+                             -- einem Standort.
+                             " . TourReview::aggregateColumnsSql() . "
                       FROM location
                       JOIN user    ON location.user_id = user.id
                       LEFT JOIN city    ON location.city_id = city.id
                       LEFT JOIN country ON city.country_id = country.id
+                      " . TourReview::aggregateJoinSql('location') . "
                       WHERE location.blocked = 0";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->execute();
@@ -552,11 +573,18 @@ class Location
                              country.country_name, city.city_name, location.id,
                              location.latitude, location.longitude,
                              location.title, location.description,
-                             location.blocked, location.blocked_reason
+                             location.blocked, location.blocked_reason,
+                             -- Auch in der EIGENEN Liste: Der Guide soll
+                             -- sehen, was ein Kunde an dieser Stelle sieht -
+                             -- dieselbe Regel wie beim Guide-Streifen auf der
+                             -- Standortseite. Steht dort kein Durchschnitt,
+                             -- steht bei seinen Kunden auch keiner.
+                             " . TourReview::aggregateColumnsSql() . "
                       FROM location
                       LEFT JOIN user    ON location.user_id = user.id
                       LEFT JOIN city    ON location.city_id = city.id
                       LEFT JOIN country ON city.country_id = country.id
+                      " . TourReview::aggregateJoinSql('location') . "
                       WHERE user.id = :user_id";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt ->bindParam(":user_id", $in_user_id);

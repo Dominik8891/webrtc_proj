@@ -271,7 +271,13 @@ window.webrtcApp.homeMap = {
             status     : bekannt ? item.availability : 'idle',
             mine       : false,
             blocked    : false,
-            blockedReason: ''
+            blockedReason: '',
+            // DIE BEWERTUNG. Sie kommt fertig gerechnet vom Server: Der
+            // Durchschnitt fehlt (null), solange es zu wenige Bewertungen
+            // gibt - dann tritt die Zahl der Fuehrungen an seine Stelle.
+            // Entschieden ist das in App\Model\TourReview; hier wird nichts
+            // nachgerechnet und keine Schwelle wiederholt.
+            review     : this.bewertungVon(item)
         };
     },
 
@@ -319,7 +325,29 @@ window.webrtcApp.homeMap = {
             status     : status,
             mine       : !!mine,
             blocked    : gesperrt,
-            blockedReason: item.blocked_reason || ''
+            blockedReason: item.blocked_reason || '',
+            review     : this.bewertungVon(item)
+        };
+    },
+
+    /**
+     * Die Bewertungszahlen aus einer Serverzeile - in beiden Formen dieselben.
+     *
+     * Eine Stelle, damit die oeffentliche Karte und die angemeldete nicht
+     * auseinanderlaufen. Fehlen die Felder (eine aeltere Antwort, eine andere
+     * Route), bleibt es bei Nullen, und die Anzeige laesst die Zeile weg.
+     *
+     * @param {Object} item
+     * @returns {Object} { count, average, tours }
+     */
+    bewertungVon(item) {
+        return {
+            count  : parseInt(item.review_count, 10) || 0,
+            // NULL BLEIBT NULL: Es heisst "es gibt keinen Durchschnitt", und
+            // das ist etwas anderes als die Null.
+            average: (item.review_average === null || item.review_average === undefined)
+                     ? null : parseFloat(item.review_average),
+            tours  : parseInt(item.review_tours, 10) || 0
         };
     },
 
@@ -523,9 +551,36 @@ window.webrtcApp.homeMap = {
                 <p class="home-popup__place">${titel}</p>
                 ${ort ? `<p class="home-popup__country">${ort}</p>` : ''}
                 <div class="home-popup__meta">${this.popupTag(item)}</div>
+                ${this.popupReview(item)}
                 ${desc ? `<p class="home-popup__desc">${desc}</p>` : ''}
                 ${this.popupAction(item)}
             </div>`;
+    },
+
+    /**
+     * Die Bewertung im Kartenfenster.
+     *
+     * SIE STEHT UNTER DER ZUSTANDSMARKE UND UEBER DER BESCHREIBUNG: Auf der
+     * Karte waehlt ein Kunde zwischen Standorten, und "wie war es bei den
+     * anderen" gehoert zu dieser Wahl - nicht erst auf die Seite, die er
+     * aufruft, nachdem er sich schon fuer einen Standort entschieden hat.
+     *
+     * GEBAUT WIRD SIE VON assets/js/review.js, weil dieselbe Zeile auch in
+     * der Standortliste steht. Unterhalb der Schwelle steht dort kein
+     * Durchschnitt, sondern die Zahl der Fuehrungen - dieselbe Regel wie auf
+     * der Standortseite, und entschieden ist sie auf dem Server.
+     *
+     * Fehlt das Modul oder gibt es nichts zu sagen, bleibt die Zeile weg.
+     *
+     * @param {Object} item
+     * @returns {string} HTML
+     */
+    popupReview(item) {
+        const modul = window.webrtcApp.review;
+        if (!modul || !item.review) return '';
+
+        const html = modul.kurzHtml(item.review);
+        return html === '' ? '' : `<div class="home-popup__review">${html}</div>`;
     },
 
     /**

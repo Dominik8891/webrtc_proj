@@ -1,0 +1,47 @@
+/* ===========================================================================
+   Die laufende Fuehrung - der Hinweis an den Guide, dass sie noch offen ist.
+
+   WARUM SO WENIG HIER STEHT
+   -------------------------
+   Die FLAECHE dieser Karte ist .app-ask in theme.css - dieselbe wie bei der
+   Frage nach der Bewertung (assets/css/review.css). Zwei Fassungen derselben
+   Flaeche liefen beim ersten Umbau auseinander; hier steht nur, was diese
+   Karte von jener unterscheidet.
+
+   Die Farben und Abstaende kommen ausnahmslos aus den Variablen in theme.css.
+   =========================================================================== */
+
+/* Der Titel des Standorts im Einleitungssatz. Leiser als der Name des Kunden:
+   Wer gemeint ist, ist die wichtigere Angabe - der Guide weiss, wo er war. */
+.tour-ask__what {
+    color: var(--app-text-muted);
+}
+
+/* Der erklaerende Satz. Er traegt die eigentliche Auskunft - "aufgelegt heisst
+   nicht beendet" - und die verbleibende Frist. */
+.tour-ask__note {
+    margin: 0 0 var(--app-space-2);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+    line-height: var(--app-leading);
+}
+
+/* ===========================================================================
+   DIE LAUFENDE FUEHRUNG IN DER ANFRAGENLISTE
+
+   Dort taucht sie wieder auf, wenn der Guide die Karte weggeklickt hat - so
+   wie alles Verpasste in dieser Anwendung. Die Zeile bekommt eine leise
+   Hervorhebung: Sie ist die einzige in der Liste, bei der noch etwas zu tun
+   ist, und ohne sie saehe sie aus wie eine erledigte.
+   =========================================================================== */
+
+.req-item--running {
+    border-left: 3px solid var(--app-live);
+    padding-left: var(--app-space-3);
+}
+
+/* Der Hinweis unter der Zeile: wie lange der Wiedereinstieg noch offen ist. */
+.req-item__rest {
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+}

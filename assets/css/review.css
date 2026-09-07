@@ -163,79 +163,15 @@
 /* ===========================================================================
    4. DIE FRAGE NACH DEM AUFLEGEN
    ===========================================================================
-   Eine KARTE und kein Dialog, und daran haengt die halbe Gestaltung: Sie
-   legt sich unten an den Rand, sperrt die Seite nicht ab, verdunkelt nichts
-   und laesst sich wegklicken. Wer weiterlesen will, liest weiter.
+   Die FLAECHE dieser Karte steht nicht hier, sondern als .app-ask in
+   theme.css: Es gibt sie zweimal - einmal als Frage nach der Bewertung an den
+   Kunden, einmal als Hinweis an den Guide, dass eine Fuehrung noch nicht
+   beendet ist (assets/css/tour.css). Dort steht auch, warum sie unten links
+   sitzt und keine Seite absperrt.
 
-   SIE STEHT UNTEN LINKS und nicht unten rechts, obwohl rechts die
-   gewohnte Ecke waere: Dort stapeln sich die Chatfenster
-   (#chat-popup-container, theme.css) - dieselbe Ecke, dieselbe Breite. Zwei
-   Dinge an einem Platz sind eines zu viel.
-
-   IHRE EBENE liegt knapp UNTER der der Chatfenster (--app-z-overlay, 1000)
-   und weit unter der Anrufansicht (9999). Beides ist Absicht: Waehrend eines
-   Gespraechs erscheint sie ohnehin nicht (assets/js/review.js), und auf einem
-   Telefon, wo beide die volle Breite nehmen, hat das Chatfenster Vorrang - es
-   ist offen, weil jemand es geoeffnet hat. Die Frage wartet so lange dahinter.
-
-   Auf schmalen Geraeten geht sie ueber die volle Breite: Eine 360 Punkte
-   breite Karte auf einem 360 Punkte breiten Telefon waere eine Karte mit
-   Rand aus Zufall.
+   Hier steht nur, was diese Karte von jener unterscheidet: die anklickbaren
+   Sterne und das Textfeld.
    =========================================================================== */
-
-.rev-ask {
-    position: fixed;
-    left: var(--app-space-4);
-    bottom: var(--app-space-4);
-    z-index: 999;
-    width: 360px;
-    max-width: calc(100vw - 2 * var(--app-space-4));
-    padding: var(--app-space-4);
-    border: 1px solid var(--app-border);
-    border-radius: var(--app-radius-lg);
-    background: var(--app-surface-raised);
-    box-shadow: var(--app-shadow-lg);
-    animation: rev-ask-in 180ms ease-out;
-}
-
-@keyframes rev-ask-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: none; }
-}
-
-/* Wer Bewegung abgestellt hat, bekommt keine. */
-@media (prefers-reduced-motion: reduce) {
-    .rev-ask { animation: none; }
-}
-
-.rev-ask__close {
-    position: absolute;
-    top: var(--app-space-2);
-    right: var(--app-space-2);
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--app-radius);
-    background: transparent;
-    color: var(--app-text-faint);
-    font-size: 1.25rem;
-    line-height: 1;
-    cursor: pointer;
-}
-
-.rev-ask__close:hover,
-.rev-ask__close:focus-visible {
-    background: var(--app-surface-sunken);
-    color: var(--app-text);
-}
-
-.rev-ask__lead {
-    margin: 0 var(--app-space-6) var(--app-space-3) 0;
-    font-size: var(--app-text-base);
-    line-height: var(--app-leading);
-    color: var(--app-text);
-}
 
 .rev-ask__what {
     color: var(--app-text-muted);
@@ -287,26 +223,34 @@
     resize: vertical;
 }
 
-.rev-ask__actions {
-    display: flex;
-    justify-content: flex-end;
+/* ===========================================================================
+   5. DIE BEWERTUNG IN DER UEBERSICHT
+   ===========================================================================
+   Auf der Karte (Kartenfenster einer Nadel) und in der Standortliste - dort,
+   wo ein Kunde zwischen Standorten waehlt. Es ist DIESELBE Auskunft wie auf
+   der Standortseite, nur auf eine Zeile verkuerzt: Sterne und Zahl, oder -
+   unterhalb der Schwelle - "Neu" samt der Zahl der Fuehrungen.
+
+   Gebaut wird sie im Browser (assets/js/review.js, kurzHtml), weil beide
+   Ansichten ihre Zeilen dort bauen und im Takt nachziehen.
+   =========================================================================== */
+
+.rev-short {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
     gap: var(--app-space-2);
-    margin-top: var(--app-space-3);
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
 }
 
-.rev-ask__foot {
-    margin: var(--app-space-3) 0 0;
+.rev-short__value {
+    font-weight: var(--app-weight-bold);
+    color: var(--app-text);
+}
+
+/* "Neu - 3 Fuehrungen". Kein Urteil, sondern eine Tatsache: Deshalb steht sie
+   in der leisen Textfarbe und nicht als Marke, die etwas behauptet. */
+.rev-short--young {
     color: var(--app-text-faint);
-    font-size: var(--app-text-xs);
-    line-height: var(--app-leading);
-}
-
-@media (max-width: 480px) {
-    .rev-ask {
-        left: var(--app-space-3);
-        right: var(--app-space-3);
-        bottom: var(--app-space-3);
-        width: auto;
-        max-width: none;
-    }
 }

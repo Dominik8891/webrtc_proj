@@ -427,6 +427,13 @@
     flex-wrap: wrap;
 }
 
+/* Die Bewertung im Kartenfenster. Sie steht zwischen Zustandsmarke und
+   Beschreibung - dort, wo die Wahl zwischen zwei Standorten faellt. Die Form
+   der Sternreihe kommt aus review.css; hier steht nur ihr Platz. */
+.home-popup__review {
+    margin: calc(-1 * var(--app-space-2)) 0 var(--app-space-3);
+}
+
 .home-popup__guide {
     font-size: var(--app-text-xs);
     color: var(--app-text-muted);

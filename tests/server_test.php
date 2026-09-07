@@ -1408,19 +1408,40 @@ $sql = $mapDb->statements[0]->sql;
 // der Anwesenheitsstatus darf in einem CASE vorkommen - dort wird er ja
 // gerade uebersetzt, damit er die Antwort NICHT erreicht.
 check(preg_match('/SELECT(.*?)\bFROM\b/is', $sql, $t) === 1, "kein SELECT gefunden:\n$sql");
+
+// VORHER AUFRAEUMEN, sonst zaehlt der Parser Woerter mit, die keine Spalten
+// sind: Kommentare erklaeren die Auswahlliste (und enthalten Kommas), und
+// Klammerausdruecke - CASE mit TIMESTAMPDIFF, COALESCE, die gruppierten
+// Teilabfragen der Bewertung - tragen ihre eigenen. Uebrig bleibt die
+// Auswahlliste selbst, und nur ihre Ausgabenamen erreichen den Browser.
+$auswahl = preg_replace('/--[^\n]*/', '', $t[1]);
+// Klammern von innen nach aussen entfernen, bis keine mehr da sind.
+do {
+    $vorher  = $auswahl;
+    $auswahl = preg_replace('/\([^()]*\)/', ' ', $auswahl);
+} while ($auswahl !== $vorher);
+
 $spalten = [];
-foreach (explode(',', $t[1]) as $stueck) {
+foreach (explode(',', $auswahl) as $stueck) {
     // Ausgabename ist der letzte Bezeichner des Ausdrucks - mit AS oder ohne.
     if (preg_match('/([A-Za-z_][A-Za-z0-9_]*)\s*$/s', trim($stueck), $n)) {
         $spalten[] = strtolower($n[1]);
     }
 }
+$spalten = array_values(array_unique($spalten));
 sort($spalten);
 // title steht seit migrations/011 dabei: Das Kartenfenster zeigt die
 // Ueberschrift des Angebots statt nur des Ortsnamens. Er ist Inhalt des
 // Angebots wie die Beschreibung auch - keine Personenangabe.
+//
+// Die drei review_*-Spalten seit migrations/016: Sie sagen, wie ein STANDORT
+// bewertet wurde - Anzahl, Durchschnitt (nur oberhalb der Schwelle, sonst
+// NULL) und die Zahl der durchgefuehrten Fuehrungen. Ueber einzelne Konten
+// steht darin nichts, und dieselben Zahlen stehen auf der Standortseite, die
+// ein Gast ebenfalls aufrufen darf.
 $erlaubt = ['availability', 'city_name', 'country_name', 'description', 'id',
-            'latitude', 'longitude', 'title'];
+            'latitude', 'longitude', 'title',
+            'review_count', 'review_average', 'review_tours'];
 sort($erlaubt);
 check($spalten === $erlaubt,
     "die oeffentliche Karte liefert andere Spalten als erlaubt:\n  ist:      "
@@ -3615,11 +3636,22 @@ $praepariert = TourRequest::statusSql('r; DROP TABLE user');
 check(strpos($praepariert, ';') === false && strpos($praepariert, 'DROP TABLE') === false,
     "ein praeparierter Alias landet in der Abfrage: $praepariert");
 
-// Anrufbar ist eine Zusage nur im vereinbarten Fenster - und dann auch nach
-// einem Abbruch der Verbindung noch einmal ('done' zaehlt mit).
+// Anrufbar ist eine Zusage im vereinbarten Fenster - und danach nur noch,
+// solange die Fuehrung LAEUFT (begonnen und nicht beendet). Frueher stand
+// hier 'done' neben 'accepted': Eine abgeschlossene Fuehrung blieb anrufbar,
+// solange das Zeitfenster lief, und der Kunde konnte sie beliebig oft neu
+// starten. Genau das ist der behobene Fehler (migrations/017).
 $callSql = TourRequest::callableSql('r');
-check(strpos($callSql, "'accepted'") !== false && strpos($callSql, "'done'") !== false,
-    'nach einem Verbindungsabbruch laesst sich nicht zurueckrufen');
+check(strpos($callSql, "'accepted'") !== false, 'eine Zusage ist nicht anrufbar');
+// 'done' kommt im Ausdruck noch vor - aber NEGIERT, als Teil der Frage "ist
+// sie zu?". Geprueft wird deshalb, dass es die alte Aufzaehlung nicht mehr
+// gibt und dass der Abschluss ausgeschlossen wird.
+check(preg_match("/status\s+IN\s*\(\s*'accepted'\s*,\s*'done'/", $callSql) !== 1,
+    'eine abgeschlossene Fuehrung laesst sich weiterhin neu starten');
+check(preg_match('/NOT\s*\(/', $callSql) === 1,
+    'der Wiedereinstieg schliesst eine beendete Fuehrung nicht aus');
+check(strpos($callSql, 'closed_at') !== false,
+    'der Wiedereinstieg fragt nicht danach, ob beendet wurde');
 check(strpos($callSql, "'open'") === false, 'eine offene Anfrage ist anrufbar');
 check(strpos($callSql, "'declined'") === false && strpos($callSql, "'cancelled'") === false,
     'eine abgelehnte Anfrage ist anrufbar');
@@ -3639,17 +3671,28 @@ check(strpos($sql, 'customer_user_id = :customer') !== false
       && strpos($sql, 'location_id      = :location') !== false,
     "der Beginn haengt nicht am Tripel Kunde/Guide/Standort: $sql");
 
+// AUFLEGEN IST NICHT BEENDEN. Es kann heissen "wir sind fertig" - oder "das
+// Netz ist weg". Festgehalten wird deshalb nur der Zeitpunkt; der Zustand
+// bleibt 'accepted', und ab hier laeuft die Frist fuer den Wiedereinstieg.
 $fake->statements = [];
 TourRequest::markEnded(4, 3);
 $sql = $fake->statements[0]->sql;
-check(strpos($sql, "status   = 'done'") !== false, 'aus der Fuehrung wird keine durchgefuehrte');
+check(strpos($sql, 'r.ended_at = NOW()') !== false, 'das Auflegen wird nicht festgehalten');
+check(strpos($sql, "status   = 'done'") === false && strpos($sql, "= 'done'") === false,
+    "das Auflegen schliesst die Fuehrung ab: $sql");
 check(strpos($sql, 'r.started_at IS NOT NULL') !== false,
-    'ein Anruf, der nie zustande kam, gilt als durchgefuehrte Fuehrung');
+    'ein Anruf, der nie zustande kam, hinterlaesst ein Ende');
+check(strpos($sql, 'r.closed_at IS NULL') !== false,
+    'eine beendete Fuehrung bekommt ein neues Ende angehaengt');
+// UEBERSCHRIEBEN WIRD BEI JEDEM AUFLEGEN: Die Frist zaehlt ab dem LETZTEN,
+// nicht ab dem ersten.
+check(strpos($sql, 'ended_at IS NULL') === false,
+    'nach einem zweiten Auflegen laeuft die Frist weiter ab dem ersten');
 // WELCHE SEITE AUFLEGT, IST OFFEN - deshalb das Paar in beide Richtungen.
 check(substr_count($sql, 'customer_user_id') === 2 && substr_count($sql, 'guide_user_id') === 2,
     "das Paar wird nur in einer Richtung geprueft: $sql");
 check(TourRequest::markEnded(4, 4) === false, 'ein Selbstgespraech schliesst eine Fuehrung ab');
-ok('Beginn und Ende der Fuehrung werden im Signaling festgehalten');
+ok('der Beginn kommt aus dem Signaling, das Auflegen ist noch kein Ende');
 
 // --- Der Cronjob raeumt nur auf --------------------------------------------
 $fake->statements = [];
@@ -3662,10 +3705,14 @@ check(strpos($alle, "status = 'accepted'") !== false, 'die ungenutzten Zusagen b
 
 $fake->statements = [];
 TourRequest::closeStale();
-$sql = $fake->statements[0]->sql;
-check(strpos($sql, "status = 'done'") !== false, 'haengende Fuehrungen werden nicht abgeschlossen');
-check(strpos($sql, 'ended_at') !== false && strpos($sql, 'ended_at = NOW()') === false,
-    'der Cronjob erfindet ein Ende');
+check(count($fake->statements) === 2, 'es sind nicht die zwei Gruende, aus denen eine Fuehrung zugeht');
+$alle = $fake->statements[0]->sql . ' ' . $fake->statements[1]->sql;
+check(substr_count($alle, "SET status = 'done'") === 2,
+    'haengende Fuehrungen werden nicht abgeschlossen');
+check(strpos($alle, 'ended_at = NOW()') === false && strpos($alle, 'closed_at = NOW()') === false,
+    'der Cronjob erfindet ein Ende oder einen Abschluss');
+check(substr_count($alle, 'closed_at IS NULL') === 2,
+    'der Cronjob fasst beendete Fuehrungen noch einmal an');
 
 // Der Cronjob ruft beides auf - sonst waere es Code ohne Aufrufer.
 $cron = file_get_contents($ROOT . '/cron/check_online_status.php');
@@ -3675,7 +3722,8 @@ ok('der Cronjob raeumt auf, ohne ein Ende zu erfinden');
 
 // --- Die Fristen stehen an genau einer Stelle ------------------------------
 foreach (['response_timeout', 'wish_grace', 'lead_time_max',
-          'call_window_before', 'call_window_after', 'stale_call'] as $schluessel) {
+          'call_window_before', 'call_window_after', 'rejoin_window',
+          'stale_call'] as $schluessel) {
     check(isset($reqConfig[$schluessel]) && is_int($reqConfig[$schluessel]),
         "die Frist '$schluessel' fehlt in config/requests.php");
 }
@@ -3773,8 +3821,21 @@ ok('die Anfragerouten haengen an vier eigenen Rechten');
  */
 class FakeRequestStatement extends FakeUserStatement {
     public static $zusage = false;
+    /**
+     * Eine LAUFENDE Fuehrung zwischen den beiden - begonnen und nicht
+     * beendet. Sie entscheidet seit migrations/017 ueber die Rollen, damit
+     * beim Wiedereinstieg nach einem Abbruch auch der Guide waehlen darf.
+     * false heisst: keine.
+     */
+    public static $laufend = false;
     public function fetch($mode = null) {
         if (strpos($this->sql, 'FROM tour_request') !== false) {
+            // runningBetween() holt den Guide in der AUSWAHLLISTE mit - daran
+            // ist sie von der Zusagenpruefung zu unterscheiden, die nur die
+            // Kennung holt (beide nennen den Guide in der Bedingung).
+            if (strpos($this->sql, 'r.id, r.guide_user_id') !== false) {
+                return self::$laufend ?: false;
+            }
             return self::$zusage ? ['id' => 5] : false;
         }
         return parent::fetch($mode);
@@ -3801,7 +3862,8 @@ PdoConnect::$connection = $reqDb;
 
 // Ohne Zusage und ohne Bereitschaft kommt der Anruf nicht zustande - das war
 // schon vorher so und bleibt so.
-FakeRequestStatement::$zusage = false;
+FakeRequestStatement::$zusage  = false;
+FakeRequestStatement::$laufend = false;
 check(WebRTCController::callRoles(4, 6, 13) === null,
     'ein Anruf ohne Bereitschaft und ohne Zusage kommt durch');
 
@@ -4982,8 +5044,8 @@ check(strpos($reviewJs, 'localStorage') !== false,
 $requestsJs = file_get_contents($ROOT . '/assets/js/requests.js');
 check(strpos($requestsJs, 'rev-open') !== false,
     'auf der Anfragenseite laesst sich eine Bewertung nicht nachholen');
-check(preg_match('/!eingehend\s*&&\s*zustand === .done.\s*&&\s*!this\.wahr\(z\.reviewed\)/', $requestsJs) === 1,
-    'der Knopf zum Bewerten steht nicht nur beim Kunden und nur bei durchgefuehrten Fuehrungen');
+check(preg_match('/!eingehend\s*&&\s*zustand === .done.\s*&&\s*!laeuft\s*&&\s*!this\.wahr\(z\.reviewed\)/', $requestsJs) === 1,
+    'der Knopf zum Bewerten steht nicht nur beim Kunden und nur bei beendeten Fuehrungen');
 // Die Liste muss die Auskunft ueberhaupt mitbringen.
 check(strpos(file_get_contents($ROOT . '/class/Model/TourRequest.php'), 'rev.id IS NOT NULL AS reviewed') !== false,
     'die Anfragenliste weiss nicht, ob eine Fuehrung bewertet ist');
@@ -5018,6 +5080,279 @@ foreach (['removed_at', 'removed_by', 'removed_reason'] as $spalte) {
 $dump = file_get_contents($ROOT . '/database.sql');
 check(strpos($dump, '`tour_review`') !== false, 'der Dump kennt die Tabelle nicht');
 ok('die Tabelle steht in der Wanderung und im Dump');
+
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n36) Auflegen ist nicht beenden - und die Bewertung in der Uebersicht\n");
+
+$fake = new FakeConnection();
+PdoConnect::$connection = $fake;
+FakeStatement::$affected = 1;
+$reqConfig = require $ROOT . '/config/requests.php';
+
+// --- Der Guide beendet ausdruecklich --------------------------------------
+//
+// DER BEFUND: Auflegen ist zweideutig - "wir sind fertig" oder "das Netz ist
+// weg". Vorher galt jedes Auflegen als Abschluss, und der Startknopf blieb
+// trotzdem stehen: Der Kunde konnte dieselbe Fuehrung beliebig oft neu
+// starten, und die Bewertungsfrage kam, waehrend der Guide noch zurueck
+// wollte.
+$fake->statements = [];
+check(TourRequest::finish(5, 6) === true, 'die Fuehrung laesst sich nicht beenden');
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'r.closed_at = NOW()') !== false, 'der Abschluss wird nicht festgehalten');
+check(strpos($sql, "r.status    = 'done'") !== false, 'die Fuehrung wird nicht durchgefuehrt');
+// DIE ZUSTAENDIGKEIT STEHT IN DER WHERE-KLAUSEL: Eine Rechtetabelle kann
+// nicht wissen, wessen Fuehrung das ist.
+check(strpos($sql, 'r.guide_user_id  = :guide') !== false,
+    "der Guide fehlt in der Bedingung: $sql");
+check(strpos($sql, 'r.started_at IS NOT NULL') !== false,
+    'eine nie begonnene Fuehrung laesst sich beenden');
+check(strpos($sql, 'r.closed_at IS NULL') !== false,
+    'eine beendete Fuehrung laesst sich ein zweites Mal beenden');
+// ended_at IST DAS ENDE DES GESPRAECHS und nicht der Zeitpunkt dieses Klicks:
+// Er kann zehn Minuten spaeter kommen. Nur wenn nie aufgelegt wurde, wird es
+// nachgetragen.
+check(strpos($sql, 'r.ended_at  = COALESCE(r.ended_at, NOW())') !== false,
+    'das Beenden ueberschreibt das Ende des Gespraechs');
+check(TourRequest::finish(0, 6) === false && TourRequest::finish(5, 0) === false,
+    'unvollstaendige Angaben werden geschrieben');
+ok('beendet wird ausdruecklich, vom Guide, und nur einmal');
+
+// --- Beenden ist ein eigenes Recht, und nur der Guide hat es --------------
+$routen = require $ROOT . '/config/routes.php';
+check(isset($routen['request_finish'])
+      && $routen['request_finish'][2] === Permission::REQUEST_FINISH
+      && $routen['request_finish'][3] === 'json',
+    'die Route zum Beenden fehlt oder traegt das falsche Recht');
+foreach ([Role::GUIDE, Role::ADMIN] as $rolle) {
+    check(Permission::has($rolle, Permission::REQUEST_FINISH),
+        "Rolle $rolle darf keine Fuehrung beenden");
+}
+foreach ([Role::TRIAL, Role::USER] as $rolle) {
+    check(!Permission::has($rolle, Permission::REQUEST_FINISH),
+        "Rolle $rolle darf eine Fuehrung beenden, obwohl sie keine anbietet");
+}
+check(!Permission::has(Permission::GUEST, Permission::REQUEST_FINISH), 'der Gast darf beenden');
+// Es steht bei denselben Rollen wie location.offer: Wer keine Standorte
+// anbietet, fuehrt auch keine Fuehrung, die er beenden koennte.
+foreach ([Role::TRIAL, Role::USER, Role::GUIDE, Role::ADMIN] as $rolle) {
+    check(Permission::has($rolle, Permission::REQUEST_FINISH)
+          === Permission::has($rolle, Permission::LOCATION_OFFER),
+        "Rolle $rolle: request.finish und location.offer stehen nicht beieinander");
+}
+ok('beenden ist ein eigenes Recht und liegt beim Guide');
+
+// --- Der Abschluss wird GERECHNET, nicht geglaubt -------------------------
+//
+// Dieselbe Regel wie beim Ablauf einer Anfrage: Die Frist wirkt sofort und
+// auch dann, wenn der Cronjob gar nicht eingerichtet ist.
+$zu = TourRequest::closedSql('r');
+check(strpos($zu, 'r.closed_at IS NOT NULL') !== false,
+    'der ausdrueckliche Abschluss zaehlt nicht');
+check(preg_match('/DATE_ADD\(r\.ended_at, INTERVAL ' . (int)$reqConfig['rejoin_window'] . ' SECOND\)/', $zu) === 1,
+    "die Frist fuer den Wiedereinstieg steht nicht in der Abfrage: $zu");
+// DIE REISSLEINE: Kam nie ein Auflegen an, zaehlt der Beginn samt der langen
+// Frist - sie muss die laengste Fuehrung ueberdauern.
+check(preg_match('/DATE_ADD\(r\.started_at, INTERVAL ' . (int)$reqConfig['stale_call'] . ' SECOND\)/', $zu) === 1,
+    "ohne Auflegen bleibt die Fuehrung fuer immer offen: $zu");
+check((int)$reqConfig['stale_call'] > (int)$reqConfig['rejoin_window'],
+    'die Reissleine ist kuerzer als die Frist fuer den Wiedereinstieg');
+
+// LAEUFT NOCH ist das Gegenstueck: begonnen und nicht zu.
+$laeuft = TourRequest::runningSql('r');
+check(strpos($laeuft, 'r.started_at IS NOT NULL') !== false,
+    'eine nie begonnene Anfrage gilt als laufende Fuehrung');
+check(strpos($laeuft, 'NOT ') !== false, 'eine beendete Fuehrung gilt als laufend');
+
+// DURCHGEFUEHRT: begonnen UND zu. Daran haengt die Bewertung.
+$fertig = TourRequest::conductedSql('r');
+check(strpos($fertig, 'r.started_at IS NOT NULL') !== false
+      && strpos($fertig, 'closed_at') !== false,
+    'durchgefuehrt heisst nicht "begonnen und zu"');
+
+// Der gerechnete Zustand kennt den neuen Fall: begonnen, nicht beendet,
+// Frist vorbei - das ist durchgefuehrt, ohne dass jemand geklickt hat.
+$statusSql = TourRequest::statusSql('r');
+check(substr_count($statusSql, "'done'") >= 1 && strpos($statusSql, 'closed_at') !== false,
+    'eine vergessene Fuehrung wird nie durchgefuehrt');
+ok('der Abschluss wird in jeder Abfrage gerechnet - der Cronjob raeumt nur auf');
+
+// --- Bewertbar erst nach dem Beenden --------------------------------------
+//
+// Die Klammer zwischen beiden Aufgaben: Solange die Fuehrung laeuft, ist sie
+// nicht durchgefuehrt - und damit nicht bewertbar.
+$fake->statements = [];
+TourReview::create(9, 4, 5, '');
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'closed_at') !== false,
+    'eine laufende Fuehrung laesst sich bewerten');
+$fake->statements = [];
+TourReview::pendingForCustomer(4);
+check(strpos($fake->statements[0]->sql, 'closed_at') !== false,
+    'der Kunde wird gefragt, bevor der Guide beendet hat');
+ok('gefragt wird erst, wenn der Guide beendet hat');
+
+// --- Beim Wiedereinstieg entscheidet die Fuehrung ueber die Rollen --------
+//
+// Bisher galt "wer angerufen wird, fuehrt". Meldet sich nach einem Abbruch
+// der GUIDE zurueck, waere damit der Kunde der Guide - samt Steuerkreuz auf
+// den Falschen.
+$reqDb2 = new FakeRequestConnection();
+$reqDb2->users     = [4 => fakeUser(4, 1), 6 => fakeUser(6, 2, false)];
+$reqDb2->locations = [13 => fakeLocation(13, 6)];
+PdoConnect::$connection = $reqDb2;
+
+FakeRequestStatement::$zusage  = false;
+FakeRequestStatement::$laufend = ['id' => 5, 'guide_user_id' => 6,
+                                  'customer_user_id' => 4, 'location_id' => 13];
+
+// Der Kunde ruft an: unveraendert.
+check(WebRTCController::callRoles(4, 6, 13) === ['caller' => 'viewer', 'callee' => 'guide'],
+    'der Kunde bleibt beim Wiedereinstieg nicht Zuschauer');
+// Der GUIDE ruft an - und bleibt Guide.
+check(WebRTCController::callRoles(6, 4, 13) === ['caller' => 'guide', 'callee' => 'viewer'],
+    'meldet sich der Guide zurueck, wird der Kunde zum Guide');
+// OHNE STANDORTKENNUNG geht es auch: Die Zeile ist die Aufzeichnung, die
+// Kennung im Offer nur eine Behauptung.
+check(WebRTCController::callRoles(6, 4, null) === ['caller' => 'guide', 'callee' => 'viewer'],
+    'der Wiedereinstieg haengt an der Behauptung des Anrufers');
+
+// OHNE LAUFENDE FUEHRUNG bleibt alles beim Alten: Wer nichts anbietet und
+// nicht bereit ist, wird nicht zum Guide erklaert.
+FakeRequestStatement::$laufend = false;
+check(WebRTCController::callRoles(6, 4, 13) === null,
+    'ohne laufende Fuehrung darf der Guide den Kunden anrufen');
+FakeRequestStatement::$zusage = false;
+PdoConnect::$connection = $fake;
+ok('beim Wiedereinstieg entscheidet die Aufzeichnung, nicht wer gewaehlt hat');
+
+// --- Der Zaehler der Kopfleiste zaehlt die offene Fuehrung mit ------------
+$fake->statements = [];
+FakeStatement::$row = ['incoming_open' => 1, 'outgoing_accepted' => 0, 'tours_running' => 2];
+$zahlen = TourRequest::counters(6);
+check($zahlen['tours_running'] === 2, 'die offenen Fuehrungen fehlen im Zaehler');
+FakeStatement::$row = false;
+check(strpos($fake->statements[0]->sql, 'tours_running') !== false,
+    'der Zaehler fragt die offenen Fuehrungen nicht ab');
+
+$viewHelper = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
+check(strpos($viewHelper, 'tours_running') !== false,
+    'die Kopfleiste kennt die offenen Fuehrungen nicht');
+$requestsJs2 = file_get_contents($ROOT . '/assets/js/requests.js');
+check(strpos($requestsJs2, 'tours_running') !== false,
+    'der Zaehler im Browser kennt die offenen Fuehrungen nicht');
+ok('eine nicht beendete Fuehrung steht im Zaehler der Kopfleiste');
+
+// --- Die Karte nach dem Auflegen, beim Guide ------------------------------
+$heartbeat2 = methodenRumpf(stripPhpNoise(file_get_contents($ROOT . '/class/Controller/UserController.php')), 'heartbeat');
+check(strpos($heartbeat2, 'TourRequest::runningForGuide') !== false,
+    'der Heartbeat traegt die laufende Fuehrung nicht mit');
+$tourJs = file_get_contents($ROOT . '/assets/js/tour.js');
+check(strpos(file_get_contents($ROOT . '/assets/js/signaling.js'), 'sync(daten.tour)') !== false,
+    'die Antwort des Heartbeats erreicht das Fuehrungsmodul nicht');
+check(strpos($tourJs, 'request_finish') !== false, 'die Karte beendet nichts');
+check(strpos($tourJs, 'imGespraech()') !== false,
+    'die Karte kommt auch mitten im Gespraech');
+check(strpos($tourJs, 'notify.confirm') !== false, 'das Beenden fragt nicht nach');
+// Der Wiedereinstieg vom Guide aus - mit Standortkennung, wie ueberall.
+check(strpos($tourJs, 'rtc.startCall') !== false, 'der Guide kann nicht wieder einsteigen');
+check(strpos($tourJs, 'data-locationid') !== false,
+    'der Wiedereinstieg verliert die Standortkennung');
+// Und der Knopf steht auch auf der Anfragenseite - dort, wo alles Verpasste
+// wieder auftaucht.
+check(strpos($requestsJs2, 'tour-finish') !== false,
+    'auf der Anfragenseite laesst sich nichts beenden');
+check(strpos($requestsJs2, 'Wieder einsteigen') !== false,
+    'auf der Anfragenseite fehlt der Wiedereinstieg');
+// Beide Karten teilen sich EINE Flaeche - zwei Fassungen liefen auseinander.
+check(strpos(file_get_contents($ROOT . '/assets/css/theme.css'), '.app-ask {') !== false,
+    'die Karte am Rand hat keine gemeinsame Form');
+foreach (['assets/js/review.js', 'assets/js/tour.js'] as $modul) {
+    check(strpos(file_get_contents($ROOT . '/' . $modul), 'app-ask') !== false,
+        "$modul baut seine eigene Kartenform");
+}
+ok('nach dem Auflegen fragt die Karte den Guide - beenden oder zurueck');
+
+// --- Die Bewertung dort, wo gewaehlt wird ---------------------------------
+//
+// Auf der Karte und in der Standortliste - nicht erst auf der Seite, die ein
+// Kunde aufruft, nachdem er sich schon entschieden hat.
+$fake->statements = [];
+(new Location())->selectAllLocations(3);
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'review_average') !== false && strpos($sql, 'review_count') !== false
+      && strpos($sql, 'review_tours') !== false,
+    'die Standortliste bekommt keine Bewertung');
+// EINE gruppierte Teilabfrage und kein Ausdruck je Zeile: Bei fuenfzig Nadeln
+// waeren das sonst fuenfzig Abfragen, alle fuenfzehn Sekunden.
+check(substr_count($sql, 'GROUP BY') === 2,
+    "die Bewertung wird nicht in zwei gruppierten Teilabfragen geholt: $sql");
+// DIE SCHWELLE STEHT IM SQL: Unterhalb kommt gar kein Durchschnitt heraus.
+check(preg_match('/>=\s*' . TourReview::MIN_FOR_AVERAGE . '\s*THEN ROUND/', $sql) === 1,
+    "die Schwelle steht nicht in der Abfrage: $sql");
+
+$fake->statements = [];
+(new Location())->selectPublicMapLocations();
+check(strpos($fake->statements[0]->sql, 'review_average') !== false,
+    'die oeffentliche Karte bekommt keine Bewertung');
+
+// Der Browser rechnet nichts nach - er kennt die Schwelle nicht einmal.
+$reviewJs2 = file_get_contents($ROOT . '/assets/js/review.js');
+check(strpos($reviewJs2, 'kurzHtml') !== false, 'es gibt keine kurze Fassung fuer die Uebersicht');
+check(strpos($reviewJs2, 'MIN_FOR_AVERAGE') === false
+      && !preg_match('/>=\s*' . TourReview::MIN_FOR_AVERAGE . '\s*\)/', $reviewJs2),
+    'die Schwelle steht ein zweites Mal in JavaScript');
+check(strpos(file_get_contents($ROOT . '/assets/js/home_map.js'), 'kurzHtml') !== false,
+    'das Kartenfenster zeigt keine Bewertung');
+
+// Die Standortliste bekommt eine EIGENE, SORTIERBARE Spalte - sie ist die
+// Ansicht "zum Durchsuchen und Sortieren".
+$tabelleJs = file_get_contents($ROOT . '/assets/js/locations_table.js');
+check(strpos($tabelleJs, "'review'") !== false, 'die Standortliste hat keine Bewertungsspalte');
+check(strpos($tabelleJs, 'data-order') !== false,
+    'sortiert wird ueber die Sterne im Text statt ueber den Zahlenwert');
+// Unbewertete Standorte landen am Ende und nicht zwischen den schlecht
+// bewerteten: "noch keine Bewertung" ist nicht "schlecht bewertet".
+check(strpos($tabelleJs, '-1') !== false, 'unbewertete Standorte mischen sich unter die Bewerteten');
+// Kopfzeile und Zeilenaufbau muessen zusammenpassen - das prueft das Modul
+// selbst, aber ein vergessenes <th> faellt hier schon auf.
+foreach ([['assets/html/locations_table.html', 8], ['assets/html/settings.html', 7]] as $paar) {
+    [$datei, $erwartet] = $paar;
+    $kopf = file_get_contents($ROOT . '/' . $datei);
+    check(strpos($kopf, '<th>Bewertung</th>') !== false, "$datei hat keine Bewertungsspalte");
+}
+ok('die Bewertung steht dort, wo zwischen Standorten gewaehlt wird');
+
+// --- Auf der Standortseite steht "Wieder einsteigen" ----------------------
+//
+// "Führung starten" bei einer Fuehrung, die gerade laeuft, liest sich wie ein
+// zweiter Termin. Und zurueckziehen laesst sie sich nicht mehr - was
+// stattgefunden hat, wird nicht nachtraeglich zu "abgebrochen".
+$laufendeAnfrage = ['id' => 5, 'status' => 'accepted', 'callable' => 1,
+                    'running' => 1, 'wish_in' => -600];
+$html = LocationView::anfrageZustandHtml($laufendeAnfrage, ['id' => 7, 'availability' => 'live'], 6);
+check(strpos($html, 'Wieder einsteigen') !== false,
+    'bei einer laufenden Fuehrung steht "Führung starten"');
+check(strpos($html, 'loc-req-cancel') === false,
+    'eine laufende Fuehrung laesst sich vom Kunden zurueckziehen');
+
+$offeneAnfrage = ['id' => 5, 'status' => 'accepted', 'callable' => 1,
+                  'running' => 0, 'wish_in' => 60];
+$html = LocationView::anfrageZustandHtml($offeneAnfrage, ['id' => 7, 'availability' => 'live'], 6);
+check(strpos($html, 'Führung starten') !== false, 'der erste Start heisst nicht "starten"');
+check(strpos($html, 'loc-req-cancel') !== false,
+    'eine noch nicht begonnene Zusage laesst sich nicht absagen');
+ok('der Knopf sagt, ob gestartet oder wieder eingestiegen wird');
+
+// --- Die Wanderung ---------------------------------------------------------
+$wanderung17 = file_get_contents($ROOT . '/migrations/017_fuehrung_beenden.sql');
+check(strpos($wanderung17, 'closed_at') !== false, 'die Wanderung legt closed_at nicht an');
+check(strpos($wanderung17, 'information_schema') !== false,
+    'die Wanderung ist nicht idempotent');
+check(strpos(file_get_contents($ROOT . '/database.sql'), '`closed_at`') !== false,
+    'der Dump kennt closed_at nicht');
+ok('closed_at steht in der Wanderung und im Dump');
 
 
 PdoConnect::$connection = new FakeConnection();

@@ -46,7 +46,7 @@ window.webrtcApp.requests = {
     REFRESH_MS: 15000,
 
     /** Zuletzt bekannte Zahlen des Zaehlers. */
-    counts: { incoming_open: 0, outgoing_accepted: 0 },
+    counts: { incoming_open: 0, outgoing_accepted: 0, tours_running: 0 },
 
     /** Timer der Anfragenseite. */
     refreshTimer: null,
@@ -69,7 +69,8 @@ window.webrtcApp.requests = {
         if (window.requestCounts) {
             this.counts = {
                 incoming_open:     parseInt(window.requestCounts.incoming_open, 10) || 0,
-                outgoing_accepted: parseInt(window.requestCounts.outgoing_accepted, 10) || 0
+                outgoing_accepted: parseInt(window.requestCounts.outgoing_accepted, 10) || 0,
+                tours_running:     parseInt(window.requestCounts.tours_running, 10) || 0
             };
         }
         this.renderBadge();
@@ -103,11 +104,18 @@ window.webrtcApp.requests = {
 
         const neu = {
             incoming_open:     parseInt(zahlen.incoming_open, 10) || 0,
-            outgoing_accepted: parseInt(zahlen.outgoing_accepted, 10) || 0
+            outgoing_accepted: parseInt(zahlen.outgoing_accepted, 10) || 0,
+            tours_running:     parseInt(zahlen.tours_running, 10) || 0
         };
 
         const mehrEingehend = neu.incoming_open     > this.counts.incoming_open;
         const mehrZusagen   = neu.outgoing_accepted > this.counts.outgoing_accepted;
+        // Eine neu hinzugekommene laufende Fuehrung wird NICHT gemeldet: Sie
+        // entsteht in dem Moment, in dem das Gespraech beginnt - eine Meldung
+        // darueber waere die Auskunft "Sie telefonieren gerade". Der Zaehler
+        // zeigt sie trotzdem, und die Karte nach dem Auflegen sagt es
+        // (assets/js/tour.js).
+        const mehrFuehrungen = neu.tours_running > this.counts.tours_running;
 
         this.counts = neu;
         this.renderBadge();
@@ -115,7 +123,7 @@ window.webrtcApp.requests = {
         // Auf der Anfragenseite selbst genuegt die Liste - dort steht die
         // neue Zeile ohnehin gleich da.
         if (window.requestsPage) {
-            if (mehrEingehend || mehrZusagen) this.load();
+            if (mehrEingehend || mehrZusagen || mehrFuehrungen) this.load();
             return;
         }
 
@@ -158,24 +166,21 @@ window.webrtcApp.requests = {
         const knopf = document.getElementById('requests-badge');
         if (!knopf) return;
 
-        const ein  = this.counts.incoming_open;
-        const aus  = this.counts.outgoing_accepted;
-        const summe = ein + aus;
+        const ein   = this.counts.incoming_open;
+        const aus   = this.counts.outgoing_accepted;
+        const offen = this.counts.tours_running;
+        const summe = ein + aus + offen;
 
         knopf.setAttribute('data-incoming', String(ein));
         knopf.setAttribute('data-outgoing', String(aus));
+        knopf.setAttribute('data-running',  String(offen));
         knopf.classList.toggle('app-requests--on', summe > 0);
 
-        let titel = 'Ihre Anfragen';
-        if (ein > 0 && aus > 0) {
-            titel = ein + ' Anfrage(n) warten auf Ihre Antwort, '
-                  + aus + ' Ihrer Anfragen wurde(n) angenommen';
-        } else if (ein > 0) {
-            titel = ein + ' Anfrage(n) warten auf Ihre Antwort';
-        } else if (aus > 0) {
-            titel = aus + ' Ihrer Anfragen wurde(n) angenommen';
-        }
-        knopf.setAttribute('title', titel);
+        const teile = [];
+        if (ein > 0)   teile.push(ein + ' Anfrage(n) warten auf Ihre Antwort');
+        if (aus > 0)   teile.push(aus + ' Ihrer Anfragen wurde(n) angenommen');
+        if (offen > 0) teile.push(offen + ' Führung(en) sind noch nicht beendet');
+        knopf.setAttribute('title', teile.length ? teile.join(', ') : 'Ihre Anfragen');
 
         const zahl = document.getElementById('requests-count');
         if (zahl) {
@@ -266,14 +271,25 @@ window.webrtcApp.requests = {
         const titel   = this.titelVon(z);
         const wer     = z.partner_name ? this.esc(z.partner_name) : 'Unbekannt';
 
-        return '<li class="req-item req-item--' + this.esc(zustand) + '" data-id="' + (parseInt(z.id, 10) || 0) + '">'
+        // LAEUFT NOCH: begonnen und nicht beendet. Der Server rechnet das aus
+        // (App\Model\TourRequest::runningSql) - hier wird es nur gezeigt. Die
+        // Zeile bekommt dafuer eine eigene Marke: Sie ist die einzige in der
+        // Liste, bei der noch etwas zu tun ist.
+        const laeuft = this.wahr(z.running);
+
+        return '<li class="req-item req-item--' + this.esc(zustand)
+             +   (laeuft ? ' req-item--running' : '')
+             +   '" data-id="' + (parseInt(z.id, 10) || 0) + '">'
              +   '<div class="req-item__head">'
              +     '<span class="req-item__title">' + titel + '</span>'
-             +     this.zustandHtml(zustand)
+             +     (laeuft
+                    ? '<span class="app-tag app-tag--live"><span class="app-dot"></span>Läuft</span>'
+                    : this.zustandHtml(zustand))
              +   '</div>'
              +   '<p class="req-item__meta">'
              +     (eingehend ? 'Angefragt von ' : 'Ihr Guide: ') + wer
              +     ' · Wunschzeitpunkt: ' + this.esc(this.zeitText(z))
+             +     (laeuft ? '<br><span class="req-item__rest">' + this.esc(this.restText(z)) + '</span>' : '')
              +   '</p>'
              +   '<div class="app-actions req-item__actions">' + this.aktionenHtml(z, eingehend) + '</div>'
              + '</li>';
@@ -293,6 +309,7 @@ window.webrtcApp.requests = {
     aktionenHtml(z, eingehend) {
         const zustand = String(z.status || '');
         const id      = parseInt(z.id, 10) || 0;
+        const laeuft  = this.wahr(z.running);
         let html      = '';
 
         if (eingehend && zustand === 'open') {
@@ -300,14 +317,37 @@ window.webrtcApp.requests = {
                  +  '<button type="button" class="btn btn-secondary btn-sm req-decline" data-id="' + id + '">Ablehnen</button>';
         }
 
-        // Die Fuehrung startet der KUNDE, wie bisher: Er ruft an, der Guide
-        // wird angerufen. Der Knopf traegt dieselben zwei Kennungen wie auf
-        // der Standortseite - an der Standortkennung haengt beim Server die
-        // Rollenvergabe.
+        // ANRUFEN. Zwei Faelle, ein Knopf mit zwei Beschriftungen:
+        //
+        //   Der KUNDE startet die Fuehrung, wie bisher - oder steigt nach
+        //   einem Abbruch wieder ein. Angerufen wird der Guide.
+        //   Der GUIDE steigt wieder ein, und zwar nur in eine LAUFENDE
+        //   Fuehrung: Von sich aus anrufen kann er nicht, sonst waere der
+        //   Kunde im Call der Guide. Bei einer laufenden Fuehrung entscheidet
+        //   deren Zeile ueber die Rollen
+        //   (App\Controller\WebRTCController::callRoles).
+        //
+        // Wer angerufen wird, ist jeweils die andere Seite; die
+        // Standortkennung geht in beiden Faellen mit.
         if (!eingehend && this.wahr(z.callable) && z.guide_user_id) {
             html += '<button type="button" class="btn btn-success btn-sm req-call"'
                  +  ' data-userid="' + (parseInt(z.guide_user_id, 10) || 0) + '"'
-                 +  ' data-locationid="' + (parseInt(z.location_id, 10) || 0) + '">Führung starten</button>';
+                 +  ' data-locationid="' + (parseInt(z.location_id, 10) || 0) + '">'
+                 +  (laeuft ? 'Wieder einsteigen' : 'Führung starten') + '</button>';
+        }
+        if (eingehend && laeuft && z.customer_user_id) {
+            html += '<button type="button" class="btn btn-secondary btn-sm req-call"'
+                 +  ' data-userid="' + (parseInt(z.customer_user_id, 10) || 0) + '"'
+                 +  ' data-locationid="' + (parseInt(z.location_id, 10) || 0) + '">Wieder einsteigen</button>';
+        }
+
+        // BEENDEN - nur der Guide, und nur bei einer laufenden Fuehrung.
+        // Auflegen tut das nicht: Es kann "wir sind fertig" heissen oder "das
+        // Netz ist weg", und nur der Guide weiss, welches von beidem. Bis er
+        // klickt, koennen beide wieder einsteigen.
+        if (eingehend && laeuft) {
+            html += '<button type="button" class="btn btn-primary btn-sm tour-finish"'
+                 +  ' data-id="' + id + '">Führung beenden</button>';
         }
 
         // Zuruecknehmen darf, wer beteiligt ist - solange die Fuehrung nicht
@@ -326,7 +366,7 @@ window.webrtcApp.requests = {
         // NUR DER KUNDE bewertet. Der Guide sieht in seiner Liste, was er
         // bekommen hat - aendern kann er daran nichts, und einen Knopf dafuer
         // gibt es nirgends.
-        if (!eingehend && zustand === 'done' && !this.wahr(z.reviewed)) {
+        if (!eingehend && zustand === 'done' && !laeuft && !this.wahr(z.reviewed)) {
             html += '<button type="button" class="btn btn-primary btn-sm rev-open"'
                  +  ' data-request="' + id + '"'
                  +  ' data-title="' + this.esc((z.title || '').trim()) + '"'
@@ -434,6 +474,27 @@ window.webrtcApp.requests = {
     },
 
     /**
+     * Wie lange der Wiedereinstieg noch offen steht.
+     *
+     * DIE FRIST KOMMT FERTIG GERECHNET VOM SERVER (rejoin_in, in Sekunden) -
+     * hier wird keine zweite Uhr befragt und keine Frist nachgebaut. Fehlt
+     * die Angabe, kam nie ein Auflegen an; dann laeuft die lange Reissleine,
+     * und eine Zahl waere eine Erfindung.
+     *
+     * @param {Object} z
+     * @returns {string} Unmaskiert - der Aufrufer maskiert
+     */
+    restText(z) {
+        const s = parseInt(z.rejoin_in, 10);
+        if (isNaN(s)) {
+            return 'Läuft noch. Beenden Sie sie, wenn Sie fertig sind.';
+        }
+        if (s <= 0) return 'Der Wiedereinstieg ist abgelaufen.';
+
+        return 'Wiedereinstieg noch ' + this.dauerText(s) + ' möglich.';
+    },
+
+    /**
      * Der Titel eines Standorts - mit Rueckfall auf den Ort.
      *
      * Der Standort kann geloescht sein: Die Aufzeichnung einer Fuehrung
@@ -493,6 +554,11 @@ window.webrtcApp.requests = {
      */
     bindPage() {
         document.addEventListener('click', (e) => {
+            // tour-finish steht bewusst NICHT in dieser Liste: Das Beenden
+            // gehoert zu assets/js/tour.js - dort haengt es mit der Karte
+            // nach dem Auflegen zusammen, und beide fragen dieselbe
+            // Rueckfrage. Zwei Handler fuer denselben Knopf waeren zwei
+            // Rueckfragen.
             const knopf = e.target.closest('.req-accept, .req-decline, .req-cancel, .req-call');
             if (!knopf) return;
             e.preventDefault();

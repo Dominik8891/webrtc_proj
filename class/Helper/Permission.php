@@ -254,6 +254,22 @@ class Permission
      */
     public const REQUEST_ANSWER = 'request.answer';
 
+    /**
+     * Eine begonnene Fuehrung beenden.
+     *
+     * NUR DER GUIDE, und deshalb ein eigenes Recht neben request.answer: Er
+     * ist vor Ort und weiss, ob die Fuehrung vorbei ist oder ob er gerade nur
+     * durch einen Tunnel faehrt. Der Kunde sieht in beiden Faellen dasselbe -
+     * eine abgebrochene Verbindung.
+     *
+     * Es steht bei denselben Rollen wie request.answer und location.offer:
+     * Wer keine Standorte anbietet, fuehrt auch keine Fuehrung, die er
+     * beenden koennte. Ob die einzelne Fuehrung SEINE ist, kann keine
+     * Rechtetabelle wissen; das steht in der WHERE-Klausel
+     * (App\Model\TourRequest::finish).
+     */
+    public const REQUEST_FINISH = 'request.finish';
+
     /** Die eigenen Anfragen sehen - als Kunde wie als Guide. */
     public const REQUEST_LIST = 'request.list';
 
@@ -490,6 +506,8 @@ class Permission
             self::LOCATION_DELETE_OWN,
             self::REQUEST_CREATE,
             self::REQUEST_ANSWER,
+            // Beenden gehoert zum Fuehren: Wer zusagt, schliesst auch ab.
+            self::REQUEST_FINISH,
             self::REQUEST_LIST,
             self::REQUEST_CANCEL,
             // Bewerten darf jedes angemeldete Konto: Wer eine Fuehrung
@@ -548,6 +566,8 @@ class Permission
             self::LOCATION_BLOCK,
             self::REQUEST_CREATE,
             self::REQUEST_ANSWER,
+            // Beenden gehoert zum Fuehren: Wer zusagt, schliesst auch ab.
+            self::REQUEST_FINISH,
             self::REQUEST_LIST,
             self::REQUEST_CANCEL,
             // Bewerten darf jedes angemeldete Konto: Wer eine Fuehrung

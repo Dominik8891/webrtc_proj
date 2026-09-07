@@ -163,19 +163,22 @@ class TourReview
      * liefert nur dann eine Zeile, wenn
      *
      *   1. es die Anfrage gibt,
-     *   2. sie diesem Kunden gehoert,
-     *   3. sie DURCHGEFUEHRT ist (status 'done') und
-     *   4. wirklich ein Gespraech begonnen hat (started_at gesetzt).
+     *   2. sie diesem Kunden gehoert und
+     *   3. die Fuehrung DURCHGEFUEHRT UND ZU ist
+     *      (App\Model\TourRequest::conductedSql: begonnen, und der Guide hat
+     *      beendet oder die Frist fuer den Wiedereinstieg ist verstrichen).
      *
      * Damit kommen Guide, Kunde und Standort AUS DER AUFZEICHNUNG und nicht
      * aus der Anfrage des Browsers - der steuert Sterne und Text bei, sonst
      * nichts. Ein Kunde kann so weder eine fremde Fuehrung bewerten noch eine,
      * die nie stattgefunden hat, noch einen anderen Guide eintragen.
      *
-     * 'done' wird aus der SPALTE gelesen und nicht ueber
-     * App\Model\TourRequest::statusSql() gerechnet: Der gerechnete Zustand
-     * korrigiert ausschliesslich 'open' und 'accepted' zu 'expired'. Was
-     * durchgefuehrt ist, bleibt durchgefuehrt - es laeuft nicht ab.
+     * DER ABSCHLUSS WIRD GERECHNET und nicht nur aus der Spalte gelesen: Ein
+     * Guide, der das Beenden vergisst, wuerde die Bewertung sonst bis zum
+     * naechsten Lauf des Cronjobs blockieren - und der ist womoeglich gar
+     * nicht eingerichtet. Solange die Fuehrung dagegen LAEUFT, ist sie nicht
+     * bewertbar: Der Kunde soll nicht gefragt werden, waehrend der Guide noch
+     * zurueck in die Leitung will.
      *
      * DIE ZWEITE BEWERTUNG SCHEITERT AM SCHLUESSEL. Der eindeutige Index auf
      * request_id (migrations/016) faengt sie ab, auch wenn zwei Anfragen
@@ -213,8 +216,7 @@ class TourReview
                         FROM tour_request r
                        WHERE r.id               = :request
                          AND r.customer_user_id = :customer
-                         AND r.status           = '" . TourRequest::STATUS_DONE . "'
-                         AND r.started_at IS NOT NULL";
+                         AND " . TourRequest::conductedSql('r');
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':stars',    $sterne,  \PDO::PARAM_INT);
             $stmt->bindParam(':body',     $text);
@@ -278,8 +280,7 @@ class TourReview
                         LEFT JOIN user guide     ON guide.id = r.guide_user_id
                         LEFT JOIN guide_profile  ON guide_profile.user_id = r.guide_user_id
                        WHERE r.customer_user_id = :customer
-                         AND r.status           = '" . TourRequest::STATUS_DONE . "'
-                         AND r.started_at IS NOT NULL
+                         AND " . TourRequest::conductedSql('r') . "
                          AND v.id IS NULL
                        ORDER BY r.started_at DESC
                        LIMIT 1";
@@ -362,8 +363,7 @@ class TourReview
                           WHERE v.$spalte = :id2 AND v." . self::SICHTBAR . ")  AS schnitt,
                         (SELECT COUNT(*) FROM tour_request r
                           WHERE r.$spalte = :id3
-                            AND r.status = '" . TourRequest::STATUS_DONE . "'
-                            AND r.started_at IS NOT NULL)                       AS fuehrungen";
+                            AND " . TourRequest::conductedSql('r') . ")         AS fuehrungen";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':id1', $id, \PDO::PARAM_INT);
             $stmt->bindParam(':id2', $id, \PDO::PARAM_INT);
@@ -385,6 +385,88 @@ class TourReview
             error_log('TourReview::summary: ' . $e->getMessage());
             return $leer;
         }
+    }
+
+    /**
+     * Die Bewertungszahlen JE STANDORT - als Baustein fuer fremde Abfragen.
+     *
+     * WOZU: Auf der Karte und in der Standortliste steht die Bewertung an
+     * jeder Zeile, und beide Listen holen alle Standorte auf einmal. Je Zeile
+     * eine eigene Abfrage waere bei fuenfzig Nadeln fuenfzig Abfragen - im
+     * Takt von fuenfzehn Sekunden.
+     *
+     * Der Baustein ist deshalb ein LEFT JOIN auf zwei gruppierte Abfragen:
+     * eine ueber die sichtbaren Bewertungen, eine ueber die durchgefuehrten
+     * Fuehrungen. Beide laufen einmal, nicht einmal pro Zeile.
+     *
+     * ZWEI TABELLEN, WEIL ES ZWEI AUSKUENFTE SIND: Wie viele Bewertungen es
+     * gibt, steht in `tour_review`; wie viele Fuehrungen stattgefunden haben,
+     * in `tour_request`. Die zweite ist das, was ANSTELLE eines Durchschnitts
+     * dasteht, solange es zu wenige Bewertungen gibt - und sie ist deshalb
+     * keine Zugabe, sondern der Kern der Sache.
+     *
+     * Die Aliase (rev, tours) sind fest: Sie stehen in aggregateColumnsSql()
+     * noch einmal, und die beiden gehoeren zusammen.
+     *
+     * @param string $in_alias Alias der Standorttabelle in der Abfrage
+     * @return string SQL-Fragment mit zwei LEFT JOINs
+     */
+    public static function aggregateJoinSql(string $in_alias = 'location'): string
+    {
+        $a = self::tabellenAlias($in_alias);
+
+        return "LEFT JOIN (SELECT v.location_id,
+                                  COUNT(*)      AS anzahl,
+                                  AVG(v.stars)  AS schnitt
+                             FROM tour_review v
+                            WHERE v." . self::SICHTBAR . "
+                            GROUP BY v.location_id) rev
+                       ON rev.location_id = $a.id
+                LEFT JOIN (SELECT t.location_id,
+                                  COUNT(*) AS fuehrungen
+                             FROM tour_request t
+                            WHERE " . TourRequest::conductedSql('t') . "
+                            GROUP BY t.location_id) tours
+                       ON tours.location_id = $a.id";
+    }
+
+    /**
+     * Die drei Spalten, die zu aggregateJoinSql() gehoeren.
+     *
+     * DIE SCHWELLE STEHT AUCH HIER IM SQL und nicht in der Anzeige - dieselbe
+     * Regel wie in summary(): Unterhalb von MIN_FOR_AVERAGE kommt gar kein
+     * Durchschnitt heraus, sondern NULL. Ein Wert, der einmal aus dem Modell
+     * herauskommt, erscheint irgendwann auch auf einer Seite; die Karte und
+     * die Standortliste bauen ihre Zeilen im Browser, und ein Skript, das die
+     * Schwelle selbst kennen muesste, waere die zweite Fassung derselben
+     * Regel.
+     *
+     * @return string SQL-Spaltenliste (ohne fuehrendes Komma)
+     */
+    public static function aggregateColumnsSql(): string
+    {
+        return "COALESCE(rev.anzahl, 0) AS review_count,
+                CASE WHEN COALESCE(rev.anzahl, 0) >= " . self::MIN_FOR_AVERAGE . "
+                     THEN ROUND(rev.schnitt, 1)
+                END AS review_average,
+                COALESCE(tours.fuehrungen, 0) AS review_tours";
+    }
+
+    /**
+     * Nur Buchstaben, Ziffern und Unterstriche im Tabellenalias.
+     *
+     * Der Alias kommt ausschliesslich aus diesem Projekt und nie von aussen.
+     * Er geht aber als Textbaustein in eine Abfrage, und ein Textbaustein in
+     * einer Abfrage wird geprueft - dieselbe Regel wie bei
+     * App\Model\TourRequest::alias().
+     *
+     * @param string $in_alias
+     * @return string
+     */
+    private static function tabellenAlias(string $in_alias): string
+    {
+        $sauber = preg_replace('/[^a-zA-Z0-9_]/', '', $in_alias);
+        return $sauber === '' ? 'location' : $sauber;
     }
 
     /**

@@ -264,6 +264,23 @@ class UserController
             //
             // NULL ist der Regelfall und heisst "nichts zu fragen".
             'review'            => TourReview::pendingForCustomer($user_id),
+            // UND DAS GEGENSTUECK BEIM GUIDE: die Fuehrung, die er noch
+            // beenden muss.
+            //
+            // Sie faehrt aus demselben Grund hier mit wie die Bewertung:
+            // Gefragt wird nach dem Auflegen, und auf Telefonen laedt die
+            // Seite danach neu - ein Knopf, der in diesem Moment auf dem
+            // Bildschirm stand, waere weg. Ueber den Heartbeat findet der
+            // Guide die Karte auf jeder Seite wieder.
+            //
+            // Die beiden schliessen einander aus: Solange die Fuehrung
+            // laeuft, ist sie nicht durchgefuehrt und damit nicht bewertbar
+            // (App\Model\TourRequest::runningSql gegenueber
+            // App\Model\TourReview::pendingForCustomer). Der Kunde bekommt
+            // seine Frage also erst, wenn der Guide beendet hat.
+            //
+            // NULL ist der Regelfall und heisst "nichts zu beenden".
+            'tour'              => TourRequest::runningForGuide($user_id),
         ]);
         exit;
     }

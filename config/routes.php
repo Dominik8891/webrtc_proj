@@ -223,6 +223,17 @@ return [
     'request_accept'        => [RequestController::class            , 'accept'                  , Permission::REQUEST_ANSWER         , 'json'],
     'request_decline'       => [RequestController::class            , 'decline'                 , Permission::REQUEST_ANSWER         , 'json'],
     'request_cancel'        => [RequestController::class            , 'cancel'                  , Permission::REQUEST_CANCEL         , 'json'],
+    // DIE FUEHRUNG BEENDEN - nur der Guide (Recht request.finish).
+    //
+    // Auflegen tut das NICHT mehr, und das ist der Punkt: Auflegen ist
+    // zweideutig - "wir sind fertig" oder "das Netz ist weg". Vorher galt
+    // jedes Auflegen als Abschluss, der Startknopf beim Kunden blieb dabei
+    // stehen, und die Fuehrung liess sich beliebig oft neu starten. Jetzt
+    // gilt sie bis zu diesem Aufruf als unterbrochen: Beide Seiten koennen
+    // wieder einsteigen, bis die Frist aus config/requests.php verstrichen
+    // ist (rejoin_window). Erst danach verschwindet der Startknopf, und erst
+    // danach wird die Bewertung faellig.
+    'request_finish'        => [RequestController::class            , 'finish'                  , Permission::REQUEST_FINISH         , 'json'],
     'get_requests'          => [RequestController::class            , 'getRequests'             , Permission::REQUEST_LIST           , 'json'],
     // Die Seite, auf der beide Seiten ihren Stand sehen. Der Zaehler dorthin
     // steht in der Kopfleiste, also auf jeder Seite: Eine Anfrage, die der

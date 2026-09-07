@@ -18,7 +18,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 * **High-Security:** * Passwort-Hashing mit individuellem **Pepper**.
     * **Zwei-Faktor-Authentifizierung (2FA/TOTP)** inklusive QR-Code-Generierung.
     * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP.
-* **Anfrage, Führung, Bewertung:** Am Anfang steht eine Anfrage mit Wunschzeitpunkt, die der Guide annimmt oder ablehnt; nach der Führung wird der Kunde gefragt, wie sie war — Sterne plus freiwilliger Text, **nur in diese Richtung**. Ein Durchschnitt erscheint erst ab drei Bewertungen; darunter steht die Zahl der durchgeführten Führungen statt einer Zahl, die wie ein Urteil aussieht. Details unter [Bewertungen](#-bewertungen).
+* **Anfrage, Führung, Bewertung:** Am Anfang steht eine Anfrage mit Wunschzeitpunkt, die der Guide annimmt oder ablehnt; **beendet** wird die Führung ausdrücklich vom Guide (bis dahin können beide nach einem Verbindungsabbruch wieder einsteigen), und danach wird der Kunde gefragt, wie sie war — Sterne plus freiwilliger Text, **nur in diese Richtung**. Ein Durchschnitt erscheint erst ab drei Bewertungen; darunter steht die Zahl der durchgeführten Führungen statt einer Zahl, die wie ein Urteil aussieht. Details unter [Bewertungen](#-bewertungen).
 * **Rollen- und Rechtesystem:** Vier Rollen (Trial, User, Guide, Admin) mit **benannten Rechten ohne Vererbung und ohne Rangfolge**. Jede Route in `config/routes.php` trägt ihr Recht als Pflichtfeld; `index.php` prüft es, bevor der Controller läuft. Details unten unter [Berechtigungen](#-berechtigungen). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide, Zuschauer oder — bei einem Direktanruf aus der Benutzerverwaltung — Peer; der Client kann sie sich nicht selbst geben. Entscheidend ist, woher der Anruf kam: Von einem Standort aus führt der Angerufene, auch wenn er Admin ist, und der Zuschauer sendet dabei weder Bild noch Ton. Bei einem Direktanruf mit einem Admin gibt es nichts zu steuern, dort läuft die Übertragung in beide Richtungen.
 
 ---
@@ -54,13 +54,16 @@ mariadb -u <user> -p <datenbank> < migrations/013_anfragen.sql
 mariadb -u <user> -p <datenbank> < migrations/014_verfuegbarkeitszeiten.sql
 mariadb -u <user> -p <datenbank> < migrations/015_guide_profil.sql
 mariadb -u <user> -p <datenbank> < migrations/016_bewertungen.sql
+mariadb -u <user> -p <datenbank> < migrations/017_fuehrung_beenden.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)). Alle sind idempotent und löschen nichts.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)), `017` ergänzt `tour_request.closed_at`: Der Guide **beendet die Führung ausdrücklich**, statt dass das Auflegen sie abschließt (siehe [Auflegen ist nicht beenden](#auflegen-ist-nicht-beenden)). Alle sind idempotent und löschen nichts.
 
 **Nach `011` braucht die Anwendung ein Ablageverzeichnis für Bilder**, sonst lässt sich kein Bild hochladen; alles andere läuft unverändert weiter. Siehe [Bilder](#bilder-ablage-formate-größen).
 
 **Nach `013` beginnt die Aufzeichnung bei null.** Vergangene Führungen sind nirgends festgehalten und lassen sich nicht nachtragen — es gab dafür keinen Datensatz, und genau deshalb gibt es die Tabelle.
+
+**Nach `017` gilt keine bestehende Führung als offen.** Alle vorhandenen Zeilen bekommen `closed_at = NULL`; was schon auf `done` steht, bleibt beendet und bleibt bewertbar. Ein Nachtragen des Abschlusszeitpunkts gäbe es nicht — er wurde nie erfasst, und ein erfundener wäre schlechter als keiner.
 
 **Nach `016` ist alles unbewertet, und das bleibt eine Weile so.** Nachträglich lässt sich nichts eintragen — gefragt wird der Kunde nach dem Auflegen, und bei vergangenen Führungen ist das vorbei. Bewertbar sind sie trotzdem: Jede durchgeführte Führung steht beim Kunden auf der Anfragenseite, solange sie unbewertet ist. Bis drei Bewertungen zusammenkommen, steht bei einem Guide **kein Durchschnitt**, sondern die Zahl seiner Führungen — siehe [Bewertungen](#-bewertungen).
 
@@ -488,7 +491,8 @@ Alle in `config/requests.php`, und dort stehen sie **einmal**:
 | `wish_grace` | 15 Min | wie lange nach dem Wunschzeitpunkt eine offene Anfrage noch gilt |
 | `lead_time_max` | 14 Tage | wie weit im Voraus sich anfragen lässt |
 | `call_window_before` / `_after` | 15 Min / 2 Std | das Zeitfenster um den Wunschzeitpunkt, in dem eine Zusage anrufbar ist |
-| `stale_call` | 4 Std | wann eine begonnene Führung ohne Ende als beendet gilt |
+| `rejoin_window` | 30 Min | wie lange nach dem letzten Auflegen sich wieder einsteigen lässt |
+| `stale_call` | 4 Std | Reißleine: wann eine begonnene Führung ohne jedes Auflegen als beendet gilt |
 
 Eine offene Anfrage läuft ab, **wenn einer der beiden Gründe eintritt** — der
 frühere gewinnt: Eine Anfrage für „jetzt sofort" ist eine Viertelstunde später
@@ -496,6 +500,49 @@ gegenstandslos, eine für nächsten Samstag verfällt nach der Antwortfrist stat
 eine Woche offen zu stehen. Der Ablaufzeitpunkt wird beim Anlegen gerechnet und
 steht in der Zeile; er bleibt damit nachvollziehbar, auch wenn jemand die
 Konfiguration ändert.
+
+### Auflegen ist nicht beenden
+
+**Der Befund.** Auflegen ist zweideutig: Es kann „wir sind fertig" heißen — oder „das Netz ist weg". Bisher galt jedes Auflegen als Abschluss (`hangup` setzte `status = 'done'`), und das hatte zwei Folgen, die beide falsch waren:
+
+1. **Der Startknopf blieb stehen.** Anrufbar war eine Führung im Zustand `accepted` *oder* `done`, solange das Zeitfenster um den Wunschzeitpunkt lief. Der Kunde konnte dieselbe Führung nach dem Auflegen beliebig oft neu starten — zwei Stunden lang.
+2. **Die Bewertung wurde sofort fällig**, obwohl die Führung womöglich nur unterbrochen war. Der Kunde bekam die Frage, während der Guide noch auf dem Weg zurück in die Leitung war.
+
+Beides ist derselbe Fehler: Ein technisches Ereignis — der Abbau einer Verbindung — wurde als fachliche Entscheidung gelesen.
+
+**Was jetzt gilt.** Das Auflegen schreibt nur noch `ended_at`, den Zeitpunkt des letzten Auflegens, und lässt den Zustand in Ruhe. **Beendet wird die Führung vom Guide, ausdrücklich** (`TourRequest::finish`, Recht `request.finish`) — er ist vor Ort und weiß, ob sie vorbei ist oder ob er gerade durch einen Tunnel fährt. Der Kunde sieht in beiden Fällen dasselbe.
+
+Erst danach steht `status` auf `done`, erst danach verschwindet der Startknopf, und erst danach wird die Bewertung fällig.
+
+**Zwei Zeitpunkte, zwei Bedeutungen** — deshalb `closed_at` neben `ended_at` und nicht statt dessen:
+
+| Spalte | Bedeutung |
+|---|---|
+| `ended_at` | wann zuletzt aufgelegt wurde — das ehrliche Ende des **Gesprächs** und die Grundlage einer späteren Abrechnung |
+| `closed_at` | wann der Guide gesagt hat, dass es vorbei ist — ein Verwaltungsakt, der zehn Minuten später kommen kann |
+
+### Wiedereinstieg — und wann er endet
+
+Solange nicht beendet ist, gilt die Führung als **unterbrochen**, und beide Seiten können wieder einsteigen. Begrenzt ist das durch `rejoin_window` (30 Minuten):
+
+* **Die Uhr läuft ab dem letzten Auflegen**, nicht ab dem Beginn — sonst wäre eine zweistündige Führung nach anderthalb Stunden nicht mehr zu retten. Ein zweites Auflegen setzt sie neu.
+* **Kam nie ein Auflegen an** (Absturz, Netz weg), gibt es keinen Zeitpunkt, ab dem sie zählen könnte. Dann greift die bestehende Reißleine `stale_call` (4 Std) ab `started_at` — sie muss die längste Führung überdauern.
+
+Ausgewertet wird das in **jeder Abfrage** (`TourRequest::closedSql`), nicht erst vom Cronjob: Eine vergessene Führung ist nach der Frist zu und damit bewertbar, auch wenn der Job gar nicht eingerichtet ist. Er schreibt nur fest, was ohnehin schon gilt — und erfindet dabei weder ein Ende noch einen Abschluss.
+
+**Beim Wiedereinstieg entscheidet die Führung über die Rollen.** Das ist die einzige Stelle, an der nicht gilt „wer angerufen wird, führt". Der Grund: Meldet sich nach einem Abbruch der *Guide* zurück, wäre der Kunde der Angerufene und damit der Guide — samt Steuerkreuz auf den Falschen. Läuft zwischen den beiden eine begonnene, nicht beendete Führung, entscheidet deren Zeile (`TourRequest::runningBetween` in `WebRTCController::callRoles`).
+
+Das weicht die Rollenvergabe nicht auf: `guide_user_id` wurde beim Anlegen der Anfrage **aus dem Standort** übernommen und nie behauptet, die Führung hat bereits begonnen, und die Zeile gilt nur, solange sie läuft. Niemand bekommt dort eine Rolle, die er nicht schon hatte.
+
+### Wo der Guide den Knopf sieht
+
+Dasselbe Muster wie bei der Bewertung, nur spiegelverkehrt — und aus demselben Grund: Auf Telefonen lädt die Seite nach dem Gespräch neu, ein Knopf, der in diesem Moment auf dem Bildschirm stand, wäre weg.
+
+1. **Eine Karte nach dem Auflegen**, über den Heartbeat (`TourRequest::runningForGuide` → `assets/js/tour.js`): „Ihre Führung mit … ist noch nicht beendet", mit *Wieder einsteigen*, *Führung beenden* und *Später*, und mit der verbleibenden Frist. Sie kommt nicht während eines Gesprächs und ist wegklickbar.
+2. **Die Anfragenseite**: Jede laufende Führung steht dort mit denselben Knöpfen und einer eigenen Marke („Läuft").
+3. **Der Zähler in der Kopfleiste** zählt sie mit. Er meint ohnehin „hier wartet etwas auf dich" — und eine nicht beendete Führung hält den Startknopf beim Kunden offen.
+
+Das Beenden fragt vorher nach: Es lässt sich nicht zurücknehmen und nimmt beiden Seiten den Wiedereinstieg.
 
 ### Die Zusage ersetzt die Bereitschaft
 
@@ -1322,11 +1369,13 @@ Deshalb:
 
 Eine geglättete Zahl (bayessches Mittel gegen einen Startwert) wäre die Alternative gewesen. Sie hätte immer eine Zahl geliefert — aber eine gerechnete, die weder Kunde noch Guide nachvollziehen kann.
 
-### Gefragt wird nach dem Auflegen
+### Gefragt wird, wenn der Guide beendet hat
+
+Nicht nach dem Auflegen: Das kann „wir sind fertig" heißen oder „das Netz ist weg", und im zweiten Fall käme die Frage, während der Guide noch zurück in die Leitung will. Bewertbar ist eine Führung erst, wenn sie **zu** ist — der Guide hat beendet, oder die Frist für den Wiedereinstieg ist verstrichen (`TourRequest::conductedSql`, siehe [Auflegen ist nicht beenden](#auflegen-ist-nicht-beenden)). Gerechnet, nicht aus der Spalte gelesen: Ein vergessener Abschluss soll die Bewertung nicht bis zum nächsten Lauf eines Cronjobs blockieren.
 
 Die Frage kommt **nicht als Dialog im Moment des Auflegens**. Auf Telefonen lädt die Seite nach dem Gesprächsende ohnehin neu (`assets/js/rtc.js`), und was in diesem Moment auf dem Bildschirm stand, wäre weg.
 
-Stattdessen fährt sie **auf dem Heartbeat mit**: Er läuft ohnehin alle zehn Sekunden, seine Antwort trägt die älteste unbewertete Führung mit (`UserController::heartbeat` → `TourReview::pendingForCustomer`), und damit übersteht die Frage jeden Seitenwechsel und jedes Neuladen. Sie erscheint höchstens zehn Sekunden später — und das ist genau der Abstand, den „nicht aufdringlich" braucht.
+Stattdessen fährt sie **auf dem Heartbeat mit** — dieselbe Bauart wie die Karte, mit der der Guide seine Führung beendet, nur spiegelverkehrt: Er läuft ohnehin alle zehn Sekunden, seine Antwort trägt die älteste unbewertete Führung mit (`UserController::heartbeat` → `TourReview::pendingForCustomer`), und damit übersteht die Frage jeden Seitenwechsel und jedes Neuladen. Sie erscheint höchstens zehn Sekunden später — und das ist genau der Abstand, den „nicht aufdringlich" braucht.
 
 **Nicht aufdringlich heißt dreierlei:**
 
@@ -1346,8 +1395,16 @@ Der **Guide** sieht in seiner Liste dieselbe Zeile mit den Sternen, die er bekom
 
 | Ort | Was dort steht |
 |---|---|
+| **Kartenfenster** einer Nadel | eine Zeile: Sterne, Zahl und Anzahl — oder „Neu · 3 Führungen" |
+| **Standortliste**, eigene sortierbare Spalte | dieselbe Zeile |
 | **Standortseite**, unter dem Guide-Streifen | Durchschnitt, Anzahl und die letzten Bewertungen **zu diesem Standort** |
 | **Guide-Profil**, zwischen "Über mich" und den Standorten | dasselbe **über alle Standorte dieses Guides**, jede Bewertung mit der Führung, um die es ging |
+
+**Karte und Liste sind der Ort, an dem gewählt wird** — nicht die Standortseite, die ein Kunde erst aufruft, nachdem er sich schon entschieden hat, welchen Standort er ansieht. Dort gilt dieselbe Regel wie überall: Unterhalb der Schwelle steht kein Durchschnitt, sondern die Zahl der durchgeführten Führungen. Entschieden ist das im SQL (`TourReview::aggregateColumnsSql`) — der Server liefert den Durchschnitt gar nicht erst mit, und der Browser kennt die Schwelle nicht einmal.
+
+Die Zahlen kommen über **zwei gruppierte Teilabfragen** in die Listen (`TourReview::aggregateJoinSql`), nicht über einen Ausdruck je Zeile: Bei fünfzig Nadeln wären das sonst fünfzig Abfragen, alle fünfzehn Sekunden.
+
+In der Standortliste ist es eine **eigene, sortierbare Spalte** — die Liste ist ausdrücklich die Ansicht „zum Durchsuchen und Sortieren". Sortiert wird über `data-order` mit dem Zahlenwert und nicht über die Sterne im Text; **unbewertete Standorte bekommen −1** und landen am Ende, statt sich zwischen die Ein-Stern-Bewertungen zu mischen: „noch keine Bewertung" ist nicht dasselbe wie „schlecht bewertet", und genau diese Verwechslung soll die Schwelle ja verhindern.
 
 Beide Blöcke baut dieselbe Klasse (`App\Helper\ReviewView`) — „wie sieht eine Bewertung aus" und „ab wann steht dort eine Zahl" wird einmal beantwortet. Gezeigt werden die **letzten fünf** Bewertungen mit Text; die besten oder die schlechtesten auszuwählen wäre eine Meinung, und Bewertungen ohne Text stehen ohnehin schon in Durchschnitt und Anzahl.
 
@@ -1392,7 +1449,7 @@ Die Nummern sind **Etiketten, keine Rangfolge**: Eine höhere Nummer bedeutet ni
 
 ### Rechte
 
-Geprüft wird nie eine Rolle, sondern immer ein **benanntes Recht** (`user.delete`, `location.block`, `chat.read`, `request.answer`, `review.create`, …). Die vollständige Zuordnung steht in `class/Helper/Permission.php`; jede Rolle führt ihre Rechte selbst auf, es gibt **keine Vererbung**. Auch "nicht angemeldet" ist dort eine Rolle (`Permission::GUEST`) mit einer ausgeschriebenen Liste.
+Geprüft wird nie eine Rolle, sondern immer ein **benanntes Recht** (`user.delete`, `location.block`, `chat.read`, `request.answer`, `request.finish`, `review.create`, …). Die vollständige Zuordnung steht in `class/Helper/Permission.php`; jede Rolle führt ihre Rechte selbst auf, es gibt **keine Vererbung**. Auch "nicht angemeldet" ist dort eine Rolle (`Permission::GUEST`) mit einer ausgeschriebenen Liste.
 
 ### Durchsetzung
 

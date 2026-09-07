@@ -225,6 +225,57 @@ class RequestController
     }
 
     /**
+     * Der Guide beendet eine begonnene Fuehrung.
+     *
+     * WARUM DAS EIN EIGENER KLICK IST: Auflegen ist zweideutig. Es kann
+     * heissen "wir sind fertig" - oder "das Netz ist weg". Vorher galt jedes
+     * Auflegen als Abschluss; der Startknopf beim Kunden blieb dabei stehen,
+     * und die Fuehrung liess sich beliebig oft neu starten. Jetzt gilt sie bis
+     * zu diesem Aufruf als UNTERBROCHEN: Beide Seiten koennen wieder
+     * einsteigen, bis die Frist aus config/requests.php verstrichen ist.
+     *
+     * WARUM DER GUIDE: Er ist vor Ort und weiss, ob die Fuehrung vorbei ist
+     * oder ob er gerade nur durch einen Tunnel faehrt. Der Kunde sieht in
+     * beiden Faellen dasselbe - eine abgebrochene Verbindung. Der Kunde kann
+     * eine begonnene Fuehrung deshalb auch nicht zuruecknehmen
+     * (App\Model\TourRequest::cancel prueft started_at).
+     *
+     * WAS DANACH GILT: Der Startknopf verschwindet, die Fuehrung zaehlt als
+     * durchgefuehrt, und der Kunde wird nach einer Bewertung gefragt
+     * (App\Model\TourReview).
+     *
+     * @return void
+     */
+    public function finish()
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            self::json(['success' => false, 'error' => 'Nur per POST.']);
+        }
+
+        $daten    = self::body();
+        $id       = (int)($daten['id'] ?? 0);
+        $guide_id = Auth::userId();
+
+        if ($id < 1) {
+            self::json(['success' => false, 'error' => 'Es fehlt die Führung.']);
+        }
+
+        if (!TourRequest::finish($id, $guide_id)) {
+            // Kein Treffer heisst: gibt es nicht, gehoert jemand anderem, hat
+            // nie begonnen oder ist schon beendet. Alles vier ergibt dieselbe
+            // Antwort - die Kennungen sind fortlaufend.
+            error_log('RequestController: Fuehrung #' . $id . ' konnte von Benutzer #'
+                . $guide_id . ' nicht beendet werden.');
+            self::json([
+                'success' => false,
+                'error'   => 'Diese Führung lässt sich nicht mehr beenden.',
+            ]);
+        }
+
+        self::json(['success' => true, 'requests' => self::listen($guide_id)]);
+    }
+
+    /**
      * Beide Listen des Aufrufers als JSON.
      *
      * BEIDE SEITEN IN EINER ANTWORT, weil ein Konto beides sein kann: Ein
