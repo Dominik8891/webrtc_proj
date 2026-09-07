@@ -1801,11 +1801,52 @@ ok('der select2-Block benutzt ausschliesslich Profilvariablen');
 // eingebauten Bedienelemente des Browsers im Dunkelprofil hell.
 check(isset($root['color-scheme']) || strpos($themeCss, 'color-scheme: light') !== false,
     'color-scheme fehlt im Grundprofil');
-// cssBlock() liest nur --variablen; color-scheme ist eine normale
-// Eigenschaft und wird deshalb direkt im Text gesucht.
 check(preg_match('/\[data-theme="dunkel"\]\s*\{[^}]*color-scheme:\s*dark/', $themeCss) === 1,
     'das Dunkelprofil setzt color-scheme nicht auf dark');
-ok('der Browser weiss, welche Grundstimmung gilt');
+
+// accent-color: WELCHE Farbe der Browser fuer die Bedienelemente nimmt, die
+// er selbst zeichnet - Kontrollkaestchen und Radioknoepfe (die Sprachauswahl
+// im Standort- und im Guide-Formular sind echte <input type="checkbox">).
+// Ohne die Angabe steht dort das Blau des Browsers, direkt neben Etiketten
+// in der Akzentfarbe.
+//
+// EINE ZEILE FUER ALLE VIER PROFILE, und genau das wird hier festgehalten:
+// var() wird an jedem Element neu aufgeloest. Eine feste Farbe an dieser
+// Stelle waere in drei von vier Profilen falsch, und ein zweiter Eintrag im
+// Dunkelprofil waere ein Wert, den niemand mit dem ersten zusammen pflegt.
+check(($root['accent-color'] ?? '') === 'var(--app-accent)',
+    'accent-color steht nicht auf der Akzentfarbe des Profils: '
+    . var_export($root['accent-color'] ?? null, true));
+$dunkelRoh = cssBlock($themeCss, '[data-theme="dunkel"] {');
+check(!isset($dunkelRoh['accent-color']),
+    'das Dunkelprofil setzt accent-color noch einmal - eine Angabe reicht, '
+    . 'var(--app-accent) aendert sich mit dem Profil');
+ok('der Browser weiss, welche Grundstimmung gilt und welche Akzentfarbe');
+
+// Markierter Text. Auch den zeichnet der Browser, und ohne Angabe in der
+// Farbe des Betriebssystems - in allen vier Profilen derselben.
+//
+// BEIDE ANGABEN werden geprueft, nicht nur der Grund: Ohne color bliebe
+// markierter Text in seiner eigenen Farbe stehen, und ein Verweis in der
+// Akzentfarbe waere auf der Akzentflaeche unsichtbar. Die beiden Variablen
+// gehoeren zusammen - --app-text-on-accent ist in jedem Profil der Ton, der
+// auf der vollen Akzentflaeche steht.
+$auswahl = cssBlock($themeCss, '::selection {');
+check(($auswahl['background'] ?? '') === 'var(--app-accent)',
+    'der Grund der Markierung kommt nicht aus der Palette');
+check(($auswahl['color'] ?? '') === 'var(--app-text-on-accent)',
+    'die Schrift der Markierung kommt nicht aus der Palette - ein Verweis '
+    . 'waere auf der Akzentflaeche unsichtbar');
+
+// Jedes Profil muss das Paar vollstaendig haben. --app-text-on-accent darf
+// dabei aus :root geerbt sein (Weiss steht auf jedem der drei hellen
+// Akzente); NICHT geerbt werden darf es im Dunkelprofil, dessen Akzent
+// heller ist als der Text darauf.
+check(isset($root['--app-text-on-accent']), '--app-text-on-accent fehlt in :root');
+check(isset($dunkelRoh['--app-text-on-accent']),
+    'das Dunkelprofil erbt --app-text-on-accent - dort steht Weiss auf '
+    . 'hellem Violett');
+ok('markierter Text traegt die Akzentfarbe, in jedem Profil lesbar');
 
 // ---------------------------------------------------------------------
 fwrite(STDERR, "\n21) Was sich nicht von selbst mitfaerbt\n");

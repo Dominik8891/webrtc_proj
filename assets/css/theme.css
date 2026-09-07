@@ -51,6 +51,26 @@
        dunklen Seite. */
     color-scheme: light;
 
+    /* Und mit WELCHER Farbe er sie zeichnet, soweit er das anbietet:
+       Kontrollkaestchen und Radioknoepfe (die Sprachauswahl im Standort- und
+       im Guide-Formular sind echte <input type="checkbox">), spaeter auch
+       <progress> und <input type="range">.
+
+       Ohne diese Zeile stand dort das Blau des Browsers - im Dunkelprofil ein
+       anderes Blau als das der Anwendung, direkt neben Etiketten in der
+       Akzentfarbe. Es war lesbar und trotzdem falsch: Der Haken ist die
+       einzige Stelle einer Auswahl, an der ueberhaupt Farbe vorkommt, und er
+       gehoerte einer fremden Palette.
+
+       EINE ZEILE FUER ALLE VIER PROFILE: var() wird an jedem Element neu
+       aufgeloest, und --app-accent aendert sich mit dem Profil. Im
+       Dunkelprofil steht deshalb keine zweite Angabe.
+
+       Weiter kommt man hier nicht - Groesse, Form und die Farbe des Hakens
+       SELBST bestimmt weiterhin der Browser. Wer mehr will, baut das
+       Kaestchen nach (so wie das Zeitraster in assets/css/location.css). */
+    accent-color: var(--app-accent);
+
     --app-bg:              #e9edf3;
     --app-surface:         #ffffff;
     --app-surface-sunken:  #f3f5f9;   /* Eingaben, Tabellenkopf, Chatgrund */
@@ -269,6 +289,24 @@ a:hover {
 :focus-visible {
     outline: 2px solid var(--app-accent);
     outline-offset: 2px;
+}
+
+/* Markierter Text. Auch das zeichnet der Browser, und ohne Angabe nimmt er
+   die Farbe des Betriebssystems - in allen vier Profilen dieselbe, und in
+   keinem die der Anwendung.
+
+   DIE BEIDEN WERTE GEHOEREN ZUSAMMEN und sind genau dafuer da: Ueberall, wo
+   in dieser Datei etwas auf der vollen Akzentflaeche liegt, steht
+   --app-text-on-accent darauf. Im Hellen ist das Weiss auf Indigo, im
+   Dunkelprofil beinahe Schwarz auf hellem Violett - beide Male mit Abstand
+   genug, um Text zu tragen.
+
+   BEIDE ANGABEN sind noetig, nicht nur der Grund: Ohne color bliebe
+   markierter Text in seiner eigenen Farbe stehen, und ein Verweis in der
+   Akzentfarbe waere auf der Akzentflaeche unsichtbar. */
+::selection {
+    background: var(--app-accent);
+    color: var(--app-text-on-accent);
 }
 
 /* Hilfsklassen, die in eigenen Templates benutzt werden. Bewusst wenige. */

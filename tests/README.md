@@ -387,7 +387,7 @@ die Tests nicht an. Das ist Absicht.
     Und der Hinweis **folgt der Wahl** — beim Klick auf eine Vorgabe wie beim
     Neuzeichnen des Formulars.
 
-## Was `server_test.php` prüft (245 Prüfungen)
+## Was `server_test.php` prüft (246 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -536,6 +536,29 @@ die Tests nicht an. Das ist Absicht.
     offene Punkt muss **sichtbar** sein, bevor jemand am gesperrten Formular
     ankommt: in `SettingsController` und über `termsOutdated` in
     `window.userCan` bis in `ui.js`.
+
+12b. **Was der Browser selbst zeichnet** (Abschnitt 20 im Skript, hinter den
+    select2-Prüfungen). Drei Angaben, die nicht an einem einzelnen Bauteil
+    hängen, sondern am ganzen Dokument:
+
+    * `color-scheme` — hell im Grundprofil, `dark` im Dunkelprofil. Ohne sie
+      bleiben Bildlaufleisten, die aufgeklappte Liste eines nativen
+      `<select>` und das Kontextmenü der Rechtschreibprüfung im Dunkelprofil
+      hell.
+    * `accent-color` — **eine** Zeile auf `:root`, und zwar
+      `var(--app-accent)`. Geprüft wird beides: dass sie da ist (sonst trägt
+      das Häkchen der Sprachauswahl das Blau des Browsers, direkt neben
+      Etiketten in der Akzentfarbe) und dass das Dunkelprofil sie **nicht**
+      noch einmal setzt — `var()` wird an jedem Element neu aufgelöst, ein
+      zweiter Eintrag wäre ein Wert, den niemand mit dem ersten zusammen
+      pflegt.
+    * `::selection` — Grund aus `--app-accent`, Schrift aus
+      `--app-text-on-accent`. **Beide** Angaben, nicht nur der Grund: Ohne
+      `color` bliebe markierter Text in seiner eigenen Farbe stehen, und ein
+      Verweis in der Akzentfarbe wäre auf der Akzentfläche unsichtbar. Dazu
+      die Bedingung, dass das Dunkelprofil `--app-text-on-accent` selbst
+      setzt und nicht aus `:root` erbt — dort stünde sonst Weiß auf hellem
+      Violett.
 
 13. **Was sich nicht von selbst mitfärbt** (Abschnitt 21 im Skript). Fünf
     Stellen, die eigene feste Farben mitbringen und dem Farbprofil nicht
