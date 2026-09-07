@@ -1530,7 +1530,13 @@ fwrite(STDERR, "\n16) Farbprofile lassen die Nadelfarben in Ruhe\n");
 $themeCss = file_get_contents($ROOT . '/assets/css/theme.css');
 
 /**
- * Schneidet einen Regelblock aus der CSS-Datei und liest seine Variablen.
+ * Schneidet einen Regelblock aus der CSS-Datei und liest seine Angaben.
+ *
+ * Gelesen wird BEIDES - eigene Variablen (--app-...) und gewoehnliche
+ * Eigenschaften (color, background-color). Die Variablen braucht die Pruefung
+ * der Farbprofile, die Eigenschaften die Pruefung der Bauteile, bei denen es
+ * gar keine Variable gibt, auf die man zeigen koennte (der Knopf im
+ * Dateifeld weiter unten).
  *
  * @param string $css
  * @param string $selektor
@@ -1541,8 +1547,18 @@ function cssBlock(string $css, string $selektor): array {
     if ($i === false) return [];
     $a = strpos($css, '{', $i);
     $b = strpos($css, "\n}", $a);
+    // Kommentare heraus, BEVOR gelesen wird. In dieser Datei stehen ganze
+    // Absaetze in den Regelbloecken, und darin kommt ein Doppelpunkt oefter
+    // vor als in den Angaben selbst ("wir gar nicht selbst zeichnen:
+    // Bildlaufleisten, ..."). Ohne dieses Entfernen liest der Ausdruck einen
+    // solchen Satz als Angabe und verschluckt dabei alles bis zum naechsten
+    // Semikolon - samt der Angaben, die dazwischen stehen.
+    $rumpf = preg_replace('#/\*.*?\*/#s', '', substr($css, $a, $b - $a));
+
+    // Eine Angabe beginnt am Zeilenanfang. Das haelt den Ausdruck davon ab,
+    // in einem Wert nach einem zweiten Doppelpunkt zu suchen (data:image/...).
     $werte = [];
-    preg_match_all('/(--[a-z0-9-]+)\s*:\s*([^;]+);/', substr($css, $a, $b - $a), $m, PREG_SET_ORDER);
+    preg_match_all('/^\s*(-{0,2}[a-z][a-z0-9-]*)\s*:\s*([^;]+);/m', $rumpf, $m, PREG_SET_ORDER);
     foreach ($m as $t) $werte[$t[1]] = trim($t[2]);
     return $werte;
 }
@@ -1792,7 +1808,7 @@ check(preg_match('/\[data-theme="dunkel"\]\s*\{[^}]*color-scheme:\s*dark/', $the
 ok('der Browser weiss, welche Grundstimmung gilt');
 
 // ---------------------------------------------------------------------
-fwrite(STDERR, "\n21) Fremde Bibliotheken folgen dem Farbprofil\n");
+fwrite(STDERR, "\n21) Was sich nicht von selbst mitfaerbt\n");
 
 // 1) DataTables Responsive. ACHTUNG: Eingebunden ist 2.4.1, und diese
 // Fassung kennt keine --dtr-Variablen - sie schreibt ihre Farben direkt in
@@ -1865,6 +1881,46 @@ check(stripos($mDunkel[1], $erwartet['dunkel']) !== false,
 check(preg_match('/\.form-select\s*\{[^}]*--bs-form-select-bg-img:\s*var\(--app-select-chevron\)/', $themeCss) === 1,
     'das Auswahlfeld benutzt die eigene Pfeilgrafik nicht');
 ok('der Pfeil traegt in beiden Profilen die Farbe von --app-text-muted');
+
+// 5) Der Knopf im Dateifeld ("Durchsuchen"). Ein <input type="file"> traegt
+// einen Knopf, den der Browser zeichnet.
+//
+// DER BEFUND
+// Bootstrap gestaltet ihn ueber ::file-selector-button, faerbt ihn aber nur
+// zur Haelfte mit: Die Schrift kommt aus --bs-body-color (hier auf --app-text
+// gelegt), der Grund aus einer eigenen Grundfarbe, die nie nachgezogen wurde.
+// Im Dunkelprofil ergab das #e4eaf2 auf #f8f9fa - rund 1,05:1, also nichts.
+//
+// Geprueft wird deshalb, dass BEIDE Farben aus der Palette kommen. Eine halb
+// nachgezogene Farbe ist genau der Fehler, der hier behoben wurde.
+$dateiKnopf = cssBlock($themeCss, 'input[type="file"]::file-selector-button');
+check($dateiKnopf !== [], 'der Knopf im Dateifeld wird gar nicht gestaltet');
+check(($dateiKnopf['color'] ?? '') === 'var(--app-text)',
+    'die Schrift des Knopfes kommt nicht aus der Palette: '
+    . var_export($dateiKnopf['color'] ?? null, true));
+check(($dateiKnopf['background-color'] ?? '') === 'var(--app-surface-sunken)',
+    'der Grund des Knopfes kommt nicht aus der Palette: '
+    . var_export($dateiKnopf['background-color'] ?? null, true));
+check(($dateiKnopf['border-color'] ?? '') === 'var(--app-border-strong)',
+    'die Kante des Knopfes kommt nicht aus der Palette');
+
+// DER SELEKTOR HAENGT AM ELEMENTTYP und nicht an .form-control: Ein Dateifeld
+// ohne die Bootstrap-Klasse waere sonst genau wieder der Fall, der hier
+// behoben wurde. Es gibt in dieser Anwendung heute nur ein sichtbares
+// Dateifeld - das naechste soll nicht davon abhaengen, dass jemand an die
+// Klasse denkt.
+check(strpos($themeCss, '.form-control::file-selector-button {') === false,
+    'die Regel haengt an der Bootstrap-Klasse statt am Elementtyp');
+
+// DER ZEIGERZUSTAND braucht die volle Selektorlaenge von Bootstrap
+// (".form-control:hover:not(:disabled):not([readonly])"). Ein kuerzerer
+// Selektor kaeme nicht dagegen an, und der Knopf spraenge beim Ueberfahren
+// auf die Bootstrap-Farbe zurueck - ein Fehler, den man nur sieht, wenn man
+// mit der Maus daraufsteht.
+check(strpos($themeCss,
+    '.form-control:hover:not(:disabled):not([readonly])::file-selector-button') !== false,
+    'der Zeigerzustand kaeme gegen Bootstrap nicht an');
+ok('der Knopf im Dateifeld nimmt beide Farben aus der Palette');
 
 // ---------------------------------------------------------------------
 fwrite(STDERR, "\n22) Die Standortlisten brechen rechtzeitig um\n");

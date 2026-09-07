@@ -2751,12 +2751,16 @@ table.dataTable td.dataTables_empty {
 }
 
 /* ---------------------------------------------------------------------------
-   Bibliotheken, die ihr Aussehen selbst mitbringen
+   Was sich nicht von selbst mitfaerbt
    ---------------------------------------------------------------------------
-   Vier Stellen, an denen eine eingebundene Bibliothek eigene feste Farben
-   setzt, die dem Farbprofil nicht gefolgt sind. Alle vier bieten dafuer
-   eigene Variablen an - es braucht also kein Ueberschreiben einzelner
-   Regeln, sondern nur die richtigen Werte.
+   Fuenf Stellen, die eigene feste Farben mitbringen und dem Farbprofil nicht
+   gefolgt sind. Die ersten drei kommen aus eingebundenen Bibliotheken und
+   bieten dafuer eigene Variablen an - dort braucht es kein Ueberschreiben
+   einzelner Regeln, sondern nur die richtigen Werte. Die letzten beiden haengen an
+   Bauteilen, die der BROWSER selbst zeichnet - dem Auswahlfeld und dem
+   Dateifeld. Dort gibt es keinen Wert, auf den man zeigen koennte: Die Farbe
+   steht als Grafik bzw. als Vorgabe im fremden Stylesheet und wird hier
+   ausgeschrieben.
 
    ZUR SPEZIFITAET
    Die Reihenfolge in assets/html/index.html ist:
@@ -2951,6 +2955,87 @@ html div.dtr-modal div.dtr-modal-background {
 .form-select {
     --bs-form-select-bg-img: var(--app-select-chevron);
     background-image: var(--app-select-chevron);
+}
+
+/* --- 5. Der Knopf im Dateifeld --------------------------------------------
+   Ein <input type="file"> traegt einen Knopf, den der Browser zeichnet
+   ("Durchsuchen", "Datei auswaehlen" - die Beschriftung kommt vom
+   Betriebssystem und laesst sich nicht aendern). Er folgte dem Farbprofil
+   nicht und war im Dunkelprofil kaum zu sehen.
+
+   WOHER DIE FARBEN KAMEN
+   Bootstrap gestaltet den Knopf ueber ::file-selector-button - aber nur zur
+   HAELFTE mitgefaerbt: Die Schrift nimmt es aus --bs-body-color, und die
+   liegt hier auf --app-text (siehe Bootstrap-Anbindung weiter oben); den
+   Grund nimmt es aus einer eigenen Grundfarbe (in 5.3 --bs-tertiary-bg), und
+   die ist nie auf einen App-Wert gelegt worden. Eine der beiden Farben folgte
+   dem Profil also, die andere blieb stehen - und die Beschriftung war nicht
+   mehr zu lesen. Gemessen im Dunkelprofil: #e4eaf2 auf #f8f9fa, also rund
+   1,05:1. Wo Bootstrap gar nicht greift - ein Feld ohne .form-control -,
+   zeichnet der Browser seinen eigenen Knopf mit Systemfarben (gemessen: weiss
+   auf #6b6b6b). Der ist lesbar, gehoert aber dem Betriebssystem und nicht
+   diesem Farbprofil: Er sieht in allen vier Profilen gleich aus.
+
+   Statt eine weitere Bootstrap-Variable nachzuziehen, stehen hier BEIDE
+   Farben. Der Knopf ist ein Bauteil dieser Anwendung, und welche Variablen
+   Bootstrap intern miteinander verrechnet, soll dafuer nicht entscheidend
+   sein: Eine halb nachgezogene Farbe ist genau der Fehler, der hier behoben
+   wird.
+
+   ZUR SPEZIFITAET
+   Bootstrap schreibt den Zeigerzustand als
+   ".form-control:hover:not(:disabled):not([readonly])::file-selector-button" -
+   drei Klassen-Anteile. Ein kuerzerer Selektor kaeme dagegen nicht an, auch
+   wenn theme.css spaeter laedt. Deshalb steht er hier in derselben Laenge;
+   bei gleicher Spezifitaet gewinnt die spaetere Datei.
+
+   GILT FUER JEDES DATEIFELD, mit und ohne .form-control: Der Selektor haengt
+   am Elementtyp und nicht an einer Klasse. Ein Feld, das jemand ohne die
+   Bootstrap-Klasse einbaut, ist sonst genau wieder der Fall, der hier
+   behoben wird. */
+input[type="file"]::file-selector-button {
+    color: var(--app-text);
+    background-color: var(--app-surface-sunken);
+    border-color: var(--app-border-strong);
+    font-family: var(--app-font);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    cursor: pointer;
+    transition: background-color var(--app-transition), color var(--app-transition);
+}
+
+.form-control:hover:not(:disabled):not([readonly])::file-selector-button,
+input[type="file"]:hover:not(:disabled)::file-selector-button {
+    background-color: var(--app-surface);
+    color: var(--app-text);
+}
+
+input[type="file"]:disabled::file-selector-button {
+    color: var(--app-text-faint);
+    background-color: var(--app-surface-sunken);
+    cursor: default;
+}
+
+/* Sobald ::file-selector-button ueberhaupt angefasst wird, gibt der Browser
+   seine eigene Zeichnung des Knopfes auf - samt Innenabstand und Rahmen. Bei
+   einem Feld MIT .form-control ist das ohne Folgen: Bootstrap bringt beides
+   mit (und einen negativen Aussenabstand, der den Knopf buendig in das Feld
+   setzt). Ohne die Klasse stuende der Knopf sonst als Flaeche ohne Kante
+   da - deshalb hier das Noetigste. Der negative Aussenabstand fehlt
+   absichtlich: Ein Feld ohne .form-control hat keinen Innenabstand, aus dem
+   sich der Knopf herausschieben duerfte. */
+input[type="file"]:not(.form-control)::file-selector-button {
+    padding: var(--app-space-1) var(--app-space-3);
+    margin-inline-end: var(--app-space-3);
+    border: 1px solid var(--app-border-strong);
+    border-radius: var(--app-radius-sm);
+}
+
+/* Der Dateiname neben dem Knopf ("Keine Datei ausgewaehlt") ist gewoehnlicher
+   Text des Feldes und folgt dessen color. .form-control setzt sie; ein Feld
+   ohne die Klasse bekommt sie hier. */
+input[type="file"]:not(.form-control) {
+    color: var(--app-text);
 }
 
 /* ---------------------------------------------------------------------------

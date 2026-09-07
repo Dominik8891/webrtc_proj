@@ -387,7 +387,7 @@ die Tests nicht an. Das ist Absicht.
     Und der Hinweis **folgt der Wahl** — beim Klick auf eine Vorgabe wie beim
     Neuzeichnen des Formulars.
 
-## Was `server_test.php` prüft (244 Prüfungen)
+## Was `server_test.php` prüft (245 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -536,6 +536,27 @@ die Tests nicht an. Das ist Absicht.
     offene Punkt muss **sichtbar** sein, bevor jemand am gesperrten Formular
     ankommt: in `SettingsController` und über `termsOutdated` in
     `window.userCan` bis in `ui.js`.
+
+13. **Was sich nicht von selbst mitfärbt** (Abschnitt 21 im Skript). Fünf
+    Stellen, die eigene feste Farben mitbringen und dem Farbprofil nicht
+    gefolgt sind: das Aufklappzeichen von DataTables Responsive (dessen
+    Regeln alle mit `html` beginnen müssen, sonst kommen sie gegen die
+    später geladene Bibliothek nicht an), das Schließkreuz von Bootstrap,
+    der Dialog, der Pfeil im Auswahlfeld — und der **Knopf im Dateifeld**.
+
+    Beim Pfeil und beim Knopf gibt es keinen Wert, auf den man zeigen
+    könnte; die Farbe steht in `theme.css` ausgeschrieben, und genau deshalb
+    prüft der Test sie gegen die Palette. Der Pfeil muss in beiden Profilen
+    den Ton von `--app-text-muted` tragen. Der Knopf im Dateifeld muss
+    **beide** Farben aus der Palette nehmen: Bootstrap färbt ihn nur zur
+    Hälfte mit (Schrift aus `--bs-body-color`, Grund aus einer eigenen
+    Grundfarbe), und im Dunkelprofil ergab das #e4eaf2 auf #f8f9fa — rund
+    1,05:1. Geprüft wird außerdem, dass die Regel am **Elementtyp** hängt
+    und nicht an `.form-control` (sonst wäre ein Dateifeld ohne die
+    Bootstrap-Klasse wieder derselbe Fall) und dass der Zeigerzustand die
+    volle Selektorlänge von Bootstrap trägt — ein kürzerer Selektor käme
+    nicht dagegen an, und der Knopf spränge beim Überfahren auf die
+    Bootstrap-Farbe zurück.
 
 24. **Chat: die Beteiligung wird geprüft** — ein Unbeteiligter schreibt nicht
     in einen fremden Chat, nimmt keine fremde Einladung an und setzt keine
