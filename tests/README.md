@@ -1100,9 +1100,14 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
       muss). Geprüft wird dabei der **Code ohne Kommentare** — die Stellen
       erklären im Kommentar, warum die alten Zähler weg sind, und nennen sie
       dabei beim Namen.
-    * **Die 2FA-Prüfung hat Zähler und Sperre**, und ihr Zähler hängt an der
-      **UserID aus der Sitzung**, nicht am Benutzernamen: Der Aufrufer kann sie
-      nicht wählen.
+    * **Die 2FA-Prüfung hat Zähler und Sperre**, geprüft *vor* der Codeprüfung,
+      und ihr Zähler hängt an der **UserID aus der Sitzung**, nicht am
+      Benutzernamen: Der Aufrufer kann sie nicht wählen. Beim Zuschlagen der
+      Sperre wird die **halbangemeldete Sitzung verworfen** (`2fa_userid` —
+      „Passwort stimmte, zweiter Faktor fehlt noch"); sie blieb bisher nach
+      jedem falschen Code unbegrenzt stehen. Der Zähler geht dabei nicht mit
+      weg — er hängt an der Tabelle, sonst wäre das Verwerfen der
+      Zurückstellknopf, den die Bremse verhindern soll.
     * **Die Registrierung zählt Formulare und angelegte Konten getrennt.**
       Beide Grenzen werden vor dem Anlegen geprüft; das Konto zählt erst
       **nach** dem erfolgreichen `register()` — sonst kostet jeder Tippfehler

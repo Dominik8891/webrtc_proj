@@ -5609,7 +5609,20 @@ check(strpos($zweiSrc, "RateLimit::zuruecksetzen('2fa'") !== false,
 // waehlen, anders als den Benutzernamen im Loginformular.
 check(preg_match('/\$teile\s*=\s*\[\s*\'konto\'\s*=>\s*\(string\)\$userId/', $zweiSrc) === 1,
     'der 2FA-Zaehler haengt nicht an der UserID');
-ok('die 2FA-Pruefung hat einen Zaehler und eine Sperre');
+// Beim Erreichen der Grenze wird die HALBANGEMELDETE SITZUNG verworfen
+// ("Passwort stimmte, zweiter Faktor fehlt noch"). Sie blieb bisher nach
+// jedem falschen Code stehen, unbegrenzt lange. Zweimal: beim Zuschlagen der
+// Sperre und beim naechsten Anlauf, der auf die laufende Sperre trifft.
+check(substr_count($zweiSrc, "unset(\$_SESSION['2fa_userid'])") === 3,
+    'die halbangemeldete Sitzung bleibt nach der Sperre stehen');
+// Geprueft wird VOR der Codepruefung, nicht danach - und zwar innerhalb der
+// Methode, sonst zaehlt eine Fundstelle aus dem 2FA-Einrichtungsweg mit.
+$verifyBlock = substr($zweiSrc, strpos($zweiSrc, 'function handle2FAVerify'));
+$verifyBlock = substr($verifyBlock, 0, strpos($verifyBlock, 'function disable2FA'));
+check(strpos($verifyBlock, "RateLimit::restsperre('2fa'") !== false
+      && strpos($verifyBlock, "RateLimit::restsperre('2fa'") < strpos($verifyBlock, '->verify('),
+    'der Code wird geprueft, bevor die Sperre geprueft wird');
+ok('die 2FA-Pruefung hat Zaehler, Sperre und verwirft die halbe Anmeldung');
 
 $signupSrc = $ohneKommentare(file_get_contents($ROOT . '/class/Controller/SignupController.php'));
 // Geprueft werden BEIDE Aktionen, bevor irgendetwas passiert - im Code eine

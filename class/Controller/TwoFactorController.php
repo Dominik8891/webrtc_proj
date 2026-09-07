@@ -213,6 +213,12 @@ class TwoFactorController
 
         $rest = RateLimit::restsperre('2fa', $teile);
         if ($rest > 0) {
+            // DIE SPERRE UEBERLEBT DAS VERWERFEN DER SITZUNG. Sie haengt an
+            // der UserID in der Tabelle, nicht an $_SESSION - wer sich nach
+            // dem Verwerfen erneut mit dem Passwort anmeldet, landet wieder
+            // hier und wird wieder abgewiesen. Sonst waere das Verwerfen
+            // weiter unten ein Weg, den Zaehler zurueckzusetzen.
+            unset($_SESSION['2fa_userid']);
             error_log("2FA-Login: gesperrt (UserID {$userId})");
             $this->outputError(
                 'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest) . ' warten.'
@@ -259,10 +265,28 @@ class TwoFactorController
         } else {
             $rest = RateLimit::verbuchen('2fa', $teile);
 
+            if ($rest > 0) {
+                // DIE HALBANGEMELDETE SITZUNG WIRD VERWORFEN, nicht nur der
+                // Versuch abgewiesen.
+                //
+                // $_SESSION['2fa_userid'] ist der Zustand "Passwort stimmte,
+                // zweiter Faktor fehlt noch". Er blieb bisher nach jedem
+                // falschen Code stehen - unbegrenzt lange und ohne Zaehler.
+                // Wer die Sperre abwartet, soll nicht dort weitermachen, wo
+                // er aufgehoert hat, sondern das Passwort erneut vorzeigen:
+                // Der halbe Zugang ist kein Zustand, in dem man verweilt.
+                //
+                // Der Zaehler geht dabei NICHT mit weg - er haengt an der
+                // UserID in der Tabelle. Sonst waere das Verwerfen genau der
+                // Zurueckstellknopf, den die Bremse verhindern soll.
+                unset($_SESSION['2fa_userid']);
+            }
+
             // Wie beim Login nennt die Meldung keine Restversuche: Das ist
             // eine Auskunft, die nur der braucht, der durchprobiert.
             $this->outputError($rest > 0
-                ? 'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest) . ' warten.'
+                ? 'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest)
+                  . ' warten und dann neu anmelden.'
                 : 'Ungültiger Code. Bitte erneut versuchen.');
         }
     }
