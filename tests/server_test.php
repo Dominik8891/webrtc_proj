@@ -12,6 +12,9 @@ require_once $ROOT . '/class/Model/PdoConnect.php';
 require_once $ROOT . '/class/Model/IceServerConfig.php';
 require_once $ROOT . '/class/Model/WebRTCHandler.php';
 require_once $ROOT . '/class/Model/TourRequest.php';
+// Die Bewertung einer Fuehrung. Nach TourRequest, weil sie sich beim
+// Schreiben auf dessen Zeile stuetzt (INSERT ... SELECT).
+require_once $ROOT . '/class/Model/TourReview.php';
 require_once $ROOT . '/class/Controller/TurnController.php';
 require_once $ROOT . '/class/Model/User.php';
 require_once $ROOT . '/class/Helper/Role.php';
@@ -30,6 +33,10 @@ require_once $ROOT . '/class/Model/GuideRole.php';
 require_once $ROOT . '/class/Model/GuideProfile.php';
 require_once $ROOT . '/class/Helper/Avatar.php';
 require_once $ROOT . '/class/Helper/GuideView.php';
+// Der Bewertungsblock. Nach GuideView, weil er dessen Monatsformatierung
+// benutzt ("Maerz 2026").
+require_once $ROOT . '/class/Helper/ReviewView.php';
+require_once $ROOT . '/class/Controller/ReviewController.php';
 require_once $ROOT . '/class/Controller/GuideProfileController.php';
 require_once $ROOT . '/class/Helper/Theme.php';
 require_once $ROOT . '/class/Helper/ViewHelper.php';
@@ -46,6 +53,7 @@ require_once $ROOT . '/class/Controller/LocationController.php';
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
 use App\Model\TourRequest;
+use App\Model\TourReview;
 use App\Model\WebRTCHandler;
 use App\Controller\TurnController;
 use App\Controller\WebRTCController;
@@ -61,6 +69,7 @@ use App\Model\GuideRole;
 use App\Model\GuideProfile;
 use App\Helper\Avatar;
 use App\Helper\GuideView;
+use App\Helper\ReviewView;
 use App\Controller\GuideProfileController;
 use App\Helper\Role;
 use App\Helper\Auth;
@@ -157,8 +166,15 @@ class FakeStatement {
     public function bindParam($k, &$v, $type = null) { $this->params[$k] = $v; }
     public function execute() { return true; }
     public function rowCount() { return self::$affected; }
-    public function fetch($mode = null) { return false; }
-    public function fetchAll($mode = null) { return []; }
+    /**
+     * Was das naechste fetch() liefert. Vorgabe false - "keine Zeile", so wie
+     * bisher; wer eine Zeile braucht, setzt sie und raeumt danach wieder auf.
+     */
+    public static $row = false;
+    /** Dasselbe fuer fetchAll(). */
+    public static $rows = [];
+    public function fetch($mode = null) { return self::$row; }
+    public function fetchAll($mode = null) { return self::$rows; }
     /** Fuer COUNT-Abfragen (LocationImage::countForLocation). */
     public function fetchColumn($i = 0) { return 0; }
 }
@@ -4672,6 +4688,337 @@ $posLoeschen  = strrpos($bildRumpf, 'deleteAvatar');
 check($posSpeichern !== false && $posZeile > $posSpeichern && $posLoeschen > $posZeile,
     'das alte Bild wird geloescht, bevor das neue eingetragen ist');
 ok('das Profil gehoert dem Angemeldeten, und das alte Bild faellt zuletzt');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n35) Bewertungen: nur nach einer Fuehrung, und nur in eine Richtung\n");
+
+// WORUM ES GEHT: Ein Kunde soll einem Fremden Geld dafuer geben, dass der ihn
+// durch eine unbekannte Stadt fuehrt. Was ANDERE Kunden erlebt haben, stand
+// nirgends. Bewertet wird deshalb nach der Fuehrung - vom Kunden, nie
+// umgekehrt, und nie ohne eine Fuehrung, die stattgefunden hat.
+
+$fake = new FakeConnection();
+PdoConnect::$connection = $fake;
+FakeStatement::$affected = 1;
+
+// --- Die Skala: ganze Sterne von 1 bis 5 ----------------------------------
+check(TourReview::STARS_MIN === 1 && TourReview::STARS_MAX === 5,
+    'die Skala ist nicht 1 bis 5');
+$sternnamen = TourReview::starNames();
+for ($i = TourReview::STARS_MIN; $i <= TourReview::STARS_MAX; $i++) {
+    check(isset($sternnamen[$i]) && $sternnamen[$i] !== '',
+        "der Stern $i hat kein Wort - \"3 von 5\" heisst fuer jeden etwas anderes");
+}
+check(TourReview::isValidStars(1) && TourReview::isValidStars(5), 'die Raender sind nicht erlaubt');
+check(!TourReview::isValidStars(0),   'null Sterne sind erlaubt');
+check(!TourReview::isValidStars(6),   'sechs Sterne sind erlaubt');
+check(!TourReview::isValidStars(-3),  'negative Sterne sind erlaubt');
+check(!TourReview::isValidStars('x'), 'Text ist eine Sternzahl');
+check(!TourReview::isValidStars(''),  'nichts ist eine Sternzahl');
+// HALBE STERNE GIBT ES NUR IN DER ANZEIGE. Ein (int) allein wuerde aus 3,5
+// klaglos eine 3 machen - eine Bewertung, die so niemand abgegeben hat.
+check(!TourReview::isValidStars(3.5), 'ein halber Stern laesst sich abgeben');
+ok('ganze Sterne von 1 bis 5, jeder mit einem Wort');
+
+// --- Bewertet wird eine FUEHRUNG, die stattgefunden hat --------------------
+//
+// Der Schreibvorgang ist ein INSERT ... SELECT aus tour_request: Guide, Kunde
+// und Standort kommen aus der Aufzeichnung und nicht aus der Anfrage des
+// Browsers. Ein Kunde kann damit weder eine fremde Fuehrung bewerten noch
+// eine, die nie stattgefunden hat, noch einen anderen Guide eintragen.
+$fake->statements = [];
+check(TourReview::create(9, 4, 5, 'War gut.') === 42, 'die Bewertung wird nicht angelegt');
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'INSERT INTO tour_review') !== false, "es ist kein INSERT: $sql");
+check(strpos($sql, 'FROM tour_request') !== false,
+    "die Bewertung stuetzt sich nicht auf die Aufzeichnung der Fuehrung: $sql");
+check(strpos($sql, "r.status           = 'done'") !== false
+      || preg_match("/r\.status\s*=\s*'done'/", $sql) === 1,
+    "eine nicht durchgefuehrte Fuehrung laesst sich bewerten: $sql");
+check(strpos($sql, 'r.started_at IS NOT NULL') !== false,
+    "eine Fuehrung ohne Gespraech laesst sich bewerten: $sql");
+check(preg_match('/customer_user_id\s*=\s*:customer/i', $sql) === 1,
+    "der Kunde fehlt in der Bedingung - fremde Fuehrungen waeren bewertbar: $sql");
+check(strpos($sql, 'r.guide_user_id') !== false && strpos($sql, ':guide') === false,
+    'der Guide kommt nicht aus der Aufzeichnung, sondern aus der Anfrage');
+check($fake->statements[0]->params[':stars'] === 5, 'die Sterne werden nicht gebunden');
+check($fake->statements[0]->params[':customer'] === 4, 'der Kunde wird nicht gebunden');
+ok('bewertet wird nur, was durchgefuehrt wurde - und nur die eigene Fuehrung');
+
+// Unbrauchbare Angaben erreichen die Datenbank gar nicht.
+$fake->statements = [];
+check(TourReview::create(0, 4, 5, '') === null, 'ohne Fuehrung wird geschrieben');
+check(TourReview::create(9, 0, 5, '') === null, 'ohne Kunden wird geschrieben');
+check(TourReview::create(9, 4, 0, '') === null, 'ohne Sterne wird geschrieben');
+check(TourReview::create(9, 4, 9, '') === null, 'neun Sterne werden geschrieben');
+check(count($fake->statements) === 0, 'unbrauchbare Angaben erzeugen ein Statement');
+ok('was die Skala nicht kennt, erreicht die Datenbank nicht');
+
+// --- Leerer Text ist NULL und nicht der Leerstring -------------------------
+//
+// "Nichts geschrieben" soll genau eine Schreibweise haben, sonst muss jede
+// Lesestelle beide kennen. Dieselbe Regel wie bei guide_profile.about.
+$fake->statements = [];
+TourReview::create(9, 4, 5, "   \n  ");
+check($fake->statements[0]->params[':body'] === null,
+    'ein leerer Text wird als Leerstring gespeichert');
+$fake->statements = [];
+TourReview::create(9, 4, 5, str_repeat('a', TourReview::BODY_MAX + 50));
+check(mb_strlen($fake->statements[0]->params[':body']) === TourReview::BODY_MAX,
+    'ein zu langer Text wird nicht zurechtgeschnitten, sondern abgewiesen');
+ok('ohne Text steht NULL, und zu viel Text wird gekuerzt statt abgewiesen');
+
+// --- WENIGE BEWERTUNGEN SIND KEIN URTEIL ----------------------------------
+//
+// Der Kern dieser Aufgabe: "1 Bewertung, 3 Sterne" sieht aus wie ein Befund
+// und ist eine einzelne Stimme. Der Durchschnitt entsteht deshalb erst ab
+// TourReview::MIN_FOR_AVERAGE - und die Entscheidung faellt im MODELL, nicht
+// in der Ansicht: Ein Wert, der einmal herauskommt, erscheint irgendwann auch
+// auf einer Seite.
+check(TourReview::MIN_FOR_AVERAGE >= 3, 'die Schwelle ist kleiner als drei');
+
+FakeStatement::$row = ['anzahl' => 1, 'schnitt' => '3.0', 'fuehrungen' => 4];
+$wenig = TourReview::summaryForGuide(3);
+check($wenig['average'] === null, 'bei einer Bewertung kommt ein Durchschnitt heraus');
+check($wenig['count'] === 1 && $wenig['tours'] === 4,
+    'Anzahl und Zahl der Fuehrungen fehlen');
+
+FakeStatement::$row = ['anzahl' => 2, 'schnitt' => '5.0', 'fuehrungen' => 9];
+check(TourReview::summaryForGuide(3)['average'] === null,
+    'bei zwei Bewertungen kommt ein Durchschnitt heraus');
+
+FakeStatement::$row = ['anzahl' => 3, 'schnitt' => '4.3333', 'fuehrungen' => 9];
+$genug = TourReview::summaryForGuide(3);
+check($genug['average'] === 4.3, 'ab drei Bewertungen fehlt der Durchschnitt (' . var_export($genug['average'], true) . ')');
+FakeStatement::$row = false;
+ok('unter der Schwelle gibt das Modell gar keinen Durchschnitt heraus');
+
+// --- Was anstelle des Durchschnitts dasteht -------------------------------
+//
+// Eine TATSACHE und keine Wertung: wie viele Fuehrungen stattgefunden haben.
+// Sie ist ueberpruefbar und urteilt ueber niemanden.
+$jung = ReviewView::blockHtml(['count' => 1, 'average' => null, 'tours' => 4], [], []);
+check(strpos($jung, 'Führungen durchgeführt') !== false,
+    'ohne Durchschnitt fehlt die Zahl der Fuehrungen');
+check(strpos($jung, 'rev-stars--lg') === false,
+    'ohne Durchschnitt steht trotzdem eine grosse Sternreihe da');
+check(strpos($jung, 'rev-summary__value') === false,
+    'ohne Durchschnitt steht trotzdem eine Zahl da');
+check(strpos($jung, (string)TourReview::MIN_FOR_AVERAGE) !== false,
+    'es steht nicht da, ab wann ein Durchschnitt erscheint');
+
+$reif = ReviewView::blockHtml(['count' => 7, 'average' => 4.3, 'tours' => 9], [], []);
+check(strpos($reif, 'rev-summary__value') !== false, 'der Durchschnitt fehlt');
+check(strpos($reif, '4,3') !== false, 'die Zahl steht nicht mit Komma da');
+check(strpos($reif, '7 Bewertungen') !== false, 'die Anzahl fehlt');
+// Halbe Sterne gibt es nur hier - in der Anzeige.
+check(strpos($reif, 'rev-star--half') !== false, '4,3 wird nicht auf einen halben Stern gerundet');
+check(strpos(ReviewView::sterneHtml(5), 'rev-star--half') === false, '5 hat einen halben Stern');
+// Keine Nachkommastelle, wo keine ist.
+check(strpos(ReviewView::blockHtml(['count' => 4, 'average' => 5.0, 'tours' => 4], [], []), '5,0') === false,
+    'aus 5 wird "5,0"');
+ok('unter der Schwelle steht eine Tatsache, darueber ein Durchschnitt');
+
+// --- Der Text einer Bewertung ist Fremdeingabe ----------------------------
+//
+// Dieselbe Regel wie ueberall: Er geht durch ViewHelper::esc(), und der
+// entschaerft nicht nur die spitzen Klammern, sondern auch die drei Rauten -
+// sonst loeste ein Kunde mit "###USER###" eine Ersetzung des Servers aus.
+$boese = ReviewView::blockHtml(
+    ['count' => 3, 'average' => 4.0, 'tours' => 5],
+    [[
+        'id' => 1, 'stars' => 4, 'created_at' => '2026-03-04 10:00:00',
+        'title' => '<b>Ort</b>', 'body' => '<script>alert(1)</script> ###USER###',
+    ]],
+    ['mit_ort' => true]
+);
+check(strpos($boese, '<script>') === false, 'der Text einer Bewertung wird nicht maskiert');
+check(strpos($boese, '###USER###') === false, 'die drei Rauten kommen durch');
+check(strpos($boese, '<b>Ort</b>') === false, 'der Standorttitel wird nicht maskiert');
+check(strpos($boese, 'März 2026') !== false, 'der Monat fehlt oder ist taggenau');
+check(strpos($boese, '04') === false || strpos($boese, '4. März') === false,
+    'das Datum ist taggenau');
+ok('Text und Titel sind Fremdeingabe, und dabeisteht nur der Monat');
+
+// --- Kein Name des Kunden -------------------------------------------------
+//
+// Ein Kunde hat in dieser Anwendung keinen Anzeigenamen, sondern nur einen
+// Benutzernamen - und der ist die Anmeldekennung. Er geht Fremde nichts an,
+// dieselbe Regel wie auf der Profilseite.
+$reviewModell = stripPhpNoise(file_get_contents($ROOT . '/class/Model/TourReview.php'));
+$listeRumpf   = methodenRumpf($reviewModell, 'letzte');
+check(strpos($listeRumpf, 'username') === false,
+    'die Bewertungsliste holt den Benutzernamen des Kunden');
+check(strpos($reviewModell, 'customer_user_id') !== false, 'der Kunde steht nicht in der Zeile');
+ok('eine Bewertung traegt keinen Namen');
+
+// --- Gezeigt wird nur, was sichtbar ist und etwas zu sagen hat ------------
+$fake->statements = [];
+TourReview::latestForGuide(3);
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'removed_at IS NULL') !== false,
+    "eine entfernte Bewertung steht weiterhin in der Liste: $sql");
+check(strpos($sql, "v.body <> ''") !== false && strpos($sql, 'v.body IS NOT NULL') !== false,
+    'eine Bewertung ohne Text steht als leere Zeile in der Liste');
+check(strpos($sql, 'ORDER BY v.created_at DESC') !== false,
+    'gezeigt werden nicht die letzten - eine Auswahl waere eine Meinung');
+check(strpos($sql, 'LEFT JOIN location') !== false,
+    'ein geloeschter Standort nimmt die Bewertung mit');
+ok('sichtbar, mit Text, die letzten zuerst');
+
+// --- Der Standort filtert nach location_id, der Guide nach guide_user_id --
+$fake->statements = [];
+TourReview::latestForLocation(7);
+check(strpos($fake->statements[0]->sql, 'v.location_id = :id') !== false,
+    'die Standortseite zeigt die Bewertungen des ganzen Guides');
+ok('Standortseite und Profil fragen dieselbe Tabelle verschieden');
+
+// --- Entfernen ist Ausblenden und kein Loeschen ---------------------------
+$fake->statements = [];
+check(TourReview::remove(11, 2, 'Beleidigung') === true, 'entfernen scheitert');
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'UPDATE tour_review') === 0, "es ist kein UPDATE: $sql");
+check(strpos($sql, 'DELETE') === false, 'die Bewertung wird geloescht');
+check(strpos($sql, 'removed_at     = NOW()') !== false || strpos($sql, 'removed_at') !== false,
+    'der Zeitpunkt des Entfernens wird nicht festgehalten');
+check(strpos($sql, 'removed_by') !== false, 'es bleibt nicht nachvollziehbar, wer entfernt hat');
+check(strpos($sql, 'removed_at IS NULL') !== false,
+    'eine bereits entfernte Bewertung wird ein zweites Mal angefasst');
+check($fake->statements[0]->params[':admin'] === 2, 'der Entferner wird nicht gebunden');
+ok('entfernt heisst ausgeblendet - die Zeile bleibt stehen');
+
+// --- Nach dem Entfernen ist NICHT wieder frei -----------------------------
+//
+// Sonst waere das Entfernen eine Einladung, dasselbe noch einmal zu
+// schreiben. Deshalb steht in der Frage nach der offenen Bewertung bewusst
+// KEIN Filter auf removed_at: bewertet ist bewertet.
+$fake->statements = [];
+TourReview::pendingForCustomer(4);
+$sql = $fake->statements[0]->sql;
+check(strpos($sql, 'v.id IS NULL') !== false, 'gefragt wird auch nach bereits Bewertetem');
+check(strpos($sql, 'removed_at') === false,
+    'eine entfernte Bewertung macht die Fuehrung wieder bewertbar');
+check(strpos($sql, "r.status           = 'done'") !== false
+      || preg_match("/r\.status\s*=\s*'done'/", $sql) === 1,
+    'gefragt wird auch nach nicht durchgefuehrten Fuehrungen');
+check(strpos($sql, 'LIMIT 1') !== false,
+    'gefragt wird nach mehreren Fuehrungen auf einmal');
+ok('gefragt wird nach genau einer offenen Fuehrung - entfernt ist nicht offen');
+
+// --- Nur diese Richtung, und der Guide entfernt nicht ---------------------
+//
+// Eine Bewertung, die der Bewertete loeschen oder aendern kann, ist keine
+// Auskunft mehr ueber ihn.
+check(Permission::has(Role::GUIDE, Permission::REVIEW_REMOVE) === false,
+    'der Guide darf Bewertungen entfernen');
+check(Permission::has(Role::ADMIN, Permission::REVIEW_REMOVE) === true,
+    'der Admin darf keine Bewertungen entfernen');
+foreach ([Role::TRIAL, Role::USER, Role::GUIDE, Role::ADMIN] as $rolle) {
+    check(Permission::has($rolle, Permission::REVIEW_CREATE) === true,
+        "die Rolle $rolle darf nicht bewerten - ein Guide ist anderswo Kunde");
+}
+check(Permission::has(Permission::GUEST, Permission::REVIEW_CREATE) === false,
+    'ein Gast darf bewerten');
+check(Permission::has(Permission::GUEST, Permission::REVIEW_REMOVE) === false,
+    'ein Gast darf entfernen');
+
+// Es gibt keine Route, ueber die ein Guide einen Zuschauer bewerten koennte.
+$routen = require $ROOT . '/config/routes.php';
+check(isset($routen['review_create']) && $routen['review_create'][2] === Permission::REVIEW_CREATE,
+    'die Route zum Bewerten fehlt oder traegt das falsche Recht');
+check(isset($routen['review_remove']) && $routen['review_remove'][2] === Permission::REVIEW_REMOVE,
+    'die Route zum Entfernen fehlt oder traegt das falsche Recht');
+check($routen['review_create'][3] === 'json' && $routen['review_remove'][3] === 'json',
+    'die Bewertungsrouten antworten nicht als JSON');
+check(Permission::routeErrors($routen) === [], 'die Routentabelle ist nach dem Zuwachs unvollstaendig');
+ok('Kunden bewerten Guides - und nur die Moderation entfernt');
+
+// --- Beide Seiten zeigen den Block, und der Guide sieht seinen eigenen ----
+$standortSeite = file_get_contents($ROOT . '/assets/html/location_page.html');
+$profilSeite   = file_get_contents($ROOT . '/assets/html/guide_page.html');
+check(strpos($standortSeite, '###REVIEWS###') !== false,
+    'die Standortseite hat keinen Platz fuer die Bewertungen');
+check(strpos($profilSeite, '###GUIDE_REVIEWS###') !== false,
+    'das Guide-Profil hat keinen Platz fuer die Bewertungen');
+check(strpos(file_get_contents($ROOT . '/class/Helper/LocationView.php'), 'ReviewView::blockHtml') !== false,
+    'die Standortseite baut den Block nicht');
+check(strpos(file_get_contents($ROOT . '/class/Helper/GuideView.php'), 'ReviewView::blockHtml') !== false,
+    'das Profil baut den Block nicht');
+// Der Guide sieht seine eigenen - dieselbe Form, andere Ueberschrift.
+$eigen = ReviewView::blockHtml(['count' => 0, 'average' => null, 'tours' => 0], [], ['eigen' => true]);
+check(strpos($eigen, 'Ihre Bewertungen') !== false, 'der Guide sieht seine eigenen nicht als seine');
+check(strpos(ReviewView::blockHtml(['count' => 0, 'average' => null, 'tours' => 0], [], []), 'Bewertungen') !== false,
+    'die Ueberschrift fehlt');
+// Der Entfernen-Knopf steht nur bei der Moderation.
+$eintrag = [['id' => 3, 'stars' => 5, 'created_at' => '2026-01-02 09:00:00', 'body' => 'Gut.']];
+check(strpos(ReviewView::blockHtml(['count' => 3, 'average' => 5.0, 'tours' => 3], $eintrag, []), 'rev-remove') === false,
+    'jeder sieht den Entfernen-Knopf');
+check(strpos(ReviewView::blockHtml(['count' => 3, 'average' => 5.0, 'tours' => 3], $eintrag, ['moderation' => true]), 'rev-remove') !== false,
+    'die Moderation sieht keinen Entfernen-Knopf');
+ok('Standortseite und Profil zeigen denselben Block');
+
+// --- Gefragt wird nach dem Auflegen, ueber den Heartbeat ------------------
+//
+// Ein Dialog im Moment des Auflegens wird auf Telefonen vom Neuladen der
+// Seite mitgenommen (assets/js/rtc.js). Der Heartbeat laeuft ohnehin, und was
+// er mitbringt, ueberlebt jeden Seitenwechsel.
+$heartbeat = methodenRumpf(stripPhpNoise(file_get_contents($ROOT . '/class/Controller/UserController.php')), 'heartbeat');
+check(strpos($heartbeat, 'TourReview::pendingForCustomer') !== false,
+    'der Heartbeat traegt die offene Bewertung nicht mit');
+$reviewJs = file_get_contents($ROOT . '/assets/js/review.js');
+$signalingJs = file_get_contents($ROOT . '/assets/js/signaling.js');
+check(strpos($signalingJs, 'window.webrtcApp.review') !== false
+      && strpos($signalingJs, 'sync(daten.review)') !== false,
+    'die Antwort des Heartbeats erreicht das Bewertungsmodul nicht');
+// NICHT AUFDRINGLICH: keine Karte waehrend eines Gespraechs, und sie laesst
+// sich ueberspringen.
+check(strpos($reviewJs, 'imGespraech()') !== false,
+    'die Frage kommt auch mitten im Gespraech');
+check(strpos($reviewJs, 'ueberspringen') !== false, 'die Frage laesst sich nicht ueberspringen');
+check(strpos($reviewJs, 'localStorage') !== false,
+    'das Ueberspringen wird nicht gemerkt - die Frage kaeme beim naechsten Takt wieder');
+// NACHHOLBAR ueber die Anfragenseite - dort, wo in dieser Anwendung alles
+// Verpasste wieder auftaucht.
+$requestsJs = file_get_contents($ROOT . '/assets/js/requests.js');
+check(strpos($requestsJs, 'rev-open') !== false,
+    'auf der Anfragenseite laesst sich eine Bewertung nicht nachholen');
+check(preg_match('/!eingehend\s*&&\s*zustand === .done.\s*&&\s*!this\.wahr\(z\.reviewed\)/', $requestsJs) === 1,
+    'der Knopf zum Bewerten steht nicht nur beim Kunden und nur bei durchgefuehrten Fuehrungen');
+// Die Liste muss die Auskunft ueberhaupt mitbringen.
+check(strpos(file_get_contents($ROOT . '/class/Model/TourRequest.php'), 'rev.id IS NOT NULL AS reviewed') !== false,
+    'die Anfragenliste weiss nicht, ob eine Fuehrung bewertet ist');
+ok('gefragt wird nach dem Auflegen, ueberspringbar, nachholbar');
+
+// --- Die Skala steht an EINER Stelle --------------------------------------
+//
+// Das Formular baut der Browser - es erscheint nach dem Auflegen auf
+// irgendeiner Seite. Die Woerter und Grenzen holt es sich trotzdem vom
+// Server; zwei Fassungen einer Skala waeren eine zu viel.
+check(strpos(file_get_contents($ROOT . '/class/Helper/ViewHelper.php'), 'window.reviewScale') !== false,
+    'die Skala erreicht den Browser nicht');
+check(strpos($reviewJs, 'window.reviewScale') !== false,
+    'das Formular holt sich die Skala nicht vom Server');
+foreach (array_values(TourReview::starNames()) as $wort) {
+    check(strpos($reviewJs, $wort) === false,
+        "das Wort \"$wort\" steht ein zweites Mal in JavaScript");
+}
+ok('Woerter und Grenzen der Skala stehen nur im Modell');
+
+// --- Die Wanderung und der Dump kennen die Tabelle ------------------------
+$wanderung = file_get_contents($ROOT . '/migrations/016_bewertungen.sql');
+check(strpos($wanderung, 'CREATE TABLE IF NOT EXISTS `tour_review`') !== false,
+    'die Wanderung legt die Tabelle nicht idempotent an');
+check(strpos($wanderung, 'UNIQUE KEY `eine_je_fuehrung` (`request_id`)') !== false,
+    'je Fuehrung waeren mehrere Bewertungen moeglich');
+check(strpos($wanderung, 'FOREIGN KEY') === false,
+    'die Tabelle hat Fremdschluessel - eine Bewertung soll den Standort ueberleben');
+foreach (['removed_at', 'removed_by', 'removed_reason'] as $spalte) {
+    check(strpos($wanderung, "`$spalte`") !== false, "die Spalte $spalte fehlt");
+}
+$dump = file_get_contents($ROOT . '/database.sql');
+check(strpos($dump, '`tour_review`') !== false, 'der Dump kennt die Tabelle nicht');
+ok('die Tabelle steht in der Wanderung und im Dump');
+
 
 PdoConnect::$connection = new FakeConnection();
 

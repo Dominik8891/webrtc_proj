@@ -1,0 +1,312 @@
+/* ===========================================================================
+   Bewertungen - der Block auf Standortseite und Guide-Profil, die Frage
+   nach dem Auflegen.
+
+   WARUM DAS EINE EIGENE DATEI IST
+   -------------------------------
+   Weil dieselben Bausteine an drei Stellen erscheinen und in allen dreien
+   gleich aussehen muessen: die Sternreihe, ein einzelner Eintrag, die
+   Zusammenfassung. Verteilt auf location.css (Standortseite) und guide.css
+   (Profil) waere die Karte nach dem Auflegen die dritte Fassung derselben
+   Gestaltung.
+
+   Die Farben, Abstaende und Radien kommen ausnahmslos aus den Variablen in
+   theme.css. Hier steht kein Farbwert - auch der Stern nicht: Er nimmt
+   --app-warn-solid, dieselbe gefuellte Warnflaeche, die auf der Karte eine
+   Nadel im Gespraech faerbt. Ein eigenes Gold waere eine sechste Farbe in
+   einem Farbsystem mit fuenf.
+   =========================================================================== */
+
+/* ===========================================================================
+   1. DIE STERNREIHE
+   ===========================================================================
+   Sie steht in drei Groessen an vier Stellen: gross in der Zusammenfassung,
+   normal an einer einzelnen Bewertung und in der Anfragenliste, und als
+   anklickbare Reihe in der Karte. Deshalb liegt die Form hier und die Groesse
+   an der jeweiligen Stelle.
+
+   HALBE STERNE gibt es nur in der ANZEIGE eines Durchschnitts (der Server
+   rundet dafuer auf halbe, App\Helper\ReviewView). Gezeichnet werden sie als
+   grauer Stern mit einem zur Haelfte darueberliegenden gefuellten - ein
+   zweites Zeichen dafuer gibt es in keiner Schrift zuverlaessig.
+   =========================================================================== */
+
+.rev-stars {
+    display: inline-flex;
+    gap: 1px;
+    line-height: 1;
+    /* Die Reihe ist fuer Vorleseprogramme EIN Bild mit einem Text (role/
+       aria-label am Element). Die Zeichen darin sind aria-hidden - "Stern
+       Stern Stern Stern Stern" waere keine Auskunft. */
+    white-space: nowrap;
+}
+
+.rev-star {
+    position: relative;
+    color: var(--app-border-strong);
+    font-size: 1rem;
+}
+
+.rev-star--on {
+    color: var(--app-warn-solid);
+}
+
+/* Der halbe Stern: der graue bleibt stehen, darueber liegt links die Haelfte
+   des gefuellten. */
+.rev-star--half::before {
+    content: '★';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50%;
+    overflow: hidden;
+    color: var(--app-warn-solid);
+}
+
+.rev-stars--lg .rev-star {
+    font-size: 1.5rem;
+}
+
+/* ===========================================================================
+   2. DER BLOCK auf Standortseite und Profil
+   =========================================================================== */
+
+.rev-block__title {
+    margin: 0 0 var(--app-space-4);
+    font-size: var(--app-text-md);
+    font-weight: var(--app-weight-bold);
+    color: var(--app-text);
+}
+
+.rev-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--app-space-3);
+}
+
+.rev-summary__value {
+    font-size: var(--app-text-lg);
+    font-weight: var(--app-weight-bold);
+    color: var(--app-text);
+    line-height: 1;
+}
+
+.rev-summary__count {
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+/* Der Fall, um den es geht: zu wenige Bewertungen fuer einen Durchschnitt.
+   Hier steht keine Zahl und keine Sternreihe, sondern ein Satz - er darf
+   deshalb umbrechen und braucht die volle Breite. */
+.rev-summary--young {
+    display: block;
+}
+
+.rev-summary__note {
+    margin: var(--app-space-2) 0 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+    line-height: var(--app-leading);
+}
+
+/* ===========================================================================
+   3. DIE EINZELNEN BEWERTUNGEN
+   ===========================================================================
+   Getrennt durch eine Linie und nicht durch Kaesten: Es sind Stimmen zu
+   demselben Angebot, keine Karteikarten. Ein Rahmen um jede waere fuenfmal
+   dieselbe Flaeche.
+   =========================================================================== */
+
+.rev-list {
+    list-style: none;
+    margin: var(--app-space-5) 0 0;
+    padding: 0;
+}
+
+.rev-item + .rev-item {
+    margin-top: var(--app-space-4);
+    padding-top: var(--app-space-4);
+    border-top: 1px solid var(--app-border);
+}
+
+.rev-item__head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--app-space-3);
+}
+
+.rev-item__meta {
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+}
+
+/* Der Entfernen-Knopf der Moderation. Er schiebt sich ans Ende der Zeile und
+   ist bewusst leise: Er ist die Ausnahme fuer eine Beschwerde und nicht das,
+   worum es auf dieser Seite geht. */
+.rev-remove {
+    margin-left: auto;
+}
+
+.rev-item__text {
+    margin: var(--app-space-2) 0 0;
+    color: var(--app-text);
+    font-size: var(--app-text-base);
+    line-height: var(--app-leading);
+    /* Ein Kunde schreibt, was er will - auch eine Zeile ohne Leerzeichen.
+       Ohne das hier schoebe sie den ganzen Block auf. */
+    overflow-wrap: anywhere;
+}
+
+/* ===========================================================================
+   4. DIE FRAGE NACH DEM AUFLEGEN
+   ===========================================================================
+   Eine KARTE und kein Dialog, und daran haengt die halbe Gestaltung: Sie
+   legt sich unten an den Rand, sperrt die Seite nicht ab, verdunkelt nichts
+   und laesst sich wegklicken. Wer weiterlesen will, liest weiter.
+
+   SIE STEHT UNTEN LINKS und nicht unten rechts, obwohl rechts die
+   gewohnte Ecke waere: Dort stapeln sich die Chatfenster
+   (#chat-popup-container, theme.css) - dieselbe Ecke, dieselbe Breite. Zwei
+   Dinge an einem Platz sind eines zu viel.
+
+   IHRE EBENE liegt knapp UNTER der der Chatfenster (--app-z-overlay, 1000)
+   und weit unter der Anrufansicht (9999). Beides ist Absicht: Waehrend eines
+   Gespraechs erscheint sie ohnehin nicht (assets/js/review.js), und auf einem
+   Telefon, wo beide die volle Breite nehmen, hat das Chatfenster Vorrang - es
+   ist offen, weil jemand es geoeffnet hat. Die Frage wartet so lange dahinter.
+
+   Auf schmalen Geraeten geht sie ueber die volle Breite: Eine 360 Punkte
+   breite Karte auf einem 360 Punkte breiten Telefon waere eine Karte mit
+   Rand aus Zufall.
+   =========================================================================== */
+
+.rev-ask {
+    position: fixed;
+    left: var(--app-space-4);
+    bottom: var(--app-space-4);
+    z-index: 999;
+    width: 360px;
+    max-width: calc(100vw - 2 * var(--app-space-4));
+    padding: var(--app-space-4);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    background: var(--app-surface-raised);
+    box-shadow: var(--app-shadow-lg);
+    animation: rev-ask-in 180ms ease-out;
+}
+
+@keyframes rev-ask-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* Wer Bewegung abgestellt hat, bekommt keine. */
+@media (prefers-reduced-motion: reduce) {
+    .rev-ask { animation: none; }
+}
+
+.rev-ask__close {
+    position: absolute;
+    top: var(--app-space-2);
+    right: var(--app-space-2);
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--app-radius);
+    background: transparent;
+    color: var(--app-text-faint);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.rev-ask__close:hover,
+.rev-ask__close:focus-visible {
+    background: var(--app-surface-sunken);
+    color: var(--app-text);
+}
+
+.rev-ask__lead {
+    margin: 0 var(--app-space-6) var(--app-space-3) 0;
+    font-size: var(--app-text-base);
+    line-height: var(--app-leading);
+    color: var(--app-text);
+}
+
+.rev-ask__what {
+    color: var(--app-text-muted);
+}
+
+/* Die anklickbaren Sterne. Gross genug, um sie auf einem Telefon zu treffen -
+   deshalb 40 Punkte und nicht die Groesse der Anzeige. */
+.rev-ask__stars {
+    display: flex;
+    gap: var(--app-space-1);
+}
+
+.rev-pick {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--app-radius);
+    background: transparent;
+    color: var(--app-border-strong);
+    font-size: 1.75rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: color var(--app-transition), transform var(--app-transition);
+}
+
+.rev-pick:hover  { color: var(--app-warn-strong); }
+.rev-pick--on    { color: var(--app-warn-solid); }
+.rev-pick:active { transform: scale(0.92); }
+
+/* Das Wort zur gewaehlten Sternzahl. Es haelt seine Zeile frei, auch solange
+   nichts gewaehlt ist - sonst springen die Felder darunter beim ersten Klick
+   nach unten. */
+.rev-ask__word {
+    min-height: 1.25em;
+    margin: var(--app-space-1) 0 var(--app-space-3);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.rev-ask__label {
+    display: block;
+    margin-bottom: var(--app-space-1);
+    color: var(--app-text-muted);
+    font-size: var(--app-text-xs);
+}
+
+.rev-ask__text {
+    resize: vertical;
+}
+
+.rev-ask__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--app-space-2);
+    margin-top: var(--app-space-3);
+}
+
+.rev-ask__foot {
+    margin: var(--app-space-3) 0 0;
+    color: var(--app-text-faint);
+    font-size: var(--app-text-xs);
+    line-height: var(--app-leading);
+}
+
+@media (max-width: 480px) {
+    .rev-ask {
+        left: var(--app-space-3);
+        right: var(--app-space-3);
+        bottom: var(--app-space-3);
+        width: auto;
+        max-width: none;
+    }
+}

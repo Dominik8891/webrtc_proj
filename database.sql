@@ -799,6 +799,87 @@ CREATE TABLE IF NOT EXISTS `tour_request` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------
+-- Tabelle: tour_review
+--
+-- DIE BEWERTUNG EINER FUEHRUNG.
+--
+-- WARUM ES SIE GIBT
+-- Ein Kunde soll einem Fremden Geld dafuer geben, dass der ihn per Video
+-- durch eine unbekannte Stadt fuehrt. Was ANDERE Kunden mit diesem Guide
+-- erlebt haben, stand nirgends - er konnte sich nur auf das stuetzen, was der
+-- Guide ueber sich selbst schreibt.
+--
+-- NUR EINE RICHTUNG: Kunden bewerten Guides. Es gibt keine Spalte "wer
+-- bewertet wen" und keine Richtungsmarke, sondern zwei Spalten mit festen
+-- Rollen - guide_user_id ist der Bewertete, customer_user_id der Bewertende.
+-- Eine Zeile in die andere Richtung ist in diesem Schema nicht darstellbar,
+-- und das ist der Sinn.
+--
+-- BEWERTET WIRD EINE FUEHRUNG, NICHT EIN GUIDE. request_id zeigt auf die
+-- Zeile in tour_request, die belegt, dass sie stattgefunden hat (status
+-- 'done', started_at gesetzt). Geschrieben wird mit INSERT ... SELECT aus
+-- jener Tabelle - Guide, Kunde und Standort kommen aus der Aufzeichnung und
+-- nicht aus der Anfrage des Browsers (App\Model\TourReview::create).
+--
+-- Bestehende Installationen: migrations/016_bewertungen.sql. Dort steht auch
+-- ausfuehrlich, warum es keine Fremdschluessel gibt und warum das Entfernen
+-- kein Loeschen ist.
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `tour_review` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+
+  -- Die bewertete FUEHRUNG, der Bewertete, der Bewertende und der Standort.
+  --
+  -- OHNE FREMDSCHLUESSEL, dieselbe Ueberlegung wie bei tour_request: Eine
+  -- abgegebene Bewertung bleibt abgegeben, auch wenn der Standort spaeter
+  -- geloescht wird. Gelesen wird deshalb ueber LEFT JOIN.
+  --
+  -- guide_user_id und location_id liessen sich ueber request_id ermitteln.
+  -- Sie stehen trotzdem hier, weil genau nach ihnen abgefragt wird: der
+  -- Durchschnitt auf dem Guide-Profil und der auf der Standortseite.
+  `request_id` int(11) NOT NULL,
+  `guide_user_id` int(11) NOT NULL,
+  `customer_user_id` int(11) NOT NULL,
+  `location_id` int(11) NOT NULL,
+
+  -- Ganze Sterne, 1 bis 5. Halbe gibt es nur in der ANZEIGE eines
+  -- Durchschnitts, nie in einer Abgabe. Der erlaubte Bereich steht in
+  -- App\Model\TourReview und wird beim Schreiben geprueft.
+  `stars` tinyint(4) NOT NULL,
+
+  -- Der freiwillige Text. NULL heisst "nichts geschrieben" und nicht der
+  -- Leerstring - dieselbe Regel wie bei guide_profile.about.
+  `body` text DEFAULT NULL,
+
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  -- Von der Moderation entfernt: wann, durch wen, mit welcher Begruendung.
+  --
+  -- ENTFERNT HEISST AUSGEBLENDET UND NICHT GELOESCHT. Die Zeile bleibt
+  -- stehen, zaehlt aber nirgends mehr mit - dasselbe Muster wie beim Sperren
+  -- eines Standorts (location.blocked). Der GUIDE kann das nicht: Eine
+  -- Bewertung, die der Bewertete loeschen kann, ist keine Auskunft mehr ueber
+  -- ihn.
+  `removed_at` datetime DEFAULT NULL,
+  `removed_by` int(11) DEFAULT NULL,
+  `removed_reason` varchar(200) DEFAULT NULL,
+
+  PRIMARY KEY (`id`),
+
+  -- JE FUEHRUNG HOECHSTENS EINE BEWERTUNG - in der Tabelle und nicht nur im
+  -- Controller: Zwei gleichzeitige Anfragen sollen nicht zwei Zeilen ergeben.
+  -- Der Schluessel gilt auch fuer entfernte Bewertungen: Nach dem Entfernen
+  -- laesst sich dieselbe Fuehrung nicht erneut bewerten.
+  UNIQUE KEY `eine_je_fuehrung` (`request_id`),
+
+  -- Die drei Abfragen, die es wirklich gibt: was steht bei diesem Guide, was
+  -- steht an diesem Standort, und was habe ich als Kunde bewertet.
+  KEY `guide_sichtbar` (`guide_user_id`, `removed_at`, `created_at`),
+  KEY `standort_sichtbar` (`location_id`, `removed_at`, `created_at`),
+  KEY `kunde` (`customer_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- --------------------------------------------------------
 -- Tabelle: chat
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `chat` (

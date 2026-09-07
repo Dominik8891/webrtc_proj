@@ -49,6 +49,14 @@ class LocationView
      *                             Standort (App\Model\TourRequest), oder
      *                             null - fuer Gaeste und den Eigentuemer
      *                             immer null
+     *        'review_summary' array Durchschnitt, Anzahl und Zahl der
+     *                             durchgefuehrten Fuehrungen an diesem
+     *                             Standort (App\Model\TourReview::
+     *                             summaryForLocation). Ob es einen
+     *                             Durchschnitt gibt, ist dort entschieden.
+     *        'reviews'     array Die letzten Bewertungen mit Text
+     *        'moderation'  bool  Darf der Betrachter eine Bewertung
+     *                             entfernen (Recht review.remove)?
      * @return string HTML fuer den Inhaltsbereich
      */
     public static function page(array $in_daten, array $in_bilder, array $in_ansicht): string
@@ -80,6 +88,28 @@ class LocationView
             // Name, welcher Satz -, steht an einer Stelle und gilt fuer
             // Standortseite, Profilseite und Kontoseite gleichermassen.
             '###GUIDE###'       => GuideView::streifenHtml($in_daten, $eigen),
+            // WAS ANDERE KUNDEN GESAGT HABEN - zu DIESEM Standort. Gebaut
+            // von App\Helper\ReviewView und nicht hier, aus demselben Grund
+            // wie beim Guide-Streifen darueber: Wie eine Bewertung aussieht
+            // und ab wann ein Durchschnitt ueberhaupt dasteht, ist eine
+            // Frage, die einmal beantwortet wird und dann fuer Standortseite
+            // und Guide-Profil gleichermassen gilt.
+            //
+            // Die Zahlen kommen fertig vom Controller. Diese Ansicht rechnet
+            // nichts nach - ob es einen Durchschnitt gibt, entscheidet
+            // App\Model\TourReview.
+            '###REVIEWS###'     => ReviewView::blockHtml(
+                                       (array)($in_ansicht['review_summary'] ?? []),
+                                       (array)($in_ansicht['reviews'] ?? []),
+                                       [
+                                           'eigen'      => $eigen,
+                                           // Der Standorttitel steht bereits
+                                           // ueber der Seite - ihn an jede
+                                           // Bewertung zu schreiben waere
+                                           // seine sechste Wiederholung.
+                                           'mit_ort'    => false,
+                                           'moderation' => !empty($in_ansicht['moderation']),
+                                       ]),
             '###FACTS###'       => self::faktenHtml($in_daten),
             '###ACTION###'      => self::aktionHtml($in_daten, $eigen,
                                        !empty($in_ansicht['angemeldet']),

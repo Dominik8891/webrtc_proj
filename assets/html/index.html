@@ -30,6 +30,10 @@
          und das Formular auf der Kontoseite. Nach location.css, weil der
          Streifen dort im Inhaltsbereich steht und dessen Umgebung kennt. -->
     <link rel="stylesheet" href="assets/css/guide.css">
+    <!-- Bewertungen: der Block auf Standortseite und Guide-Profil und die
+         Karte, mit der nach dem Auflegen gefragt wird. Nach guide.css, weil
+         der Block auf beiden Seiten in deren Umgebung steht. -->
+    <link rel="stylesheet" href="assets/css/review.css">
 
     <!-- JS-Bibliotheken -->
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -75,6 +79,10 @@
          main.js, weil er sich - wie der Bereitschaftsschalter - in dessen
          Heartbeat einhaengt. -->
     <script src="assets/js/requests.js"></script>
+    <!-- Die Frage nach der Fuehrung. Nach requests.js, weil beide sich in
+         denselben Heartbeat einhaengen und weil die Anfragenliste die
+         Sternreihe dieses Moduls benutzt. -->
+    <script src="assets/js/review.js"></script>
     <script src="assets/js/locations_table.js"></script>
     <script src="assets/js/map.js"></script>
     <script src="assets/js/home_map.js"></script>

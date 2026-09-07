@@ -60,6 +60,10 @@
       ###LONGTEXT###     Die ausfuehrliche Beschreibung
       ###GUIDE###        Der Guide: Bild, Anzeigename und ein Satz aus seiner
                          Selbstbeschreibung, verlinkt auf sein Profil
+      ###REVIEWS###      Was Kunden ueber die Fuehrungen an DIESEM Standort
+                         gesagt haben: Durchschnitt, Anzahl und die letzten
+                         Bewertungen mit Text - oder, solange es zu wenige
+                         sind, die Zahl der durchgefuehrten Fuehrungen
       ###OWNER_TOOLS###  Das Bearbeitungsformular; leer fuer alle ausser dem
                          Eigentuemer
       ###PAGE_DATA###    Die Angaben fuer das Skript der Seite
@@ -162,6 +166,22 @@
                      stehen Sprachen, "Guide seit" und die uebrigen Standorte
                      desselben Menschen - hier nur Bild, Name und ein Satz. -->
                 ###GUIDE###
+
+                <!-- WAS ANDERE KUNDEN GESAGT HABEN. Unmittelbar unter dem
+                     Guide, und das ist die Reihenfolge der Frage, die sich
+                     ein Kunde hier stellt: erst das Angebot ("was bekomme
+                     ich"), dann der Mensch ("von wem"), dann die Auskunft
+                     anderer ueber genau diesen Menschen.
+
+                     Es sind die Bewertungen zu DIESEM Standort. Die
+                     Bewertungen des Guides insgesamt - auch die zu seinen
+                     uebrigen Standorten - stehen auf seinem Profil, und
+                     dorthin fuehrt der Streifen darueber.
+
+                     SOLANGE ES ZU WENIGE SIND, steht hier keine Zahl,
+                     sondern wie viele Fuehrungen stattgefunden haben. Warum,
+                     steht in App\Model\TourReview. -->
+                ###REVIEWS###
             </div>
 
             <!-- Die Beispielbilder. Sie stehen im Inhaltsbereich und nicht

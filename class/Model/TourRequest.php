@@ -401,12 +401,29 @@ class TourRequest
             $query = "SELECT " . self::spalten('r') . ",
                              l.title, l.description,
                              city.city_name, country.country_name,
-                             partner.username AS partner_name
+                             partner.username AS partner_name,
+                             -- DIE BEWERTUNG DIESER FUEHRUNG, falls es eine
+                             -- gibt. Sie steht hier, weil die Anfragenseite
+                             -- der Ort ist, an dem eine uebersprungene
+                             -- Bewertung wieder auftaucht: Dort braucht jede
+                             -- durchgefuehrte Zeile die Auskunft, ob noch
+                             -- etwas zu tun ist.
+                             --
+                             -- ZWEI ANGABEN, WEIL SIE ZWEI FRAGEN
+                             -- BEANTWORTEN: 'reviewed' sagt, ob ueberhaupt
+                             -- bewertet wurde - eine ENTFERNTE Bewertung
+                             -- zaehlt dabei mit, denn dieselbe Fuehrung laesst
+                             -- sich danach nicht erneut bewerten.
+                             -- 'review_stars' sagt, was sichtbar dasteht, und
+                             -- ist bei einer entfernten Bewertung leer.
+                             rev.id IS NOT NULL AS reviewed,
+                             CASE WHEN rev.removed_at IS NULL THEN rev.stars END AS review_stars
                       FROM tour_request r
                       LEFT JOIN location l      ON l.id = r.location_id
                       LEFT JOIN city            ON city.id = l.city_id
                       LEFT JOIN country         ON country.id = city.country_id
                       LEFT JOIN user partner    ON partner.id = r.$partner
+                      LEFT JOIN tour_review rev ON rev.request_id = r.id
                       WHERE $in_bedingung
                       ORDER BY " . self::sortierung('r') . "
                       LIMIT $limit";

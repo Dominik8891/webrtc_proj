@@ -246,6 +246,15 @@ window.webrtcApp.signaling = {
             // (App\Controller\UserController::heartbeat).
             const anfragen = window.webrtcApp.requests;
             if (anfragen && daten) anfragen.sync(daten.requests);
+
+            // UND DIE FRAGE NACH DER BEWERTUNG. Sie faehrt aus demselben
+            // Grund hier mit: Gefragt wird nach dem Auflegen, und ein
+            // Dialog, der in dem Moment aufgeht, wird auf Telefonen vom
+            // Neuladen der Seite mitgenommen (assets/js/rtc.js). Der
+            // Heartbeat laeuft ohnehin, und was er mitbringt, ueberlebt
+            // jeden Seitenwechsel.
+            const bewertung = window.webrtcApp.review;
+            if (bewertung && daten) bewertung.sync(daten.review);
         })
         // Ein ausgefallener Heartbeat aendert nichts: Der naechste Takt kommt,
         // und bis dahin laeuft die Anzeige lokal weiter. Ohne diesen Zweig

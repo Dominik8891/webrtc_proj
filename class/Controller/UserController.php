@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Model\TourRequest;
+use App\Model\TourReview;
 use App\Model\User;
 use App\Helper\Auth;
 use App\Helper\Permission;
@@ -247,6 +248,22 @@ class UserController
             // daneben waere derselbe Weg noch einmal - fuer eine Auskunft, die
             // sich seltener aendert als die Bereitschaft.
             'requests'          => TourRequest::counters($user_id),
+            // DIE FRAGE NACH DER BEWERTUNG FAEHRT AUF DEMSELBEN TAKT MIT.
+            //
+            // Gefragt wird der Kunde NACH DEM AUFLEGEN - aber nicht mitten im
+            // Abbau des Gespraechs: Auf Telefonen laedt die Seite danach
+            // ohnehin neu (assets/js/rtc.js), und was in diesem Moment auf dem
+            // Bildschirm stand, waere weg. Ueber den Heartbeat ueberlebt die
+            // Frage jeden Seitenwechsel und jedes Neuladen; sie taucht
+            // hoechstens zehn Sekunden spaeter auf, und das ist genau der
+            // Abstand, den "nicht aufdringlich" braucht.
+            //
+            // EINE Fuehrung, nicht alle offenen: Wer drei unbewertete hat,
+            // bekommt nicht drei Fragen hintereinander. Die uebrigen findet er
+            // auf der Anfragenseite - dort steht ohnehin, was noch offen ist.
+            //
+            // NULL ist der Regelfall und heisst "nichts zu fragen".
+            'review'            => TourReview::pendingForCustomer($user_id),
         ]);
         exit;
     }

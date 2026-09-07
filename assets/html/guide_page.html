@@ -30,7 +30,11 @@
          was sie tut.
       2. UEBER MICH steht darunter und in voller Breite. Es ist ein Text und
          kein Datenfeld; er braucht Zeilenlaenge.
-      3. DIE STANDORTE zum Schluss, als Kacheln. Sie sind der zweite Grund
+      3. DIE BEWERTUNGEN dahinter. Sie beantworten dieselbe Frage wie "Ueber
+         mich", nur nicht aus dem Mund des Guides - und deshalb stehen sie
+         unmittelbar daneben. Solange es zu wenige sind, steht dort keine
+         Zahl, sondern wie viele Fuehrungen stattgefunden haben.
+      4. DIE STANDORTE zum Schluss, als Kacheln. Sie sind der zweite Grund
          fuer diese Seite: Von einem Standort fuehrte bisher nichts zum
          naechsten desselben Guides.
 
@@ -44,6 +48,9 @@
                           Eigentuemer, sonst leer
       ###GUIDE_ABOUT###   Die Selbstbeschreibung; fuer Fremde leer, wenn
                           keine da ist
+      ###GUIDE_REVIEWS### Durchschnitt, Anzahl und die letzten Bewertungen mit
+                          Text - oder, solange es zu wenige sind, die Zahl der
+                          durchgefuehrten Fuehrungen
       ###GUIDE_OFFERS###  Die Standorte dieses Guides als Kacheln
 -->
 <div class="app-page guide-page">
@@ -59,6 +66,7 @@
 
     <div class="guide-body">
         ###GUIDE_ABOUT###
+        ###GUIDE_REVIEWS###
         ###GUIDE_OFFERS###
     </div>
 

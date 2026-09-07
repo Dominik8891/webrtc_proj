@@ -18,6 +18,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 * **High-Security:** * Passwort-Hashing mit individuellem **Pepper**.
     * **Zwei-Faktor-Authentifizierung (2FA/TOTP)** inklusive QR-Code-Generierung.
     * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP.
+* **Anfrage, Führung, Bewertung:** Am Anfang steht eine Anfrage mit Wunschzeitpunkt, die der Guide annimmt oder ablehnt; nach der Führung wird der Kunde gefragt, wie sie war — Sterne plus freiwilliger Text, **nur in diese Richtung**. Ein Durchschnitt erscheint erst ab drei Bewertungen; darunter steht die Zahl der durchgeführten Führungen statt einer Zahl, die wie ein Urteil aussieht. Details unter [Bewertungen](#-bewertungen).
 * **Rollen- und Rechtesystem:** Vier Rollen (Trial, User, Guide, Admin) mit **benannten Rechten ohne Vererbung und ohne Rangfolge**. Jede Route in `config/routes.php` trägt ihr Recht als Pflichtfeld; `index.php` prüft es, bevor der Controller läuft. Details unten unter [Berechtigungen](#-berechtigungen). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide, Zuschauer oder — bei einem Direktanruf aus der Benutzerverwaltung — Peer; der Client kann sie sich nicht selbst geben. Entscheidend ist, woher der Anruf kam: Von einem Standort aus führt der Angerufene, auch wenn er Admin ist, und der Zuschauer sendet dabei weder Bild noch Ton. Bei einem Direktanruf mit einem Admin gibt es nichts zu steuern, dort läuft die Übertragung in beide Richtungen.
 
 ---
@@ -51,13 +52,17 @@ mariadb -u <user> -p <datenbank> < migrations/011_standort_inhalt.sql
 mariadb -u <user> -p <datenbank> < migrations/012_titelbild.sql
 mariadb -u <user> -p <datenbank> < migrations/013_anfragen.sql
 mariadb -u <user> -p <datenbank> < migrations/014_verfuegbarkeitszeiten.sql
+mariadb -u <user> -p <datenbank> < migrations/015_guide_profil.sql
+mariadb -u <user> -p <datenbank> < migrations/016_bewertungen.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)). Alle sind idempotent und löschen nichts.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)). Alle sind idempotent und löschen nichts.
 
 **Nach `011` braucht die Anwendung ein Ablageverzeichnis für Bilder**, sonst lässt sich kein Bild hochladen; alles andere läuft unverändert weiter. Siehe [Bilder](#bilder-ablage-formate-größen).
 
 **Nach `013` beginnt die Aufzeichnung bei null.** Vergangene Führungen sind nirgends festgehalten und lassen sich nicht nachtragen — es gab dafür keinen Datensatz, und genau deshalb gibt es die Tabelle.
+
+**Nach `016` ist alles unbewertet, und das bleibt eine Weile so.** Nachträglich lässt sich nichts eintragen — gefragt wird der Kunde nach dem Auflegen, und bei vergangenen Führungen ist das vorbei. Bewertbar sind sie trotzdem: Jede durchgeführte Führung steht beim Kunden auf der Anfragenseite, solange sie unbewertet ist. Bis drei Bewertungen zusammenkommen, steht bei einem Guide **kein Durchschnitt**, sondern die Zahl seiner Führungen — siehe [Bewertungen](#-bewertungen).
 
 **Nach `014` ist bei jedem Standort „keine Angabe" eingetragen** — kein Guide
 hat bisher Zeiten hinterlegt, und erfunden wird nichts. Auf der Standortseite
@@ -1253,6 +1258,125 @@ Zeile auf ein Bild, das es nicht mehr gibt.
 
 ---
 
+## ⭐ Bewertungen
+
+### Das Problem
+
+Ein Kunde soll einem Fremden Geld dafür geben, dass der ihn per Video durch eine unbekannte Stadt führt. Was er über diesen Menschen wusste, stammte bis hierher **ausschließlich von ihm selbst**: Anzeigename, Selbstbeschreibung, Bild. Alles davon ist wahr, wenn der Guide es so meint — und keine einzige Angabe darin ist überprüfbar.
+
+Was fehlte, ist die andere Stimme: Was haben Kunden erlebt, die schon dort waren.
+
+### Nur eine Richtung
+
+**Kunden bewerten Guides. Guides bewerten keine Zuschauer.**
+
+Das ist keine Einstellung, sondern das Schema: `tour_review` hat keine Spalte "wer bewertet wen" und keine Richtungsmarke, sondern zwei Spalten mit festen Rollen — `guide_user_id` ist der Bewertete, `customer_user_id` der Bewertende. Eine Zeile in die andere Richtung ist darin nicht darstellbar. Es gibt entsprechend auch keine Route, kein Recht und kein Formular dafür.
+
+Der Grund ist die Asymmetrie der Sache: Der Guide bietet öffentlich eine Leistung an, über die sich jemand vor dem Kauf informieren können muss. Der Zuschauer kauft sie. Eine Note für den Käufer wäre kein Gegenstück, sondern ein Druckmittel.
+
+### Bewertet wird eine Führung, nicht ein Guide
+
+Die Grundlage ist `tour_request` — die Tabelle, in der seit [der Anfrage](#-die-anfrage-statt-des-anrufs) steht, welche Führungen wirklich stattgefunden haben. Jede Bewertung hängt an genau einer solchen Zeile:
+
+* **`status = 'done'` und `started_at` gesetzt.** Ohne stattgefundene Führung entsteht keine Bewertung.
+* **`UNIQUE (request_id)`** — je Führung höchstens eine. Die Regel steht in der Tabelle und nicht nur im Controller: Zwei gleichzeitige Anfragen ergeben nicht zwei Zeilen.
+
+Geschrieben wird mit `INSERT ... SELECT` **aus** `tour_request`:
+
+```sql
+INSERT INTO tour_review (request_id, guide_user_id, customer_user_id, location_id, stars, body)
+SELECT r.id, r.guide_user_id, r.customer_user_id, r.location_id, :stars, :body
+  FROM tour_request r
+ WHERE r.id = :request AND r.customer_user_id = :customer
+   AND r.status = 'done' AND r.started_at IS NOT NULL
+```
+
+Guide, Kunde und Standort kommen damit **aus der Aufzeichnung** und nicht aus der Anfrage des Browsers; der steuert Sterne und Text bei, sonst nichts. Ein Kunde kann so weder eine fremde Führung bewerten noch eine, die nie stattgefunden hat, noch einen anderen Guide eintragen — und die Prüfung steht in der WHERE-Klausel, also dort, wo sie sich nicht umgehen lässt. Dasselbe Muster wie beim Eigentum an einem Standort.
+
+### Die Skala
+
+**Ganze Sterne von 1 bis 5**, dazu ein freiwilliger Text (bis 1000 Zeichen).
+
+| Sterne | steht am Formular |
+|---|---|
+| 1 | Enttäuschend |
+| 2 | Weniger gut |
+| 3 | In Ordnung |
+| 4 | Gut |
+| 5 | Großartig |
+
+Die Wörter stehen dabei, weil "3 von 5" für jeden etwas anderes heißt. **Halbe Sterne gibt es nur in der Anzeige** eines Durchschnitts, nie in einer Abgabe — wer bewertet, wählt einen von fünf Werten. `TourReview::isValidStars()` weist 3,5 deshalb ausdrücklich ab; ein `(int)` allein hätte daraus klaglos eine 3 gemacht.
+
+**Die Skala steht an einer Stelle.** Grenzen, Wörter und Textlänge stehen in `App\Model\TourReview` und gehen von dort als `window.reviewScale` an den Browser (`App\Helper\ViewHelper`). Das Formular baut JavaScript — es erscheint nach dem Auflegen auf irgendeiner Seite —, aber es kennt keine eigenen Sternzahlen und keine eigenen Wörter.
+
+### Wenige Bewertungen dürfen nicht wie ein Urteil aussehen
+
+Das ist der Punkt, an dem diese Funktion einem neuen Guide schaden könnte. **„1 Bewertung, 3 Sterne" sieht aus wie ein Befund und ist eine einzelne Stimme** — und es trifft genau den, der es am wenigsten verkraftet: den, der noch keine zweite Stimme sammeln konnte.
+
+Deshalb:
+
+* **Ein Durchschnitt erscheint erst ab drei Bewertungen** (`TourReview::MIN_FOR_AVERAGE`). Darunter gibt das Modell ihn als `null` heraus — die Entscheidung fällt in der Abfrage und nicht in der Ansicht. Ein Wert, der einmal aus dem Modell herauskommt, erscheint irgendwann auch auf einer Seite.
+* **Davor steht eine Tatsache statt einer Wertung:** „4 Führungen durchgeführt, eine davon bewertet. Für einen Durchschnitt sind es noch zu wenige — er erscheint ab 3 Bewertungen." Die Zahl der Führungen steht ohnehin in `tour_request`, sie ist überprüfbar, und sie urteilt über niemanden.
+* **Die einzelnen Bewertungen stehen trotzdem darunter** — mit Text und mit ihren eigenen Sternen. Ein geschriebener Satz ist eine Stimme, und dass es eine ist, sieht der Leser; verschwiegen würde damit nur die erste gute Rückmeldung, und die braucht ein neuer Guide am dringendsten.
+* **Dem Guide wird der Grund gesagt.** Auf seinem Profil steht, dass noch *n* Bewertungen fehlen — sonst hält er die fehlende Zahl für einen Fehler.
+
+Eine geglättete Zahl (bayessches Mittel gegen einen Startwert) wäre die Alternative gewesen. Sie hätte immer eine Zahl geliefert — aber eine gerechnete, die weder Kunde noch Guide nachvollziehen kann.
+
+### Gefragt wird nach dem Auflegen
+
+Die Frage kommt **nicht als Dialog im Moment des Auflegens**. Auf Telefonen lädt die Seite nach dem Gesprächsende ohnehin neu (`assets/js/rtc.js`), und was in diesem Moment auf dem Bildschirm stand, wäre weg.
+
+Stattdessen fährt sie **auf dem Heartbeat mit**: Er läuft ohnehin alle zehn Sekunden, seine Antwort trägt die älteste unbewertete Führung mit (`UserController::heartbeat` → `TourReview::pendingForCustomer`), und damit übersteht die Frage jeden Seitenwechsel und jedes Neuladen. Sie erscheint höchstens zehn Sekunden später — und das ist genau der Abstand, den „nicht aufdringlich" braucht.
+
+**Nicht aufdringlich heißt dreierlei:**
+
+1. Es ist eine **Karte** und kein Dialog: unten am Rand, sperrt die Seite nicht, verdunkelt nichts, nimmt niemandem die Tastatur weg.
+2. Sie ist **überspringbar**, und *später* heißt später — wer sie wegklickt, bekommt sie in diesem Browser nicht wieder.
+3. Sie kommt **nicht während eines Gesprächs** und nicht über der Anrufansicht.
+
+Es kommt außerdem immer nur **eine** Frage: Wer drei unbewertete Führungen hat, bekommt nicht drei Karten hintereinander.
+
+### Nachholen — auf der Anfragenseite
+
+Das Überspringen ist eine Entscheidung **dieses Browsers** (`localStorage`), die Führung selbst bleibt bewertbar: Sie gehört zum Konto. Wiederfinden lässt sie sich dort, wo in dieser Anwendung alles Verpasste wieder auftaucht — auf der [Anfragenseite](#wo-der-guide-die-anfragen-sieht). Jede durchgeführte Führung trägt dort einen Knopf *Führung bewerten*, solange sie unbewertet ist; die Liste bringt die Auskunft mit (`reviewed`, `review_stars` in `TourRequest`).
+
+Der **Guide** sieht in seiner Liste dieselbe Zeile mit den Sternen, die er bekommen hat. Einen Knopf gibt es dort nicht — er kann daran nichts ändern.
+
+### Wo die Bewertungen stehen
+
+| Ort | Was dort steht |
+|---|---|
+| **Standortseite**, unter dem Guide-Streifen | Durchschnitt, Anzahl und die letzten Bewertungen **zu diesem Standort** |
+| **Guide-Profil**, zwischen "Über mich" und den Standorten | dasselbe **über alle Standorte dieses Guides**, jede Bewertung mit der Führung, um die es ging |
+
+Beide Blöcke baut dieselbe Klasse (`App\Helper\ReviewView`) — „wie sieht eine Bewertung aus" und „ab wann steht dort eine Zahl" wird einmal beantwortet. Gezeigt werden die **letzten fünf** Bewertungen mit Text; die besten oder die schlechtesten auszuwählen wäre eine Meinung, und Bewertungen ohne Text stehen ohnehin schon in Durchschnitt und Anzahl.
+
+**Der Guide sieht seine eigenen** in derselben Form wie ein Kunde — nur die Überschrift ist an ihn gerichtet. Eine Sonderansicht wäre eine zweite Wahrheit über dieselben Zeilen, und die eine, auf die es ankommt, ist die, die seine Kunden lesen.
+
+### Kein Name dabei
+
+Bei einer Bewertung stehen die Sterne, der Text, der **Monat** und — auf dem Guide-Profil — die Führung, um die es ging. **Kein Name.**
+
+Ein Kunde hat in dieser Anwendung keinen Anzeigenamen, sondern nur einen Benutzernamen, und der ist die Anmeldekennung: Er gehört nicht auf eine Seite, die jeder aufrufen kann (dieselbe Regel wie beim [Guide-Profil](#-der-guide-als-mensch), dessen Adresse deshalb die Kennung trägt und nicht den Namen). Der Monat statt des Tages aus demselben Grund wie bei „Guide seit" — der Tag beantwortet keine Frage, die jemand hat.
+
+Der Text selbst ist Fremdeingabe und geht durch `ViewHelper::esc()`: spitze Klammern **und die drei Rauten**, mit denen diese Anwendung ihre Platzhalter baut.
+
+### Der Guide kann nichts löschen — die Moderation blendet aus
+
+Eine Bewertung, die der Bewertete ändern oder löschen kann, ist keine Auskunft mehr über ihn, sondern eine von ihm. Der Guide hat deshalb **kein** Recht darauf, auch nicht auf seinem eigenen Profil.
+
+Für eine Beleidigung oder eine offensichtlich falsche Zuordnung entfernt ein **Admin** sie (Recht `review.remove`). Der Knopf steht unauffällig an jeder Bewertung, dort wo sie ohnehin zu lesen ist — eine eigene Moderationsseite für einen Ausnahmefall wäre eine Seite zu viel.
+
+**Entfernt heißt ausgeblendet, nicht gelöscht.** Gesetzt werden `removed_at`, `removed_by` und `removed_reason`; die Zeile bleibt stehen. Sie zählt danach nirgends mehr mit — nicht im Durchschnitt, nicht in der Anzahl, in keiner Liste —, aber es bleibt nachvollziehbar, dass es sie gab und wer sie entfernt hat. Dasselbe Muster wie beim [Sperren eines Standorts](#moderation), wo auch nichts verschwindet.
+
+**Danach ist nicht wieder frei:** Der eindeutige Schlüssel gilt weiter, dieselbe Führung lässt sich nicht erneut bewerten. Sonst wäre das Entfernen eine Einladung, dasselbe noch einmal zu schreiben.
+
+### Keine Fremdschlüssel
+
+Wie bei `tour_request` und aus demselben Grund: Eine abgegebene Bewertung bleibt abgegeben, auch wenn der Standort später gelöscht wird. Mit `ON DELETE CASCADE` wäre sie beim ersten gelöschten Standort weg, mit `RESTRICT` ließe sich ein Standort nie wieder löschen. Gelesen wird deshalb mit `LEFT JOIN`, und die Anzeige rechnet damit, dass der Titel fehlen kann.
+
+---
+
 ## 🔐 Berechtigungen
 
 ### Rollen
@@ -1268,7 +1392,7 @@ Die Nummern sind **Etiketten, keine Rangfolge**: Eine höhere Nummer bedeutet ni
 
 ### Rechte
 
-Geprüft wird nie eine Rolle, sondern immer ein **benanntes Recht** (`user.delete`, `location.block`, `chat.read`, `request.answer`, …). Die vollständige Zuordnung steht in `class/Helper/Permission.php`; jede Rolle führt ihre Rechte selbst auf, es gibt **keine Vererbung**. Auch "nicht angemeldet" ist dort eine Rolle (`Permission::GUEST`) mit einer ausgeschriebenen Liste.
+Geprüft wird nie eine Rolle, sondern immer ein **benanntes Recht** (`user.delete`, `location.block`, `chat.read`, `request.answer`, `review.create`, …). Die vollständige Zuordnung steht in `class/Helper/Permission.php`; jede Rolle führt ihre Rechte selbst auf, es gibt **keine Vererbung**. Auch "nicht angemeldet" ist dort eine Rolle (`Permission::GUEST`) mit einer ausgeschriebenen Liste.
 
 ### Durchsetzung
 
@@ -1285,6 +1409,8 @@ Was eine Rechtetabelle nicht wissen kann, prüfen weiterhin die Controller **und
 ### Moderation
 
 Ein Admin **löscht keine fremden Standorte, er sperrt sie** (Recht `location.block`). Der gesperrte Standort verschwindet aus der Übersicht der anderen Nutzer, bleibt aber beim Guide bestehen — in seiner eigenen Standortliste sieht er die Sperre samt Grund. Gelöscht wird nur vom Eigentümer.
+
+Dasselbe Muster bei **Bewertungen** (Recht `review.remove`): Der Admin entfernt eine Bewertung, indem sie ausgeblendet wird — die Zeile bleibt samt Zeitpunkt, Entferner und Grund stehen. Der bewertete Guide hat dieses Recht ausdrücklich **nicht**; siehe [Bewertungen](#-bewertungen).
 
 ### Die Guide-Rolle
 

@@ -318,10 +318,56 @@ window.webrtcApp.requests = {
                  +  (eingehend ? 'Absagen' : 'Zurückziehen') + '</button>';
         }
 
+        // DIE BEWERTUNG - der Ort, an dem eine uebersprungene Frage wieder
+        // auftaucht. Nach dem Auflegen wird der Kunde gefragt; wer damals
+        // "später" gesagt hat, findet die Fuehrung hier, und zwar so lange,
+        // wie sie unbewertet ist.
+        //
+        // NUR DER KUNDE bewertet. Der Guide sieht in seiner Liste, was er
+        // bekommen hat - aendern kann er daran nichts, und einen Knopf dafuer
+        // gibt es nirgends.
+        if (!eingehend && zustand === 'done' && !this.wahr(z.reviewed)) {
+            html += '<button type="button" class="btn btn-primary btn-sm rev-open"'
+                 +  ' data-request="' + id + '"'
+                 +  ' data-title="' + this.esc((z.title || '').trim()) + '"'
+                 +  ' data-guide="' + this.esc(z.partner_name || '') + '">Führung bewerten</button>';
+        }
+
         if (html === '') {
-            html = '<span class="req-item__done">Nichts mehr zu tun.</span>';
+            // Steht eine Bewertung dazu, sagt die Zeile das statt "nichts
+            // mehr zu tun": Fuer den Guide ist es die Auskunft, wie diese
+            // Fuehrung ankam, fuer den Kunden die Bestaetigung, dass seine
+            // Bewertung angekommen ist.
+            html = this.bewertungHtml(z, eingehend);
         }
         return html;
+    },
+
+    /**
+     * Die abgegebene Bewertung einer Zeile - oder der Hinweis, dass nichts
+     * mehr ansteht.
+     *
+     * ENTFERNTE BEWERTUNGEN stehen hier nicht: Der Server liefert die Sterne
+     * dann gar nicht mit (App\Model\TourRequest). Fuer den Guide sieht die
+     * Zeile danach aus wie eine unbewertete - und das ist richtig, denn
+     * sichtbar ist die Bewertung nirgends mehr.
+     *
+     * @param {Object}  z
+     * @param {boolean} eingehend
+     * @returns {string} HTML
+     */
+    bewertungHtml(z, eingehend) {
+        const sterne = parseInt(z.review_stars, 10);
+        const modul  = window.webrtcApp.review;
+
+        if (!isNaN(sterne) && sterne > 0 && modul) {
+            return '<span class="req-item__done">'
+                 + (eingehend ? 'Bewertet: ' : 'Ihre Bewertung: ')
+                 + modul.sterneHtml(sterne)
+                 + '</span>';
+        }
+
+        return '<span class="req-item__done">Nichts mehr zu tun.</span>';
     },
 
     /**

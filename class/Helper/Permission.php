@@ -267,6 +267,39 @@ class Permission
      */
     public const REQUEST_CANCEL = 'request.cancel';
 
+    /**
+     * Eine durchgefuehrte Fuehrung bewerten.
+     *
+     * NUR EINE RICHTUNG: Kunden bewerten Guides. Es gibt kein Gegenstueck,
+     * mit dem ein Guide einen Zuschauer bewerten koennte - weder ein Recht
+     * noch eine Route noch eine Spalte (migrations/016).
+     *
+     * Jedes angemeldete Konto hat es, auch ein Guide: Ein Guide ist anderswo
+     * Kunde. Der GAST hat es nicht - eine Bewertung haengt an einer Fuehrung,
+     * und eine Fuehrung haengt an einer Anfrage, die ein Konto voraussetzt
+     * (request.create).
+     *
+     * WELCHE Fuehrung jemand bewerten darf, kann keine Rechtetabelle wissen:
+     * Es ist die, die er selbst angefragt hat und die stattgefunden hat. Das
+     * steht in der WHERE-Klausel (App\Model\TourReview::create).
+     */
+    public const REVIEW_CREATE = 'review.create';
+
+    /**
+     * Eine Bewertung entfernen.
+     *
+     * NUR DIE MODERATION, und das ist der Punkt: Eine Bewertung, die der
+     * Bewertete loeschen oder aendern kann, ist keine Auskunft mehr ueber ihn.
+     * Der Guide hat dieses Recht deshalb nicht - fuer eine Beleidigung oder
+     * eine offensichtlich falsche Zuordnung wendet er sich an die
+     * Administration.
+     *
+     * ENTFERNEN IST KEIN LOESCHEN: Die Zeile bleibt stehen und wird
+     * ausgeblendet - dasselbe Muster wie beim Sperren eines Standorts
+     * (location.block), wo auch nichts verschwindet.
+     */
+    public const REVIEW_REMOVE = 'review.remove';
+
     /** Chat mit einem anderen Nutzer beginnen. */
     public const CHAT_START = 'chat.start';
     /** Einladung annehmen oder ablehnen. */
@@ -368,6 +401,9 @@ class Permission
             self::REQUEST_CREATE,
             self::REQUEST_LIST,
             self::REQUEST_CANCEL,
+            // Bewerten darf jedes angemeldete Konto: Wer eine Fuehrung
+            // angefragt und erlebt hat, darf sagen, wie sie war.
+            self::REVIEW_CREATE,
             self::CHAT_START,
             self::CHAT_ANSWER,
             self::CHAT_LIST,
@@ -408,6 +444,9 @@ class Permission
             self::REQUEST_CREATE,
             self::REQUEST_LIST,
             self::REQUEST_CANCEL,
+            // Bewerten darf jedes angemeldete Konto: Wer eine Fuehrung
+            // angefragt und erlebt hat, darf sagen, wie sie war.
+            self::REVIEW_CREATE,
             self::CHAT_START,
             self::CHAT_ANSWER,
             self::CHAT_LIST,
@@ -453,6 +492,9 @@ class Permission
             self::REQUEST_ANSWER,
             self::REQUEST_LIST,
             self::REQUEST_CANCEL,
+            // Bewerten darf jedes angemeldete Konto: Wer eine Fuehrung
+            // angefragt und erlebt hat, darf sagen, wie sie war.
+            self::REVIEW_CREATE,
             self::CHAT_START,
             self::CHAT_ANSWER,
             self::CHAT_LIST,
@@ -508,6 +550,12 @@ class Permission
             self::REQUEST_ANSWER,
             self::REQUEST_LIST,
             self::REQUEST_CANCEL,
+            // Bewerten darf jedes angemeldete Konto: Wer eine Fuehrung
+            // angefragt und erlebt hat, darf sagen, wie sie war.
+            self::REVIEW_CREATE,
+            // Und nur der Admin entfernt eine Bewertung - der Guide kann das
+            // nicht, sonst waere sie keine Auskunft mehr ueber ihn.
+            self::REVIEW_REMOVE,
             self::CHAT_START,
             self::CHAT_ANSWER,
             self::CHAT_LIST,

@@ -50,7 +50,15 @@ class GuideView
      * @param array<int,array<string,mixed>> $in_standorte
      *        Aus App\Model\Location::selectLocationsOfGuide()
      * @param array<string,mixed> $in_ansicht Was der Controller entschieden hat:
-     *        'eigen' bool  Ist es das eigene Profil?
+     *        'eigen'          bool  Ist es das eigene Profil?
+     *        'review_summary' array Durchschnitt, Anzahl und Zahl der
+     *                               durchgefuehrten Fuehrungen
+     *                               (App\Model\TourReview::summaryForGuide).
+     *                               Ob es einen Durchschnitt gibt, ist dort
+     *                               entschieden und nicht hier.
+     *        'reviews'        array Die letzten Bewertungen mit Text
+     *        'moderation'     bool  Darf der Betrachter eine Bewertung
+     *                               entfernen (Recht review.remove)?
      * @return string HTML
      */
     public static function page(array $in_profil, array $in_standorte, array $in_ansicht): string
@@ -66,6 +74,30 @@ class GuideView
             '###GUIDE_META###'    => self::metaHtml($in_profil),
             '###GUIDE_TOOLS###'   => self::werkzeugeHtml($eigen),
             '###GUIDE_ABOUT###'   => self::ueberMichHtml($in_profil, $eigen),
+            // DIE BEWERTUNGEN. Gebaut von App\Helper\ReviewView und nicht
+            // hier - dieselbe Klasse baut den Block auf der Standortseite,
+            // und "wie sieht eine Bewertung aus" ist eine Frage, die nur
+            // einmal beantwortet werden darf.
+            //
+            // DER GUIDE SIEHT SEINE EIGENEN in derselben Form wie ein Kunde;
+            // nur die Ueberschrift ist an ihn gerichtet. Eine Sonderansicht
+            // fuer ihn waere eine zweite Wahrheit ueber dieselben Zeilen -
+            // und die eine, auf die es ankommt, ist die, die seine Kunden
+            // lesen.
+            '###GUIDE_REVIEWS###' => ReviewView::blockHtml(
+                                         (array)($in_ansicht['review_summary'] ?? []),
+                                         (array)($in_ansicht['reviews'] ?? []),
+                                         [
+                                             'eigen' => $eigen,
+                                             // HIER schon: Auf dem Profil
+                                             // stehen die Bewertungen zu allen
+                                             // Standorten dieses Guides
+                                             // nebeneinander, und dann ist die
+                                             // Fuehrung, um die es ging, die
+                                             // Auskunft, die fehlt.
+                                             'mit_ort'    => true,
+                                             'moderation' => !empty($in_ansicht['moderation']),
+                                         ]),
             '###GUIDE_OFFERS###'  => self::angeboteHtml($in_standorte, $name, $eigen),
         ];
 

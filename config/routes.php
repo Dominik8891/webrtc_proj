@@ -16,6 +16,7 @@ use App\Controller\GuideController;
 use App\Controller\GuideProfileController;
 use App\Controller\ChatController;
 use App\Controller\RequestController;
+use App\Controller\ReviewController;
 use App\Helper\Permission;
 
 /**
@@ -228,6 +229,25 @@ return [
     // Guide im Moment des Eintreffens nicht bemerkt hat, muss er spaeter an
     // einer Stelle wiederfinden, die er ohnehin ansteuert.
     'requests_page'         => [RequestController::class            , 'showRequestsPage'        , Permission::REQUEST_LIST           , 'html'],
+
+    // Bewertungen: was der Kunde nach der Fuehrung sagt.
+    //
+    // NUR DIESE RICHTUNG - Kunden bewerten Guides. Eine Route fuer den
+    // umgekehrten Weg gibt es nicht, und im Schema auch keine Spalte dafuer
+    // (migrations/016).
+    //
+    // Zwei Routen und zwei Rechte, und der Unterschied ist der Punkt:
+    // Bewerten darf jedes angemeldete Konto (review.create), ENTFERNEN nur
+    // die Moderation (review.remove). Der Guide kann seine Bewertungen
+    // weder aendern noch loeschen - sonst waeren sie keine Auskunft mehr
+    // ueber ihn, sondern eine von ihm.
+    //
+    // WELCHE Fuehrung jemand bewerten darf, kann keine Rechtetabelle wissen:
+    // Das steht in der WHERE-Klausel (App\Model\TourReview::create). Eine
+    // Leseroute gibt es nicht - die Bewertungen stehen auf der Standortseite
+    // und auf dem Guide-Profil, und beide baut der Server.
+    'review_create'         => [ReviewController::class             , 'create'                  , Permission::REVIEW_CREATE          , 'json'],
+    'review_remove'         => [ReviewController::class             , 'remove'                  , Permission::REVIEW_REMOVE          , 'json'],
 
     // Chat-Funktionen
     'chat_start'            => [ChatController::class               , 'startChat'               , Permission::CHAT_START             , 'json'],

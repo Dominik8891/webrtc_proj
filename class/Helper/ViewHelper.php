@@ -3,6 +3,7 @@ namespace App\Helper;
 
 use App\Model\GuideRole;
 use App\Model\TourRequest;
+use App\Model\TourReview;
 use App\Model\User;
 use App\Helper\Theme;
 
@@ -445,6 +446,29 @@ class ViewHelper
                 // Server gerade ausgeliefert hat.
                 $user_id_script .= '<script>window.requestCounts = '
                     . json_encode($zahlen) . ';</script>';
+            }
+
+            // DIE SKALA DER BEWERTUNG geht mit ins Frontend.
+            //
+            // WARUM: Das Bewertungsformular baut der Browser
+            // (assets/js/review.js) - es erscheint nach dem Auflegen auf
+            // irgendeiner Seite, ohne dass der Server dafuer eine Seite
+            // ausliefert. Die Woerter der Skala, ihre Grenzen und die
+            // erlaubte Textlaenge stehen trotzdem an EINER Stelle
+            // (App\Model\TourReview) und nicht ein zweites Mal in
+            // JavaScript: Zwei Fassungen einer Skala waeren eine zu viel,
+            // und die zweite waere die, die beim naechsten Aendern vergessen
+            // wird.
+            //
+            // Nur fuer Konten, die bewerten duerfen. Wer das Recht nicht hat,
+            // bekommt kein Formular und braucht auch die Skala nicht.
+            if (Auth::can(Permission::REVIEW_CREATE)) {
+                $user_id_script .= '<script>window.reviewScale = ' . json_encode([
+                    'min'     => TourReview::STARS_MIN,
+                    'max'     => TourReview::STARS_MAX,
+                    'names'   => TourReview::starNames(),
+                    'bodyMax' => TourReview::BODY_MAX,
+                ]) . ';</script>';
             }
 
             if (Auth::can(Permission::USER_AVAILABILITY)) {

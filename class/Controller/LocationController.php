@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Model\Location;
 use App\Model\LocationImage;
 use App\Model\TourRequest;
+use App\Model\TourReview;
 use App\Helper\Auth;
 use App\Helper\Availability;
 use App\Helper\ImageStore;
@@ -855,6 +856,26 @@ class LocationController
                 // nur er die Grenzen.
                 'grenzen'     => $ist_eigen ? self::grenzen($user_id) : [],
                 'anfrage'     => $anfrage,
+                // WAS ANDERE KUNDEN GESAGT HABEN - zu diesem Standort, nicht
+                // zum Guide insgesamt. Fuer JEDEN Betrachter dasselbe, auch
+                // fuer den Gast und auch fuer den Eigentuemer: Eine Bewertung
+                // ist eine Auskunft ueber ein oeffentliches Angebot, und sie
+                // sieht fuer den Guide genauso aus wie fuer seine Kunden - er
+                // soll lesen, was dort steht, und nicht eine Sonderansicht
+                // davon.
+                //
+                // OB EIN DURCHSCHNITT DABEI IST, entscheidet
+                // App\Model\TourReview und nicht diese Stelle: Unterhalb der
+                // Schwelle kommt er als null zurueck, und die Ansicht zeigt
+                // dann die Zahl der durchgefuehrten Fuehrungen.
+                'review_summary' => TourReview::summaryForLocation($location_id),
+                'reviews'        => TourReview::latestForLocation($location_id),
+                // Der Entfernen-Knopf an einer Bewertung. Er haengt am Recht
+                // review.remove und nicht an location.block: Das eine nimmt
+                // einen Standort aus der Uebersicht, das andere blendet eine
+                // einzelne Aeusserung aus. Heute hat beides nur der Admin -
+                // das muss aber nicht so bleiben.
+                'moderation'     => Auth::can(Permission::REVIEW_REMOVE),
             ]
         ));
     }

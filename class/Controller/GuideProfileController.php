@@ -10,6 +10,7 @@ use App\Helper\Role;
 use App\Helper\ViewHelper;
 use App\Model\GuideProfile;
 use App\Model\Location;
+use App\Model\TourReview;
 
 /**
  * Die Profilseite eines Guides: zeigen, bearbeiten, Bild ausliefern.
@@ -87,7 +88,27 @@ class GuideProfileController
             return;
         }
 
-        ViewHelper::output(GuideView::page($profil, $standorte, ['eigen' => $eigen]));
+        ViewHelper::output(GuideView::page($profil, $standorte, [
+            'eigen' => $eigen,
+            // WAS KUNDEN UEBER DIESEN GUIDE GESAGT HABEN - ueber alle seine
+            // Standorte hinweg. Das ist der Unterschied zur Standortseite:
+            // Dort steht, wie die Fuehrungen an EINEM Ort waren, hier, wie
+            // die Fuehrungen dieses MENSCHEN waren.
+            //
+            // Fuer jeden Betrachter dasselbe, auch fuer den Gast und auch
+            // fuer den Guide selbst: Er soll lesen, was seine Kunden lesen.
+            // Ob ein Durchschnitt dabei ist, entscheidet
+            // App\Model\TourReview - unterhalb der Schwelle kommt er als
+            // null zurueck, und dann steht dort die Zahl der durchgefuehrten
+            // Fuehrungen statt einer Wertung.
+            'review_summary' => TourReview::summaryForGuide($user_id),
+            'reviews'        => TourReview::latestForGuide($user_id),
+            // Der Entfernen-Knopf. Er haengt am Recht review.remove, das
+            // heute nur der Admin hat - der GUIDE hat es ausdruecklich nicht,
+            // auch auf seinem eigenen Profil nicht: Eine Bewertung, die der
+            // Bewertete loeschen kann, ist keine Auskunft mehr ueber ihn.
+            'moderation'     => Auth::can(Permission::REVIEW_REMOVE),
+        ]));
     }
 
     /**
