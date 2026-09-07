@@ -75,6 +75,19 @@ try {
     // OHNE ein Ende zu erfinden - siehe dort.
     App\Model\TourRequest::closeStale();
 
+    // ABGELAUFENE VERSUCHSZAEHLER AUFRAEUMEN.
+    //
+    // Zum dritten Mal dieselbe Ueberlegung: AUFRAEUMEN, KEINE PRUEFUNG. Ob
+    // jemand gesperrt ist, entscheidet nirgends dieser Job, sondern der
+    // Vergleich mit NOW() in App\Model\RateLimit::restsperre. Ohne
+    // eingerichteten Cron bremst die Anwendung genauso, und eine Sperre endet
+    // trotzdem von selbst - die Tabelle sammelt dann nur Zeilen, die nichts
+    // mehr aussagen.
+    //
+    // Geloescht wird nur, was BEIDES hinter sich hat: das Zaehlfenster und
+    // eine etwaige Sperre. Sonst waere das Aufraeumen ein Freispruch.
+    App\Model\RateLimit::aufraeumen();
+
     // Optional: Logging für Cronjobs (nur zur Überwachung/Debug)
     // error_log("Cron: $affected Nutzer auf offline gesetzt (" . date('c') . ")");
 

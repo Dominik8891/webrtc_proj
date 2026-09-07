@@ -404,7 +404,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (249 Prüfungen)
+## Was `server_test.php` prüft (290 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1049,6 +1049,68 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
       Schreibrouten nehmen nur POST an und lesen keine Benutzerkennung aus der
       Anfrage. Beim Bild ist die Reihenfolge festgehalten: Datei, dann Zeile,
       **dann** das alte Bild.
+
+36. **Die Bremse** (Abschnitt „Die Bremse" im Skript). Der wiederverwendbare
+    Baustein `App\Model\RateLimit` und seine drei ersten Verbraucher.
+
+    * **Die Grenzen stehen an einer Stelle und sind vollständig** — jede
+      Schranke in `config/limits.php` hat `teile`, `versuche`, `fenster`,
+      `sperre` und `erfolg_loescht`; `versuche` unter 1 würde sofort jeden
+      sperren, eine Frist unter einer Sekunde wäre keine. Für alle vier
+      Aktionen (`login`, `2fa`, `signup`, `signup_formular`) gibt es einen
+      Eintrag.
+    * **Eine unbekannte Aktion ist ein Fehler** und kein „dann eben keine
+      Bremse". Ein Tippfehler im Controller würde sonst still eine Bremse
+      ausschalten — dasselbe Muster wie bei der Routentabelle, die eine
+      vergessene Rechteangabe auch nicht durchwinkt.
+    * **Eine Abfrage prüft alle Schranken einer Aktion**, verglichen wird gegen
+      `NOW()` und nicht gegen eine Marke in der Zeile, und es gilt die
+      **längste** offene Sperre.
+    * **Der Schlüssel ist kleingeschrieben** — die Datenbank vergleicht
+      Benutzernamen ohne Rücksicht auf Groß- und Kleinschreibung; wären „Anna"
+      und „anna" zwei Zähler, wäre die Bremse mit der Umschalttaste umgangen.
+      **Fehlt einer Schranke ihr Teil**, fällt nur sie weg: Ein leeres
+      Namensfeld legt nicht alle Nutzer auf denselben Zähler.
+    * **Hochgezählt wird in einem einzigen Statement** (`INSERT … ON DUPLICATE
+      KEY UPDATE`, kein Lesen davor). Lesen-Rechnen-Schreiben wäre genau die
+      Lücke, auf die ein Angriff mit vielen parallelen Verbindungen zielt:
+      Beide Versuche lesen denselben Stand, der zweite ist gratis. Die Zahlen
+      im SQL stammen nachweislich aus `config/limits.php` und stehen nicht im
+      Code.
+    * **Wer eine Sperre abgesessen hat, fängt bei eins an.** Ohne das hätte
+      eine Sperre, die kürzer ist als ihr Fenster, eine Falle: Der erste
+      Versuch danach würde sofort wieder sperren.
+    * **Ein Erfolg löscht die Kontoschranken, nicht die IP-Schranke.** Würde er
+      sie mitlöschen, könnte ein Angreifer mit einem einzigen eigenen Konto
+      seinen IP-Zähler beliebig oft zurücksetzen — und damit genau die
+      Schranke aushebeln, die das Durchprobieren von *Benutzernamen* begrenzt.
+    * **Aufräumen ist kein Freispruch** — gelöscht wird nur, was Fenster *und*
+      Sperre hinter sich hat. Eine laufende Sperre überlebt den Cronjob.
+    * **Gezählt wird `REMOTE_ADDR`, bei IPv6 das /64.** `X-Forwarded-For` wird
+      nicht ausgewertet: Der Kopf kommt vom Aufrufer selbst und wäre ein
+      Textfeld, in das er bei jedem Versuch eine neue Adresse schreibt. Zwei
+      Adressen desselben /64 ergeben einen Zähler, zwei verschiedene /64 zwei —
+      ein gewöhnlicher Anschluss bekommt ein ganzes /64 zugeteilt.
+    * **Die Wartezeit wird nach oben gerundet** — „noch 1 Minute" bei 61
+      Sekunden ist eine Zusage, die nicht gehalten wird.
+    * **Die Zähler liegen nicht mehr beim Aufrufer.** Im `LoginController`
+      steht kein `login_attempts` und kein `login_blocked_until` mehr und keine
+      eigene Grenze; die Meldung nennt die Zahl der Restversuche nicht mehr
+      (sie sagte dem, der durchprobiert, ab wann er die Verbindung wechseln
+      muss). Geprüft wird dabei der **Code ohne Kommentare** — die Stellen
+      erklären im Kommentar, warum die alten Zähler weg sind, und nennen sie
+      dabei beim Namen.
+    * **Die 2FA-Prüfung hat Zähler und Sperre**, und ihr Zähler hängt an der
+      **UserID aus der Sitzung**, nicht am Benutzernamen: Der Aufrufer kann sie
+      nicht wählen.
+    * **Die Registrierung zählt Formulare und angelegte Konten getrennt.**
+      Beide Grenzen werden vor dem Anlegen geprüft; das Konto zählt erst
+      **nach** dem erfolgreichen `register()` — sonst kostet jeder Tippfehler
+      ein Konto aus dem Kontingent.
+    * **`rate_limit` steht in der Wanderung, im Dump und im Cronjob** — die
+      Wanderung ist idempotent, hat den eindeutigen Schlüssel `ein_zaehler`
+      (ohne ihn ergäben gleichzeitige Versuche zwei Zeilen und damit keine
+      Bremse), und die Spaltenbreite passt zu `RateLimit::SCHLUESSEL_MAX`.
 
 ## Grenzen
 

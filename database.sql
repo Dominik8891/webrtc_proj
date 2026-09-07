@@ -1024,4 +1024,48 @@ CREATE TABLE IF NOT EXISTS `email_verifications` (
   CONSTRAINT `email_verifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- --------------------------------------------------------
+-- Tabelle: rate_limit
+-- Die serverseitigen Versuchszaehler (Login, 2FA, Registrierung).
+-- Eine Zeile ist EIN Zaehler: (Aktion, Schranke, Schluessel).
+-- Geschrieben und gelesen ausschliesslich von App\Model\RateLimit,
+-- die Grenzen stehen in config/limits.php. Siehe migrations/018_bremse.sql.
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `rate_limit` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+
+  -- 'login', '2fa', 'signup', 'signup_formular' - die Schluessel aus
+  -- config/limits.php.
+  `aktion` varchar(32) NOT NULL,
+
+  -- Welche Schranke dieser Aktion. Eigene Spalte, weil zwei Schranken
+  -- denselben Schluessel haben koennen ('ip_stunde' und 'ip_tag').
+  `schranke` varchar(32) NOT NULL,
+
+  -- Woran der Zaehler haengt. Laenge passt zu
+  -- App\Model\RateLimit::SCHLUESSEL_MAX (190).
+  `schluessel` varchar(190) NOT NULL,
+
+  `versuche` int(11) NOT NULL DEFAULT 0,
+
+  -- Ende des laufenden Zaehlfensters.
+  `fenster_bis` datetime NOT NULL,
+
+  -- Bis wann abgewiesen wird. NULL = nicht gesperrt; ein Zeitpunkt in der
+  -- Vergangenheit heisst dasselbe, jede Pruefung vergleicht mit NOW().
+  `gesperrt_bis` datetime DEFAULT NULL,
+
+  `letzter_versuch` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (`id`),
+
+  -- JE SCHRANKE UND SCHLUESSEL GENAU EIN ZAEHLER. Darauf stuetzt sich das
+  -- ON DUPLICATE KEY UPDATE beim Hochzaehlen - ohne diesen Schluessel
+  -- ergaeben zwei gleichzeitige Versuche zwei Zeilen und damit keine Bremse.
+  UNIQUE KEY `ein_zaehler` (`aktion`, `schranke`, `schluessel`),
+
+  -- Der Cronjob sucht abgelaufene Fenster.
+  KEY `aufraeumen` (`fenster_bis`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 COMMIT;

@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Model\User;
+use App\Model\RateLimit;
 use App\Helper\Auth;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
@@ -29,9 +30,6 @@ class LoginController
      */
     public function handleLogin(): void
     {
-        $maxAttempts = 5;
-        $lockoutTime = 300; // 5 Minuten
-
         $username = trim(Request::g('username'));
         $pwd = Request::g('pwd');
         $ip = $_SERVER['REMOTE_ADDR'];
@@ -41,21 +39,33 @@ class LoginController
             return;
         }*/
 
-        // --- Brute-Force Schutz initialisieren ---
-        if (!isset($_SESSION['login_attempts'])) {
-            $_SESSION['login_attempts'] = [];
-        }
-        if (!isset($_SESSION['login_blocked_until'])) {
-            $_SESSION['login_blocked_until'] = [];
-        }
+        // --- Die Bremse ---------------------------------------------------
+        //
+        // WAS HIER FRUEHER STAND, UND WARUM ES WEG IST
+        // --------------------------------------------
+        // Zwei Zaehler in $_SESSION - $_SESSION['login_attempts'] und
+        // $_SESSION['login_blocked_until'] - plus die Zahlen 5 und 300 als
+        // lokale Variablen direkt darueber.
+        //
+        // EINE SESSION STEHT IM COOKIE DES AUFRUFERS. Wer es verwarf, fing
+        // bei null an; ein Skript, das gar keine Cookies annimmt, bekam bei
+        // jedem Versuch eine frische Session und hatte deshalb nie ein
+        // Limit. Gezaehlt wurde damit nicht der Angreifer, sondern der
+        // ehrliche Nutzer, der sein Passwort dreimal falsch tippt - die
+        // Bremse traf ausschliesslich den, gegen den sie nicht gedacht war.
+        //
+        // Der Zaehler liegt jetzt in der Datenbank (App\Model\RateLimit,
+        // migrations/018), und die Grenzen stehen in config/limits.php und
+        // nicht mehr hier. Gebremst wird an DREI Schranken zugleich: eng auf
+        // dem Paar aus Konto und IP, weit auf dem Konto und auf der IP
+        // allein - warum, steht in der Konfiguration.
+        $teile = ['konto' => $username, 'ip' => RateLimit::ip()];
 
-        // --- Blockierung prüfen ---
-        if (
-            isset($_SESSION['login_blocked_until'][$username]) &&
-            $_SESSION['login_blocked_until'][$username] > time()
-        ) {
-            $wait = $_SESSION['login_blocked_until'][$username] - time();
-            $this->outputLoginError("Zu viele Fehlversuche. Bitte warte $wait Sekunden.");
+        $rest = RateLimit::restsperre('login', $teile);
+        if ($rest > 0) {
+            $this->outputLoginError(
+                'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest) . ' warten.'
+            );
             return;
         }
 
@@ -87,27 +97,31 @@ class LoginController
             // weg, bevor irgendein Weg diese Methode verlaesst.
             // continueAfterLogin() kehrt nicht zurueck, hinter dem Aufruf
             // duerfen also keine noetigen Zeilen mehr stehen.
-            unset($_SESSION['login_attempts'][$username]);
-            unset($_SESSION['login_blocked_until'][$username]);
+            //
+            // Weggeraeumt werden nur die Schranken am KONTO. Die IP-Schranke
+            // bleibt stehen: Sie zaehlt die Adresse und nicht dieses Konto -
+            // sonst koennte ein Angreifer mit einem einzigen eigenen Konto
+            // seinen IP-Zaehler beliebig oft zuruecksetzen. Welche das sind,
+            // entscheidet config/limits.php ('erfolg_loescht'), nicht diese
+            // Zeile.
+            RateLimit::zuruecksetzen('login', $teile);
 
             self::continueAfterLogin();
         } else {
             // Logging jedes Fehlversuchs
             error_log("Fehlgeschlagener Loginversuch für $username von IP $ip");
 
-            if (!isset($_SESSION['login_attempts'][$username])) {
-                $_SESSION['login_attempts'][$username] = 1;
-            } else {
-                $_SESSION['login_attempts'][$username]++;
-            }
+            $rest = RateLimit::verbuchen('login', $teile);
 
-            if ($_SESSION['login_attempts'][$username] >= $maxAttempts) {
-                $_SESSION['login_blocked_until'][$username] = time() + $lockoutTime;
-                $this->outputLoginError("Zu viele Fehlversuche. Account für 5 Minuten gesperrt.");
-            } else {
-                $rest = $maxAttempts - $_SESSION['login_attempts'][$username];
-                $this->outputLoginError("Benutzername oder Passwort falsch. Noch $rest Versuch(e).");
-            }
+            // DIE MELDUNG NENNT DIE ZAHL DER RESTVERSUCHE NICHT MEHR.
+            // "Noch 3 Versuch(e)" sagte dem, der durchprobiert, wie viel
+            // Luft er hat und ab wann er die Verbindung wechseln muss - eine
+            // Auskunft, die nur der Angreifer braucht. Der ehrliche Nutzer
+            // erfaehrt, was er wissen muss: dass es falsch war, und im
+            // Sperrfall, wie lange er warten muss.
+            $this->outputLoginError($rest > 0
+                ? 'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest) . ' warten.'
+                : 'Benutzername oder Passwort falsch.');
         }
     }
 

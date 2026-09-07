@@ -49,11 +49,14 @@ require_once $ROOT . '/class/Controller/ChatController.php';
 // Die Guide-Frage und die Stelle, die sie beim Standortformular stellt.
 require_once $ROOT . '/class/Controller/GuideController.php';
 require_once $ROOT . '/class/Controller/LocationController.php';
+// Die Bremse. Haengt an nichts ausser PdoConnect und config/limits.php.
+require_once $ROOT . '/class/Model/RateLimit.php';
 
 use App\Model\IceServerConfig;
 use App\Model\PdoConnect;
 use App\Model\TourRequest;
 use App\Model\TourReview;
+use App\Model\RateLimit;
 use App\Model\WebRTCHandler;
 use App\Controller\TurnController;
 use App\Controller\WebRTCController;
@@ -5353,6 +5356,295 @@ check(strpos($wanderung17, 'information_schema') !== false,
 check(strpos(file_get_contents($ROOT . '/database.sql'), '`closed_at`') !== false,
     'der Dump kennt closed_at nicht');
 ok('closed_at steht in der Wanderung und im Dump');
+
+
+// =====================================================================
+fwrite(STDERR, "\nDie Bremse (App\\Model\\RateLimit)\n");
+// =====================================================================
+//
+// Geprueft wird das, was die Bremse zu einer Bremse macht: dass der Zaehler
+// NICHT beim Aufrufer liegt, dass mehrere Schranken zugleich greifen, dass
+// ein Erfolg nicht alles zuruecksetzt und dass die Grenzen an genau einer
+// Stelle stehen. Ohne Datenbank - die abgesetzten Statements werden nur
+// mitgeschrieben.
+
+class FakeBremseStatement
+{
+    public $sql;
+    public $params = [];
+    public function __construct($sql) { $this->sql = $sql; }
+    public function execute($params = null)
+    {
+        if ($params !== null) { $this->params = $params; }
+        FakeBremseDb::$ausgefuehrt[] = $this;
+        return true;
+    }
+    // restsperre() liest genau eine Spalte 'rest'.
+    public function fetch($m = null) { return FakeBremseDb::$rest; }
+    public function fetchAll($m = null) { return []; }
+    public function fetchColumn($i = 0) { return 0; }
+}
+
+class FakeBremseDb
+{
+    /** @var FakeBremseStatement[] */
+    public static $ausgefuehrt = [];
+    /** @var string[] */
+    public static $exec = [];
+    /** Was die naechste Abfrage als Restsperre liefert. */
+    public static $rest = ['rest' => 0];
+
+    public function prepare($sql) { return new FakeBremseStatement($sql); }
+    public function exec($sql) { self::$exec[] = $sql; return 0; }
+
+    public static function leeren()
+    {
+        self::$ausgefuehrt = [];
+        self::$exec = [];
+        self::$rest = ['rest' => 0];
+    }
+}
+
+$bremseDb = new FakeBremseDb();
+PdoConnect::$connection = $bremseDb;
+$limits = require $ROOT . '/config/limits.php';
+
+// --- Die Grenzen stehen an EINER Stelle, und sie sind vollstaendig --------
+//
+// Eine Schranke ohne 'sperre' oder mit 'versuche' => 0 waere keine Bremse,
+// sondern ein Loch - und zwar eines, das nur im Ernstfall auffiele.
+foreach ($limits as $aktion => $schranken) {
+    check($schranken !== [], "Aktion '$aktion' hat keine einzige Schranke");
+    foreach ($schranken as $name => $e) {
+        foreach (['teile', 'versuche', 'fenster', 'sperre', 'erfolg_loescht'] as $feld) {
+            check(array_key_exists($feld, $e), "$aktion/$name: '$feld' fehlt");
+        }
+        check(is_array($e['teile']) && $e['teile'] !== [], "$aktion/$name: keine Teile");
+        check($e['versuche'] >= 1, "$aktion/$name: 'versuche' unter 1 sperrt sofort jeden");
+        check($e['fenster'] >= 1 && $e['sperre'] >= 1, "$aktion/$name: Frist unter 1 Sekunde");
+    }
+}
+// Die drei Befunde, um die es geht, haben eine Aktion.
+foreach (['login', '2fa', 'signup', 'signup_formular'] as $aktion) {
+    check(isset($limits[$aktion]), "keine Bremse fuer '$aktion'");
+}
+ok('jede Schranke in config/limits.php ist vollstaendig');
+
+// Ein Tippfehler im Controller darf keine Bremse ausschalten.
+$geworfen = false;
+try { RateLimit::schranken('gibtesnicht'); } catch (\InvalidArgumentException $e) { $geworfen = true; }
+check($geworfen, 'eine unbekannte Aktion laeuft still ohne Bremse durch');
+ok('eine unbekannte Aktion ist ein Fehler und kein "dann eben keine Bremse"');
+
+// --- Geprueft wird VOR dem Versuch, und alle Schranken auf einmal ---------
+FakeBremseDb::leeren();
+RateLimit::restsperre('login', ['konto' => 'Anna', 'ip' => '198.51.100.7']);
+check(count(FakeBremseDb::$ausgefuehrt) === 1,
+    'die Pruefung setzt mehr als eine Abfrage ab (' . count(FakeBremseDb::$ausgefuehrt) . ')');
+$abfrage = FakeBremseDb::$ausgefuehrt[0];
+check(strpos($abfrage->sql, 'gesperrt_bis > NOW()') !== false,
+    'gesperrt wird gegen eine Marke statt gegen NOW() geprueft');
+check(strpos($abfrage->sql, 'MAX(') !== false, 'es gilt nicht die strengste Schranke');
+// Aktion + drei Schranken zu je zwei Werten.
+check(count($abfrage->params) === 1 + 3 * 2,
+    'nicht alle drei Login-Schranken werden geprueft (' . count($abfrage->params) . ' Werte)');
+check($abfrage->params[0] === 'login', 'die Aktion steht nicht als erster Wert');
+ok('eine Abfrage prueft alle Schranken, es gilt die laengste Sperre');
+
+// --- Der Schluessel: kleingeschrieben, und ohne Teil keine Schranke -------
+//
+// Die Datenbank vergleicht Benutzernamen ohne Ruecksicht auf Gross- und
+// Kleinschreibung. Waeren "Anna" und "anna" zwei Schluessel, waere die Bremse
+// mit der Umschalttaste umgangen.
+$werte = FakeBremseDb::$ausgefuehrt[0]->params;
+check(in_array('anna', $werte, true), 'der Kontoschluessel ist nicht kleingeschrieben');
+check(!in_array('Anna', $werte, true), 'der Schluessel traegt die Schreibweise der Eingabe');
+
+FakeBremseDb::leeren();
+RateLimit::restsperre('login', ['konto' => '', 'ip' => '198.51.100.7']);
+// Ohne Benutzernamen bleibt nur die IP-Schranke: Aktion + ein Paar.
+check(count(FakeBremseDb::$ausgefuehrt[0]->params) === 3,
+    'ein leeres Namensfeld legt alle Nutzer auf denselben Zaehler');
+ok('eine Schranke ohne ihre Teile faellt weg, die anderen bleiben');
+
+// --- Hochgezaehlt wird in EINEM Schritt -----------------------------------
+//
+// Lesen, Rechnen, Schreiben waere die Luecke, auf die ein Angriff mit vielen
+// parallelen Verbindungen zielt: Beide Versuche lesen denselben Stand, beide
+// schreiben denselben Wert - der zweite ist gratis.
+FakeBremseDb::leeren();
+RateLimit::verbuchen('login', ['konto' => 'anna', 'ip' => '198.51.100.7']);
+$inserts = array_values(array_filter(FakeBremseDb::$ausgefuehrt,
+    fn($st) => strpos($st->sql, 'INSERT INTO rate_limit') !== false));
+check(count($inserts) === 3, 'nicht jede Schranke wird hochgezaehlt (' . count($inserts) . ')');
+foreach ($inserts as $ins) {
+    check(strpos($ins->sql, 'ON DUPLICATE KEY UPDATE') !== false,
+        'hochgezaehlt wird mit Lesen und Schreiben statt in einem Schritt');
+    check(strpos($ins->sql, 'SELECT') === false, 'im Hochzaehlen steht ein Lesevorgang');
+}
+// Die Zahlen kommen aus der Konfiguration und stehen nicht im Code.
+$engster = $inserts[0]->sql;
+check(strpos($engster, 'INTERVAL ' . $limits['login']['konto_und_ip']['fenster'] . ' SECOND') !== false,
+    'das Fenster der engsten Login-Schranke stammt nicht aus config/limits.php');
+check(strpos($engster, '>= ' . $limits['login']['konto_und_ip']['versuche']) !== false,
+    'die Grenze der engsten Login-Schranke stammt nicht aus config/limits.php');
+ok('jeder Zaehler steigt mit einem einzigen Statement');
+
+// Eine abgesessene Sperre faengt bei eins an - sonst waere jede Sperre, die
+// kuerzer ist als ihr Fenster, eine Endlosschleife aus Sperren.
+check(strpos($engster, 'gesperrt_bis <= NOW()') !== false,
+    'eine abgesessene Sperre setzt den Zaehler nicht zurueck');
+ok('wer eine Sperre abgesessen hat, faengt wieder bei eins an');
+
+// --- Ein Erfolg loescht nicht alles ---------------------------------------
+//
+// Wuerde ein erfolgreicher Login die IP-Schranke wegraeumen, koennte ein
+// Angreifer mit einem einzigen eigenen Konto seinen IP-Zaehler beliebig oft
+// zuruecksetzen - und damit genau die Schranke aushebeln, die das
+// Durchprobieren von Benutzernamen begrenzt.
+FakeBremseDb::leeren();
+RateLimit::zuruecksetzen('login', ['konto' => 'anna', 'ip' => '198.51.100.7']);
+$loeschungen = array_values(array_filter(FakeBremseDb::$ausgefuehrt,
+    fn($st) => strpos($st->sql, 'DELETE') !== false));
+check(count($loeschungen) === 1, 'das Zuruecksetzen setzt mehr als ein DELETE ab');
+$geloescht = $loeschungen[0]->params;
+check(in_array('konto_und_ip', $geloescht, true), 'die enge Kontoschranke bleibt nach dem Erfolg stehen');
+check(in_array('konto', $geloescht, true), 'die weite Kontoschranke bleibt nach dem Erfolg stehen');
+check(!in_array('ip', $geloescht, true), 'ein erfolgreicher Login raeumt den IP-Zaehler weg');
+ok('ein Erfolg loescht die Kontoschranken, nicht die IP-Schranke');
+
+// --- Aufraeumen ist kein Freispruch ---------------------------------------
+FakeBremseDb::leeren();
+RateLimit::aufraeumen();
+check(count(FakeBremseDb::$exec) === 1, 'das Aufraeumen setzt nicht genau ein Statement ab');
+$aufraeumen = FakeBremseDb::$exec[0];
+check(strpos($aufraeumen, 'fenster_bis <= NOW()') !== false, 'das Aufraeumen sieht das Fenster nicht an');
+check(strpos($aufraeumen, 'gesperrt_bis IS NULL OR gesperrt_bis <= NOW()') !== false,
+    'das Aufraeumen loescht laufende Sperren mit');
+ok('eine laufende Sperre ueberlebt das Aufraeumen');
+
+// --- Die Adresse: IPv6 zaehlt als /64 -------------------------------------
+//
+// Ein gewoehnlicher Anschluss bekommt ein ganzes /64 zugeteilt. Eine Bremse
+// an der Einzeladresse waere dort keine - der naechste Versuch kaeme von der
+// naechsten Adresse desselben Anschlusses.
+$alteIp = $_SERVER['REMOTE_ADDR'] ?? null;
+
+$_SERVER['REMOTE_ADDR'] = '198.51.100.7';
+check(RateLimit::ip() === '198.51.100.7', 'eine IPv4-Adresse wird veraendert');
+
+$_SERVER['REMOTE_ADDR'] = '2001:db8:1:2:aaaa:bbbb:cccc:dddd';
+$netz = RateLimit::ip();
+check(substr($netz, -3) === '/64', 'IPv6 wird nicht auf das /64 gekuerzt: ' . $netz);
+$_SERVER['REMOTE_ADDR'] = '2001:db8:1:2:1111:2222:3333:4444';
+check(RateLimit::ip() === $netz, 'zwei Adressen desselben /64 ergeben zwei Zaehler');
+$_SERVER['REMOTE_ADDR'] = '2001:db8:1:3:aaaa:bbbb:cccc:dddd';
+check(RateLimit::ip() !== $netz, 'zwei verschiedene /64 ergeben denselben Zaehler');
+
+// Kein Vertrauen in einen Kopf, den der Aufrufer selbst schreibt.
+$_SERVER['REMOTE_ADDR'] = '198.51.100.7';
+$_SERVER['HTTP_X_FORWARDED_FOR'] = '203.0.113.99';
+check(RateLimit::ip() === '198.51.100.7', 'X-Forwarded-For wird ausgewertet und ist damit ein Textfeld');
+unset($_SERVER['HTTP_X_FORWARDED_FOR']);
+if ($alteIp === null) { unset($_SERVER['REMOTE_ADDR']); } else { $_SERVER['REMOTE_ADDR'] = $alteIp; }
+ok('gezaehlt wird REMOTE_ADDR, bei IPv6 das /64');
+
+// --- Die Wartezeit wird nach oben gerundet --------------------------------
+//
+// "noch 1 Minute" bei 61 Sekunden ist eine Zusage, die nicht gehalten wird.
+check(RateLimit::wartehinweis(0) === 'gleich wieder', 'ohne Sperre steht eine Wartezeit da');
+check(RateLimit::wartehinweis(1) === 'noch 1 Sekunde', 'die Einzahl fehlt');
+check(RateLimit::wartehinweis(45) === 'noch 45 Sekunden', 'unter einer Minute wird nicht sekundengenau gezaehlt');
+check(RateLimit::wartehinweis(61) === 'noch 2 Minuten', 'die Wartezeit wird abgerundet');
+check(RateLimit::wartehinweis(900) === 'noch 15 Minuten', '15 Minuten stehen falsch da');
+check(RateLimit::wartehinweis(3601) === 'noch 2 Stunden', 'ueber einer Stunde wird abgerundet');
+ok('die Wartezeit wird nach oben gerundet und nicht in Sekunden genannt');
+
+// --- Die Zaehler liegen NICHT mehr beim Aufrufer --------------------------
+//
+// Der eigentliche Befund. Bliebe irgendwo ein $_SESSION-Zaehler stehen,
+// waere die alte Luecke an dieser Stelle wieder offen - und niemand saehe es
+// den neuen Aufrufen an.
+//
+// GEPRUEFT WIRD DER CODE, NICHT DIE KOMMENTARE. Die Stellen, an denen die
+// alten Sessionzaehler standen, erklaeren im Kommentar, warum sie weg sind -
+// und nennen sie dabei beim Namen. Eine Suche im Rohtext wuerde genau diese
+// Erklaerung als Rueckfall melden und damit dazu erziehen, sie zu loeschen.
+$ohneKommentare = function (string $quelle): string {
+    $text = '';
+    foreach (token_get_all($quelle) as $stueck) {
+        if (is_array($stueck) && in_array($stueck[0], [T_COMMENT, T_DOC_COMMENT], true)) {
+            continue;
+        }
+        $text .= is_array($stueck) ? $stueck[1] : $stueck;
+    }
+    return $text;
+};
+
+$loginSrc = $ohneKommentare(file_get_contents($ROOT . '/class/Controller/LoginController.php'));
+check(strpos($loginSrc, "login_attempts") === false,
+    'der Fehlversuchszaehler liegt weiterhin in der Session');
+check(strpos($loginSrc, "login_blocked_until") === false,
+    'die Sperre liegt weiterhin in der Session');
+check(strpos($loginSrc, 'RateLimit::restsperre') !== false, 'der Login prueft die Bremse nicht');
+check(strpos($loginSrc, 'RateLimit::verbuchen') !== false, 'der Login zaehlt Fehlversuche nicht');
+check(strpos($loginSrc, 'RateLimit::zuruecksetzen') !== false, 'ein erfolgreicher Login raeumt nichts weg');
+// Keine zweite Zahl neben der Konfiguration.
+check(!preg_match('/\$maxAttempts|\$lockoutTime/', $loginSrc),
+    'im Login stehen wieder eigene Grenzen');
+// Die Restversuche gehoeren nicht in die Meldung: Sie sagen dem, der
+// durchprobiert, ab wann er die Verbindung wechseln muss.
+check(strpos($loginSrc, 'Versuch(e)') === false,
+    'die Fehlermeldung nennt die Zahl der Restversuche');
+ok('der Login zaehlt serverseitig und nennt keine Restversuche');
+
+$zweiSrc = $ohneKommentare(file_get_contents($ROOT . '/class/Controller/TwoFactorController.php'));
+check(strpos($zweiSrc, "RateLimit::restsperre('2fa'") !== false,
+    'die 2FA-Pruefung hat weiterhin keine Sperre');
+check(strpos($zweiSrc, "RateLimit::verbuchen('2fa'") !== false,
+    'die 2FA-Pruefung hat weiterhin keinen Versuchszaehler');
+check(strpos($zweiSrc, "RateLimit::zuruecksetzen('2fa'") !== false,
+    'ein richtiger Code raeumt den Zaehler nicht weg');
+// Gezaehlt wird an der UserID aus der Session - der Aufrufer kann sie nicht
+// waehlen, anders als den Benutzernamen im Loginformular.
+check(preg_match('/\$teile\s*=\s*\[\s*\'konto\'\s*=>\s*\(string\)\$userId/', $zweiSrc) === 1,
+    'der 2FA-Zaehler haengt nicht an der UserID');
+ok('die 2FA-Pruefung hat einen Zaehler und eine Sperre');
+
+$signupSrc = $ohneKommentare(file_get_contents($ROOT . '/class/Controller/SignupController.php'));
+// Geprueft werden BEIDE Aktionen, bevor irgendetwas passiert - im Code eine
+// Schleife ueber die zwei Namen, nicht zwei ausgeschriebene Aufrufe.
+check(preg_match("/\['signup',\s*'signup_formular'\]/", $signupSrc) === 1,
+    'die Registrierung prueft nicht beide Grenzen');
+check(strpos($signupSrc, 'RateLimit::restsperre($aktion') !== false,
+    'die Registrierung prueft die Grenzen nicht vor dem Anlegen');
+check(strpos($signupSrc, "RateLimit::verbuchen('signup_formular'") !== false,
+    'ungueltige Formulare kosten nichts - die Grenze ist damit zu umgehen');
+check(strpos($signupSrc, "RateLimit::verbuchen('signup'") !== false,
+    'angelegte Konten werden nicht gezaehlt');
+// Gezaehlt wird das KONTO erst nach dem Anlegen: Sonst kostet jeder
+// Tippfehler ein Konto aus dem Kontingent.
+$vorAnlage = strpos($signupSrc, "RateLimit::verbuchen('signup', \$teile)");
+$anlage    = strpos($signupSrc, '$user->register(');
+check($vorAnlage !== false && $anlage !== false && $vorAnlage > $anlage,
+    'ein Tippfehler kostet ein Konto aus dem Kontingent');
+ok('die Registrierung zaehlt Formulare und angelegte Konten getrennt');
+
+// --- Die Wanderung und der Dump -------------------------------------------
+$wanderung18 = file_get_contents($ROOT . '/migrations/018_bremse.sql');
+check(strpos($wanderung18, 'CREATE TABLE IF NOT EXISTS `rate_limit`') !== false,
+    'die Wanderung legt rate_limit nicht an');
+check(strpos($wanderung18, 'IF NOT EXISTS') !== false, 'die Wanderung ist nicht idempotent');
+check(strpos($wanderung18, 'UNIQUE KEY `ein_zaehler`') !== false,
+    'ohne eindeutigen Schluessel ergeben gleichzeitige Versuche zwei Zeilen');
+check(strpos(file_get_contents($ROOT . '/database.sql'), '`rate_limit`') !== false,
+    'der Dump kennt rate_limit nicht');
+// Die Spaltenbreite und die Kappungsgrenze im Code gehoeren zusammen.
+check(strpos($wanderung18, '`schluessel` varchar(190)') !== false,
+    'die Spaltenbreite passt nicht zu RateLimit::SCHLUESSEL_MAX');
+check(strpos(file_get_contents($ROOT . '/cron/check_online_status.php'), 'RateLimit::aufraeumen') !== false,
+    'abgelaufene Zaehler werden nie aufgeraeumt');
+ok('rate_limit steht in der Wanderung, im Dump und im Aufraeum-Cronjob');
 
 
 PdoConnect::$connection = new FakeConnection();

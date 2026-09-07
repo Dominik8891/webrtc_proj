@@ -69,7 +69,7 @@ Steuerprotokoll überhaupt nicht.
 |---|---|
 | `WebRTCController.php` | **Signaling-Endpunkt.** POST = Signal speichern, GET = Signale abholen + löschen; `signalMessageFilter()` (Z. 76) verwirft leere ICE-Kandidaten. |
 | `TurnController.php` | Gibt TURN/STUN-Credentials als JSON aus (Proxy zu Metered). |
-| `LoginController.php` | Login mit Brute-Force-Lockout (5 Versuche / 300 s, Z. 31-32), Session-Regeneration (Z. 80), 2FA-Weiche (Z. 75), Logout. |
+| `LoginController.php` | Login mit serverseitiger Bremse (`App\Model\RateLimit`, Grenzen in `config/limits.php`), Session-Regeneration, 2FA-Weiche, Logout. |
 | `SignupController.php` | Registrierung inkl. Validierung; **Erfolgspfad defekt** (Z. 71, s. Abschnitt 9). |
 | `PasswordController.php` | Passwort-vergessen (Token + Mail), Reset, Ändern. |
 | `EmailVerificationController.php` | E-Mail-Verifizierung per Token; Versand der Verifikationsmail. |
@@ -904,17 +904,34 @@ $pwd_hashed   = password_hash($pwd_peppered, PASSWORD_ARGON2I);
 HMAC-Pepper aus ENV plus Argon2i — das ist besser als in vielen Produktivsystemen.
 Verifikation entsprechend über `password_verify()` (`User.php:208`).
 
-**Brute-Force-Schutz** (`LoginController.php:31-32, 44-59, 103-115`): 5 Versuche,
-dann 300 s Sperre. **Aber:** der Zähler liegt in `$_SESSION` (Z. 44-48). Ein
-Angreifer, der pro Versuch kein Session-Cookie sendet, bekommt jedes Mal eine
-frische Session — die Sperre ist damit **wirkungslos**. Zusätzlich ist sie
-`$username`-indiziert, greift also nicht gegen Password-Spraying über viele
-Konten.
+**Brute-Force-Schutz** — **behoben**, siehe `migrations/018_bremse.sql`.
+
+*Der Befund war:* 5 Versuche, dann 300 s Sperre — aber der Zähler lag in
+`$_SESSION`. Ein Angreifer, der pro Versuch kein Session-Cookie sendet, bekam
+jedes Mal eine frische Session; die Sperre war damit **wirkungslos** und traf
+ausschließlich den ehrlichen Nutzer. Zusätzlich war sie `$username`-indiziert,
+griff also nicht gegen Password-Spraying über viele Konten.
+
+*Heute:* Der Zähler liegt serverseitig in der Tabelle `rate_limit`
+(`App\Model\RateLimit`), die Grenzen stehen ausschließlich in
+`config/limits.php`. Gebremst wird an drei Schranken zugleich — eng auf dem
+Paar aus Konto und IP, weit auf dem Konto und auf der IP allein. Die weite
+Kontoschranke fängt Password-Spraying ab, ohne dass ein Fremder ein Konto
+gezielt aussperren kann; die IP-Schranke begrenzt das Durchprobieren von
+*Benutzernamen*. Die Fehlermeldung nennt die Zahl der Restversuche nicht mehr.
 
 **2FA** (`TwoFactorController.php`): TOTP über `spomky-labs/otphp`, SHA1, 6
-Stellen, 30 s Periode (Z. 38). QR-Code als Data-URI (Z. 51-54). Kein Window/Drift
-konfiguriert, **keine Backup-Codes**, **kein Replay-Schutz** (derselbe Code ist
-30 s lang mehrfach verwendbar).
+Stellen, 30 s Periode. QR-Code als Data-URI. Der **fehlende Versuchszähler ist
+behoben**: `handle2FAVerify()` benutzt dieselbe Bremse (Aktion `2fa`, gezählt an
+der UserID aus der Sitzung, nicht am Benutzernamen). Offen bleiben: kein
+Window/Drift konfiguriert, **keine Backup-Codes**, **kein Replay-Schutz**
+(derselbe Code ist 30 s lang mehrfach verwendbar).
+
+**Registrierung**: Die **fehlende Bremse ist behoben** — `signup` begrenzt
+angelegte Konten je IP, `signup_formular` daneben die abgeschickten Formulare,
+damit sich die Grenze nicht durch ungültige Eingaben umgehen lässt (und das
+Formular nicht als Auskunft darüber dient, welche Benutzernamen und
+E-Mail-Adressen es schon gibt).
 
 ### 8.2 Wie werden Sessions gehalten?
 

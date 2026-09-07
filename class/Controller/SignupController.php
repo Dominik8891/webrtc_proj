@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Model\User;
 use App\Model\Email;
 use App\Model\PdoConnect;
+use App\Model\RateLimit;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 use App\Helper\LogHelper;
@@ -29,11 +30,59 @@ class SignupController
     /**
      * Verarbeitet eine Nutzer-Registrierung (Validierung und Anlage).
      * Gibt Fehler zurück oder registriert den User, ggf. inkl. E-Mail-Verifikation.
+     *
+     * DIE BREMSE, UND WARUM SIE ZWEITEILIG IST
+     * ----------------------------------------
+     * Bis hierher waren Konten unbegrenzt und kostenlos. Das ist nicht nur
+     * fuer sich genommen ein Befund - es ist die Grundlage der uebrigen: Jede
+     * Beschraenkung, die an einem Konto haengt (Anfragen, Bewertungen,
+     * Nachrichten), ist wertlos, solange das naechste Konto einen Klick
+     * entfernt ist.
+     *
+     * Gebremst wird deshalb an ZWEI Aktionen (App\Model\RateLimit,
+     * config/limits.php):
+     *
+     *   'signup'           zaehlt ANGELEGTE KONTEN, und zwar erst NACH dem
+     *                      Anlegen. Wuerde schon der Versuch zaehlen, koestete
+     *                      jeder Tippfehler ein Konto aus dem Kontingent: Wer
+     *                      sein Passwort dreimal falsch wiederholt, koennte
+     *                      sich anschliessend nicht mehr registrieren.
+     *
+     *   'signup_formular'  zaehlt JEDES abgeschickte Formular, ob gueltig
+     *                      oder nicht. Ohne diese zweite Aktion liesse sich
+     *                      das Formular beliebig oft abschicken, solange nur
+     *                      nie ein Konto entsteht - und genau das ist der
+     *                      Weg, auf dem sich abfragen laesst, WELCHE
+     *                      Benutzernamen und E-Mail-Adressen es schon gibt:
+     *                      Die Antworten "bereits vergeben" unterscheiden
+     *                      sich von allen anderen.
+     *
+     * Gezaehlt wird je IP - eine andere Angabe gibt es an dieser Stelle
+     * nicht, denn wer sich registriert, hat noch kein Konto.
+     *
      * @return void
      */
     public function handleSignup(): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $teile = ['ip' => RateLimit::ip()];
+
+            // Erst die Kontogrenze, dann die Formulargrenze: Die erste ist
+            // die Aussage, um die es geht ("von hier kommen genug Konten"),
+            // die zweite nur ihr Schutz gegen Haemmern.
+            foreach (['signup', 'signup_formular'] as $aktion) {
+                $rest = RateLimit::restsperre($aktion, $teile);
+                if ($rest > 0) {
+                    error_log("Registrierung gesperrt ($aktion) von IP {$teile['ip']}");
+                    $this->outputSignupError('gesperrt', RateLimit::wartehinweis($rest));
+                    return;
+                }
+            }
+
+            // Der Versuch ist verbucht, bevor irgendetwas geprueft wird -
+            // sonst waere die Grenze durch ungueltige Eingaben zu umgehen.
+            RateLimit::verbuchen('signup_formular', $teile);
+
             $username   = trim(REQUEST::g('username'));
             $email      = trim(REQUEST::g('email'));
             $pwd        =      REQUEST::g('pwd');
@@ -62,6 +111,10 @@ class SignupController
                     // User anlegen
                     $user_id = $user->register($username, $email, $pwd);
                     if ($user_id > 0) {
+                        // Das Konto steht - jetzt zaehlt es gegen die
+                        // Kontogrenze. Nicht frueher: siehe Methodenkopf.
+                        RateLimit::verbuchen('signup', $teile);
+
                         /*
                          *
                          * Viewhelper rausnehmen und Emailverification rein wenn auf Online Server
@@ -97,10 +150,16 @@ class SignupController
 
     /**
      * Gibt das Registrierungsformular mit Fehlerhinweis aus.
-     * @param string $error Fehlercode für Fehlermeldung
+     *
+     * @param string $error   Fehlercode für Fehlermeldung
+     * @param string $warten  Nur bei 'gesperrt': die Wartezeit als Satzteil
+     *                        (App\Model\RateLimit::wartehinweis). Steht als
+     *                        eigener Parameter und nicht als fertige Meldung
+     *                        im Fehlercode, damit der Wortlaut aller
+     *                        Meldungen an dieser einen Stelle bleibt.
      * @return void
      */
-    public function outputSignupError($error): void
+    public function outputSignupError($error, string $warten = ''): void
     {
         // Fehlerfall: Formular mit Fehler anzeigen
         $html = ViewHelper::template('assets/html/signup.html');
@@ -111,6 +170,9 @@ class SignupController
             case "username_invalid": $msg = "Ungültiger Benutzername. Nur Buchstaben/Zahlen/Unterstrich, 3-20 Zeichen."; break;
             case "email_invalid":    $msg = "Bitte gib eine gültige E-Mail-Adresse ein."; break;
             case "pwd_short":        $msg = "Das Passwort muss mindestens 8 Zeichen lang sein."; break;
+            // Nicht "zu viele Konten von deiner Adresse": Das erklaert dem,
+            // der es darauf anlegt, woran die Bremse haengt.
+            case "gesperrt":         $msg = "Zu viele Registrierungsversuche. Bitte " . $warten . " warten."; break;
             default:                 $msg = "Ein unbekannter Fehler ist aufgetreten.";
         }
         $html = str_replace('###ERROR###', $msg, $html);

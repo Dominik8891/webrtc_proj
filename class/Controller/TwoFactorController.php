@@ -5,6 +5,7 @@ use App\Helper\ViewHelper;
 use App\Helper\Auth;
 use App\Helper\Request;
 use App\Model\User;
+use App\Model\RateLimit;
 use OTPHP\TOTP;
 use Symfony\Component\Clock\NativeClock;
 use Endroid\QrCode\QrCode;
@@ -180,6 +181,23 @@ class TwoFactorController
 
     /**
      * Prüft den 2FA-Code nach dem Login und schließt Login ggf. ab.
+     *
+     * DIE BREMSE GEHOERT HIERHER, nicht nur an den Login davor. Sechs
+     * Stellen sind eine Million Moeglichkeiten - ohne Zaehler ist das keine
+     * Huerde, sondern eine Wartezeit: Wer das Passwort hat, kommt mit genug
+     * Anlaeufen auch am zweiten Faktor vorbei, und ein TOTP-Code gilt
+     * ausserdem 30 Sekunden lang, so dass mehrere Werte gleichzeitig richtig
+     * sind. Bis hierher gab es keinen Zaehler und keine Sperre.
+     *
+     * DIESELBE BREMSE WIE UEBERALL (App\Model\RateLimit), nur eine andere
+     * Aktion - die Grenzen dafuer stehen in config/limits.php.
+     *
+     * GEZAEHLT WIRD AN DER USERID, nicht am Benutzernamen: Sie steht in
+     * $_SESSION['2fa_userid'] und ist dort vom Server hingeschrieben worden,
+     * nachdem das Passwort stimmte. Der Aufrufer kann sie nicht waehlen -
+     * anders als beim Login, wo der Kontoteil des Schluessels aus dem
+     * Formular kommt.
+     *
      * @return void
      */
     public function handle2FAVerify(): void
@@ -190,6 +208,18 @@ class TwoFactorController
             $this->outputError("Fehler beim 2FA-Login.");
             return;
         }
+
+        $teile = ['konto' => (string)$userId, 'ip' => RateLimit::ip()];
+
+        $rest = RateLimit::restsperre('2fa', $teile);
+        if ($rest > 0) {
+            error_log("2FA-Login: gesperrt (UserID {$userId})");
+            $this->outputError(
+                'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest) . ' warten.'
+            );
+            return;
+        }
+
         $user = new User($userId);
 
         $clock = new NativeClock(new \DateTimeZone('Europe/Berlin'));
@@ -217,13 +247,23 @@ class TwoFactorController
             session_regenerate_id(true);
             Auth::establish($user);
             unset($_SESSION['2fa_userid']);
+            // Der zweite Faktor sass - der Fehlversuchszaehler dieses Kontos
+            // gehoert weg. Die IP-Schranke bleibt stehen, siehe
+            // config/limits.php ('erfolg_loescht').
+            RateLimit::zuruecksetzen('2fa', $teile);
             // Derselbe Abschluss wie beim Login ohne zweiten Faktor: erst die
             // Guide-Frage, dann - fuer Guides - die Standortabfrage. Vorher
             // ging es hier direkt zur Startseite, wer 2FA benutzte, wurde
             // deshalb nie gefragt.
             LoginController::continueAfterLogin();
         } else {
-            $this->outputError("Ungültiger Code. Bitte erneut versuchen.");
+            $rest = RateLimit::verbuchen('2fa', $teile);
+
+            // Wie beim Login nennt die Meldung keine Restversuche: Das ist
+            // eine Auskunft, die nur der braucht, der durchprobiert.
+            $this->outputError($rest > 0
+                ? 'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest) . ' warten.'
+                : 'Ungültiger Code. Bitte erneut versuchen.');
         }
     }
     
