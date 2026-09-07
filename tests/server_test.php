@@ -25,6 +25,12 @@ require_once $ROOT . '/class/Helper/Languages.php';
 require_once $ROOT . '/class/Helper/Availability.php';
 require_once $ROOT . '/class/Helper/LocationView.php';
 require_once $ROOT . '/class/Model/GuideRole.php';
+// Das Guide-Profil: der Mensch hinter dem Angebot. Vor LocationView
+// gebraucht - die Standortseite baut ihren Guide-Streifen mit GuideView.
+require_once $ROOT . '/class/Model/GuideProfile.php';
+require_once $ROOT . '/class/Helper/Avatar.php';
+require_once $ROOT . '/class/Helper/GuideView.php';
+require_once $ROOT . '/class/Controller/GuideProfileController.php';
 require_once $ROOT . '/class/Helper/Theme.php';
 require_once $ROOT . '/class/Helper/ViewHelper.php';
 require_once $ROOT . '/class/Helper/Auth.php';
@@ -52,6 +58,10 @@ use App\Helper\Languages;
 use App\Helper\Availability;
 use App\Helper\LocationView;
 use App\Model\GuideRole;
+use App\Model\GuideProfile;
+use App\Helper\Avatar;
+use App\Helper\GuideView;
+use App\Controller\GuideProfileController;
 use App\Helper\Role;
 use App\Helper\Auth;
 use App\Helper\Permission;
@@ -626,10 +636,16 @@ ok('die drei ungeschuetzten Endpunkte haengen jetzt an einem Recht');
 // Empfaenger auf dem Anmeldeformular endet, wird nicht weitergegeben. Auch
 // diese Seite gibt einem Gast keine user_id heraus - er kann von dort aus
 // also niemanden anrufen, sondern landet bei der Anmeldung.
+//
+// guide.view als drittes, und wieder aus demselben Grund: Die Profilseite
+// eines Guides ist eine Adresse, die er weitergibt. Sie zeigt Anzeigename,
+// Bild, Selbstbeschreibung, Sprachen und die angebotenen Standorte - keinen
+// Benutzernamen, keine E-Mail-Adresse und nichts, womit sich jemand anmelden
+// koennte.
 $oeffentlich = [Permission::SYSTEM_HOME, Permission::AUTH_LOGIN, Permission::AUTH_SIGNUP,
                 Permission::AUTH_PASSWORD_RESET, Permission::AUTH_EMAIL_VERIFY,
                 Permission::AUTH_TWOFACTOR_VERIFY, Permission::LOCATION_MAP_PUBLIC,
-                Permission::LOCATION_VIEW];
+                Permission::LOCATION_VIEW, Permission::GUIDE_VIEW];
 sort($oeffentlich);
 $gast = Permission::rightsOf(Permission::GUEST);
 sort($gast);
@@ -4075,6 +4091,358 @@ check(strpos($formularServer, 'Anderer Zeitpunkt') === false
 check(strpos($formularServer, 'aria-label="Vorgaben für den Wunschzeitpunkt"') !== false,
     'die Gruppe der Vorgaben traegt denselben Namen wie das Feld');
 ok('Feld und Vorgaben heissen ueberall gleich - und nicht gleich wie einander');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\n34) Der Guide ist ein Mensch, kein Benutzername\n");
+
+// DER BEFUND
+// Ein Kunde sah vom Guide einen Benutzernamen und einen farbigen Punkt. Auf
+// dieser Grundlage sollte er einen Fremden losschicken und ihm Geld dafuer
+// geben. Geprueft wird deshalb beides: dass die Angaben ueberhaupt ankommen -
+// und dass der Benutzername dabei verschwindet, denn er ist die
+// Anmeldekennung und nicht der Name eines Menschen.
+
+// --- Der Anzeigename ersetzt den Benutzernamen -----------------------------
+check(GuideProfile::anzeigename('Maria S.', 'guide1') === 'Maria S.',
+    'der Anzeigename setzt sich nicht durch');
+check(GuideProfile::anzeigename('', 'guide1') === 'guide1',
+    'ohne Anzeigenamen steht gar nichts da');
+check(GuideProfile::anzeigename(null, 'guide1') === 'guide1',
+    'ein fehlender Anzeigename faellt nicht auf den Benutzernamen zurueck');
+check(GuideProfile::anzeigename('   ', 'guide1') === 'guide1',
+    'ein Anzeigename aus Leerzeichen gilt als gesetzt');
+check(GuideProfile::nameAus(['display_name' => null, 'username' => 'guide1']) === 'guide1',
+    'nameAus faellt nicht auf den Benutzernamen zurueck');
+ok('der Anzeigename ersetzt den Benutzernamen, und nur er faellt darauf zurueck');
+
+// Die Liste der Standorte liefert den Benutzernamen GAR NICHT MEHR aus. Das
+// ist der Punkt: Was nicht ausgeliefert wird, kann auch nicht angezeigt
+// werden - eine Ansicht, die es sich anders ueberlegt, gibt es dann nicht.
+$listeDb = new FakeConnection();
+PdoConnect::$connection = $listeDb;
+(new Location())->selectAllLocations(3, false);
+$listenSql = $listeDb->statements[0]->sql;
+check(strpos($listenSql, 'guide_name') !== false,
+    'die Liste liefert keinen Anzeigenamen: ' . $listenSql);
+check(strpos($listenSql, 'user.username,') === false,
+    'die Liste liefert weiterhin den Benutzernamen als eigene Spalte');
+check(strpos($listenSql, 'guide_profile') !== false,
+    'die Liste liest das Guide-Profil gar nicht');
+
+$tabelleJs = file_get_contents($ROOT . '/assets/js/locations_table.js');
+check(strpos($tabelleJs, 'item.guide_name') !== false,
+    'die Tabelle zeigt den Anzeigenamen nicht an');
+check(strpos($tabelleJs, 'item.username') === false,
+    'die Tabelle greift weiterhin auf den Benutzernamen zu');
+ok('die Standortliste kennt den Benutzernamen fremder Konten nicht mehr');
+
+// --- Die Adresse des Profils traegt die Kennung, nicht den Namen -----------
+//
+// Der Benutzername soll intern bleiben. Stuende er in der Adresse, waere er
+// oeffentlich - und zwar an der Stelle, die ein Guide selbst weitergibt.
+$profilUrl = GuideView::profilUrl(42);
+check(strpos($profilUrl, 'act=guide') !== false, 'die Profiladresse fuehrt woanders hin');
+check(strpos($profilUrl, 'id=42') !== false, 'die Profiladresse traegt die Kennung nicht');
+check(strpos($profilUrl, 'guide1') === false && strpos($profilUrl, 'name=') === false,
+    'in der Profiladresse steht ein Name');
+ok('die Profilseite haengt an der Kennung, nicht am Benutzernamen');
+
+// --- Wer keinen Avatar hochlaedt, bekommt seine Initialen ------------------
+check(Avatar::initials('Maria Silva')     === 'MS', 'zwei Woerter ergeben nicht zwei Buchstaben');
+check(Avatar::initials('maria')           === 'M',  'ein Wort ergibt nicht einen Buchstaben');
+check(Avatar::initials('Anna-Lena Böhm')  === 'AL', 'der Bindestrich trennt nicht');
+check(Avatar::initials('öle')             === 'Ö',  'ein Umlaut ueberlebt die Grossschreibung nicht');
+check(Avatar::initials('Maria Silva Costa') === 'MS', 'es werden mehr als zwei Buchstaben');
+// Ein Fragezeichen ist ehrlicher als ein leerer Kreis: Es ist zu sehen, dass
+// hier ein Mensch stehen sollte.
+check(Avatar::initials('')    === '?', 'ein leerer Name ergibt keinen Ersatz');
+check(Avatar::initials('...') === '?', 'ein Name aus Satzzeichen ergibt keinen Ersatz');
+
+$mitBild = Avatar::html('Maria Silva', 'index.php?act=guide_avatar&id=3&size=thumb', 'x');
+$ohneBild = Avatar::html('Maria Silva', null, 'x');
+check(strpos($mitBild, '<img') === 0, 'mit Bild entsteht kein <img>');
+check(strpos($ohneBild, 'MS') !== false, 'ohne Bild fehlen die Initialen');
+// BEIDE tragen dieselbe Klasse: Groesse und Form stehen damit an einer
+// Stelle im Stylesheet, und der Aufrufer muss nicht wissen, welcher Fall
+// gerade eintritt.
+check(strpos($mitBild, 'app-avatar') !== false && strpos($ohneBild, 'app-avatar') !== false,
+    'Bild und Ersatz tragen nicht dieselbe Klasse');
+// Die Adresse wird maskiert - sonst beendete das & das Attribut.
+check(strpos($mitBild, '&amp;') !== false, 'die Bildadresse wird nicht maskiert');
+
+// Das Benutzermenue der Kopfleiste baut seine Initialen ueber dieselbe
+// Klasse. Zwei Fassungen davon liefen beim ersten Sonderfall auseinander.
+check(strpos(file_get_contents($ROOT . '/class/Helper/ViewHelper.php'), 'Avatar::html') !== false,
+    'das Benutzermenue baut seine Initialen weiterhin selbst');
+ok('die Initialen entstehen an einer Stelle und sehen ueberall gleich aus');
+
+// --- Der EINE Satz auf der Standortseite -----------------------------------
+check(GuideView::ersterSatz('Ich zeige Lissabon. Seit 2010 lebe ich hier.')
+      === 'Ich zeige Lissabon.', 'der erste Satz endet nicht am Punkt');
+check(GuideView::ersterSatz("Ich zeige Lissabon\nSeit 2010 lebe ich hier.")
+      === 'Ich zeige Lissabon', 'ein Zeilenumbruch beendet den Satz nicht');
+check(GuideView::ersterSatz('Ohne Satzzeichen') === 'Ohne Satzzeichen',
+    'ein Text ohne Satzzeichen geht verloren');
+check(GuideView::ersterSatz('') === '', 'aus nichts wird etwas');
+
+// Ein zu langer erster Satz wird an einer WORTGRENZE gekuerzt: Ein hart
+// abgeschnittener Text endet mitten im Wort und liest sich wie ein Fehler.
+$langerSatz = GuideView::ersterSatz(str_repeat('Lissabon ', 40) . 'Ende.');
+check(mb_strlen($langerSatz) <= GuideView::SATZ_MAX + 1,
+    'der gekuerzte Satz ist laenger als erlaubt: ' . mb_strlen($langerSatz));
+check(mb_substr($langerSatz, -1) === '…', 'die Kuerzung wird nicht angezeigt');
+check(strpos($langerSatz, 'Lissab…') === false, 'gekuerzt wird mitten im Wort');
+ok('auf der Standortseite steht ein Satz und kein abgeschnittener Absatz');
+
+// --- Der Guide steht auf der Standortseite, nicht in einer Fussnote --------
+$standortMitGuide = array_merge($standort, [
+    'display_name' => 'Maria S.',
+    'about'        => 'Ich zeige Lissabon. Seit 2010 lebe ich hier.',
+    'avatar_file'  => str_repeat('d', 32),
+]);
+$seiteMitGuide = LocationView::page($standortMitGuide, $bilder,
+    ['eigen' => false, 'angemeldet' => true, 'viewer_id' => 3]);
+
+check(strpos($seiteMitGuide, 'Maria S.') !== false, 'der Anzeigename steht nicht auf der Seite');
+check(strpos($seiteMitGuide, 'guide1') === false,
+    'der Benutzername des Guides steht auf der Standortseite');
+check(strpos($seiteMitGuide, 'Ich zeige Lissabon.') !== false,
+    'der Satz aus der Selbstbeschreibung fehlt');
+check(strpos($seiteMitGuide, 'Seit 2010') === false,
+    'auf der Standortseite steht die ganze Selbstbeschreibung');
+check(strpos($seiteMitGuide, 'act=guide&amp;id=3') !== false,
+    'der Guide ist nicht mit seinem Profil verlinkt');
+check(strpos($seiteMitGuide, 'act=guide_avatar') !== false, 'das Bild des Guides fehlt');
+
+// Der Streifen steht im INHALTSBEREICH unter der Beschreibung und nicht in
+// der schmalen Spalte: Wer dieser Fremde ist, gehoert zur Entscheidung.
+check(strpos($seiteMitGuide, 'loc-guide') < strpos($seiteMitGuide, 'loc__side'),
+    'der Guide steht hinter der Randspalte');
+
+// Ohne Profil bleibt der Streifen trotzdem stehen - mit dem Benutzernamen und
+// den Initialen. Ein Standort ohne erkennbaren Anbieter waere schlimmer.
+$ohneProfil = GuideView::streifenHtml($standort);
+check(strpos($ohneProfil, 'guide1') !== false, 'ohne Profil steht dort gar kein Anbieter');
+check(strpos($ohneProfil, 'act=guide_avatar') === false,
+    'ohne hochgeladenes Bild wird trotzdem eines geladen');
+ok('der Guide erscheint auf der Standortseite mit Bild, Namen und einem Satz');
+
+// --- Fremdeingabe kann auch hier keine Ersetzung ausloesen -----------------
+$boeserGuide = GuideView::streifenHtml(array_merge($standort, [
+    'display_name' => '###USER###',
+    'about'        => '<script>alert(1)</script> Hallo.',
+]));
+check(preg_match('/###[A-Z_]+###/', $boeserGuide) === 0,
+    'ein Platzhaltername aus einem Anzeigenamen steht im Dokument');
+check(strpos($boeserGuide, '<script>') === false, 'Markup aus der Selbstbeschreibung kommt durch');
+ok('Anzeigename und Selbstbeschreibung sind Fremdeingabe und werden so behandelt');
+
+// --- Die Profilseite wird wirklich gebaut ---------------------------------
+$profilZeile = [
+    'user_id' => 3, 'username' => 'guide1', 'type_id' => Role::GUIDE,
+    'display_name' => 'Maria S.', 'about' => "Ich zeige Lissabon.\n\nSeit 2010 hier.",
+    'languages' => 'de,pt', 'avatar_file' => str_repeat('d', 32),
+    'joined_at' => '2024-03-17 08:00:00', 'resigned_at' => null,
+];
+$angebote = [[
+    'id' => 7, 'title' => 'Alfama bei Nacht', 'description' => 'Die alten Gassen.',
+    'city_name' => 'Lissabon', 'country_name' => 'Portugal',
+    'availability' => 'live', 'blocked' => 0, 'cover_image_id' => 11,
+]];
+$profilSeite = GuideView::page($profilZeile, $angebote, ['eigen' => false]);
+
+check(preg_match('/###[A-Z_]+###/', $profilSeite) === 0,
+    'auf der Profilseite steht ein unbesetzter Platzhalter');
+check(strpos($profilSeite, 'Maria S.') !== false, 'der Anzeigename fehlt');
+check(strpos($profilSeite, 'guide1') === false, 'der Benutzername steht auf der Profilseite');
+// Monat und Jahr, nicht der Tag: Der Tag ist keine Auskunft, die jemand
+// braucht - und eine Angabe mehr ueber eine Person, die Stadtfuehrungen
+// anbietet.
+check(strpos($profilSeite, 'März 2024') !== false, '"Guide seit" fehlt oder ist zu genau');
+check(strpos($profilSeite, '17') === false || strpos($profilSeite, '17. März') === false,
+    'das Datum steht taggenau auf der Seite');
+check(strpos($profilSeite, 'Português') !== false || strpos($profilSeite, 'Portugues') !== false,
+    'die Sprachen des Guides fehlen');
+check(strpos($profilSeite, 'Seit 2010 hier.') !== false, 'die Selbstbeschreibung fehlt');
+check(strpos($profilSeite, 'act=location&amp;id=7') !== false,
+    'die Standorte des Guides sind nicht verlinkt');
+check(strpos($profilSeite, 'app-tag--live') !== false,
+    'die Verfuegbarkeit steht nicht an der Kachel');
+// Der Eigentuemer sieht denselben Aufbau und zusaetzlich den Weg zum
+// Bearbeiten - und der fuehrt auf die Kontoseite, nicht auf ein zweites
+// Formular hier.
+$eigenesProfil = GuideView::page($profilZeile, $angebote, ['eigen' => true]);
+check(strpos($eigenesProfil, 'act=settings') !== false,
+    'der Eigentuemer findet den Weg zum Bearbeiten nicht');
+check(strpos($profilSeite, 'act=settings') === false,
+    'ein Fremder bekommt den Bearbeitungsknopf zu sehen');
+ok('die Profilseite zeigt Mensch und Angebot - und keinen Benutzernamen');
+
+// Jeder Platzhalter der Vorlage wird auch besetzt.
+$guideViewCode = file_get_contents($ROOT . '/class/Helper/GuideView.php');
+foreach (platzhalter($ROOT . '/assets/html/guide_page.html') as $marke) {
+    check(strpos($guideViewCode, $marke) !== false,
+        "$marke aus guide_page.html wird in GuideView nicht ersetzt");
+}
+// Und die Ansicht entscheidet nichts - dieselbe Regel wie bei LocationView.
+$guideOhneKommentar = stripPhpNoise($guideViewCode);
+foreach (['Auth::', 'Request::', '$_SESSION', '$_REQUEST', '$_GET', '$_POST',
+          'PdoConnect', 'ImageStore::'] as $verboten) {
+    check(strpos($guideOhneKommentar, $verboten) === false,
+        "GuideView greift auf $verboten zu - dann ist sie keine reine Funktion mehr");
+}
+ok('guide_page.html hat keinen unbesetzten Platzhalter, GuideView baut nur HTML');
+
+// --- Das Bild: ausserhalb des Webroots, quadratisch, eines je Guide --------
+ImageStore::setConfig([
+    'base_path' => '/var/www/uploads', 'max_images_per_location' => 5,
+    'max_file_bytes' => 8388608, 'max_source_edge' => 6000, 'full_edge' => 1600,
+    'thumb_width' => 480, 'thumb_height' => 320, 'avatar_edge' => 512,
+    'avatar_thumb' => 128, 'jpeg_quality' => 82,
+    'accepted_mime' => ['image/jpeg', 'image/png', 'image/webp'],
+]);
+$avatarVoll = ImageStore::avatarPathFor(3, str_repeat('d', 32), 'full');
+check(strpos($avatarVoll, '/guides/3/') !== false,
+    'das Bild liegt nicht im Ordner seines Kontos: ' . $avatarVoll);
+check(strpos($avatarVoll, '/var/www/uploads') === 0,
+    'das Bild liegt nicht unter dem konfigurierten Ablagepfad');
+// Derselbe Namenspruefer wie bei den Standortbildern: Zwischen der
+// Datenbankzeile und dem Dateisystem soll keine Annahme stehen.
+check(ImageStore::avatarPathFor(3, '../../etc/passwd') === null,
+    'ein Name aus der Datenbank landet ungeprueft im Pfad');
+check(ImageStore::avatarPathFor(3, str_repeat('d', 32), '../x') === $avatarVoll,
+    'die Groessenangabe aus der Anfrage landet im Pfad');
+
+// EIN WEG FUER BEIDE BILDARTEN. Wer einen zweiten Upload baut, der die
+// Pruefungen selbst nachbaut, vergisst als Erstes das Entfernen des EXIF.
+$storeCode = stripPhpNoise(file_get_contents($ROOT . '/class/Helper/ImageStore.php'));
+check(substr_count($storeCode, 'applyExifRotation(') === 2,
+    'die EXIF-Drehung wird mehr als einmal angewandt oder gar nicht');
+check(substr_count($storeCode, 'is_uploaded_file') === 1,
+    'es gibt mehr als eine Stelle, die eine hochgeladene Datei annimmt');
+foreach (['storeAvatar', 'store'] as $weg) {
+    check(strpos(methodenRumpf($storeCode, $weg), 'self::pruefe(') !== false,
+        "$weg geht an den gemeinsamen Pruefungen vorbei");
+}
+// Quadratisch: Beide Ausgaben des Avatars bekommen Breite UND Hoehe - das ist
+// in writeScaled der Unterschied zwischen Beschneiden und Einpassen.
+$avatarRumpf = methodenRumpf($storeCode, 'storeAvatar');
+check(strpos($avatarRumpf, '$kante, $kante') !== false
+      && strpos($avatarRumpf, '$klein, $klein') !== false,
+    'das Avatarbild wird nicht quadratisch beschnitten');
+ImageStore::setConfig(null);
+ok('das Avatarbild geht denselben Weg wie ein Standortbild - quadratisch beschnitten');
+
+// --- Zustimmung und Profil stehen in einer Zeile, aber nie in denselben
+//     Spalten --------------------------------------------------------------
+$profilDb = new FakeConnection();
+PdoConnect::$connection = $profilDb;
+
+GuideProfile::save(3, ['display_name' => 'Maria S.', 'about' => 'Hallo.', 'languages' => ['de', 'xx']]);
+$saveSql = $profilDb->statements[0]->sql;
+foreach (['terms_version', 'terms_accepted_at', 'guide_since', 'joined_at', 'resigned_at'] as $spalte) {
+    check(strpos($saveSql, $spalte) === false,
+        "das Speichern des Profils fasst $spalte an - das ist Vertragsstoff");
+}
+check(strpos($saveSql, 'display_name') !== false, 'der Anzeigename wird gar nicht gespeichert');
+// Unbekannte Sprachkuerzel fallen weg, statt die ganze Eingabe abzuweisen.
+check($profilDb->statements[0]->params[':languages'] === 'de',
+    'unbekannte Sprachkuerzel werden gespeichert: '
+    . var_export($profilDb->statements[0]->params[':languages'], true));
+
+$profilDb->statements = [];
+GuideProfile::setAvatar(3, str_repeat('d', 32));
+$avatarSql = $profilDb->statements[0]->sql;
+check(strpos($avatarSql, 'display_name') === false && strpos($avatarSql, 'about') === false,
+    'das Bild ueberschreibt die uebrigen Profilangaben');
+// Ein Name, den ImageStore nicht vergeben haben kann, kommt gar nicht erst in
+// die Datenbank.
+$profilDb->statements = [];
+check(GuideProfile::setAvatar(3, '../../etc/passwd') === false,
+    'ein unbrauchbarer Dateiname wird eingetragen');
+check($profilDb->statements === [], 'fuer den unbrauchbaren Namen wurde ein Statement abgesetzt');
+
+// Und umgekehrt: Die Zustimmung laesst das Profil stehen. Wer der neuen
+// Fassung der Bedingungen zustimmt, verliert dabei nicht seinen Anzeigenamen.
+$rolleCode = stripPhpNoise(file_get_contents($ROOT . '/class/Model/GuideRole.php'));
+foreach (['display_name', 'about', 'avatar_file'] as $spalte) {
+    check(strpos($rolleCode, $spalte) === false,
+        "GuideRole schreibt $spalte - das gehoert dem Guide, nicht der Zustimmung");
+}
+// joined_at wird genau einmal gesetzt: Am Tag eines Bedingungswechsels waeren
+// sonst alle Guides neu, und die Profilseite behauptete das auch.
+check(strpos($rolleCode, 'COALESCE(joined_at') !== false,
+    'joined_at wird bei jeder Zustimmung neu gesetzt');
+ok('Zustimmung und Profil teilen sich eine Zeile, aber keine Spalte');
+
+// --- Die neuen Spalten stehen in der Wanderung und im Dump -----------------
+$wanderung15 = file_get_contents($ROOT . '/migrations/015_guide_profil.sql');
+$dump        = file_get_contents($ROOT . '/database.sql');
+foreach (['display_name', 'about', 'languages', 'avatar_file', 'joined_at'] as $spalte) {
+    check(strpos($wanderung15, $spalte) !== false, "die Wanderung legt $spalte nicht an");
+    check(strpos($dump, $spalte) !== false, "im Dump fehlt $spalte");
+}
+check(strpos($wanderung15, 'ADD COLUMN IF NOT EXISTS') !== false,
+    'die Wanderung laesst sich kein zweites Mal ausfuehren');
+// Der Bestand bekommt sein joined_at aus guide_since - erfunden wird nichts.
+check(strpos($wanderung15, 'SET `joined_at` = `guide_since`') !== false,
+    'bestehende Guides bekommen kein Eintrittsdatum');
+ok('die neuen Spalten stehen in der Wanderung und im Dump');
+
+// --- Die Routen: ansehen darf jeder, aendern nur der Angemeldete -----------
+check($routes['guide'][2]               === Permission::GUIDE_VIEW,
+    'die Profilseite haengt nicht am Recht guide.view');
+check($routes['guide_avatar'][2]        === Permission::GUIDE_VIEW,
+    'das Bild haengt an einem anderen Recht als die Seite, auf der es steht');
+check($routes['guide_profile_save'][2]  === Permission::GUIDE_PROFILE_EDIT,
+    'das Speichern haengt nicht am Bearbeitungsrecht');
+check($routes['guide_avatar_delete'][2] === Permission::GUIDE_PROFILE_EDIT,
+    'das Entfernen des Bildes haengt nicht am Bearbeitungsrecht');
+
+// Bearbeiten darf, wer Standorte anbietet - dieselben Rollen wie bei
+// location.offer. Ein Zuschauer haette ein Formular fuer eine Seite, die es
+// fuer ihn nicht gibt.
+foreach ([Role::GUIDE, Role::ADMIN] as $rolle) {
+    check(Permission::has($rolle, Permission::GUIDE_PROFILE_EDIT) === true,
+        'wer Standorte anbietet, darf sein Profil nicht pflegen');
+}
+foreach ([Permission::GUEST, Role::TRIAL, Role::USER] as $rolle) {
+    check(Permission::has($rolle, Permission::GUIDE_PROFILE_EDIT) === false,
+        'ein Zuschauer darf ein Guide-Profil bearbeiten');
+    check(Permission::has($rolle, Permission::GUIDE_VIEW) === true,
+        'ein Profil laesst sich nicht ansehen');
+}
+ok('ansehen darf jeder, bearbeiten nur, wer Standorte anbietet');
+
+// --- Wessen Profil bearbeitet wird, steht in der Sitzung -------------------
+//
+// Dieselbe Regel wie beim Passwortwechsel und beim Farbprofil: Eine
+// Benutzerkennung aus der Anfrage waere der Weg, fremde Profile
+// umzuschreiben.
+$profilCtrl = stripPhpNoise(file_get_contents($ROOT . '/class/Controller/GuideProfileController.php'));
+foreach (['saveProfile', 'deleteAvatar'] as $methode) {
+    $rumpf = methodenRumpf($profilCtrl, $methode);
+    check(strpos($rumpf, 'Auth::userId()') !== false,
+        "$methode nimmt das Konto nicht aus der Sitzung");
+    check(strpos($rumpf, "Request::g('user_id'") === false
+          && strpos($rumpf, "'id'") === false,
+        "$methode liest eine Benutzerkennung aus der Anfrage");
+    // Nur per POST: Der Vorgang aendert Daten. Als Link in einer Mail oder in
+    // einem fremden Bild aufrufbar darf so etwas nicht sein.
+    check(strpos($rumpf, "REQUEST_METHOD'] !== 'POST'") !== false,
+        "$methode laesst sich per GET ausloesen");
+}
+
+// REIHENFOLGE BEIM BILD: erst die Datei, dann die Zeile, DANN das alte Bild
+// loeschen. Andersherum verwiese die Zeile auf ein Bild, das es nicht mehr
+// gibt - und das zeigt jede Seite als kaputtes Bild an.
+$bildRumpf = methodenRumpf($profilCtrl, 'uebernehmeBild');
+$posSpeichern = strpos($bildRumpf, 'storeAvatar');
+$posZeile     = strpos($bildRumpf, 'setAvatar');
+$posLoeschen  = strrpos($bildRumpf, 'deleteAvatar');
+check($posSpeichern !== false && $posZeile > $posSpeichern && $posLoeschen > $posZeile,
+    'das alte Bild wird geloescht, bevor das neue eingetragen ist');
+ok('das Profil gehoert dem Angemeldeten, und das alte Bild faellt zuletzt');
 
 PdoConnect::$connection = new FakeConnection();
 

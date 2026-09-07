@@ -772,10 +772,20 @@ class LocationController
      * Seite soll sich weitergeben lassen; einer, der beim Empfaenger auf dem
      * Anmeldeformular endet, wird nicht weitergegeben.
      *
-     * WAS EIN GAST NICHT BEKOMMT: die user_id des Guides. Ohne sie laesst
-     * sich von hier aus niemand anrufen - genau wie auf der oeffentlichen
-     * Karte. Statt eines Knopfes, der nichts tut, steht dort der Weg zur
-     * Anmeldung.
+     * WAS EIN GAST NICHT BEKOMMT: die user_id des Guides ALS ANRUFZIEL. Ohne
+     * sie laesst sich von hier aus niemand anrufen - genau wie auf der
+     * oeffentlichen Karte. Statt eines Knopfes, der nichts tut, steht dort
+     * der Weg zur Anmeldung.
+     *
+     * IM VERWEIS AUF DAS GUIDE-PROFIL steht die Kennung dagegen sehr wohl,
+     * und zwar fuer jeden: Die Profilseite ist oeffentlich und hat die
+     * Kennung als Adresse (index.php?act=guide&id=...). Das ist kein
+     * Widerspruch - eine Kennung in einer Adresse ist kein Anrufziel. Wer
+     * anrufen will, braucht eine Anmeldung, und dann bekommt er sie ohnehin.
+     * Der Unterschied ist die Rolle, in der die Zahl auftritt, und deshalb
+     * steht sie an zwei Stellen: einmal als 'viewer_id' (nur fuer den, der
+     * anrufen darf) und einmal in der Standortzeile, aus der der
+     * Guide-Streifen seinen Verweis baut.
      *
      * WER EINEN GESPERRTEN STANDORT SIEHT: sein Eigentuemer und die
      * Moderation. Fuer alle anderen gibt es ihn nicht - und zwar mit

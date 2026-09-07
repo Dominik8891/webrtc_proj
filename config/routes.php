@@ -13,6 +13,7 @@ use App\Controller\EmailVerificationController;
 use App\Controller\TwoFactorController;
 use App\Controller\SettingsController;
 use App\Controller\GuideController;
+use App\Controller\GuideProfileController;
 use App\Controller\ChatController;
 use App\Controller\RequestController;
 use App\Helper\Permission;
@@ -177,6 +178,31 @@ return [
     // deshalb laesst der Controller dort nur POST zu.
     'guide_role_page'       => [GuideController::class              , 'showGuideRolePage'       , Permission::USER_GUIDE_ROLE        , 'html'],
     'guide_role'            => [GuideController::class              , 'handleGuideRole'         , Permission::USER_GUIDE_ROLE        , 'html'],
+
+    // Das Guide-PROFIL: der Mensch hinter dem Angebot.
+    //
+    // Ein Kunde sah vom Guide bisher einen Benutzernamen und einen farbigen
+    // Punkt. Fuer "ich vertraue dieser Person und zahle ihr Geld" reicht das
+    // nicht. Die Profilseite zeigt Bild, Anzeigenamen, Selbstbeschreibung,
+    // Sprachen, seit wann dabei - und die Standorte, die dieser Guide
+    // anbietet.
+    //
+    // ZWEI ROUTEN FUER GAESTE (Permission::GUIDE_VIEW), aus demselben Grund
+    // wie bei der Standortseite: Die Adresse soll sich weitergeben lassen.
+    // Das Bild traegt dasselbe Recht wie die Seite - was darauf zu sehen
+    // ist, muss auch geladen werden duerfen. Die Dateien liegen AUSSERHALB
+    // des Webroots (config/uploads.php); der Controller ist der einzige Weg
+    // zu ihnen.
+    //
+    // ZWEI ROUTEN ZUM BEARBEITEN (Permission::GUIDE_PROFILE_EDIT), beide nur
+    // per POST und beide immer fuer den Angemeldeten: Eine Benutzerkennung
+    // aus der Anfrage liest der Controller nicht. Bearbeitet wird von der
+    // Kontoseite aus, nicht auf dem Profil selbst - die Profilseite soll
+    // fuer den Eigentuemer genauso aussehen wie fuer einen Kunden.
+    'guide'                 => [GuideProfileController::class       , 'showProfilePage'         , Permission::GUIDE_VIEW             , 'html'],
+    'guide_avatar'          => [GuideProfileController::class       , 'serveAvatar'             , Permission::GUIDE_VIEW             , 'html'],
+    'guide_profile_save'    => [GuideProfileController::class       , 'saveProfile'             , Permission::GUIDE_PROFILE_EDIT     , 'html'],
+    'guide_avatar_delete'   => [GuideProfileController::class       , 'deleteAvatar'            , Permission::GUIDE_PROFILE_EDIT     , 'html'],
 
     // Anfragen: der neue Anfang jeder Fuehrung.
     //

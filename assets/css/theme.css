@@ -413,17 +413,62 @@ a:hover {
 
 .app-menu[open] > .app-menu__button { background: var(--app-surface-sunken); }
 
-.app-menu__avatar {
-    width: 28px;
-    height: 28px;
+/* ---------------------------------------------------------------------------
+   Der Avatar: ein Mensch als runde Flaeche.
+
+   ZWEI FAELLE, EINE KLASSE - gebaut von App\Helper\Avatar. Entweder ein
+   <img> mit dem hochgeladenen Bild oder ein <span> mit den Initialen. Beide
+   tragen .app-avatar, damit Groesse und Form hier stehen und nicht zweimal;
+   der Aufrufer haengt eine eigene Klasse daneben, wenn er eine andere Groesse
+   braucht.
+
+   DIE INITIALEN SIND KEIN LUECKENFUELLER. Ein leerer Kreis sagt "hier fehlt
+   etwas", zwei Buchstaben in der Akzentfarbe sagen "das ist diese Person".
+   Genau so macht es das Benutzermenue der Kopfleiste seit jeher - von dort
+   stammt die Darstellung, und .app-menu__avatar weiter unten ueberschreibt
+   nur noch die Groesse.
+   --------------------------------------------------------------------------- */
+.app-avatar {
+    width: 40px;
+    height: 40px;
     flex: none;
     border-radius: 50%;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     background: var(--app-accent-soft);
     color: var(--app-accent-strong);
     font-weight: var(--app-weight-bold);
+    font-size: var(--app-text-sm);
+    letter-spacing: 0.02em;
+    /* Ein Bild kommt in beliebigem Seitenverhaeltnis an - beschnitten wird es
+       schon beim Hochladen quadratisch (App\Helper\ImageStore), das hier ist
+       die zweite Sicherung fuer Bestandsdateien. */
+    object-fit: cover;
+    overflow: hidden;
+    user-select: none;
+}
+
+.app-avatar--img {
+    background: var(--app-surface-sunken);
+}
+
+/* Ein Nebentext, der an einer Angabe haengt: "nur fuer die Anmeldung". Er
+   steht in einer eigenen Zeile und leiser als die Angabe darueber - sonst
+   liest er sich wie ein Teil davon. */
+.app-hint {
+    display: block;
+    margin-top: 2px;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-xs);
+    line-height: var(--app-leading);
+}
+
+/* Nur noch die Groesse - Form, Farbe und Schriftschnitt kommen aus
+   .app-avatar darueber. */
+.app-menu__avatar {
+    width: 28px;
+    height: 28px;
     font-size: var(--app-text-xs);
 }
 

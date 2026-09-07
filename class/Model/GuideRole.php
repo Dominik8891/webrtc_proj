@@ -223,7 +223,12 @@ class GuideRole
 
         try {
             $stmt = PdoConnect::$connection->prepare(
-                "SELECT user_id, guide_since, terms_version, terms_accepted_at, resigned_at
+                // NUR die Spalten der Zustimmung. Was am Profil haengt -
+                // Anzeigename, Selbstbeschreibung, Sprachen, Avatarbild -
+                // liest App\Model\GuideProfile, und zwar mit dem Join auf
+                // `user`, den die Anzeige ohnehin braucht.
+                "SELECT user_id, guide_since, joined_at, terms_version,
+                        terms_accepted_at, resigned_at
                    FROM guide_profile WHERE user_id = :user_id"
             );
             $stmt->bindParam(':user_id', $user_id, \PDO::PARAM_INT);
@@ -254,6 +259,17 @@ class GuideRole
      * Legt das Profil an oder frischt es auf. `resigned_at` wird dabei
      * geleert - wer die Rolle erneut annimmt, ist wieder aktiver Guide.
      *
+     * WAS HIER NICHT ANGEFASST WIRD: die Profilangaben (Anzeigename,
+     * Selbstbeschreibung, Sprachen, Avatarbild). Sie stehen in derselben
+     * Zeile, gehoeren aber dem Guide und nicht der Zustimmung - geschrieben
+     * werden sie ausschliesslich von App\Model\GuideProfile. Deshalb zaehlt
+     * das INSERT seine Spalten auf, statt die Zeile zu ersetzen: Wer der
+     * neuen Fassung der Bedingungen zustimmt, verliert dabei nicht sein
+     * Profil.
+     *
+     * Und `joined_at` bleibt stehen, sobald es einmal gesetzt ist - siehe
+     * die Anmerkung im Statement.
+     *
      * ES BLEIBT EINE ZEILE JE KONTO, und sie wird ueberschrieben. Stimmt ein
      * Guide einer neuen Fassung zu, sind die alte Fassungsnummer, ihr
      * Zeitpunkt und das urspruengliche `guide_since` danach weg. Fuer die
@@ -279,10 +295,17 @@ class GuideRole
             // "gibt es schon" und ist gegen zwei gleichzeitige Anfragen sicher.
             $stmt = PdoConnect::$connection->prepare(
                 "INSERT INTO guide_profile
-                        (user_id, guide_since, terms_version, terms_accepted_at, resigned_at)
-                 VALUES (:user_id, CURRENT_TIMESTAMP, :version, CURRENT_TIMESTAMP, NULL)
+                        (user_id, guide_since, joined_at, terms_version, terms_accepted_at, resigned_at)
+                 VALUES (:user_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :version, CURRENT_TIMESTAMP, NULL)
                  ON DUPLICATE KEY UPDATE
                         guide_since       = CURRENT_TIMESTAMP,
+                        -- joined_at BLEIBT STEHEN, wenn es schon einen Wert
+                        -- hat: Es ist der Tag, an dem dieses Konto zum ersten
+                        -- Mal Guide wurde, und den aendert eine neue Fassung
+                        -- der Bedingungen nicht. Ohne COALESCE waeren am Tag
+                        -- eines Bedingungswechsels alle Guides neu - und die
+                        -- Profilseite behauptete das auch.
+                        joined_at         = COALESCE(joined_at, CURRENT_TIMESTAMP),
                         terms_version     = VALUES(terms_version),
                         terms_accepted_at = CURRENT_TIMESTAMP,
                         resigned_at       = NULL"

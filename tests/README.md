@@ -53,7 +53,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (169 Prüfungen)
+## Was `client_test.js` prüft (170 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -281,6 +281,15 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     `config/presence.php`. Weder `availability.js` noch `UserController.php`
     dürfen die Zahl selbst enthalten.
 
+### Die Spalte „Guide" (40)
+
+In der Standortliste stand der **Benutzername** eines fremden Kontos. Jetzt
+steht dort `guide_name` — der Anzeigename aus dem Guide-Profil —, und er ist
+ein Verweis auf das Profil des Guides. Geprüft wird, dass der Name maskiert
+ankommt (er ist Fremdeingabe), dass eine Zeile ohne Anbieter keinen Verweis ins
+Leere bekommt und dass `locations_table.js` **nirgends mehr** auf
+`item.username` zugreift.
+
 ### Die Standortseite (41)
 
 Das Modul `assets/js/location_page.js` meldet sich nur, wenn der Server seine
@@ -378,7 +387,7 @@ die Tests nicht an. Das ist Absicht.
     Und der Hinweis **folgt der Wahl** — beim Klick auf eine Vorgabe wie beim
     Neuzeichnen des Formulars.
 
-## Was `server_test.php` prüft (230 Prüfungen)
+## Was `server_test.php` prüft (244 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -904,6 +913,56 @@ die Tests nicht an. Das ist Absicht.
     mehr. Die Gruppe der Vorgabeknöpfe heißt **anders** („Vorgaben für den
     Wunschzeitpunkt"): Sonst nennt ein Vorleseprogramm die Gruppe und das Feld
     darunter mit demselben Wort.
+
+35. **Der Guide ist ein Mensch, kein Benutzername** (Abschnitt 34 im Skript).
+    Ein Kunde sah vom Guide einen Benutzernamen und einen farbigen Punkt.
+    Geprüft wird beides: dass die neuen Angaben ankommen — und dass der
+    Benutzername dabei verschwindet, denn er ist die Anmeldekennung und nicht
+    der Name eines Menschen.
+
+    * **Der Anzeigename ersetzt ihn, und nur er fällt darauf zurück.**
+      `GuideProfile::anzeigename()` nimmt den Anzeigenamen, wenn einer da ist,
+      sonst den Benutzernamen — ein Name aus Leerzeichen gilt als nicht
+      gesetzt. Die Standortliste liefert den Benutzernamen **gar nicht mehr
+      aus** (geprüft am abgesetzten SQL), und `locations_table.js` greift
+      nirgends mehr auf `item.username` zu. Was nicht ausgeliefert wird, kann
+      auch nicht angezeigt werden.
+    * **Die Profiladresse trägt die Kennung, nicht den Namen.** Stünde er
+      dort, wäre er öffentlich — an genau der Stelle, die ein Guide selbst
+      weitergibt.
+    * **Die Initialen entstehen an einer Stelle.** `Avatar::initials()` gegen
+      Doppelnamen, Umlaute, leere und unbrauchbare Eingaben (dort steht ein
+      Fragezeichen, kein leerer Kreis). Bild und Ersatz tragen dieselbe
+      Klasse, damit Größe und Form im Stylesheet einmal stehen; das
+      Benutzermenü der Kopfleiste baut seine Initialen nicht mehr selbst.
+    * **Auf der Standortseite steht ein Satz, kein abgeschnittener Absatz.**
+      `GuideView::ersterSatz()` endet am Satzzeichen *oder* am Zeilenumbruch
+      und kürzt zu lange Sätze an einer **Wortgrenze**.
+    * **Der Guide steht im Inhaltsbereich, vor der Randspalte** — geprüft an
+      der Reihenfolge im fertigen Dokument. Anzeigename und Selbstbeschreibung
+      sind Fremdeingabe: Ein `###USER###` im Anzeigenamen löst keine Ersetzung
+      des Servers aus, Markup kommt maskiert an.
+    * **Die Profilseite zeigt Mensch und Angebot** und keinen Benutzernamen;
+      „Guide seit" steht mit Monat und Jahr da, nicht taggenau. Kein
+      Platzhalter der Vorlage bleibt unbesetzt, und `GuideView` greift auf
+      Sitzung, Anfrage, Datenbank und Bildspeicher nicht zu — dieselbe Regel
+      wie bei `LocationView`.
+    * **Das Bild geht denselben Weg wie ein Standortbild.** Es liegt unter
+      `<base>/guides/<user_id>/`, ein Name, den `ImageStore` nicht vergeben
+      haben kann, wird abgewiesen, und die Größenangabe aus der Anfrage landet
+      nie im Pfad. `is_uploaded_file` und die EXIF-Drehung stehen **je einmal**
+      im Bildspeicher — wer einen zweiten Upload-Weg baut, der die Prüfungen
+      nachbaut, vergisst als Erstes das Entfernen des EXIF. Beide Ausgaben des
+      Avatars bekommen Breite *und* Höhe, sind also quadratisch beschnitten.
+    * **Zustimmung und Profil teilen sich eine Zeile, aber keine Spalte.**
+      `GuideProfile::save()` fasst `terms_version`, `guide_since`, `joined_at`
+      und `resigned_at` nicht an; `GuideRole` schreibt umgekehrt weder
+      Anzeigenamen noch Bild. `joined_at` steht unter `COALESCE` — sonst wären
+      am Tag eines Bedingungswechsels alle Guides neu.
+    * **Wessen Profil bearbeitet wird, steht in der Sitzung.** Beide
+      Schreibrouten nehmen nur POST an und lesen keine Benutzerkennung aus der
+      Anfrage. Beim Bild ist die Reihenfolge festgehalten: Datei, dann Zeile,
+      **dann** das alte Bild.
 
 ## Grenzen
 

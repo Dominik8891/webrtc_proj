@@ -1,0 +1,365 @@
+/* ===========================================================================
+   Der Guide als Mensch - Profilseite, Streifen auf der Standortseite,
+   Formular auf der Kontoseite.
+
+   WARUM DAS EINE EIGENE DATEI IST
+   -------------------------------
+   Weil dieselben Bausteine an drei Stellen erscheinen und in allen dreien
+   gleich aussehen muessen: Bild, Name, ein Satz. Verteilt auf location.css
+   (Standortseite) und theme.css (Kontoseite) waere die Profilseite die
+   dritte Fassung derselben Gestaltung.
+
+   Die Farben, Abstaende und Radien kommen ausnahmslos aus den Variablen in
+   theme.css. Hier steht kein Farbwert.
+   =========================================================================== */
+
+/* ===========================================================================
+   1. DER STREIFEN AUF DER STANDORTSEITE
+   ===========================================================================
+   Er steht im Inhaltsbereich unter der Beschreibung und ist als Ganzes ein
+   Verweis auf das Profil. Deshalb ist er eine Flaeche mit Rahmen und keine
+   Textzeile: Ein Verweis, der nach Text aussieht, wird nicht angeklickt.
+   =========================================================================== */
+
+.loc-guide {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-4);
+    margin-top: var(--app-space-5);
+    padding: var(--app-space-4);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    background: var(--app-surface);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color var(--app-transition), background var(--app-transition);
+}
+
+.loc-guide:hover,
+.loc-guide:focus-visible {
+    border-color: var(--app-accent);
+    background: var(--app-accent-tint);
+    color: inherit;
+}
+
+/* Groesser als in einer Liste: Hier ist es das Gesicht, das die Entscheidung
+   traegt, und nicht eine Marke neben einer Zeile. */
+.loc-guide__avatar {
+    width: 56px;
+    height: 56px;
+    font-size: var(--app-text-md);
+}
+
+.loc-guide__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;          /* damit der Satz umbrechen darf statt zu ueberlaufen */
+    flex: 1 1 auto;
+}
+
+.loc-guide__label {
+    font-size: var(--app-text-xs);
+    color: var(--app-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.loc-guide__name {
+    font-size: var(--app-text-md);
+    font-weight: var(--app-weight-bold);
+}
+
+/* Der eine Satz. Er darf zwei Zeilen brauchen und wird danach abgeschnitten -
+   der ganze Text steht auf dem Profil, und dorthin fuehrt der Streifen. */
+.loc-guide__line {
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+    line-height: var(--app-leading);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.loc-guide__more {
+    flex: none;
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    color: var(--app-accent-strong);
+    white-space: nowrap;
+}
+
+/* Auf einem Telefon steht "Profil ansehen" nicht mehr daneben, sondern
+   darunter - sonst quetscht es den Satz auf zwei Woerter je Zeile. */
+@media (max-width: 640px) {
+    .loc-guide {
+        flex-wrap: wrap;
+    }
+    .loc-guide__more {
+        width: 100%;
+        text-align: right;
+    }
+}
+
+/* ===========================================================================
+   2. DIE PROFILSEITE
+   =========================================================================== */
+
+.guide-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-5);
+}
+
+/* Der Kopf. Bild und Name nebeneinander, die Werkzeuge des Eigentuemers
+   rechts aussen - dieselbe Anordnung wie in jeder Kopfzeile der Anwendung. */
+.guide-head {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-5);
+    flex-wrap: wrap;
+}
+
+.guide-head__avatar {
+    width: 112px;
+    height: 112px;
+    font-size: var(--app-text-xl);
+}
+
+.guide-head__text {
+    flex: 1 1 240px;
+    min-width: 0;
+}
+
+.guide-head__name {
+    margin: 0;
+    font-size: var(--app-text-xl);
+    font-weight: var(--app-weight-bold);
+    line-height: var(--app-leading-tight);
+    /* Ein Name kann lang sein und aus einem Wort bestehen; umbrechen ist
+       besser als ueberlaufen. */
+    overflow-wrap: anywhere;
+}
+
+.guide-head__meta {
+    margin: var(--app-space-2) 0 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.guide-head__tools {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    flex: none;
+}
+
+.guide-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-5);
+}
+
+.guide__h2 {
+    margin: 0 0 var(--app-space-3);
+    font-size: var(--app-text-md);
+    font-weight: var(--app-weight-bold);
+}
+
+/* --- Ueber mich ----------------------------------------------------------- */
+
+/* Die Zeilenlaenge ist begrenzt. Ein Fliesstext ueber die volle Breite eines
+   Bildschirms ist unlesbar - das Auge findet den Anfang der naechsten Zeile
+   nicht mehr. */
+.guide-about__text {
+    max-width: 70ch;
+    line-height: var(--app-leading);
+}
+
+.guide-about__text p {
+    margin: 0 0 var(--app-space-3);
+}
+
+.guide-about__text p:last-child {
+    margin-bottom: 0;
+}
+
+.guide-about__empty {
+    margin: 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+    line-height: var(--app-leading);
+}
+
+/* --- Die Standorte des Guides --------------------------------------------- */
+
+.guide-offers__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    /* auto-fill statt auto-fit: Bei einem einzigen Standort soll die Kachel
+       nicht ueber die ganze Breite laufen - sie saehe aus wie ein Banner. */
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--app-space-4);
+}
+
+.guide-offers__empty {
+    margin: 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.guide-offer__link {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    background: var(--app-surface);
+    overflow: hidden;
+    color: inherit;
+    text-decoration: none;
+    transition: border-color var(--app-transition), box-shadow var(--app-transition);
+}
+
+.guide-offer__link:hover,
+.guide-offer__link:focus-visible {
+    border-color: var(--app-accent);
+    box-shadow: var(--app-shadow);
+    color: inherit;
+}
+
+/* Festes Seitenverhaeltnis: Eine Reihe von Kacheln mit unterschiedlich hohen
+   Bildern liest sich als Unordnung. Das Bild wurde beim Hochladen bereits auf
+   dieses Format beschnitten (config/uploads.php, thumb_width/thumb_height). */
+.guide-offer__image {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    object-fit: cover;
+    background: var(--app-surface-sunken);
+}
+
+/* Ohne Titelbild bleibt die Flaeche leer und ruhig. Ein Symbol oder das Wort
+   "kein Bild" verspricht etwas, das nicht kommt. */
+.guide-offer__image--empty {
+    background: var(--app-surface-sunken);
+}
+
+.guide-offer__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-1);
+    padding: var(--app-space-4);
+}
+
+.guide-offer__state {
+    margin-bottom: var(--app-space-1);
+}
+
+.guide-offer__title {
+    font-weight: var(--app-weight-bold);
+    line-height: var(--app-leading-tight);
+}
+
+.guide-offer__place {
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+.guide-offer__desc {
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+    line-height: var(--app-leading);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+@media (max-width: 640px) {
+    .guide-head__avatar {
+        width: 72px;
+        height: 72px;
+        font-size: var(--app-text-lg);
+    }
+    .guide-head__tools {
+        width: 100%;
+    }
+}
+
+/* ===========================================================================
+   3. DAS FORMULAR AUF DER KONTOSEITE
+   =========================================================================== */
+
+.guide-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-5);
+}
+
+/* Das Bild steht NEBEN seinem Feld und nicht darueber: So sieht der Guide
+   beim Auswaehlen, was er gerade ersetzt - und ohne Upload sieht er seine
+   Initialen, also genau das, was ein Kunde stattdessen sieht. */
+.guide-form__portrait {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--app-space-4);
+    flex-wrap: wrap;
+}
+
+.guide-form__avatar {
+    width: 96px;
+    height: 96px;
+    font-size: var(--app-text-lg);
+}
+
+.guide-form__portraitText {
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+.guide-form__remove {
+    margin-top: var(--app-space-2);
+}
+
+.guide-form__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-2);
+}
+
+/* Die Sprachauswahl. Dieselbe Gestalt wie im Standortformular
+   (.loc-choice) - es ist dieselbe Frage in einem anderen Formular, und zwei
+   verschiedene Kaestchen dafuer waeren eine Unstimmigkeit ohne Grund. */
+.guide-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--app-space-2);
+}
+
+.guide-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    padding: var(--app-space-1) var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-pill, 999px);
+    font-size: var(--app-text-sm);
+    cursor: pointer;
+}
+
+.guide-choice:hover {
+    border-color: var(--app-border-strong);
+}
+
+/* Der Zustand haengt am Kaestchen und nicht an einer Klasse, die JavaScript
+   setzen muesste. Wo der Browser :has() nicht kennt, bleibt das Kaestchen
+   selbst als Anzeige - die Auswahl ist also nie unsichtbar. */
+.guide-choice:has(input:checked) {
+    border-color: var(--app-accent);
+    background: var(--app-accent-soft);
+    color: var(--app-accent-strong);
+}

@@ -14,6 +14,11 @@
       ###MAILCONFIRM###  Zeile zum Bestaetigungsstand der E-Mail (derzeit leer,
                          siehe Controller: kein SMTP-Server)
       ###THEMES###       Die Auswahl der Farbprofile (SettingsController)
+      ###NOTICE###       Rueckmeldung nach dem Speichern des Guide-Profils
+                         (Erfolg oder Fehler); im Regelfall leer
+      ###GUIDEPROFILE### Das Guide-Profil samt Formular - Anzeigename, Bild,
+                         Selbstbeschreibung, Sprachen. Leer fuer Konten, die
+                         keine Standorte anbieten duerfen.
 
     Die Angaben stehen in einer Beschreibungsliste und nicht in einer Tabelle:
     Es sind keine Daten in Zeilen und Spalten, sondern Angaben zu genau einem
@@ -27,14 +32,29 @@
         </div>
     </div>
 
+    <!-- Meldungen stehen VOR den Angaben. Sie sind selten und dann wichtig:
+         Wer gerade sein Profil gespeichert hat - oder dessen Bild abgewiesen
+         wurde -, soll es lesen, bevor er weitersucht. -->
+    ###NOTICE###
+
     <div class="app-panel">
         <div class="app-panel__head">
             <h2 class="app-page-head__title">Angaben</h2>
         </div>
         <div class="app-panel__body">
             <dl class="app-details">
+                <!-- Der Benutzername ist die ANMELDEKENNUNG und nichts
+                     sonst. Seit es Guide-Profile gibt, sehen Kunden ihn
+                     nicht mehr - dort steht der Anzeigename. Das gehoert
+                     hierhin geschrieben: Sonst sucht jemand nach einer
+                     Moeglichkeit, ihn zu aendern, weil er ihn fuer seinen
+                     oeffentlichen Namen haelt. -->
                 <dt>Benutzername</dt>
-                <dd>###USERNAME###</dd>
+                <dd>
+                    ###USERNAME###
+                    <span class="app-hint">Nur für die Anmeldung. Kunden sehen
+                    Ihren Anzeigenamen aus dem Guide-Profil.</span>
+                </dd>
 
                 <dt>E-Mail-Adresse</dt>
                 <dd>###EMAIL###</dd>
@@ -57,6 +77,12 @@
             </div>
         </div>
     </div>
+
+    <!-- Das Guide-Profil. Es steht VOR dem Farbprofil und vor den eigenen
+         Standorten: Ein Farbprofil sieht nur man selbst, das Guide-Profil
+         sehen die Kunden - und es entscheidet mit darueber, ob eine Anfrage
+         kommt. Leer fuer jeden, der keine Standorte anbieten darf. -->
+    ###GUIDEPROFILE###
 
     <!-- Farbprofil. Steht als eigener Bereich und nicht als Zeile in der
          Beschreibungsliste oben: Das ist keine Angabe zum Konto, sondern

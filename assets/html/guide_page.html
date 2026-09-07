@@ -1,0 +1,65 @@
+<!--
+    Die Profilseite EINES Guides. Gefuellt von App\Helper\GuideView::page().
+
+    WOZU ES SIE GIBT
+    ----------------
+    Ein Kunde soll einem Fremden Geld dafuer geben, dass der ihn per Video
+    durch eine unbekannte Stadt fuehrt. Gesehen hat er von diesem Menschen
+    bisher: einen Benutzernamen und einen farbigen Punkt. Diese Seite ist die
+    Antwort auf die Frage, die er sich vorher stellt - wer ist das
+    eigentlich.
+
+    SIE HAT EINE EIGENE ADRESSE (index.php?act=guide&id=...) und ist auch fuer
+    Gaeste erreichbar. Beides gehoert zusammen: Ein Guide soll den Link
+    weitergeben koennen, und einer, der beim Empfaenger auf dem
+    Anmeldeformular endet, wird nicht weitergegeben. Dieselbe Ueberlegung wie
+    bei der Standortseite.
+
+    WAS HIER NICHT STEHT
+    --------------------
+    Der Benutzername. Er ist die Anmeldekennung und bleibt intern - auch in
+    der Adresse dieser Seite, die deshalb die Kennung traegt und nicht den
+    Namen. Ebenso wenig: E-Mail, Ort, Geburtsdatum, Verweise auf fremde
+    Netzwerke. Wer eine Stadtfuehrung anbietet, soll dafuer nicht auffindbar
+    werden.
+
+    DER AUFBAU
+    ----------
+      1. DER KOPF fuehrt: Bild, Name, eine Zeile mit "Guide seit" und den
+         Sprachen. Das ist die Person - alles andere auf der Seite ist das,
+         was sie tut.
+      2. UEBER MICH steht darunter und in voller Breite. Es ist ein Text und
+         kein Datenfeld; er braucht Zeilenlaenge.
+      3. DIE STANDORTE zum Schluss, als Kacheln. Sie sind der zweite Grund
+         fuer diese Seite: Von einem Standort fuehrte bisher nichts zum
+         naechsten desselben Guides.
+
+    PLATZHALTER (alle von GuideView ersetzt)
+    ----------------------------------------
+      ###GUIDE_AVATAR###  Das Bild - oder die Initialen, wenn keines da ist
+      ###GUIDE_NAME###    Der Anzeigename (ersatzweise der Benutzername)
+      ###GUIDE_META###    "Guide seit Maerz 2024 - Spricht Deutsch, English";
+                          leer, wenn nichts davon angegeben ist
+      ###GUIDE_TOOLS###   Marke und Bearbeitungsknopf - nur fuer den
+                          Eigentuemer, sonst leer
+      ###GUIDE_ABOUT###   Die Selbstbeschreibung; fuer Fremde leer, wenn
+                          keine da ist
+      ###GUIDE_OFFERS###  Die Standorte dieses Guides als Kacheln
+-->
+<div class="app-page guide-page">
+
+    <header class="guide-head">
+        ###GUIDE_AVATAR###
+        <div class="guide-head__text">
+            <h1 class="guide-head__name">###GUIDE_NAME###</h1>
+            ###GUIDE_META###
+        </div>
+        ###GUIDE_TOOLS###
+    </header>
+
+    <div class="guide-body">
+        ###GUIDE_ABOUT###
+        ###GUIDE_OFFERS###
+    </div>
+
+</div>

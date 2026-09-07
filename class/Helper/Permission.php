@@ -115,6 +115,41 @@ class Permission
      */
     public const USER_GUIDE_ROLE = 'user.guide_role';
 
+    /**
+     * Die oeffentliche Profilseite eines Guides aufrufen - und sein Bild.
+     *
+     * Das dritte Recht, das auch der Gast hat, und aus demselben Grund wie
+     * location.view: Diese Seite ist eine Adresse, die ein Guide weitergibt.
+     * Ein Link, der beim Empfaenger auf dem Anmeldeformular endet, wird nicht
+     * weitergegeben.
+     *
+     * WAS SIE ZEIGT, ist wenig und ausgesucht: Anzeigename, Bild,
+     * Selbstbeschreibung, Sprachen, seit wann dabei - und die Standorte, die
+     * dieser Guide anbietet. Keine E-Mail-Adresse, kein Benutzername, keine
+     * Angabe, mit der sich jemand anmelden koennte. Der Benutzername bleibt
+     * die Anmeldekennung und taucht auf dieser Seite nicht auf - auch nicht
+     * in ihrer Adresse.
+     *
+     * Dasselbe Recht traegt die Auslieferung des Avatarbildes
+     * (index.php?act=guide_avatar): Ein Bild ist Teil dieser Seite, und was
+     * auf der Seite zu sehen ist, muss auch geladen werden duerfen.
+     */
+    public const GUIDE_VIEW = 'guide.view';
+
+    /**
+     * Das EIGENE Guide-Profil bearbeiten.
+     *
+     * Wer Standorte anbieten darf, darf auch sagen, wer er ist - deshalb
+     * steht dieses Recht bei denselben Rollen wie location.offer und nicht
+     * bei jedem angemeldeten Konto. Ein Zuschauer hat keine Seite, auf der
+     * ein Profil erschiene.
+     *
+     * WESSEN Profil bearbeitet wird, kann keine Rechtetabelle wissen: Es ist
+     * immer das des Angemeldeten. Eine Benutzerkennung aus der Anfrage liest
+     * App\Controller\GuideProfileController bewusst nicht.
+     */
+    public const GUIDE_PROFILE_EDIT = 'guide.profile_edit';
+
     /** Standortübersicht aufrufen. */
     public const LOCATION_PAGE = 'location.page';
     /**
@@ -286,6 +321,11 @@ class Permission
             // ein Guide weitergibt - ein geteilter Link muss beim Empfaenger
             // die Fuehrung zeigen und nicht ein Anmeldeformular.
             self::LOCATION_VIEW,
+            // Die Profilseite eines Guides. Sie beantwortet die Frage, der
+            // ein Kunde vor der ersten Anfrage nachgeht: Wer ist das
+            // eigentlich? Wer sie nur angemeldet lesen kann, bekommt die
+            // Antwort erst, nachdem er sich entschieden hat.
+            self::GUIDE_VIEW,
             self::AUTH_LOGIN,
             self::AUTH_SIGNUP,
             self::AUTH_PASSWORD_RESET,
@@ -319,6 +359,7 @@ class Permission
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
             self::LOCATION_VIEW,
+            self::GUIDE_VIEW,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
@@ -358,6 +399,7 @@ class Permission
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
             self::LOCATION_VIEW,
+            self::GUIDE_VIEW,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
@@ -398,11 +440,13 @@ class Permission
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
             self::LOCATION_VIEW,
+            self::GUIDE_VIEW,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
             self::LOCATION_CREATE,
             self::LOCATION_OFFER,
+            self::GUIDE_PROFILE_EDIT,
             self::LOCATION_EDIT_OWN,
             self::LOCATION_DELETE_OWN,
             self::REQUEST_CREATE,
@@ -450,11 +494,13 @@ class Permission
             self::LOCATION_PAGE,
             self::LOCATION_MAP_PUBLIC,
             self::LOCATION_VIEW,
+            self::GUIDE_VIEW,
             self::LOCATION_LIST,
             self::LOCATION_LIST_OWN,
             self::LOCATION_COUNTRY_LIST,
             self::LOCATION_CREATE,
             self::LOCATION_OFFER,
+            self::GUIDE_PROFILE_EDIT,
             self::LOCATION_EDIT_OWN,
             self::LOCATION_DELETE_OWN,
             self::LOCATION_BLOCK,

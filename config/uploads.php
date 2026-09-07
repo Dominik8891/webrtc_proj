@@ -1,6 +1,12 @@
 <?php
 /**
- * Bilder zu einem Standort: Ablage, Obergrenzen, Masse.
+ * Hochgeladene Bilder: Ablage, Obergrenzen, Masse.
+ *
+ * Zwei Arten teilen sich diese Datei - die Bilder eines STANDORTS und das
+ * Avatarbild eines GUIDES. Sie durchlaufen dieselben Pruefungen (Dateigroesse,
+ * echter Typ, Kantenlaenge des Originals) und unterscheiden sich nur in den
+ * Massen des Ergebnisses. Deshalb stehen sie zusammen: Wer die Obergrenze
+ * fuer Uploads aendert, meint beide.
  *
  * DIES IST DIE EINE STELLE, an der diese Zahlen stehen. Sie gehen von hier
  * aus an drei Verbraucher:
@@ -39,7 +45,8 @@
  * durch einen Controller, der vorher prueft, ob der Standort gesperrt ist.
  *
  * Der Pfad kommt aus der Umgebungsvariablen UPLOAD_PATH, sonst aus dem
- * Fallback ../uploads eine Ebene oberhalb des Webroots. Anders als LOG_PATH
+ * Fallback ../uploads eine Ebene oberhalb des Webroots. Darunter liegen zwei
+ * Baeume: locations/<location_id>/ und guides/<user_id>/. Anders als LOG_PATH
  * darf UPLOAD_PATH auch in der .env stehen: Diese Datei wird erst aus einem
  * Controller heraus geladen, also lange nachdem config/env.php gelaufen ist.
  */
@@ -64,8 +71,10 @@ if ($webrtc_upload_path === null) {
 
 return [
     /**
-     * Basisverzeichnis. Darunter legt ImageStore je Standort einen Ordner an:
-     * <base>/locations/<location_id>/<hash>.jpg
+     * Basisverzeichnis. Darunter legt ImageStore je Standort und je Guide
+     * einen Ordner an:
+     *   <base>/locations/<location_id>/<hash>.jpg
+     *   <base>/guides/<user_id>/<hash>.jpg
      */
     'base_path' => rtrim($webrtc_upload_path, '/\\'),
 
@@ -125,6 +134,24 @@ return [
      * Drittel kleiner als 95.
      */
     'jpeg_quality' => 82,
+
+    /**
+     * Kantenlaenge des Avatarbildes in der Vollansicht.
+     *
+     * QUADRATISCH, deshalb nur eine Zahl. 512 Punkte fuellen die Kopfzeile
+     * der Profilseite auch auf einem Bildschirm mit doppelter Punktdichte;
+     * mehr waere Ladezeit fuer eine Aufloesung, die niemand sieht.
+     */
+    'avatar_edge' => 512,
+
+    /**
+     * Kantenlaenge des kleinen Avatarbildes.
+     *
+     * Es steht auf der Standortseite und in Listen - dort ist es rund 48
+     * Punkte gross. 128 gibt Luft fuer dichte Bildschirme und bleibt eine
+     * Datei von wenigen Kilobyte, die neben jeder Zeile stehen kann.
+     */
+    'avatar_thumb' => 128,
 
     /**
      * Angenommene Bildarten.

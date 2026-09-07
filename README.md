@@ -587,8 +587,11 @@ anfragen — genau darum ging es bei diesem Umbau.
 
 **Auch ein Gast sieht sie** (Recht `location.view`, wie `location.map_public`).
 Ein geteilter Link, der beim Empfänger auf dem Anmeldeformular endet, wird
-nicht weitergegeben. Was ein Gast nicht bekommt, ist die `user_id` des Guides —
-ohne sie lässt sich von dort niemand anrufen. Anfragen kann er ebenfalls nicht:
+nicht weitergegeben. Was ein Gast nicht bekommt, ist die `user_id` des Guides
+**als Anrufziel** — ohne sie lässt sich von dort niemand anrufen. (Im Verweis
+auf das [Guide-Profil](#-der-guide-als-mensch) steht die Kennung dagegen für
+jeden: Die Profilseite ist öffentlich und hat sie als Adresse. Eine Kennung in
+einer Adresse ist kein Anrufziel.) Anfragen kann er ebenfalls nicht:
 Eine Anfrage gehört zu einem Konto, sonst gäbe es niemanden, dem der Guide
 zusagen könnte. Statt eines Formulars, das nichts bewirkt, steht dort der Weg
 zur Anmeldung. Dieselbe Entscheidung wie bei der
@@ -1082,6 +1085,158 @@ dritte Verwendung dazukommen kann, ohne dass die Tabelle wandert.
 
 ---
 
+## 👤 Der Guide als Mensch
+
+### Das Problem
+
+Ein Kunde sah vom Guide **einen Benutzernamen und einen farbigen Punkt**. Auf
+dieser Grundlage sollte er einen Fremden losschicken, der ihn per Video durch
+eine unbekannte Stadt führt — und ihm dafür Geld geben. Für „ich vertraue
+dieser Person" reicht das nicht; es ist nicht einmal eine Person.
+
+Der Benutzername war dabei doppelt falsch: Er ist die **Anmeldekennung**. Er
+geht niemanden etwas an, und als Name taugt er nichts.
+
+### Was am Profil steht
+
+Die Tabelle `guide_profile` gibt es seit Migration 007. Sie hielt bisher
+ausschließlich die Zustimmung zur Guide-Rolle fest; seit Migration 015 trägt
+sie auch das, was ihr Name verspricht.
+
+| Feld | Spalte | Wozu |
+|---|---|---|
+| Anzeigename | `guide_profile.display_name` | Der Name, unter dem Kunden den Guide sehen. **Ersetzt den Benutzernamen überall dort, wo ein Kunde hinschaut.** Nicht gesetzt: dann steht dort weiterhin der Benutzername — das ist die Wahrheit über ein unausgefülltes Profil und keine Lücke. |
+| Selbstbeschreibung | `guide_profile.about` | Ein paar Sätze über sich, bis 600 Zeichen. Die Standortseite zeigt davon den **ersten Satz**, die Profilseite den ganzen Text. |
+| Sprachen | `guide_profile.languages` | Kürzel nach ISO 639-1 (`de,en`), derselbe Katalog wie am Standort (`App\Helper\Languages`). |
+| Avatarbild | `guide_profile.avatar_file` | 32 Hexzeichen — der Basisname der Datei, nicht die Datei. Sie liegt außerhalb des Webroots. **Eines je Guide.** |
+| Dabei seit | `guide_profile.joined_at` | Wird beim **ersten** Annehmen der Rolle gesetzt und danach nie wieder angefasst. |
+
+**Warum `joined_at` neben `guide_since` steht.** `guide_since` bedeutet etwas
+anderes, als sein Name vermuten lässt: `GuideRole::rememberAcceptance()` setzt
+es bei *jeder* Zustimmung neu — auch dann, wenn ein langjähriger Guide bloß
+eine geänderte Fassung der Bedingungen bestätigt. Für seinen Zweck ist das
+richtig (es ist der Beginn des Zeitraums, den eine spätere Abrechnung
+betrachtet); als Angabe „Guide seit" auf einer Kundenseite wäre es eine Lüge —
+am Tag eines Bedingungswechsels wären alle Guides neu.
+
+**Warum es die Sprachen zweimal gibt.** `location.languages` sagt, in welchen
+Sprachen **diese Führung** stattfindet. `guide_profile.languages` sagt, welche
+Sprachen **der Mensch** spricht. Wer vier Sprachen kann, bietet eine bestimmte
+Führung vielleicht nur auf zweien an.
+
+**Zwei Klassen, eine Zeile, nie dieselben Spalten.** `App\Model\GuideRole`
+schreibt die Zustimmung (Vertragsstoff), `App\Model\GuideProfile` schreibt
+das Profil. Beide zählen ihre Spalten einzeln auf und ersetzen die Zeile nie
+als Ganzes: Wer die Rolle zurückgibt, behält sein Profil, und wer sein Profil
+ändert, stimmt damit keinen Bedingungen zu.
+
+### Die Profilseite
+
+```
+index.php?act=guide&id=<benutzerkennung>
+```
+
+Eine Adresse, die sich verlinken und weitergeben lässt — **auch ein Gast sieht
+sie** (Recht `guide.view`), aus demselben Grund wie bei der Standortseite: Ein
+geteilter Link, der beim Empfänger auf dem Anmeldeformular endet, wird nicht
+weitergegeben.
+
+**In der Adresse steht die Kennung und nicht der Benutzername.** Er soll intern
+bleiben; stünde er dort, wäre er öffentlich — und zwar an genau der Stelle, die
+ein Guide selbst weitergibt.
+
+Die Seite zeigt Bild, Anzeigenamen, „Guide seit" (Monat und Jahr, nicht
+taggenau), die Sprachen, die Selbstbeschreibung — und **die Standorte, die
+dieser Guide anbietet**. Das ist der zweite Grund für diese Seite: Von einem
+Standort führte bisher nichts zum nächsten desselben Menschen.
+
+Sie hat sie, wer Guide ist **oder** wer Standorte anbietet, ohne die Rolle zu
+tragen (ein Admin). Die zweite Bedingung ist keine Feinheit: Von jedem Standort
+führt ein Verweis auf das Profil seines Anbieters, und ein Verweis, der ins
+Leere zeigt, ist schlimmer als keiner. Für alle anderen antwortet sie wie für
+ein Konto, das es nicht gibt.
+
+### Das Avatarbild
+
+Denselben Weg wie ein Standortbild, mit denselben Prüfungen: außerhalb des
+Document Root abgelegt (`<UPLOAD_PATH>/guides/<user_id>/`), über einen
+Controller ausgeliefert (`index.php?act=guide_avatar`), **neu gezeichnet statt
+gespeichert** — damit fällt das EXIF weg und mit ihm die GPS-Koordinaten, an
+denen das Foto entstanden ist.
+
+Ein Unterschied: **beide Größen sind quadratisch.** Ein Porträt ist mal
+hochkant, mal quer aufgenommen; nebeneinandergestellt ergäbe das eine unruhige
+Reihe. Geschnitten wird mittig — dort steht auf einem Porträt der Kopf.
+
+Geprüft wird das über `ImageStore::pruefe()` und `::schreibe()`: Standortbild
+und Avatar teilen sich die Prüfungen, weil ein zweiter Upload-Weg mit eigenen
+Prüfungen ein zweiter Weg wäre, eine davon zu vergessen — und die vergessene
+wäre die, die das EXIF entfernt.
+
+**Wer kein Bild hochlädt, bekommt seine Initialen** in der Akzentfarbe
+(`App\Helper\Avatar`). Ein leerer Kreis sagt „hier fehlt etwas", zwei
+Buchstaben sagen „das ist diese Person". Dieselbe Darstellung wie im
+Benutzermenü der Kopfleiste — sie stammt von dort, und seit diesem Umbau baut
+sie *eine* Klasse für alle vier Stellen.
+
+### Wo der Anzeigename den Benutzernamen ersetzt
+
+| Ort | Vorher | Jetzt |
+|---|---|---|
+| Standortliste, Spalte „Guide" | `user.username`, ausgeliefert an jeden Angemeldeten | `guide_name` — Anzeigename aus dem Profil, verlinkt auf das Profil. Der Benutzername wird **gar nicht mehr ausgeliefert** (`Location::selectAllLocations`). |
+| Standortseite | kam nicht vor | Ein Streifen unter der Beschreibung: Bild, Anzeigename, der erste Satz der Selbstbeschreibung, als Ganzes der Weg zum Profil. |
+| Profilseite | gab es nicht | Anzeigename in der Kopfzeile. |
+
+Entschieden wird das in SQL und nicht im Browser: **Was nicht ausgeliefert
+wird, kann auch nicht angezeigt werden.** Die Rückfallregel („kein
+Anzeigename → Benutzername") steht an genau zwei Stellen, und beide sind
+dieselbe Regel: im `COALESCE` der Listenabfrage und in
+`GuideProfile::anzeigename()` für bereits geladene Zeilen.
+
+Unverändert bleiben der Benutzername im **Call** („Anruf mit …") und im
+**Chat**. Beides sind Gespräche zwischen zwei Konten und nicht die Auslage, an
+der ein Kunde sich entscheidet; sie umzustellen ist ein eigener Schritt.
+
+### Der Guide auf der Standortseite
+
+Er steht im Inhaltsbereich **unmittelbar unter der Beschreibung**, in voller
+Breite — nicht in der schmalen Randspalte und nicht in einer Fußzeile. Ein
+Kunde entscheidet auf dieser Seite, ob er einen Fremden losschickt; wer dieser
+Fremde ist, gehört zu dieser Entscheidung.
+
+Die Reihenfolge ist Absicht: erst das Angebot („was bekomme ich"), dann der
+Mensch („von wem"). Andersherum stünde ein Porträt zwischen Titelbild und
+Beschreibung und beantwortete eine Frage, die noch niemand gestellt hat.
+
+Gezeigt werden **drei Angaben, mehr nicht**: Bild, Anzeigename, ein Satz. Alles
+Weitere steht auf der Profilseite, und dorthin führt der Streifen. Wer hier
+alles zeigt, baut eine zweite Profilseite in eine Standortseite hinein.
+
+Die Angaben kommen aus **derselben Abfrage**, die auch den Standort beschreibt
+(`Location::selectOneForPage`) — keine zweite Abfrage, kein zweiter Weg zu
+denselben Daten.
+
+### Bearbeitet wird über die Kontoeinstellungen
+
+*Mein Konto → Mein Guide-Profil*. Ein Formular für alles, das Bild
+eingeschlossen; nur das Entfernen des Bildes ist ein eigener Weg, weil es das
+Gegenteil von „speichern" ist. Ohne JavaScript vollständig bedienbar (normales
+POST, danach eine Weiterleitung zurück).
+
+**Nicht auf der Profilseite selbst**: Die ist das, was ein Kunde sieht, und sie
+soll für den Eigentümer genauso aussehen wie für alle anderen. Er bekommt dort
+nur eine Marke „Ihr Profil" und den Weg zum Formular.
+
+**Wessen Profil bearbeitet wird, steht in der Sitzung** — eine Benutzerkennung
+aus der Anfrage liest der Controller nicht. Beide Routen nehmen ausschließlich
+POST an.
+
+Beim Bild ist die Reihenfolge dieselbe wie bei den Standortbildern: erst die
+Datei, dann die Zeile, **dann** das alte Bild löschen. Andersherum verwiese die
+Zeile auf ein Bild, das es nicht mehr gibt.
+
+---
+
 ## 🔐 Berechtigungen
 
 ### Rollen
@@ -1122,10 +1277,11 @@ Guide wird man **auf Nachfrage, nicht nebenbei**. Früher genügte das Anlegen e
 * **Gestellt** wird die Frage nach dem Login, solange die Rolle `Trial` ist (mit und ohne zweiten Faktor: `LoginController::continueAfterLogin`). Sie lässt sich mit *Später entscheiden* übergehen, dann kommt sie beim nächsten Login wieder.
 * **Geändert** wird die Entscheidung jederzeit unter *Mein Account/Einstellungen*. Zurückgeben lässt sich die Rolle nur ohne eigene Standorte — ein Standort ohne Guide wäre ein Angebot, das niemand einlösen kann.
 * **Vollzogen** wird jeder Rollenwechsel ausschließlich in `App\Model\GuideRole`. Wer zustimmt, bekommt eine Zeile in `guide_profile`: Zeitpunkt, Beginn und die Fassung der Bedingungen (`GuideRole::TERMS_VERSION`). Die Zeile bleibt beim Widerruf stehen.
+* **Dieselbe Zeile trägt das öffentliche Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)). Geschrieben wird es von `App\Model\GuideProfile` und nie von `GuideRole`: Wer der neuen Fassung der Bedingungen zustimmt, verliert dabei nicht sein Profil.
 
 **Vorbereitung auf die Abrechnung.** Führungen sind heute kostenlos und werden es nicht bleiben. Vorbereitet ist dafür dreierlei — mehr bewusst nicht, es wird nichts berechnet und kein Preis gespeichert:
 
-1. `guide_profile` als eigene Tabelle. Die späteren Abrechnungstabellen hängen sich an `guide_profile.user_id`; `user` bleibt die Tabelle für das Konto, nicht für die Geschäftsbeziehung.
+1. `guide_profile` als eigene Tabelle. Die späteren Abrechnungstabellen hängen sich an `guide_profile.user_id`; `user` bleibt die Tabelle für das Konto, nicht für die Geschäftsbeziehung. Ein Profil, das einen Menschen zeigt, gehört ohnehin dorthin und nicht an `user` — `User::update()` schriebe es bei jedem Speichern mit.
 2. `terms_version`. Wird die Konstante hochgezählt, weil Führungen kostenpflichtig werden, gilt jede ältere Zustimmung als überholt und der Dialog erscheint erneut — mit dem neuen Text. Wer wem wann zugestimmt hat, lässt sich nachträglich nicht mehr feststellen; deshalb steht es von Anfang an drin.
 3. `GuideRole::accept()` und `::resign()` als einzige Stellen des Rollenwechsels. Die Prüfungen, die später dazukommen (Auszahlungsdaten hinterlegt? Beträge offen?), gehören dorthin und sonst nirgendwohin.
 

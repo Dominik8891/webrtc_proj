@@ -75,6 +75,11 @@ class LocationView
             '###GALLERY###'     => self::galerieHtml($gallery, $titel),
             '###SHORTTEXT###'   => self::kurztextHtml($in_daten),
             '###LONGTEXT###'    => self::langtextHtml($in_daten),
+            // DER GUIDE. Gebaut von App\Helper\GuideView und nicht hier:
+            // Wie ein Guide dargestellt wird - Bild oder Initialen, welcher
+            // Name, welcher Satz -, steht an einer Stelle und gilt fuer
+            // Standortseite, Profilseite und Kontoseite gleichermassen.
+            '###GUIDE###'       => GuideView::streifenHtml($in_daten, $eigen),
             '###FACTS###'       => self::faktenHtml($in_daten),
             '###ACTION###'      => self::aktionHtml($in_daten, $eigen,
                                        !empty($in_ansicht['angemeldet']),
@@ -119,14 +124,18 @@ class LocationView
      *    wieder "###USER###", im Dokument aber nicht mehr das Muster, auf
      *    das str_replace anspringt.
      *
+     * GEBAUT WIRD DAS IN App\Helper\ViewHelper::esc(). Dort steht die eine
+     * Fassung dieser Regel - sie gilt fuer jede Ansicht, die ihr HTML in
+     * dieselben Platzhalter einsetzt, und nicht nur fuer die Standortseite.
+     * Diese Methode bleibt stehen, weil sie in dieser Klasse hundertfach
+     * aufgerufen wird und weil ihr Name hier kurz sein darf.
+     *
      * @param mixed $in_wert
      * @return string
      */
     public static function esc($in_wert): string
     {
-        $text = is_scalar($in_wert) ? (string)$in_wert : '';
-        $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-        return str_replace('###', '&#35;&#35;&#35;', $text);
+        return ViewHelper::esc($in_wert);
     }
 
     /**
@@ -788,19 +797,10 @@ class LocationView
      */
     public static function hinweisHtml(string $in_fehler, bool $in_gespeichert): string
     {
-        $fehler = trim($in_fehler);
-        if ($fehler !== '') {
-            // Gekuerzt: Ein Kasten mit zweitausend Zeichen aus der Adresszeile
-            // waere keine Meldung mehr, sondern eine Flaeche.
-            return '<div class="alert alert-danger" role="alert">'
-                 . self::esc(mb_substr($fehler, 0, 200)) . '</div>';
-        }
-
-        if ($in_gespeichert) {
-            return '<div class="alert alert-success" role="alert">Gespeichert.</div>';
-        }
-
-        return '';
+        // Gebaut wird das in App\Helper\ViewHelper::hinweisHtml() - dieselbe
+        // Meldung erscheint nach demselben Muster auch auf der Kontoseite,
+        // wenn ein Guide sein Profil gespeichert hat.
+        return ViewHelper::hinweisHtml($in_fehler, $in_gespeichert);
     }
 
     /**

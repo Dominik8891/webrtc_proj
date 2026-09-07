@@ -444,15 +444,25 @@ CREATE TABLE IF NOT EXISTS `user` (
 -- Tabelle: guide_profile
 --
 -- Je ein Datensatz fuer jedes Konto, das der Guide-Rolle jemals zugestimmt
--- hat. Geschrieben und gelesen ausschliesslich ueber App\Model\GuideRole -
--- dieselbe Klasse ist auch die einzige Stelle, an der die Guide-Rolle
--- vergeben oder zurueckgegeben wird.
+-- hat. Die Zeile traegt zweierlei, und beides gehoert zusammen:
+--
+--   DIE ZUSTIMMUNG - wer, wann, zu welcher Fassung der Bedingungen.
+--   Geschrieben und gelesen ausschliesslich ueber App\Model\GuideRole,
+--   dieselbe Klasse, die auch die Guide-Rolle vergibt und zurueckgibt.
+--
+--   DAS PROFIL - Anzeigename, Selbstbeschreibung, Sprachen, Avatarbild und
+--   der Zeitpunkt, seit dem dieses Konto Guide ist (migrations/015).
+--   Geschrieben und gelesen ausschliesslich ueber App\Model\GuideProfile.
 --
 -- WOZU DIE TABELLE UEBERHAUPT
 --   Guide zu sein ist eine bewusste Entscheidung, kein Nebeneffekt des
 --   Standortanlegens. Und kuenftig kostet jede Fuehrung Geld: Eine Abrechnung
 --   braucht den Zeitpunkt der Zustimmung, die Fassung der Bedingungen und den
 --   Beginn des Guide-Verhaeltnisses. Genau das steht hier.
+--
+--   Und ein Kunde, der einen Fremden losschickt, braucht mehr als einen
+--   Benutzernamen und einen farbigen Punkt, um sich fuer ihn zu entscheiden.
+--   Genau das steht seit migrations/015 ebenfalls hier.
 --
 -- WARUM NICHT ALS SPALTEN AN `user`
 --   User::update() schreibt alle Spalten von `user` bei jedem Speichern mit;
@@ -469,9 +479,43 @@ CREATE TABLE IF NOT EXISTS `guide_profile` (
   -- Rolle abgibt und spaeter wieder annimmt, behaelt seine Zeile.
   `user_id` int(11) NOT NULL,
 
+  -- Der Name, unter dem der Guide seinen KUNDEN erscheint. Er ersetzt den
+  -- Benutzernamen ueberall dort, wo ein Kunde ihn sieht; der Benutzername
+  -- bleibt die Anmeldekennung und damit intern. NULL heisst "nicht gesetzt" -
+  -- dann steht weiterhin der Benutzername da (App\Model\GuideProfile).
+  `display_name` varchar(60) DEFAULT NULL,
+
+  -- Kurze Selbstbeschreibung, mehrzeilig. Die Standortseite zeigt davon den
+  -- ersten Satz, die Profilseite den ganzen Text.
+  `about` text DEFAULT NULL,
+
+  -- Sprachen des MENSCHEN als Kuerzelliste nach ISO 639-1 ("de,en"),
+  -- normalisiert von App\Helper\Languages. Nicht zu verwechseln mit
+  -- location.languages: Das sind die Sprachen EINER FUEHRUNG, und ein Guide
+  -- bietet nicht jede Fuehrung in jeder Sprache an, die er kann.
+  `languages` varchar(64) NOT NULL DEFAULT '',
+
+  -- Basisname der Avatardatei, 32 Hexzeichen (App\Helper\ImageStore) - wie
+  -- location_image.file_name. Die DATEI liegt ausserhalb des Webroots unter
+  -- <UPLOAD_PATH>/guides/<user_id>/ und wird ueber index.php?act=guide_avatar
+  -- ausgeliefert. NULL heisst: kein Bild - dann zeigt die Oberflaeche die
+  -- Initialen des Anzeigenamens (App\Helper\Avatar).
+  `avatar_file` char(32) DEFAULT NULL,
+
   -- Wann die Guide-Rolle zuletzt angenommen wurde. Beginn des Zeitraums, den
   -- eine spaetere Abrechnung betrachtet.
+  --
+  -- NICHT als "Guide seit" anzeigen: GuideRole::rememberAcceptance() setzt
+  -- den Wert bei jeder neuen Zustimmung neu, also auch dann, wenn ein
+  -- langjaehriger Guide bloss eine geaenderte Fassung der Bedingungen
+  -- bestaetigt. Dafuer gibt es joined_at.
   `guide_since` datetime DEFAULT NULL,
+
+  -- Seit wann dieses Konto Guide ist. Wird beim ERSTEN Annehmen gesetzt und
+  -- danach nie wieder angefasst - auch nicht, wenn die Rolle zwischendurch
+  -- zurueckgegeben und erneut angenommen wird. Das ist die Angabe, die ein
+  -- Kunde auf der Profilseite liest (migrations/015).
+  `joined_at` datetime DEFAULT NULL,
 
   -- Fassung der Guide-Bedingungen, der zugestimmt wurde; aktueller Stand in
   -- App\Model\GuideRole::TERMS_VERSION. Steigt die Konstante, weil Fuehrungen

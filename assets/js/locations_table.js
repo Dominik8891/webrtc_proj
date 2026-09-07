@@ -171,6 +171,34 @@ window.webrtcApp.locationsTable = {
     },
 
     /**
+     * Baut die Spalte "Guide" einer Zeile.
+     *
+     * HIER STAND DER BENUTZERNAME. Er ist die Anmeldekennung eines fremden
+     * Kontos - er geht niemanden etwas an, und als Name taugt er nichts.
+     * Was jetzt dasteht, ist der Anzeigename aus dem Guide-Profil; der
+     * Server liefert ihn als guide_name aus und den Benutzernamen gar nicht
+     * mehr mit (App\Model\Location::selectAllLocations). Nur wenn ein Guide
+     * keinen Anzeigenamen gesetzt hat, faellt der Server dort auf den
+     * Benutzernamen zurueck - sonst haette der Standort in dieser Liste gar
+     * keinen Anbieter.
+     *
+     * DER NAME IST EIN VERWEIS auf das Profil des Guides. Wer in einer Liste
+     * von Angeboten steht und sich fuer einen Anbieter interessiert, will
+     * von dort aus wissen, wer das ist - und was er sonst noch zeigt.
+     *
+     * @param {Object} item - Datensatz aus der API
+     * @returns {string} HTML
+     */
+    guideCellHtml(item) {
+        const name = String(item.guide_name ?? '').trim();
+        if (name === '' || !item.user_id) return this.esc(name);
+
+        return `<a class="app-linklike"
+                   href="index.php?act=guide&id=${encodeURIComponent(item.user_id)}"
+                >${this.esc(name)}</a>`;
+    },
+
+    /**
      * Baut die Aktionsspalte einer Zeile.
      * @param {Object} item
      * @param {Object} options
@@ -328,7 +356,7 @@ window.webrtcApp.locationsTable = {
         return `<tr data-locationid="${item.id}" data-status="${item.availability ?? ''}">
             <td>${index + 1}</td>
             <td>${view.icon}</td>
-            ${options.onlyOwn ? "" : `<td>${this.esc(item.username ?? '')}</td>`}
+            ${options.onlyOwn ? "" : `<td>${this.guideCellHtml(item)}</td>`}
             <td>${this.esc(item.country_name ?? '')}</td>
             <td>${this.esc(item.city_name ?? '')}</td>
             <td>${descHtml}</td>

@@ -2303,6 +2303,36 @@ function ackLastMove(status = 'executed', reason) {
         }
         ok('der Verweis fuehrt immer auf die Standortseite, nur mit anderem Gewicht');
 
+        // --- Die Spalte "Guide" zeigt einen Menschen, keine Anmeldekennung -
+        //
+        // Hier stand der Benutzername eines fremden Kontos. Er geht niemanden
+        // etwas an, und als Name taugt er nichts. Der Server liefert jetzt
+        // guide_name aus (den Anzeigenamen aus dem Guide-Profil, ersatzweise
+        // den Benutzernamen) und den Benutzernamen gar nicht mehr - die
+        // Tabelle darf ihn also auch nicht mehr suchen.
+        const guideZelle = tabelle.guideCellHtml({ ...ort, guide_name: 'Maria S.' });
+        assert.ok(/Maria S\./.test(guideZelle), 'der Anzeigename fehlt:\n' + guideZelle);
+        assert.ok(/href="index\.php\?act=guide&id=3"/.test(guideZelle),
+            'der Name fuehrt nicht auf das Profil des Guides:\n' + guideZelle);
+
+        // Ein Anzeigename ist Fremdeingabe. Kaeme er unmaskiert ins Dokument,
+        // stuende in einer Tabellenzelle fremdes Markup.
+        const boeseZelle = tabelle.guideCellHtml({
+            ...ort, guide_name: '<img src=x onerror=alert(1)>'
+        });
+        assert.ok(!/<img/.test(boeseZelle), 'der Anzeigename kommt unmaskiert an:\n' + boeseZelle);
+
+        // Ohne Namen bleibt die Zelle leer statt einen Verweis ins Leere zu
+        // bauen.
+        assert.strictEqual(tabelle.guideCellHtml({ ...ort, guide_name: '' }), '',
+            'eine Zeile ohne Anbieter bekommt trotzdem einen Verweis');
+
+        const tabelleQuelle = fs.readFileSync(
+            path.join(__dirname, '..', 'assets', 'js', 'locations_table.js'), 'utf8');
+        assert.ok(!/item\.username/.test(tabelleQuelle),
+            'die Tabelle greift weiterhin auf den Benutzernamen zu');
+        ok('in der Spalte "Guide" steht der Anzeigename, verlinkt auf sein Profil');
+
         // --- Die eine Zahl steht an einer Stelle -------------------------
         // Die Frist gehoert in config/presence.php. Steht sie zusaetzlich im
         // Code, laufen zwei Werte auseinander, die niemand zusammen pflegt.

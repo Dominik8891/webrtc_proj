@@ -2,11 +2,14 @@
 namespace App\Controller;
 
 use App\Helper\Auth;
+use App\Helper\GuideView;
+use App\Helper\ImageStore;
 use App\Helper\Permission;
 use App\Helper\Request;
 use App\Helper\Role;
 use App\Helper\Theme;
 use App\Helper\ViewHelper;
+use App\Model\GuideProfile;
 use App\Model\GuideRole;
 use App\Model\User;
 
@@ -97,7 +100,67 @@ class SettingsController
         $out = str_replace('###MAILCONFIRM###', $mailConfirm, $out);
         $out = str_replace('###THEMES###', self::themeChoices($user->getTheme()), $out);
 
+        // Die Rueckmeldung nach dem Speichern des Guide-Profils. Sie reist in
+        // der Adresse mit (Post/Redirect/Get) und wird maskiert wieder
+        // herausgeholt - ViewHelper::hinweisHtml ist dieselbe Meldung, die
+        // auch die Standortseite zeigt.
+        $out = str_replace('###NOTICE###', ViewHelper::hinweisHtml(
+            (string)Request::g('fehler', ''),
+            Request::g('gespeichert') === '1'
+        ), $out);
+
+        $out = str_replace('###GUIDEPROFILE###', self::guideProfilBereich(), $out);
+
         ViewHelper::output($out);
+    }
+
+    /**
+     * Der Bereich, in dem ein Guide sein oeffentliches Profil pflegt.
+     *
+     * WARUM HIER UND NICHT AUF DER PROFILSEITE
+     * ----------------------------------------
+     * Weil die Profilseite das ist, was ein KUNDE sieht - und sie soll fuer
+     * den Eigentuemer genauso aussehen wie fuer alle anderen. Wer sein Profil
+     * aendert, geht dorthin, wo er auch sein Passwort aendert und seine
+     * Standorte verwaltet.
+     *
+     * NUR FUER KONTEN, DIE STANDORTE ANBIETEN duerfen (Recht
+     * guide.profile_edit). Ein Zuschauer haette hier ein Formular fuer eine
+     * Seite, die es fuer ihn nicht gibt.
+     *
+     * @return string HTML oder Leerstring
+     */
+    private static function guideProfilBereich(): string
+    {
+        if (!Auth::can(Permission::GUIDE_PROFILE_EDIT)) return '';
+
+        $user_id = Auth::userId();
+        $profil  = GuideProfile::forUser($user_id);
+        if ($profil === null) return '';
+
+        $config = ImageStore::config();
+
+        return '<div class="app-panel" style="margin-top: var(--app-space-4);">'
+             . '<div class="app-panel__head">'
+             .   '<h2 class="app-page-head__title">Mein Guide-Profil</h2>'
+             .   '<a class="btn btn-secondary btn-sm" href="index.php?act=guide&id=' . $user_id . '">'
+             .     'Öffentliches Profil ansehen</a>'
+             . '</div>'
+             . '<div class="app-panel__body">'
+             .   '<p class="app-page-head__sub" style="margin-top:0;">'
+             .     'Das sieht ein Kunde, bevor er eine Führung anfragt: auf jeder Ihrer '
+             .     'Standortseiten und auf Ihrer eigenen Seite, die Sie weitergeben können. '
+             .     'Ein Benutzername und ein farbiger Punkt sind keine Grundlage dafür, '
+             .     'einem Fremden Geld zu geben.'
+             .   '</p>'
+             .   GuideView::formularHtml($profil, [
+                     'name_max'  => GuideProfile::NAME_MAX,
+                     'about_max' => GuideProfile::ABOUT_MAX,
+                     'max_bytes' => (int)$config['max_file_bytes'],
+                     'accept'    => implode(',', $config['accepted_mime']),
+                 ])
+             . '</div>'
+             . '</div>';
     }
 
     /**

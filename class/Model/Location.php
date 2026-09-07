@@ -439,16 +439,32 @@ class Location
             // bekommt. Wer den rohen Status herausgibt, laedt dazu ein, ihn
             // an der naechsten Lesestelle wieder mit "verfuegbar"
             // gleichzusetzen; genau das war der alte Fehler.
-            $query = "SELECT user.id AS user_id, user.username,
+            // KEIN BENUTZERNAME MEHR. In der Spalte "Guide" dieser Liste
+            // stand bisher die Anmeldekennung eines fremden Kontos -
+            // ausgeliefert an jeden Angemeldeten, obwohl sie niemanden
+            // etwas angeht und obwohl sie als Name nichts taugt. Was der
+            // Kunde sieht, ist der Anzeigename aus dem Guide-Profil; nur
+            // wenn es keinen gibt, steht dort weiterhin der Benutzername -
+            // sonst haette ein Standort in der Liste gar keinen Anbieter.
+            //
+            // Entschieden wird das hier in SQL und nicht im Browser: Was
+            // nicht ausgeliefert wird, kann auch nicht angezeigt werden.
+            // Dieselbe Rueckfallregel steht in
+            // App\Model\GuideProfile::anzeigename() - dort fuer Zeilen, die
+            // schon geladen sind.
+            $query = "SELECT user.id AS user_id,
+                             COALESCE(NULLIF(guide_profile.display_name, ''), user.username)
+                                 AS guide_name,
                              " . self::AVAILABILITY_SQL . " AS availability,
                              country.country_name, city.city_name, location.id,
                              location.latitude, location.longitude,
                              location.title, location.description,
                              location.blocked, location.blocked_reason
                       FROM location
-                      LEFT JOIN user    ON location.user_id = user.id
-                      LEFT JOIN city    ON location.city_id = city.id
-                      LEFT JOIN country ON city.country_id = country.id
+                      LEFT JOIN user          ON location.user_id = user.id
+                      LEFT JOIN guide_profile ON guide_profile.user_id = user.id
+                      LEFT JOIN city          ON location.city_id = city.id
+                      LEFT JOIN country       ON city.country_id = country.id
                       WHERE user.id != :user_id" . $blocked_filter;
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt ->bindParam(":user_id", $in_user_id);
@@ -553,6 +569,71 @@ class Location
     }
 
     /**
+     * Die Standorte EINES Guides, so wie seine Profilseite sie zeigt.
+     *
+     * WARUM NICHT selectAllLocationsOfOneUser()
+     * -----------------------------------------
+     * Weil das die Liste ist, die ein Guide von SEINEN EIGENEN Standorten
+     * sieht - mit Sperrgrund, mit Bearbeitungsknoepfen, fuer ihn allein.
+     * Diese hier bekommt ein Kunde, und zwar auch ein nicht angemeldeter.
+     * Sie enthaelt deshalb nichts, was ihn nichts angeht: keinen
+     * Benutzernamen, keine user_id, keinen rohen Anwesenheitsstatus.
+     * Dieselbe Ueberlegung wie bei selectPublicMapLocations() - wer beide
+     * Faelle aus einer Abfrage bedient, entscheidet die Frage "was ist
+     * oeffentlich" im Controller, und diese Entscheidung ist beim naechsten
+     * Umbau als Erstes vergessen.
+     *
+     * DAS TITELBILD KOMMT MIT. Eine Liste von Angeboten ohne Bilder ist eine
+     * Liste von Ueberschriften; die Profilseite soll zeigen, was dieser
+     * Guide anbietet. Der Join traegt die Rolle aus
+     * App\Model\LocationImage - eine Zeichenkette aus dem Programm, kein
+     * Wert aus einer Anfrage.
+     *
+     * GESPERRTE STANDORTE BLEIBEN AUSSEN VOR, das ist der Sinn der Sperre.
+     * Nur wer sie sehen darf - der Eigentuemer auf seinem eigenen Profil und
+     * die Moderation - bekommt sie mitgeliefert; entschieden wird das im
+     * Controller, der die Rechte kennt.
+     *
+     * @param int  $in_user_id
+     * @param bool $in_with_blocked Gesperrte mitliefern
+     * @return array<int,array<string,mixed>>
+     */
+    public function selectLocationsOfGuide($in_user_id, $in_with_blocked = false)
+    {
+        $user_id = (int)$in_user_id;
+        if ($user_id < 1) return [];
+
+        // Fester Textbaustein, kein Parameter: In die Abfrage kommt nichts,
+        // was ein Aufrufer beeinflussen koennte.
+        $blocked_filter = $in_with_blocked ? '' : ' AND location.blocked = 0';
+
+        try {
+            $query = "SELECT location.id, location.title, location.description,
+                             location.duration_minutes, location.languages,
+                             location.blocked,
+                             country.country_name, city.city_name,
+                             cover.id AS cover_image_id,
+                             " . self::AVAILABILITY_SQL . " AS availability
+                      FROM location
+                      JOIN user         ON location.user_id = user.id
+                      LEFT JOIN city    ON location.city_id = city.id
+                      LEFT JOIN country ON city.country_id = country.id
+                      LEFT JOIN location_image AS cover
+                             ON cover.location_id = location.id
+                            AND cover.role = '" . LocationImage::ROLE_COVER . "'
+                      WHERE location.user_id = :user_id" . $blocked_filter . "
+                      ORDER BY country.country_name ASC, city.city_name ASC, location.id ASC";
+            $stmt = PdoConnect::$connection->prepare($query);
+            $stmt->bindParam(':user_id', $user_id, \PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Laden der Standorte eines Guides: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * EINEN Standort mit allem, was seine eigene Seite zeigt.
      *
      * WARUM NICHT DER KONSTRUKTOR
@@ -596,12 +677,27 @@ class Location
                              location.availability_slots, location.timezone,
                              location.blocked, location.blocked_reason,
                              country.country_name, country.iso2, city.city_name,
+                             -- DER GUIDE ALS MENSCH. Er steht auf der Seite
+                             -- mit Bild, Anzeigename und einem Satz aus
+                             -- seiner Selbstbeschreibung - das ist Teil der
+                             -- Entscheidungsgrundlage und keine Randnotiz.
+                             --
+                             -- Mitgeladen und nicht nachgefragt, aus dem
+                             -- Grund, der oben im Kommentar steht: Eine
+                             -- zweite Abfrage waere ein zweiter Weg zur
+                             -- selben Seite. Der Benutzername kommt weiter
+                             -- mit, aber nur noch als Rueckfall fuer ein
+                             -- Profil ohne Anzeigenamen - angezeigt wird er
+                             -- ueber App\Model\GuideProfile::anzeigename().
                              user.username,
+                             guide_profile.display_name, guide_profile.about,
+                             guide_profile.avatar_file,
                              " . self::AVAILABILITY_SQL . " AS availability
                       FROM location
-                      JOIN user         ON location.user_id = user.id
-                      LEFT JOIN city    ON location.city_id = city.id
-                      LEFT JOIN country ON city.country_id = country.id
+                      JOIN user               ON location.user_id = user.id
+                      LEFT JOIN guide_profile ON guide_profile.user_id = user.id
+                      LEFT JOIN city          ON location.city_id = city.id
+                      LEFT JOIN country       ON city.country_id = country.id
                       WHERE location.id = :id";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':id', $id, \PDO::PARAM_INT);

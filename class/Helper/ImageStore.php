@@ -2,11 +2,20 @@
 namespace App\Helper;
 
 /**
- * Die Bilddateien eines Standorts: pruefen, umrechnen, ablegen, ausliefern.
+ * Die hochgeladenen Bilder dieser Anwendung: pruefen, umrechnen, ablegen.
+ *
+ * ZWEI ARTEN, EIN WEG. Standortbilder (bis zu fuenf je Standort) und das
+ * Avatarbild eines Guides (genau eines je Konto) durchlaufen dieselben
+ * Pruefungen und dieselbe Umrechnung; sie unterscheiden sich nur darin,
+ * WOHIN sie kommen und in WELCHEN MASSEN. Genau dafuer sind pruefe() und
+ * schreibe() getrennt: Ein zweiter Upload-Weg mit eigenen Pruefungen waere
+ * ein zweiter Weg, eine davon zu vergessen - und die vergessene waere die,
+ * die das EXIF entfernt.
  *
  * DIESE KLASSE FASST DATEIEN AN, KEINE DATENBANK. Welche Bilder es zu einem
  * Standort gibt und in welcher Reihenfolge sie stehen, weiss
- * App\Model\LocationImage. Die Trennung ist Absicht: Eine verwaiste Zeile
+ * App\Model\LocationImage; welches Bild zu einem Guide gehoert, weiss
+ * App\Model\GuideProfile. Die Trennung ist Absicht: Eine verwaiste Zeile
  * ohne Datei ist ein Anzeigefehler, eine verwaiste Datei ohne Zeile ist
  * belegter Plattenplatz - beides laesst sich getrennt aufraeumen, wenn beide
  * Seiten getrennt ansprechbar sind.
@@ -39,9 +48,10 @@ namespace App\Helper;
  *
  * WAS BEIM AUSLIEFERN PASSIERT
  * ----------------------------
- * Nichts von hier - das ist Sache des Controllers
- * (LocationController::serveImage), denn dort haengt die Frage dran, ob der
- * Standort gesperrt ist. Diese Klasse sagt nur, WO die Datei liegt.
+ * Nichts von hier - das ist Sache der Controller
+ * (LocationController::serveImage, GuideProfileController::serveAvatar), denn
+ * dort haengt die Frage dran, ob der Standort gesperrt ist bzw. ob es das
+ * Konto ueberhaupt noch gibt. Diese Klasse sagt nur, WO die Datei liegt.
  */
 class ImageStore
 {
@@ -140,6 +150,39 @@ class ImageStore
     }
 
     /**
+     * Verzeichnis der Avatarbilder eines Kontos.
+     *
+     * EIN VERZEICHNIS JE GUIDE, obwohl darin hoechstens ein Bild liegt (in
+     * zwei Groessen). Der Grund ist derselbe wie bei den Standorten: Beim
+     * Ersetzen entsteht kurz die neue Datei neben der alten, und beim
+     * Aufraeumen soll sich loeschen lassen, was zu genau diesem Konto
+     * gehoert - ohne dass ein Muster ueber ein gemeinsames Verzeichnis
+     * laufen muss.
+     *
+     * @param int  $in_user_id
+     * @param bool $in_create true legt es an, wenn es fehlt
+     * @return string|null null, wenn es nicht angelegt werden konnte
+     */
+    public static function guideDir($in_user_id, bool $in_create = false): ?string
+    {
+        $id = (int)$in_user_id;
+        if ($id < 1) return null;
+
+        $config = self::config();
+        $pfad   = $config['base_path'] . '/guides/' . $id;
+
+        if (!is_dir($pfad)) {
+            if (!$in_create) return $pfad;
+            if (!@mkdir($pfad, 0750, true) && !is_dir($pfad)) {
+                error_log('ImageStore: Verzeichnis nicht anlegbar: ' . $pfad);
+                return null;
+            }
+            @chmod($pfad, 0750);
+        }
+        return $pfad;
+    }
+
+    /**
      * Ist das ein Name, den diese Klasse selbst vergeben hat?
      *
      * Der Name kommt aus der Datenbank, wird aber trotzdem geprueft, bevor er
@@ -173,6 +216,27 @@ class ImageStore
     }
 
     /**
+     * Vollstaendiger Pfad eines Avatarbildes.
+     *
+     * Dieselben zwei Groessen wie bei den Standortbildern und derselbe
+     * Namenspruefer: 'thumb' fuer Listen und Kacheln, 'full' fuer die
+     * Kopfzeile der Profilseite.
+     *
+     * @param int    $in_user_id
+     * @param string $in_name  Basisname ohne Endung (32 Hexzeichen)
+     * @param string $in_size  'full' oder 'thumb'
+     * @return string|null null bei unbrauchbaren Angaben
+     */
+    public static function avatarPathFor($in_user_id, $in_name, string $in_size = 'full'): ?string
+    {
+        if (!self::isValidName($in_name)) return null;
+        $dir = self::guideDir($in_user_id);
+        if ($dir === null) return null;
+
+        return $dir . '/' . $in_name . ($in_size === 'thumb' ? self::SUFFIX_THUMB : self::SUFFIX_FULL);
+    }
+
+    /**
      * Nimmt eine hochgeladene Datei an.
      *
      * Der Ablauf in der Reihenfolge, in der abgewiesen wird - jede Stufe
@@ -192,11 +256,96 @@ class ImageStore
      *      Datei winzig und als GD-Bild mehrere Gigabyte.
      *   6. Umrechnen und schreiben.
      *
+     * DIE PRUEFUNGEN STEHEN IN pruefe(), DAS SCHREIBEN IN schreibe(). Diese
+     * Methode setzt nur beides zusammen und weiss als Einzige, dass es um
+     * einen Standort geht. Das Avatarbild eines Guides geht denselben Weg
+     * mit anderen Massen - siehe storeAvatar().
+     *
      * @param array  $in_file        Ein Eintrag aus $_FILES
      * @param int    $in_location_id Standort, zu dem das Bild gehoert
      * @return array{ok:bool, name?:string, error?:string}
      */
     public static function store(array $in_file, $in_location_id): array
+    {
+        $config = self::config();
+
+        $geprueft = self::pruefe($in_file);
+        if (!$geprueft['ok']) return $geprueft;
+        $quelle = $geprueft['bild'];
+
+        // Das Verzeichnis entsteht erst JETZT: Eine abgewiesene Datei soll
+        // keinen leeren Ordner hinterlassen.
+        $verzeichnis = self::locationDir($in_location_id, true);
+        if ($verzeichnis === null) {
+            imagedestroy($quelle);
+            return self::fehler('Das Bild konnte nicht gespeichert werden.');
+        }
+
+        return self::schreibe($quelle, $verzeichnis, [
+            [self::SUFFIX_FULL,  (int)$config['full_edge'],   null],
+            [self::SUFFIX_THUMB, (int)$config['thumb_width'], (int)$config['thumb_height']],
+        ]);
+    }
+
+    /**
+     * Nimmt das Avatarbild eines Guides an.
+     *
+     * DERSELBE WEG WIE BEI EINEM STANDORTBILD - dieselben Pruefungen,
+     * dieselbe Umrechnung, dasselbe Entfernen des EXIF-Blocks. Zwei
+     * Unterschiede, und beide stehen in dieser Methode:
+     *
+     *   1. Es landet unter <base>/guides/<user_id>/ statt unter locations/.
+     *   2. BEIDE GROESSEN SIND QUADRATISCH. Ein Portraet ist mal hochkant,
+     *      mal quer aufgenommen; nebeneinandergestellt ergaebe das eine
+     *      unruhige Reihe. Geschnitten wird mittig - dort steht auf einem
+     *      Portraet der Kopf.
+     *
+     * EIN BILD JE GUIDE: Diese Methode legt nur die Datei ab und gibt ihren
+     * Namen zurueck. Dass das vorherige Bild danach geloescht wird, ist
+     * Sache des Aufrufers - er ist auch derjenige, der den neuen Namen in
+     * die Datenbank schreibt, und geloescht werden darf erst danach.
+     *
+     * @param array $in_file    Ein Eintrag aus $_FILES
+     * @param int   $in_user_id Konto, zu dem das Bild gehoert
+     * @return array{ok:bool, name?:string, error?:string}
+     */
+    public static function storeAvatar(array $in_file, $in_user_id): array
+    {
+        $config = self::config();
+
+        $geprueft = self::pruefe($in_file);
+        if (!$geprueft['ok']) return $geprueft;
+        $quelle = $geprueft['bild'];
+
+        $verzeichnis = self::guideDir($in_user_id, true);
+        if ($verzeichnis === null) {
+            imagedestroy($quelle);
+            return self::fehler('Das Bild konnte nicht gespeichert werden.');
+        }
+
+        $kante  = max(1, (int)($config['avatar_edge']  ?? 512));
+        $klein  = max(1, (int)($config['avatar_thumb'] ?? 128));
+
+        return self::schreibe($quelle, $verzeichnis, [
+            [self::SUFFIX_FULL,  $kante, $kante],
+            [self::SUFFIX_THUMB, $klein, $klein],
+        ]);
+    }
+
+    /**
+     * Prueft eine hochgeladene Datei und gibt sie als GD-Bild zurueck.
+     *
+     * DIE STELLE, AN DER FREMDEINGABE ZU EINEM BILD WIRD - und die einzige.
+     * Wer einen weiteren Upload baut, ruft diese Methode auf; wer sie
+     * umgeht, umgeht auch das Entfernen des EXIF-Blocks.
+     *
+     * Der Aufrufer bekommt ein GD-Bild und ist ab da fuer dessen Freigabe
+     * zustaendig (imagedestroy) - schreibe() erledigt das.
+     *
+     * @param array $in_file Ein Eintrag aus $_FILES
+     * @return array{ok:bool, bild?:mixed, error?:string}
+     */
+    private static function pruefe(array $in_file): array
     {
         $config = self::config();
 
@@ -250,24 +399,47 @@ class ImageStore
         // jedes Hochkantfoto anschliessend auf der Seite.
         $quelle = self::applyExifRotation($quelle, $tmp, $info['mime']);
 
-        $verzeichnis = self::locationDir($in_location_id, true);
-        if ($verzeichnis === null) {
-            imagedestroy($quelle);
-            return self::fehler('Das Bild konnte nicht gespeichert werden.');
+        return ['ok' => true, 'bild' => $quelle];
+    }
+
+    /**
+     * Schreibt ein geprueftes Bild in seinen Groessen weg.
+     *
+     * DER NAME ENTSTEHT HIER und ist zufaellig: 32 Hexzeichen, der
+     * urspruengliche Dateiname wird verworfen (siehe Klassenkopf, Punkt 3).
+     * Alle Groessen tragen denselben Namen und unterscheiden sich nur in der
+     * Endung - so fuehrt EIN Eintrag in der Datenbank zu allen Dateien.
+     *
+     * Das GD-Bild wird in jedem Fall freigegeben, auch im Fehlerfall: Es
+     * belegt ein Vielfaches der Dateigroesse im Arbeitsspeicher.
+     *
+     * @param \GdImage|resource $in_quelle
+     * @param string $in_verzeichnis
+     * @param array<int,array{0:string,1:int,2:int|null}> $in_ausgaben
+     *        Je Eintrag: Endung, Breite, Hoehe (null = einpassen statt
+     *        beschneiden, siehe writeScaled)
+     * @return array{ok:bool, name?:string, error?:string}
+     */
+    private static function schreibe($in_quelle, string $in_verzeichnis, array $in_ausgaben): array
+    {
+        $config = self::config();
+        $name   = bin2hex(random_bytes(16));
+        $ok     = true;
+
+        foreach ($in_ausgaben as [$endung, $breite, $hoehe]) {
+            $ok = $ok && self::writeScaled($in_quelle, $in_verzeichnis . '/' . $name . $endung,
+                             $breite, $hoehe, (int)$config['jpeg_quality']);
         }
 
-        $name = bin2hex(random_bytes(16));
-        $ok   = self::writeScaled($quelle, $verzeichnis . '/' . $name . self::SUFFIX_FULL,
-                    (int)$config['full_edge'], null, (int)$config['jpeg_quality'])
-             && self::writeScaled($quelle, $verzeichnis . '/' . $name . self::SUFFIX_THUMB,
-                    (int)$config['thumb_width'], (int)$config['thumb_height'], (int)$config['jpeg_quality']);
-
-        imagedestroy($quelle);
+        imagedestroy($in_quelle);
 
         if (!$ok) {
-            // Halb geschriebene Bilder nicht liegen lassen - sonst zeigt der
-            // Standort spaeter eine Vorschau ohne Vollansicht.
-            self::delete($in_location_id, $name);
+            // Halb geschriebene Bilder nicht liegen lassen - sonst zeigt die
+            // Seite spaeter eine Vorschau ohne Vollansicht.
+            foreach ($in_ausgaben as [$endung, , ]) {
+                $pfad = $in_verzeichnis . '/' . $name . $endung;
+                if (is_file($pfad)) @unlink($pfad);
+            }
             return self::fehler('Das Bild konnte nicht gespeichert werden.');
         }
 
@@ -288,6 +460,27 @@ class ImageStore
     {
         foreach (['full', 'thumb'] as $groesse) {
             $pfad = self::pathFor($in_location_id, $in_name, $groesse);
+            if ($pfad !== null && is_file($pfad)) {
+                @unlink($pfad);
+            }
+        }
+    }
+
+    /**
+     * Loescht beide Dateien eines Avatarbildes.
+     *
+     * Gebraucht beim Ersetzen und beim Entfernen. Ein fehlendes File ist
+     * kein Fehler - wer aufraeumt, will den Zustand "weg" erreichen, und der
+     * ist dann schon da.
+     *
+     * @param int    $in_user_id
+     * @param string $in_name
+     * @return void
+     */
+    public static function deleteAvatar($in_user_id, $in_name): void
+    {
+        foreach (['full', 'thumb'] as $groesse) {
+            $pfad = self::avatarPathFor($in_user_id, $in_name, $groesse);
             if ($pfad !== null && is_file($pfad)) {
                 @unlink($pfad);
             }

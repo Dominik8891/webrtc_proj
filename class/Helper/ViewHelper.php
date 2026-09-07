@@ -70,6 +70,77 @@ class ViewHelper
     }
 
     /**
+     * Maskiert Text fuer die Ausgabe in HTML.
+     *
+     * ZWEI DINGE, nicht eines:
+     *
+     * 1. htmlspecialchars mit ENT_QUOTES. Der uebliche Teil - spitze
+     *    Klammern und beide Anfuehrungszeichen, damit ein Text weder ein
+     *    Element noch ein Attribut beenden kann.
+     *
+     * 2. Drei Rautenzeichen werden unschaedlich gemacht. DAS IST DER TEIL,
+     *    DEN MAN VERGISST: Diese Anwendung baut ihre Seiten mit str_replace
+     *    ueber Platzhalter der Form ###NAME###, und output() weiter unten
+     *    laeuft NACH jedem Controller ueber das gesamte Dokument. Ein Text,
+     *    in dem jemand "###USER###" schreibt, bekaeme sonst an dieser Stelle
+     *    das Benutzermenue eingesetzt - Fremdeingabe, die eine Ersetzung des
+     *    Servers ausloest. htmlspecialchars sieht das nicht: An einer Raute
+     *    ist nichts gefaehrlich, gefaehrlich ist sie nur in DIESEM
+     *    Bauverfahren.
+     *
+     *    Ersetzt wird durch die HTML-Entitaet: Im Browser steht danach
+     *    wieder "###USER###", im Dokument aber nicht mehr das Muster, auf
+     *    das str_replace anspringt.
+     *
+     * DIE EINE FASSUNG DIESER REGEL. App\Helper\LocationView::esc() und
+     * App\Helper\GuideView::esc() rufen sie auf, statt sie nachzubauen -
+     * eine zweite Fassung waere eine zweite Gelegenheit, den zweiten Teil zu
+     * vergessen.
+     *
+     * @param mixed $in_wert
+     * @return string
+     */
+    public static function esc($in_wert): string
+    {
+        $text = is_scalar($in_wert) ? (string)$in_wert : '';
+        $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+        return str_replace('###', '&#35;&#35;&#35;', $text);
+    }
+
+    /**
+     * Die Rueckmeldung nach dem Speichern - Erfolg oder Fehler.
+     *
+     * BEIDE WERTE KOMMEN AUS DER ADRESSZEILE, und das ist Absicht: Nach dem
+     * Absenden eines Formulars wird weitergeleitet (Post/Redirect/Get),
+     * damit ein Neuladen nicht ein zweites Mal speichert. Der Preis dafuer
+     * ist, dass die Meldung die Weiterleitung ueberstehen muss - und das tut
+     * sie in der Adresse.
+     *
+     * DER TEXT IST FREMDEINGABE, sobald er dort steht: Jeder kann sich eine
+     * Adresse mit beliebigem "fehler=" bauen. Er wird deshalb maskiert (esc)
+     * und gekuerzt - ein Kasten mit zweitausend Zeichen waere keine Meldung
+     * mehr, sondern eine Flaeche.
+     *
+     * @param string $in_fehler      Meldung, oder Leerstring
+     * @param bool   $in_gespeichert Erfolgreich gespeichert?
+     * @return string HTML oder Leerstring
+     */
+    public static function hinweisHtml(string $in_fehler, bool $in_gespeichert): string
+    {
+        $fehler = trim($in_fehler);
+        if ($fehler !== '') {
+            return '<div class="alert alert-danger" role="alert">'
+                 . self::esc(mb_substr($fehler, 0, 200)) . '</div>';
+        }
+
+        if ($in_gespeichert) {
+            return '<div class="alert alert-success" role="alert">Gespeichert.</div>';
+        }
+
+        return '';
+    }
+
+    /**
      * Baut das Benutzermenue der Kopfleiste.
      *
      * Enthaelt die Eintraege, die zum eigenen Konto gehoeren. Welche Route
@@ -114,9 +185,12 @@ class ViewHelper
 
         return '<details class="app-menu" id="user-menu">'
              .   '<summary class="app-menu__button">'
-             .     '<span class="app-menu__avatar" aria-hidden="true">'
-             .        htmlspecialchars(mb_strtoupper(mb_substr($username, 0, 1)))
-             .     '</span>'
+             // Die Initialen kommen aus App\Helper\Avatar - derselben
+             // Klasse, die sie auf der Standort- und der Profilseite baut.
+             // Frueher stand hier ein eigenes mb_substr; seitdem gibt es
+             // Avatare mit Bild, und "wie sieht der Ersatz aus" ist eine
+             // Frage, die nur einmal beantwortet werden darf.
+             .     Avatar::html($username, null, 'app-menu__avatar')
              .     '<span class="app-menu__name">' . $name . '</span>'
              .     '<span class="app-menu__caret" aria-hidden="true"></span>'
              .   '</summary>'
