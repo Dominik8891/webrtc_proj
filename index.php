@@ -1,28 +1,58 @@
 <?php
+// ---------------------------------------------------------------------------
+// DIE REIHENFOLGE DIESER VIER ZEILEN IST EINE AUSSAGE.
+//
+// Die Sitzung wird ZULETZT gestartet, nicht mehr an zweiter Stelle. Ihr
+// Cookie traegt das Merkmal "secure", und ob das gesetzt werden darf, haengt
+// an FORCE_HTTPS - einem Wert aus der .env. Solange die Sitzung vor
+// config/env.php stand, gab es diesen Wert zum Zeitpunkt der Entscheidung
+// noch nicht; das Merkmal war deshalb fest verdrahtet und sperrte jede
+// lokale Entwicklung ueber http:// aus (das Cookie wurde nie zurueckgeschickt,
+// also war niemand angemeldet).
+//
+// Die Fehlerbehandlung bleibt an erster Stelle: Was danach schiefgeht, soll
+// im Log stehen und nicht im Browser. Sie kommt ohne .env aus - ihr Logpfad
+// wird auf Server- oder Systemebene gesetzt (siehe config/log_path.php).
+// ---------------------------------------------------------------------------
 // Fehlerbehandlung aktivieren
 require_once __DIR__ . '/config/error_handler.php';
-// Startet die Session-Verwaltung
-require_once __DIR__ . '/config/session.php';
 // Autoloader für Composer-Pakete laden
 require_once __DIR__ . '/vendor/autoload.php';
 // Umgebungsvariablen laden
 require_once __DIR__ . '/config/env.php';
+// Startet die Session-Verwaltung - nach der Konfiguration, siehe oben
+require_once __DIR__ . '/config/session.php';
 
 use App\Helper\Auth;
+use App\Helper\Https;
 use App\Helper\MailGate;
 use App\Helper\Permission;
 use App\Helper\Request;
+use App\Helper\SecurityHeaders;
 use App\Model\PdoConnect;
+
+// ---------------------------------------------------------------------------
+// HTTPS UND DIE SICHERHEITSKOPFZEILEN. Beides ganz am Anfang, und in dieser
+// Reihenfolge.
+//
+// Die Weiterleitung zuerst: Eine Anfrage, die ohnehin nur umgeleitet wird,
+// soll nichts weiter tun - keine Kopfzeilen bauen und, ein paar Zeilen
+// weiter unten, keine Datenbankverbindung oeffnen.
+//
+// Die Kopfzeilen danach, aber VOR JEDER AUSGABE: Was einmal geschrieben ist,
+// laesst sich mit header() nicht mehr ergaenzen. Weil index.php der einzige
+// Einstieg ist, traegt damit jede Antwort dieselben Kopfzeilen - auch die
+// Fehlerseiten aus deny() weiter unten.
+//
+// Beides haengt an Schaltern in der .env (FORCE_HTTPS, HSTS_MAX_AGE,
+// CSP_MODE); die Vorgaben sind so gewaehlt, dass eine bestehende
+// Installation nichts merkt. Die Begruendungen stehen in den beiden Klassen.
+// ---------------------------------------------------------------------------
+Https::erzwingen();
+SecurityHeaders::senden();
 
 // Routen-Konfiguration laden
 $routes = require __DIR__ . '/config/routes.php';
-
-// HTTPS erzwingen: Weiterleitung auf HTTPS, falls nicht aktiv
-if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
-    $httpsUrl = 'https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
-    header('Location: ' . $httpsUrl, true, 301);
-    exit;
-}
 
 // ---------------------------------------------------------------------------
 // DIE DATENBANKVERBINDUNG. Ab hier darf JEDE Zeile sie benutzen - das ist der

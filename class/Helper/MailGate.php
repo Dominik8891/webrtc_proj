@@ -196,13 +196,15 @@ class MailGate
     /**
      * Liest einen Schalter aus der Umgebung.
      *
-     * ES GIBT KEINEN "HALB GESETZTEN" SCHALTER. Angenommen werden die
-     * ueblichen Schreibweisen fuer beide Zustaende; alles andere - ein
-     * Tippfehler, ein leerer Wert, ein Kommentar hinter dem Gleichheitszeichen
-     * - faellt auf die Vorgabe zurueck und wird protokolliert. Stillschweigend
-     * "false" daraus zu machen waere die schlechtere Antwort: Bei MAIL_ENABLED
-     * hiesse das, dass ein Vertipper den Mailversand abstellt, ohne dass es
-     * jemandem auffaellt.
+     * DIE ARBEIT MACHT App\Helper\Env. Diese Methode bleibt stehen, weil
+     * sie die beiden Aufrufer oben lesbar haelt - und weil dort, wo ein
+     * Schalter gelesen wird, der Name des Schluessels stehen soll und nicht
+     * eine Klasse mit drei Argumenten.
+     *
+     * Frueher stand die Auswertung hier ausgeschrieben. Als mit FORCE_HTTPS,
+     * TRUST_PROXY und HSTS die naechsten Schalter dazukamen, waere sie ein
+     * zweites Mal entstanden - mit der Gefahr, dass "yes" dann an einer
+     * Stelle gilt und an der anderen nicht.
      *
      * @param  string $in_name    Name des Schluessels in der .env
      * @param  bool   $in_vorgabe Wert, wenn nichts Brauchbares dasteht
@@ -210,19 +212,6 @@ class MailGate
      */
     private static function schalter(string $in_name, bool $in_vorgabe): bool
     {
-        $roh = $_ENV[$in_name] ?? null;
-
-        // Nicht gesetzt ist kein Fehler - das ist der dokumentierte Normalfall
-        // einer .env, die den Schluessel nicht kennt.
-        if ($roh === null || $roh === '') return $in_vorgabe;
-
-        $wert = strtolower(trim((string)$roh));
-
-        if (in_array($wert, ['1', 'true', 'on', 'yes', 'ja'],    true)) return true;
-        if (in_array($wert, ['0', 'false', 'off', 'no', 'nein'], true)) return false;
-
-        error_log("Konfiguration: $in_name hat den unbrauchbaren Wert '$roh' - "
-            . 'es gilt die Vorgabe ' . ($in_vorgabe ? 'ein' : 'aus') . '.');
-        return $in_vorgabe;
+        return Env::schalter($in_name, $in_vorgabe);
     }
 }

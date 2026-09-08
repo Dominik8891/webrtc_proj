@@ -417,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (362 Prüfungen)
+## Was `server_test.php` prüft (367 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1641,6 +1641,103 @@ Migration reparieren — welches den Namen behalten darf, ist eine Entscheidung
 über Menschen), und dass die Umbenennung kollidierender Konten ausschließlich
 `deleted = 1` trifft.
 
+### Ein Schalter, eine Auswertung (`App\Helper\Env`)
+
+Vorgaben (nicht gesetzt heißt Vorgabe), beide Schreibweisen-Listen
+(`1/true/on/yes/ja` gegen `0/false/off/no/nein`, Groß- und Kleinschreibung und
+Leerraum egal), und die Reihenfolge der Quellen: `$_SERVER` (SetEnv,
+`fastcgi_param`) sticht `$_ENV` (`.env`).
+
+Der Fall, um den es eigentlich geht: **Ein Tippfehler fällt auf die Vorgabe
+zurück und wird protokolliert** — nicht auf `false`. Sonst stellte ein
+Vertipper die HTTPS-Weiterleitung ab, ohne dass es jemandem auffällt. Geprüft
+wird beides: der zurückgegebene Wert *und* der Eintrag im Log.
+
+Dazu die Zahlen (nur Ziffern, `1e5` und `-1` sind Versehen), die Auswahl aus
+einer festen Liste (`CSP_MODE`) — und dass `MailGate` seine eigene Auswertung
+abgegeben hat. Zwei Auswertungen hätten bedeutet, dass „yes" bald an einer
+Stelle gilt und an der anderen nicht.
+
+### HTTPS, Sitzungscookie und HSTS (`App\Helper\Https`)
+
+Drei Quellen für „ist sicher": `$_SERVER['HTTPS']`, Port 443 und —
+**ausschließlich mit `TRUST_PROXY=1`** — `X-Forwarded-Proto`, auch als Kette
+(`"https, http"`, der erste Eintrag zählt). Der Header kommt vom Aufrufer,
+solange kein Proxy davorsteht, der ihn überschreibt; dass er ohne den Schalter
+nichts bewirkt, ist eine eigene Prüfung.
+
+`FORCE_HTTPS` ist als Vorgabe an — das Verhalten aller bisherigen Versionen.
+`HSTS_MAX_AGE` ist als Vorgabe **aus**: Ein gesendetes `max-age` lässt sich
+nicht zurückrufen, ein solcher Header darf nicht als Nebenwirkung eines
+Updates entstehen. Geprüft wird außerdem, dass er über `http://` gar nicht
+erst gesendet wird und dass es keinen `preload`-Schalter gibt.
+
+Und der Punkt, der leicht vergessen wird: **Das Sitzungscookie hängt am
+selben Schalter.** Steht `secure` fest verdrahtet, ist `FORCE_HTTPS=0` nur ein
+halber Schalter — das Cookie würde gesetzt und über `http://` nie
+zurückgeschickt, jede Anmeldung liefe ins Leere, ohne sichtbaren Grund. Dazu
+gehört die Reihenfolge in `index.php`: `config/session.php` **nach**
+`config/env.php`, sonst gibt es den Wert zum Zeitpunkt der Entscheidung noch
+nicht.
+
+### Die Sicherheitskopfzeilen (`App\Helper\SecurityHeaders`)
+
+Die vier Kopfzeilen ohne Schalter (`X-Frame-Options`,
+`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`) werden
+gesetzt, und `X-Frame-Options` steht **vor** der Modus-Entscheidung — der
+Rahmenschutz wirkt damit auch, solange die CSP nur meldet. Bei einer
+Anwendung, die Kamera und Mikrofon abfragt, darf genau dieser Schutz nicht auf
+einen Schalter warten.
+
+**Kamera und Mikrofon müssen erlaubt bleiben.** Eine „Härtung", die in der
+`Permissions-Policy` leere Klammern hinschreibt, nimmt der Anwendung ihren
+Zweck; dasselbe gilt für `geolocation` („Mein Standort" auf der Karte) und
+`autoplay` (die Tonsignale der Steuerung).
+
+Die Prüfung, die im Alltag zählt: **Jede `https://`-Adresse aus
+`assets/html/index.html` steht in der CSP.** Wer eine Bibliothek von einem
+fünften CDN einbindet und die Regel nicht nachzieht, merkt es sonst erst, wenn
+`CSP_MODE` auf `scharf` steht — und dann an einer Seite, die halb leer bleibt.
+Dazu die Kartenkacheln (aus den JS-Modulen, nicht aus dem Layout) und
+`connect-src` mit `stun:`, `turn:` und `turns:`: **Chrome prüft die ICE-Server
+einer `RTCPeerConnection` gegen `connect-src`** — fehlt dort etwas, fällt
+keine Seite auf, es fallen Anrufe aus.
+
+`CSP_MODE` ist als Vorgabe `melden` (Report-Only). Und `index.php` ruft beides
+tatsächlich auf, vor der Datenbankverbindung und vor der ersten möglichen
+Ausgabe.
+
+### Das Backup-Skript (`deploy/backup/backup.sh`)
+
+Geprüft wird der Text des Skripts, nicht ein Lauf gegen eine echte Datenbank
+(siehe „Grenzen"). Es geht um die Eigenschaften, die man nach einem halben
+Jahr niemandem mehr ansieht:
+
+- `set -euo pipefail` — ein Skript, das bei einem Fehler weiterläuft, legt eine
+  leere Datei ab und nennt sie Sicherung. `pipefail` steht für den Fall
+  „`mysqldump` bricht ab, `gzip` ist zufrieden".
+- **Das Passwort geht nicht als Argument an `mysqldump`**, sondern über eine
+  temporäre Optionsdatei, die ein `trap` in jedem Fall wieder entfernt.
+  Argumente stehen in der Prozessliste; ein `ps aux` während des Laufs zeigte
+  sie jedem angemeldeten Benutzer.
+- `--single-transaction` — konsistent sichern, ohne die laufende Anwendung zu
+  sperren.
+- **Die `.env` wird nicht mitgesichert.**
+- Beim Aufräumen `-maxdepth 1` und die beiden eigenen Namensmuster: Ein
+  Zielverzeichnis, in dem noch etwas anderes liegt, verliert nichts — auch
+  dann nicht, wenn `BACKUP_PATH` versehentlich aufs Heimatverzeichnis zeigt.
+  `BACKUP_KEEP_DAYS=0` löscht gar nicht.
+- `chmod 700`, `umask 077` und `gzip -t` nach jedem Archiv.
+
+### Jeder Schalter steht in der `.env.example`
+
+Gesucht wird nach den **Aufrufen** (`Env::schalter(...)`, `Env::zahl(...)`,
+`Env::auswahl(...)`, dazu `self::schalter(...)` in `MailGate`), nicht nach
+einer von Hand gepflegten Liste. Jeder so gefundene Schlüssel muss in
+`.env.example` **und** in der README vorkommen; dazu die beiden Schlüssel des
+Backup-Skripts, die der PHP-Code gar nicht liest. Ein Schalter, den der Code
+liest und den niemand dokumentiert, ist ein Schalter, den niemand findet.
+
 ## Grenzen
 
 Die Skripte prüfen Logik und Zustandsübergänge, **nicht das reale Netzverhalten**.
@@ -1656,6 +1753,15 @@ Nicht abgedeckt sind insbesondere:
   Berechtigungen (Login-Ablauf, Chatinhalte, Kartendarstellung),
 - das Zusammenspiel mit einer echten Datenbank: Geprüft wird, welches SQL
   abgesetzt wird, nicht was MySQL daraus macht,
+- **was der Browser aus den Sicherheitskopfzeilen macht**: Geprüft wird, dass
+  die CSP jede Adresse enthält, die im Code vorkommt — nicht, ob Chrome eine
+  WebRTC-Verbindung damit zustande bringt. Der Durchgang mit offener
+  Browserkonsole vor `CSP_MODE=scharf` (README, Abschnitt 5) bleibt Handarbeit,
+  und der Anruf über ein fremdes Netz gehört dazu,
+- **ein echter Backup-Lauf**: `deploy/backup/backup.sh` wird als Text geprüft.
+  Ob `mysqldump` auf diesem Server durchläuft und ob sich der Dump
+  zurückspielen lässt, sagt nur ein Testlauf auf eine leere Datenbank — und
+  eine Sicherung, die nie zurückgespielt wurde, ist keine Sicherung,
 - **die tatsächliche Geometrie einer Seite**: Bei den Stilprüfungen (etwa
   „Die Kopfleiste bricht um, die Knöpfe nicht") wird die **Regel** geprüft
   und nicht das Ergebnis. Ob eine Leiste bei 960 px wirklich zwei Zeilen hoch

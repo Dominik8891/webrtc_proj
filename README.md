@@ -20,6 +20,13 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
     * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP —
       beides ueber zwei getrennte Schalter in der `.env` steuerbar
       (`MAIL_ENABLED`, `MAIL_VERIFY_REQUIRED`), statt im Code auskommentiert.
+    * **Sicherheitskopfzeilen** auf jeder Antwort — CSP, Rahmenschutz,
+      `nosniff`, Referrer- und Permissions-Policy. Der Rahmenschutz zählt hier
+      besonders: Die Seite fragt Kamera und Mikrofon ab, und in einem fremden
+      `iframe` stünde die Freigabeabfrage über einer fremden Seite. Details
+      unter [Sicherheitskopfzeilen](#5-sicherheitskopfzeilen).
+    * **HTTPS erzwungen** samt `secure`-Cookie, HSTS opt-in, und ein
+      Backup-Skript für Datenbank und Uploads (`deploy/backup/backup.sh`).
 * **Anfrage, Führung, Bewertung:** Am Anfang steht eine Anfrage mit Wunschzeitpunkt, die der Guide annimmt oder ablehnt; **beendet** wird die Führung ausdrücklich vom Guide (bis dahin können beide nach einem Verbindungsabbruch wieder einsteigen), und danach wird der Kunde gefragt, wie sie war — Sterne plus freiwilliger Text, **nur in diese Richtung**. Ein Durchschnitt erscheint erst ab drei Bewertungen; darunter steht die Zahl der durchgeführten Führungen statt einer Zahl, die wie ein Urteil aussieht. Details unter [Bewertungen](#-bewertungen).
 * **Eigener Verwaltungsbereich:** Konten, Anfragen, Standorte und Bewertungen liegen hinter einer eigenen Route mit eigener Navigation — dicht und tabellarisch, aber im selben Erscheinungsbild und mit denselben Farbprofilen. Die Kundenoberfläche enthält dafür **keinen einzigen Adminfall mehr**: keine Sperrknöpfe in der Standortliste, kein *Entfernen* an einer Bewertung, kein Menüeintrag, den nur einer sieht. Der Einstieg ist eine Übersicht, die **zuerst zeigt, was Aufmerksamkeit braucht** — hängende Führungen, Anfragen ohne Antwort, gesperrte Standorte — und darunter erst den Bestand. Details unter [Der Verwaltungsbereich](#️-der-verwaltungsbereich).
 * **Rollen- und Rechtesystem:** Vier Rollen (Trial, User, Guide, Admin) mit **benannten Rechten ohne Vererbung und ohne Rangfolge**. Jede Route in `config/routes.php` trägt ihr Recht als Pflichtfeld; `index.php` prüft es, bevor der Controller läuft. Details unten unter [Berechtigungen](#-berechtigungen). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide, Zuschauer oder — bei einem Direktanruf aus der Benutzerverwaltung — Peer; der Client kann sie sich nicht selbst geben. Entscheidend ist, woher der Anruf kam: Von einem Standort aus führt der Angerufene, auch wenn er Admin ist, und der Zuschauer sendet dabei weder Bild noch Ton. Bei einem Direktanruf mit einem Admin gibt es nichts zu steuern, dort läuft die Übertragung in beide Richtungen.
@@ -127,7 +134,28 @@ SMTP_SERVER=dein.smtp-server.com
 SMTP_PORT=587
 SMTP_USERNAME=dein_login
 SMTP_PASSWORD=dein_passwort
+
+# HTTPS: Weiterleitung und Sitzungscookie (Vorgabe an - siehe Abschnitt 6).
+# 0 nur fuer die lokale Entwicklung ohne Zertifikat.
+FORCE_HTTPS=1
+# Nur an, wenn ein Reverse-Proxy davorsteht, der X-Forwarded-Proto setzt.
+#TRUST_PROXY=0
+
+# HSTS in Sekunden, 0 = kein Header (Vorgabe). Erst 300 zum Testen, dann
+# 31536000 - ein gesendetes max-age laesst sich nicht zurueckrufen.
+HSTS_MAX_AGE=0
+#HSTS_INCLUDE_SUBDOMAINS=0
+
+# Content-Security-Policy: melden (Vorgabe) | scharf | aus - Abschnitt 5.
+CSP_MODE=melden
+
+# Backups (nur fuer deploy/backup/backup.sh) - Abschnitt 7.
+#BACKUP_PATH=/var/backups/webrtc
+#BACKUP_KEEP_DAYS=14
 ```
+
+Die vollstaendige Fassung mit Begruendung zu jedem Schluessel steht in
+[`.env.example`](.env.example).
 
 ### 3. Logging und Logrotation
 
@@ -296,6 +324,274 @@ erscheinen; sobald der Tab wieder sichtbar wird, meldet sich der Client
 sofort zurueck. Waehrend eines laufenden Calls tritt das nicht auf. Wer
 Guides dauerhaft im Hintergrund erreichbar halten will, erhoeht den
 `offline_timeout` auf mindestens 90 Sekunden.
+
+### 5. Sicherheitskopfzeilen
+
+Gesetzt werden sie an **einer** Stelle: `App\Helper\SecurityHeaders::senden()`,
+gerufen in `index.php` ganz am Anfang. Weil `index.php` der einzige Einstieg
+ist, tragen damit alle Antworten dieselben Kopfzeilen — die Seiten, die
+JSON-Schnittstellen und die Fehlerseiten aus `deny()`.
+
+| Kopfzeile | Wert | Wogegen |
+|---|---|---|
+| `X-Frame-Options` | `DENY` | Clickjacking |
+| `X-Content-Type-Options` | `nosniff` | Dateityp-Raten des Browsers |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Adressen, die nach draußen wandern |
+| `Permissions-Policy` | siehe unten | Geräte, die die Seite nicht braucht |
+| `Content-Security-Policy` | siehe unten | eingeschleuste und nachgeladene Skripte |
+| `Strict-Transport-Security` | nur wenn `HSTS_MAX_AGE` gesetzt ist | Abschnitt 6 |
+
+**Der Rahmenschutz ist hier kein Nebenpunkt.** Die Anwendung fragt Kamera und
+Mikrofon ab. Stünde sie in einem fremden `iframe`, sähe der Benutzer die
+Freigabeabfrage seines Browsers über einer fremden Seite — und gäbe seine
+Kamera an etwas frei, das er für etwas anderes hält. Deshalb `DENY` und nicht
+`SAMEORIGIN`: Die Anwendung baut selbst keinen einzigen `iframe`. Der Schutz
+steht doppelt da (`X-Frame-Options` **und** `frame-ancestors 'none'` in der
+CSP), und `X-Frame-Options` bewusst außerhalb der CSP — es wirkt damit auch,
+solange die CSP nur meldet.
+
+**Permissions-Policy.** Kamera, Mikrofon, Standort und Tonwiedergabe bleiben
+für das eigene Dokument erlaubt (`camera=(self)`, `microphone=(self)`,
+`geolocation=(self)`, `autoplay=(self)`) — ohne sie gibt es keine Führung.
+Abgeschaltet wird, was die Anwendung nachweislich nicht benutzt:
+`display-capture` (kein `getDisplayMedia` im ganzen Projekt), `payment`, `usb`,
+`serial`, `midi` und die drei Lagesensoren.
+
+#### Die CSP-Regel
+
+```
+default-src 'self';
+script-src  'self' 'unsafe-inline' https://ajax.googleapis.com https://unpkg.com
+                                   https://cdn.jsdelivr.net https://cdn.datatables.net;
+style-src   'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net
+                                   https://cdn.datatables.net;
+img-src     'self' data: https://*.tile.openstreetmap.org;
+font-src    'self';
+media-src   'self' blob:;
+connect-src 'self' stun: turn: turns:;
+object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+```
+
+Vier Zeilen daran verdienen eine Erklärung:
+
+* **Die vier CDNs** sind ausgezählt aus `assets/html/index.html` — jQuery von
+  googleapis, Leaflet und leaflet-pip von unpkg, select2 und Bootstrap von
+  jsdelivr, DataTables von datatables.net. Wer dort eine Bibliothek ergänzt,
+  trägt sie in `SecurityHeaders::CDN_SKRIPTE` bzw. `CDN_STILE` ein, sonst
+  blockiert der Browser sie. Der saubere Weg wäre, die Bibliotheken
+  mitzuliefern und nur noch `'self'` zu erlauben — das ist ein Umbau und
+  bewusst nicht Teil dieser Regel.
+* **`'unsafe-inline'` bei den Skripten** ist der Ist-Zustand, keine
+  Bequemlichkeit: Die Anwendung setzt acht Skriptblöcke direkt ins Dokument
+  (Farbprofil vor dem ersten Zeichnen, `window.userId`,
+  `heartbeatIntervalMs`, `requestCounts`, `chatCounts`, `reviewScale`, die
+  Daten der Standortseite, `window.requestsPage`) und trägt ein
+  `onclick`-Attribut in `UserController`. **Gegen eingeschleustes Inline-JS
+  schützt die Regel damit nicht** — sie schützt gegen das Nachladen von einer
+  fremden Adresse, den häufigeren Fall. Der Weg zur strengen Regel wäre ein
+  Nonce je Anfrage; das ist eine Codeänderung an acht Stellen, und das
+  `onclick` müsste einem Event-Listener weichen.
+* **`connect-src` nennt `stun:`, `turn:` und `turns:`**, weil **Chrome die
+  ICE-Server einer `RTCPeerConnection` gegen `connect-src` prüft**. Ohne diese
+  drei käme über ein fremdes Netz keine Verbindung zustande, und der Fehler
+  sähe aus wie ein Netzproblem. Einzelne Adressen stehen dort nicht: Welcher
+  TURN-Host antwortet, holt der Server zur Laufzeit bei Metered ab — eine
+  Liste hier wäre eine Liste, die irgendwann nicht mehr stimmt.
+* **`img-src data:`** brauchen die Symbole in `assets/css/theme.css`; die
+  liegen als SVG in den CSS-Variablen und nicht als Datei.
+
+#### Von „melden" auf „scharf"
+
+`CSP_MODE` in der `.env` hat drei Zustände; die **Vorgabe ist `melden`**:
+
+| Wert | Kopfzeile | Wirkung |
+|---|---|---|
+| `melden` | `Content-Security-Policy-Report-Only` | blockiert nichts, meldet in die Browserkonsole |
+| `scharf` | `Content-Security-Policy` | blockiert |
+| `aus` | keine | der Notausgang |
+
+Eine zu enge CSP legt die Anwendung **lautlos** lahm: Der Browser blockiert,
+die Seite bleibt halb leer, im Serverlog steht nichts. Deshalb läuft die Regel
+erst mit, bevor sie greift. Der Weg auf `scharf`:
+
+1. `CSP_MODE=melden` (Vorgabe) und die Anwendung mit offener Browserkonsole
+   (F12) durchklicken. **Vollständig heißt:** Startseite und Karte,
+   Standortseite mit Bildern, Standort anlegen und bearbeiten, Anfrage stellen
+   und annehmen, Chat, Verwaltungsbereich, Kontoeinstellungen mit allen vier
+   Farbprofilen — **und ein echter Anruf über ein fremdes Netz**, denn dort
+   entscheidet sich `connect-src`.
+2. Jede Meldung `Refused to …` nennt die Regel und die Adresse. Fehlt eine
+   Adresse in der Liste, gehört sie in `class/Helper/SecurityHeaders.php` —
+   nicht in eine zweite Regel woanders.
+3. Erst wenn nichts mehr gemeldet wird: `CSP_MODE=scharf`.
+
+#### Was die Kopfzeilen nicht erreichen
+
+Die Dateien unter `assets/` liefert der Webserver direkt aus, ohne PHP — sie
+bekommen diese Kopfzeilen nicht. Das ist hinnehmbar: Es sind eigene,
+unveränderliche Dateien, und die Regeln, die zählen, gelten für das
+**Dokument**, nicht für die Datei, die es nachlädt. Wer sie trotzdem überall
+haben will, setzt sie zusätzlich im Webserver.
+
+Apache (`mod_headers`, in die `.htaccess` oder den vhost):
+
+```apache
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+```
+
+nginx (im `server`-Block):
+
+```nginx
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-Frame-Options "DENY" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+```
+
+**Nicht doppelt setzen, was PHP schon setzt.** `Header set` überschreibt die
+Kopfzeile aus PHP; danach gäbe es zwei Stellen mit derselben Aussage, und die
+laufen erfahrungsgemäß auseinander. Entweder die Kopfzeilen kommen aus der
+Anwendung (Vorgabe) oder aus dem Webserver — und die CSP mit ihren vier CDNs
+gehört ohnehin dorthin, wo sie begründet ist: in
+`class/Helper/SecurityHeaders.php`.
+
+### 6. HTTPS erzwingen und HSTS
+
+Beides hängt an Schaltern in der `.env` — derselben Art wie beim Mailversand
+(`MAIL_ENABLED`), und aus demselben Grund: Vorher stand die Weiterleitung fest
+in `index.php`, und wer lokal ohne Zertifikat arbeiten wollte, musste vier
+Zeilen auskommentieren. Auskommentierter Code ist kein ausgeschalteter Code —
+er ist Code, den niemand mehr pflegt und der beim nächsten Commit versehentlich
+mit hochgeht.
+
+| Schlüssel | Vorgabe | Wirkung |
+|---|---|---|
+| `FORCE_HTTPS` | `1` | 301 von `http://` auf `https://`; Sitzungscookie `secure` |
+| `TRUST_PROXY` | `0` | `X-Forwarded-Proto` auswerten |
+| `HSTS_MAX_AGE` | `0` | Sekunden; `0` = kein Header |
+| `HSTS_INCLUDE_SUBDOMAINS` | `0` | Zusatz `includeSubDomains` |
+
+Ausgewertet wird alles in `class/Helper/Https.php`.
+
+**`FORCE_HTTPS=0` ist der Entwicklungsfall** — und er schaltet zwei Dinge, nicht
+eines: die Weiterleitung *und* das Merkmal `secure` am Sitzungscookie
+(`config/session.php`). Ohne das zweite wäre der Schalter nur ein halber: Das
+Cookie würde gesetzt und über `http://` nie zurückgeschickt, jede Anmeldung
+liefe ins Leere, und niemand sähe warum. Die Regel lautet: `secure` genau dann,
+wenn die Anwendung über HTTPS läuft **oder** ohnehin dorthin umleitet.
+
+Deshalb wird `config/session.php` in `index.php` jetzt **nach** `config/env.php`
+geladen — die Sitzung braucht eine Entscheidung, die in der `.env` steht.
+
+**Kamera und Mikrofon bleiben trotzdem an HTTPS gebunden.** Browser geben beide
+nur in einem *secure context* frei. `http://localhost` gilt als einer,
+`http://192.168.x.x` nicht — ein Test vom Handy im selben WLAN braucht also ein
+Zertifikat, auch wenn `FORCE_HTTPS=0` steht.
+
+**`TRUST_PROXY` löst zwei entgegengesetzte Fehler**, und beide sind teuer. Steht
+kein Proxy davor und der Schalter ist an, darf jeder Aufrufer behaupten, seine
+Klartextverbindung sei sicher — die Weiterleitung unterbleibt. Steht einer
+davor und der Schalter ist aus, sieht PHP nur `http://` und leitet auf
+`https://` um, was der Proxy wieder als `http://` weitergibt: die
+Endlosschleife, die man in jedem zweiten Deployment sieht.
+
+#### HSTS: erst kurz, dann lang
+
+`Strict-Transport-Security` sagt dem Browser, dass diese Domain nur über HTTPS
+zu erreichen ist. Er merkt es sich für die volle Dauer, und **ein gesendetes
+`max-age` lässt sich nicht zurückrufen** — läuft das Zertifikat ab oder zieht
+die Anwendung um, sperrt der Header die eigenen Benutzer aus. Deshalb ist die
+Vorgabe `0` und der Weg gestaffelt:
+
+1. HTTPS läuft, das Zertifikat erneuert sich automatisch, `FORCE_HTTPS=1`.
+2. `HSTS_MAX_AGE=300` — fünf Minuten. Fällt etwas auf, ist es nach einer
+   Kaffeepause vorbei.
+3. `HSTS_MAX_AGE=31536000` — ein Jahr, der übliche Wert.
+
+`HSTS_INCLUDE_SUBDOMAINS=1` erst, wenn **wirklich jede** Subdomain ein gültiges
+Zertifikat hat — auch die eine, an die gerade niemand denkt. Einen
+`preload`-Schalter gibt es nicht: Wer in die Vorabliste der Browser will, trägt
+seine Domain dort selbst ein und weiß dann, dass er Monate braucht, um wieder
+herauszukommen.
+
+Der Header wird nur über HTTPS gesendet — über `http://` muss ein Browser ihn
+ohnehin ignorieren.
+
+### 7. Backups
+
+Es gibt ein Skript, und es wird **nicht automatisch installiert**:
+`deploy/backup/backup.sh`. Es sichert zweierlei:
+
+* die **Datenbank** als `mysqldump`, gzip-komprimiert → `db_<Zeitstempel>.sql.gz`
+* den **Upload-Baum** (Standortbilder und Avatare) → `uploads_<Zeitstempel>.tar.gz`
+
+Die Zugangsdaten holt es sich aus der `.env` (`DB_*`, `UPLOAD_PATH`), Ziel und
+Aufbewahrung aus `BACKUP_PATH` (Vorgabe `../backups`, also **oberhalb** des
+Webroots) und `BACKUP_KEEP_DAYS` (Vorgabe 14, `0` = nichts löschen). Ein Wert
+aus der Umgebung sticht die `.env`, ein einzelner Lauf lässt sich also umlenken:
+
+```bash
+BACKUP_PATH=/mnt/usb bash deploy/backup/backup.sh
+```
+
+**Die `.env` wird nicht mitgesichert.** Sie enthält Datenbankpasswort, `PEPPER`,
+SMTP- und Metered-Zugangsdaten im Klartext. In einem Backup, das irgendwann auf
+einer zweiten Platte oder in einem Cloudspeicher landet, haben diese Werte
+nichts zu suchen; sie gehören dorthin, wo auch das Zertifikat liegt. Was in ihr
+stehen muss, steht in `.env.example`.
+
+#### Einrichten
+
+1. Einmal von Hand laufen lassen und die Ausgabe lesen:
+   ```bash
+   bash deploy/backup/backup.sh
+   ```
+   Im Erfolgsfall steht dort je eine Zeile mit Pfad und Größe. Jeder Fehler
+   geht nach stderr, und das Skript endet mit einem Status ungleich 0.
+2. In die crontab des Webserver-Benutzers eintragen — täglich um 3:20 Uhr:
+   ```
+   20 3 * * * /bin/bash /var/www/webrtc_proj/deploy/backup/backup.sh >> /var/log/webrtc/backup.log 2>&1
+   ```
+   Ohne Umleitung verschickt cron jede Ausgabe als Mail. Das ist kein Fehler,
+   sondern die einfachste Überwachung, die es gibt: **Ein Backup, das
+   stillschweigend nicht läuft, ist schlimmer als keines** — weil sich dann
+   niemand mehr darum kümmert.
+3. Nach dem ersten Lauf prüfen, dass das Zielverzeichnis `0700` hat und die
+   Dateien `0600`. Ein Dump enthält Adressen, Passworthashes, 2FA-Geheimnisse
+   und Chatverläufe — er ist dieselbe Datenbank, nur ohne Rechteprüfung.
+
+**Ein Backup auf derselben Platte überlebt keinen Plattenausfall.** `BACKUP_PATH`
+ist die halbe Miete; die andere Hälfte ist eine Kopie auf ein anderes Gerät,
+etwa täglich nach dem Lauf:
+
+```
+40 3 * * * rsync -a --delete /var/backups/webrtc/ backup@anderer-server:/srv/webrtc/
+```
+
+#### Wiederherstellen
+
+Datenbank (das Schema legt der Dump selbst an):
+
+```bash
+gunzip -c db_2026-05-01_032001.sql.gz | mysql -u webrtc_user -p webrtc_proj
+```
+
+Bilder — das Archiv enthält das Upload-Verzeichnis **samt seinem Namen**,
+entpackt wird deshalb in das übergeordnete Verzeichnis:
+
+```bash
+tar -xzf uploads_2026-05-01_032001.tar.gz -C /var/lib/webrtc/
+chown -R www-data:www-data /var/lib/webrtc/uploads
+```
+
+**Eine Sicherung, die nie zurückgespielt wurde, ist keine Sicherung.** Der
+Testlauf gehört einmal auf eine leere Datenbank gemacht, bevor man sich auf das
+Skript verlässt. Was es selbst prüfen kann, prüft es: `gzip -t` nach jedem
+Archiv, und eine abgebrochene Sicherung wird gelöscht statt liegengelassen —
+eine halbe Datei sieht im Verzeichnis aus wie ein Backup.
 
 ---
 

@@ -41,6 +41,13 @@ require_once $ROOT . '/class/Controller/GuideProfileController.php';
 require_once $ROOT . '/class/Helper/Theme.php';
 // Die beiden Schalter rund um die E-Mail. Vor ViewHelper gebraucht -
 // output() setzt den Hinweisstreifen ein.
+// Die eine Stelle, die einen Wert aus der Umgebung liest. VOR MailGate
+// gebraucht - dessen beide Schalter holen sich ihre Antwort von dort.
+require_once $ROOT . '/class/Helper/Env.php';
+// HTTPS-Weiterleitung und HSTS, und die Kopfzeilen darueber. Beide benutzen
+// Env; SecurityHeaders benutzt zusaetzlich Https (fuer den HSTS-Header).
+require_once $ROOT . '/class/Helper/Https.php';
+require_once $ROOT . '/class/Helper/SecurityHeaders.php';
 require_once $ROOT . '/class/Helper/MailGate.php';
 require_once $ROOT . '/class/Helper/LogHelper.php';
 require_once $ROOT . '/class/Model/Email.php';
@@ -6220,9 +6227,10 @@ $bau = '$R = ' . var_export($ROOT, true) . '; chdir($R);'
      // unbestaetigten E-Mail-Adresse einsetzt. Als Gast liefert er einen
      // Leerstring, ohne die Datenbank zu fragen - geladen sein muss die Klasse
      // trotzdem, sonst endet der Unterprozess mit einem Fatal Error und die
-     // Seite ist null Zeichen lang.
+     // Seite ist null Zeichen lang. Env steht davor, weil MailGate seine
+     // beiden Schalter von dort holt.
      . 'foreach (["Helper/Role","Helper/Permission","Helper/Auth","Helper/Theme",'
-     . '"Helper/Url","Helper/MailGate","Helper/ViewHelper"] as $k) { require_once "$R/class/$k.php"; }'
+     . '"Helper/Url","Helper/Env","Helper/MailGate","Helper/ViewHelper"] as $k) { require_once "$R/class/$k.php"; }'
      . 'App\\Helper\\ViewHelper::output('
      . 'App\\Helper\\ViewHelper::template("$R/assets/html/requests_page.html"));';
 $ausgeliefert = (string)shell_exec(
@@ -7973,6 +7981,380 @@ check(strpos($dump, 'UNIQUE KEY `username` (`username`)') !== false,
 check(strpos($dump, 'UNIQUE KEY `email` (`email`)') !== false,
     'der Dump hat den Index auf email verloren');
 ok('der Index steht in der Wanderung und im Dump, und die Wanderung raeumt vorher auf');
+
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nEin Schalter, eine Auswertung (App\\Helper\\Env)\n");
+
+/**
+ * Raeumt die drei Quellen fuer einen Schluessel leer.
+ *
+ * Ohne das schleppt der naechste Fall den Wert des vorigen mit - Env liest
+ * $_SERVER, $_ENV und getenv(), und die beiden ersten sind hier beschreibbar.
+ */
+function envLeeren(array $namen) {
+    foreach ($namen as $n) { unset($_SERVER[$n], $_ENV[$n]); putenv($n); }
+}
+
+envLeeren(['T_SCHALTER', 'T_ZAHL', 'T_WAHL']);
+
+// Nicht gesetzt heisst Vorgabe - der dokumentierte Normalfall.
+check(App\Helper\Env::schalter('T_SCHALTER', true)  === true,  'Vorgabe true wird nicht geliefert');
+check(App\Helper\Env::schalter('T_SCHALTER', false) === false, 'Vorgabe false wird nicht geliefert');
+
+// Beide Schreibweisen-Listen, und Gross-/Kleinschreibung und Leerraum egal.
+foreach (['1', 'true', 'on', 'yes', 'ja', ' JA ', 'True'] as $wert) {
+    $_ENV['T_SCHALTER'] = $wert;
+    check(App\Helper\Env::schalter('T_SCHALTER', false) === true, "'$wert' gilt nicht als an");
+}
+foreach (['0', 'false', 'off', 'no', 'nein', ' NEIN '] as $wert) {
+    $_ENV['T_SCHALTER'] = $wert;
+    check(App\Helper\Env::schalter('T_SCHALTER', true) === false, "'$wert' gilt nicht als aus");
+}
+
+// $_SERVER (SetEnv, fastcgi_param) sticht $_ENV (.env) - dieselbe Reihenfolge
+// wie in config/uploads.php.
+$_ENV['T_SCHALTER']    = 'aus';
+$_SERVER['T_SCHALTER'] = 'an';
+$_ENV['T_SCHALTER']    = '0';
+$_SERVER['T_SCHALTER'] = '1';
+check(App\Helper\Env::schalter('T_SCHALTER', false) === true,
+    'der Wert aus $_SERVER gewinnt nicht gegen den aus der .env');
+envLeeren(['T_SCHALTER']);
+
+// EIN TIPPFEHLER FAELLT AUF DIE VORGABE ZURUECK, NICHT AUF FALSE. Sonst
+// stellte ein Vertipper die Weiterleitung ab, ohne dass es jemandem auffaellt.
+// Die Meldung dazu geht ins Log - hier in eine Datei, damit die Testausgabe
+// lesbar bleibt.
+$logDatei = tempnam(sys_get_temp_dir(), 'envtest');
+$alterLog = ini_get('error_log');
+ini_set('error_log', $logDatei);
+
+$_ENV['T_SCHALTER'] = 'vielleicht';
+check(App\Helper\Env::schalter('T_SCHALTER', true) === true,
+    'ein unbrauchbarer Wert kippt den Schalter, statt auf die Vorgabe zurueckzufallen');
+check(strpos((string)file_get_contents($logDatei), 'T_SCHALTER') !== false,
+    'ein unbrauchbarer Wert wird nicht protokolliert');
+
+// Zahlen: nur Ziffern. "1e5", "-1" und "300 Sekunden" sind Versehen.
+$_ENV['T_ZAHL'] = '31536000';
+check(App\Helper\Env::zahl('T_ZAHL', 0) === 31536000, 'eine Zahl wird nicht gelesen');
+$_ENV['T_ZAHL'] = ' 300 ';
+check(App\Helper\Env::zahl('T_ZAHL', 0) === 300, 'Leerraum um die Zahl stoert');
+foreach (['1e5', '-1', '300 Sekunden', 'viel'] as $wert) {
+    $_ENV['T_ZAHL'] = $wert;
+    check(App\Helper\Env::zahl('T_ZAHL', 7) === 7, "'$wert' wird als Zahl durchgelassen");
+}
+
+// Auswahl aus einer festen Liste - fuer Schalter mit mehr als zwei Zustaenden.
+$_ENV['T_WAHL'] = 'scharf';
+check(App\Helper\Env::auswahl('T_WAHL', ['aus', 'melden', 'scharf'], 'melden') === 'scharf',
+    'ein erlaubter Wert wird nicht uebernommen');
+$_ENV['T_WAHL'] = 'streng';
+check(App\Helper\Env::auswahl('T_WAHL', ['aus', 'melden', 'scharf'], 'melden') === 'melden',
+    'ein unbekannter Wert kippt die Auswahl, statt auf die Vorgabe zurueckzufallen');
+
+ini_set('error_log', $alterLog === false ? '' : $alterLog);
+@unlink($logDatei);
+envLeeren(['T_SCHALTER', 'T_ZAHL', 'T_WAHL']);
+
+// UND ES GIBT NUR EINE AUSWERTUNG: MailGate hat seine eigene abgegeben. Sonst
+// haette "yes" bald an einer Stelle gegolten und an der anderen nicht.
+$mailGateQuelle = file_get_contents($ROOT . '/class/Helper/MailGate.php');
+check(strpos($mailGateQuelle, 'Env::schalter(') !== false,
+    'MailGate liest seine Schalter nicht ueber Env');
+check(strpos($mailGateQuelle, "in_array(\$wert, ['1', 'true'") === false,
+    'MailGate wertet die Schreibweisen ein zweites Mal selbst aus');
+ok('Vorgaben, Schreibweisen, Reihenfolge der Quellen - und der Tippfehler faellt auf die Vorgabe');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nHTTPS: Weiterleitung, Sitzungscookie und HSTS (App\\Helper\\Https)\n");
+
+$serverSicherung = $_SERVER;
+function httpsUmgebung(array $werte) {
+    foreach (['HTTPS', 'SERVER_PORT', 'HTTP_X_FORWARDED_PROTO', 'HTTP_X_FORWARDED_SSL'] as $k) {
+        unset($_SERVER[$k]);
+    }
+    envLeeren(['TRUST_PROXY', 'FORCE_HTTPS', 'HSTS_MAX_AGE', 'HSTS_INCLUDE_SUBDOMAINS']);
+    foreach ($werte as $k => $v) {
+        if (strpos($k, 'HTTP') === 0 || $k === 'SERVER_PORT') { $_SERVER[$k] = $v; } else { $_ENV[$k] = $v; }
+    }
+}
+
+httpsUmgebung(['HTTPS' => 'on']);
+check(App\Helper\Https::istSicher() === true, 'HTTPS=on wird nicht als sicher erkannt');
+httpsUmgebung(['HTTPS' => 'off']);
+check(App\Helper\Https::istSicher() === false, 'HTTPS=off gilt als sicher');
+httpsUmgebung([]);
+check(App\Helper\Https::istSicher() === false, 'eine Klartextanfrage gilt als sicher');
+httpsUmgebung(['SERVER_PORT' => '443']);
+check(App\Helper\Https::istSicher() === true, 'Port 443 wird nicht als sicher erkannt');
+
+// DER PROXY-HEADER GILT NUR MIT TRUST_PROXY. Er kommt vom Aufrufer, solange
+// kein Proxy davorsteht, der ihn ueberschreibt - wer ihn ungeprueft glaubt,
+// laesst jeden behaupten, seine Klartextverbindung sei sicher.
+httpsUmgebung(['HTTP_X_FORWARDED_PROTO' => 'https']);
+check(App\Helper\Https::istSicher() === false,
+    'X-Forwarded-Proto wird ohne TRUST_PROXY geglaubt');
+httpsUmgebung(['HTTP_X_FORWARDED_PROTO' => 'https', 'TRUST_PROXY' => '1']);
+check(App\Helper\Https::istSicher() === true,
+    'X-Forwarded-Proto wirkt auch mit TRUST_PROXY nicht');
+// Eine Kette mehrerer Proxies: "https, http" - der erste Eintrag zaehlt.
+httpsUmgebung(['HTTP_X_FORWARDED_PROTO' => 'https, http', 'TRUST_PROXY' => '1']);
+check(App\Helper\Https::istSicher() === true,
+    'eine Proxy-Kette wird nicht ausgewertet');
+httpsUmgebung(['HTTP_X_FORWARDED_PROTO' => 'http', 'TRUST_PROXY' => '1']);
+check(App\Helper\Https::istSicher() === false,
+    'X-Forwarded-Proto: http gilt als sicher');
+
+// Die Weiterleitung ist an, solange niemand etwas anderes sagt - das
+// Verhalten aller bisherigen Versionen.
+httpsUmgebung([]);
+check(App\Helper\Https::erzwungen() === true, 'FORCE_HTTPS ist nicht als Vorgabe an');
+httpsUmgebung(['FORCE_HTTPS' => '0']);
+check(App\Helper\Https::erzwungen() === false, 'FORCE_HTTPS=0 wirkt nicht');
+
+// HSTS IST AUS, BIS ES JEMAND HINSCHREIBT. Ein gesendetes max-age laesst sich
+// nicht zurueckrufen; ein solcher Header darf nicht als Nebenwirkung eines
+// Updates entstehen.
+httpsUmgebung(['HTTPS' => 'on']);
+check(App\Helper\Https::hstsHeader() === null, 'HSTS ist nicht als Vorgabe aus');
+httpsUmgebung(['HTTPS' => 'on', 'HSTS_MAX_AGE' => '300']);
+check(App\Helper\Https::hstsHeader() === 'max-age=300', 'HSTS_MAX_AGE wird nicht uebernommen');
+httpsUmgebung(['HTTPS' => 'on', 'HSTS_MAX_AGE' => '31536000', 'HSTS_INCLUDE_SUBDOMAINS' => '1']);
+check(App\Helper\Https::hstsHeader() === 'max-age=31536000; includeSubDomains',
+    'includeSubDomains wird nicht angehaengt');
+// Ueber eine Klartextverbindung muss der Browser den Header ohnehin
+// ignorieren - dann wird er auch nicht geschickt.
+httpsUmgebung(['HSTS_MAX_AGE' => '31536000']);
+check(App\Helper\Https::hstsHeader() === null, 'HSTS wird ueber http:// gesendet');
+
+$_SERVER = $serverSicherung;
+envLeeren(['TRUST_PROXY', 'FORCE_HTTPS', 'HSTS_MAX_AGE', 'HSTS_INCLUDE_SUBDOMAINS']);
+
+// Kein preload-Schalter: Aus der Vorabliste der Browser kommt man in Monaten
+// wieder heraus, nicht in Minuten.
+$httpsQuelle = file_get_contents($ROOT . '/class/Helper/Https.php');
+check(strpos($httpsQuelle, "Env::schalter('HSTS_PRELOAD'") === false,
+    'es gibt einen preload-Schalter in der .env');
+
+// DAS SITZUNGSCOOKIE HAENGT AM SELBEN SCHALTER. Sonst waere FORCE_HTTPS=0 nur
+// ein halber Schalter: Das Cookie wuerde gesetzt und ueber http:// nie
+// zurueckgeschickt - jede Anmeldung liefe ins Leere, ohne sichtbaren Grund.
+$sessionQuelle = file_get_contents($ROOT . '/config/session.php');
+check(strpos($sessionQuelle, 'Https::istSicher() || Https::erzwungen()') !== false,
+    'das Sitzungscookie entscheidet ueber "secure" nicht anhand von Https');
+check(preg_match("/'secure'\s*=>\s*true/", $sessionQuelle) !== 1,
+    'das Merkmal secure steht noch fest verdrahtet in config/session.php');
+
+// UND DIE SITZUNG STARTET NACH DER KONFIGURATION. Vorher gab es den Wert,
+// ueber den sie entscheidet, zu diesem Zeitpunkt noch gar nicht.
+$indexQuelle = file_get_contents($ROOT . '/index.php');
+check(strpos($indexQuelle, "/config/env.php") < strpos($indexQuelle, "/config/session.php"),
+    'config/session.php wird vor config/env.php geladen - die .env ist dann noch nicht da');
+ok('drei Quellen fuer "ist sicher", zwei Schalter fuer den Rest - und das Cookie haengt mit dran');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDie Sicherheitskopfzeilen (App\\Helper\\SecurityHeaders)\n");
+
+$kopfQuelle = file_get_contents($ROOT . '/class/Helper/SecurityHeaders.php');
+$csp = App\Helper\SecurityHeaders::csp();
+
+// --- Die vier Kopfzeilen ohne Schalter ------------------------------------
+// Sie gelten immer. Nur die CSP hat einen Modus, weil nur sie etwas
+// blockieren kann, was gebraucht wird.
+foreach ([
+    'X-Frame-Options: DENY',
+    'X-Content-Type-Options: nosniff',
+    'Referrer-Policy: strict-origin-when-cross-origin',
+    'Permissions-Policy: ',
+] as $kopf) {
+    check(strpos($kopfQuelle, "header('$kopf") !== false, "die Kopfzeile '$kopf' wird nicht gesetzt");
+}
+
+// DER RAHMENSCHUTZ STEHT DOPPELT DA, und das ist Absicht: X-Frame-Options
+// ausserhalb der CSP wirkt auch dann, wenn die CSP nur meldet. Bei einer
+// Anwendung, die Kamera und Mikrofon abfragt, darf genau dieser Schutz nicht
+// auf einen Schalter warten.
+check(strpos($csp, "frame-ancestors 'none'") !== false,
+    'die CSP erlaubt den Rahmen');
+$vorCsp = substr($kopfQuelle, 0, strpos($kopfQuelle, '$modus = self::modus();'));
+check(strpos($vorCsp, "header('X-Frame-Options: DENY');") !== false,
+    'X-Frame-Options haengt am CSP-Modus statt daneben zu stehen');
+
+// --- Kamera und Mikrofon MUESSEN erlaubt bleiben --------------------------
+// Ohne sie gibt es keine Fuehrung. Eine "Haertung", die hier leere Klammern
+// hinschreibt, nimmt der Anwendung ihren Zweck.
+check(strpos($kopfQuelle, 'camera=(self)') !== false,     'die Kamera ist nicht erlaubt');
+check(strpos($kopfQuelle, 'microphone=(self)') !== false, 'das Mikrofon ist nicht erlaubt');
+check(strpos($kopfQuelle, 'geolocation=(self)') !== false,
+    '"Mein Standort" auf der Karte ist gesperrt (navigator.geolocation in map.js)');
+check(strpos($kopfQuelle, 'autoplay=(self)') !== false,
+    'die Tonsignale der Steuerung sind gesperrt (assets/js/sound.js)');
+check(strpos($kopfQuelle, 'display-capture=()') !== false,
+    'die Bildschirmfreigabe ist nicht gesperrt - benutzt wird sie nirgends');
+
+// --- JEDE ADRESSE AUS index.html STEHT IN DER REGEL -----------------------
+// Das ist die Pruefung, die zaehlt: Wer eine Bibliothek von einem fuenften CDN
+// einbindet und die Regel nicht nachzieht, merkt es sonst erst, wenn CSP_MODE
+// auf "scharf" steht - und dann an einer Seite, die halb leer bleibt.
+$layout = file_get_contents($ROOT . '/assets/html/index.html');
+preg_match_all('#<script[^>]+src="(https://[^"/]+)#', $layout, $treffer);
+$skriptHosts = array_unique($treffer[1]);
+check(count($skriptHosts) >= 4, 'in index.html stehen weniger CDNs als erwartet');
+foreach ($skriptHosts as $host) {
+    check(strpos($csp, $host) !== false, "script-src kennt $host nicht");
+}
+preg_match_all('#<link[^>]+href="(https://[^"/]+)#', $layout, $treffer);
+foreach (array_unique($treffer[1]) as $host) {
+    check(strpos($csp, $host) !== false, "style-src kennt $host nicht");
+}
+
+// Die Kartenkacheln kommen nicht aus index.html, sondern aus vier
+// JS-Modulen - und der Platzhalter {s} wird zu a, b oder c.
+$kachelModule = 0;
+foreach (glob($ROOT . '/assets/js/*.js') as $datei) {
+    if (strpos((string)file_get_contents($datei), '.tile.openstreetmap.org') !== false) $kachelModule++;
+}
+check($kachelModule > 0, 'die Kartenkacheln kommen aus einer anderen Quelle als angenommen');
+check(strpos($csp, 'https://*.tile.openstreetmap.org') !== false,
+    "img-src kennt die Kartenkacheln nicht ($kachelModule Module laden sie)");
+
+// --- connect-src und die ICE-Server ---------------------------------------
+// CHROME PRUEFT DIE TURN- UND STUN-SERVER EINER RTCPeerConnection GEGEN
+// connect-src. Fehlt hier etwas, faellt keine Seite auf - es fallen Anrufe
+// aus, und der Fehler sieht aus wie ein Netzproblem.
+foreach (['stun:', 'turn:', 'turns:'] as $schema) {
+    check(strpos($csp, $schema) !== false, "connect-src erlaubt kein $schema");
+}
+
+// --- Der Rest der Regel ---------------------------------------------------
+foreach ([
+    "default-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "img-src 'self' data:",   // die Symbole in theme.css liegen als SVG im CSS
+    "media-src 'self' blob:", // empfangene Dateien im Chat (chat.js)
+] as $regel) {
+    check(strpos($csp, $regel) !== false, "der CSP fehlt: $regel");
+}
+
+// --- Der Modus ------------------------------------------------------------
+// DIE VORGABE MELDET, SIE BLOCKIERT NICHT. Eine zu enge CSP legt die
+// Anwendung lautlos lahm; die Regel laeuft deshalb erst mit, bevor sie greift.
+envLeeren(['CSP_MODE']);
+check(App\Helper\SecurityHeaders::modus() === 'melden', 'die Vorgabe von CSP_MODE ist nicht "melden"');
+$_ENV['CSP_MODE'] = 'scharf';
+check(App\Helper\SecurityHeaders::modus() === 'scharf', 'CSP_MODE=scharf wirkt nicht');
+$_ENV['CSP_MODE'] = 'aus';
+check(App\Helper\SecurityHeaders::modus() === 'aus', 'CSP_MODE=aus wirkt nicht');
+envLeeren(['CSP_MODE']);
+check(strpos($kopfQuelle, "'Content-Security-Policy-Report-Only'") !== false,
+    'der meldende Modus benutzt nicht die Report-Only-Kopfzeile');
+
+// --- Und sie werden auch tatsaechlich gesetzt -----------------------------
+// Vor jeder Ausgabe und vor der Datenbankverbindung; deny() weiter unten
+// schreibt selbst schon HTML.
+check(strpos($indexQuelle, 'SecurityHeaders::senden();') !== false,
+    'index.php setzt die Kopfzeilen nicht');
+check(strpos($indexQuelle, 'Https::erzwingen();') !== false,
+    'index.php leitet nicht mehr auf HTTPS um');
+check(strpos($indexQuelle, "empty(\$_SERVER['HTTPS'])") === false,
+    'die alte, fest verdrahtete Weiterleitung steht noch in index.php');
+check(strpos($indexQuelle, 'Https::erzwingen();') < strpos($indexQuelle, 'PdoConnect::sicherstellen();'),
+    'die Weiterleitung steht hinter der Datenbankverbindung - eine Anfrage, die nur umgeleitet wird, oeffnet dann eine Verbindung');
+check(strpos($indexQuelle, 'SecurityHeaders::senden();') < strpos($indexQuelle, 'function deny('),
+    'die Kopfzeilen werden nach der ersten moeglichen Ausgabe gesetzt');
+ok('fuenf Kopfzeilen, vier CDNs, drei ICE-Schemata - und die Kamera bleibt erlaubt');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDas Backup-Skript (deploy/backup/backup.sh)\n");
+
+$backup = $ROOT . '/deploy/backup/backup.sh';
+check(is_file($backup), 'das Backup-Skript fehlt');
+$backupQuelle = file_get_contents($backup);
+
+// Ein Skript, das bei einem Fehler weiterlaeuft, legt eine leere Datei ab und
+// nennt sie Sicherung. pipefail steht dabei fuer den Fall "mysqldump bricht
+// ab, gzip ist zufrieden".
+check(strpos($backupQuelle, 'set -euo pipefail') !== false,
+    'das Skript bricht bei einem Fehler nicht ab');
+
+// DAS PASSWORT GEHT NICHT ALS ARGUMENT AN mysqldump - Argumente stehen in der
+// Prozessliste, und ein "ps aux" waehrend des Laufs zeigt sie jedem.
+check(strpos($backupQuelle, '--defaults-extra-file="$CNF"') !== false,
+    'das Passwort wird nicht ueber eine Optionsdatei uebergeben');
+check(strpos($backupQuelle, '--password=') === false && strpos($backupQuelle, '-p"$DB_PW"') === false,
+    'das Datenbankpasswort steht als Argument in der Prozessliste');
+check(strpos($backupQuelle, 'trap aufraeumen EXIT') !== false,
+    'die temporaere Optionsdatei mit dem Passwort bleibt beim Abbruch liegen');
+
+// Konsistent sichern, ohne die laufende Anwendung zu sperren.
+check(strpos($backupQuelle, '--single-transaction') !== false,
+    'der Dump sperrt die Tabellen, statt konsistent zu lesen');
+
+// DIE .env WIRD NICHT MITGESICHERT: Datenbankpasswort, PEPPER, SMTP- und
+// Metered-Zugangsdaten im Klartext haben in einem Backup nichts zu suchen,
+// das irgendwann auf einer zweiten Platte landet.
+check(preg_match('/(tar|cp|gzip)[^\n]*\$ENV_DATEI/', $backupQuelle) !== 1,
+    'das Skript sichert die .env mit');
+
+// GELOESCHT WIRD NUR, WAS DAS SKRIPT SELBST ANGELEGT HAT. Ein
+// Zielverzeichnis, in dem noch etwas anderes liegt, verliert nichts - auch
+// dann nicht, wenn BACKUP_PATH versehentlich aufs Heimatverzeichnis zeigt.
+check(strpos($backupQuelle, '-maxdepth 1') !== false,
+    'das Aufraeumen greift auch in Unterverzeichnisse');
+check(strpos($backupQuelle, "-name 'db_*.sql.gz'") !== false
+   && strpos($backupQuelle, "-name 'uploads_*.tar.gz'") !== false,
+    'das Aufraeumen loescht nach einem anderen Muster als dem eigenen');
+check(strpos($backupQuelle, 'if [ "$KEEP_DAYS" -gt 0 ]') !== false,
+    'BACKUP_KEEP_DAYS=0 loescht trotzdem');
+
+// Ein Dump enthaelt alles - Adressen, Passworthashes, 2FA-Geheimnisse,
+// Chatverlaeufe. Er ist dieselbe Datenbank, nur ohne Rechtepruefung.
+check(strpos($backupQuelle, 'chmod 700 "$BACKUP_PATH"') !== false,
+    'das Zielverzeichnis bleibt fuer alle lesbar');
+check(strpos($backupQuelle, 'umask 077') !== false,
+    'die abgelegten Dateien bleiben fuer alle lesbar');
+
+// Was das Skript selbst pruefen kann, prueft es.
+check(substr_count($backupQuelle, 'gzip -t') >= 2,
+    'die abgelegten Archive werden nicht auf Lesbarkeit geprueft');
+ok('Abbruch bei Fehler, kein Passwort in der Prozessliste, und geloescht wird nur das Eigene');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nJeder Schalter steht in der .env.example\n");
+
+// Ein Schalter, den der Code liest und den niemand dokumentiert, ist ein
+// Schalter, den niemand findet. Gesucht wird nach den Aufrufen selbst, damit
+// die Liste nicht von Hand gepflegt werden muss.
+$envBeispiel = file_get_contents($ROOT . '/.env.example');
+$readmeQuelle = file_get_contents($ROOT . '/README.md');
+$gefunden = [];
+foreach (glob($ROOT . '/class/Helper/*.php') as $datei) {
+    $quelle = file_get_contents($datei);
+    // "self::" faengt MailGate mit ab: Dort heisst die Methode weiterhin
+    // schalter(), reicht aber nur noch an Env durch.
+    if (preg_match_all("/(?:Env|self)::(?:schalter|zahl|auswahl)\('([A-Z_]+)'/", $quelle, $t)) {
+        foreach ($t[1] as $name) $gefunden[$name] = basename($datei);
+    }
+}
+check(count($gefunden) >= 7, 'es wurden weniger Schalter gefunden als erwartet ('
+    . implode(', ', array_keys($gefunden)) . ')');
+foreach ($gefunden as $name => $woher) {
+    check(strpos($envBeispiel, $name) !== false,
+        "$name wird in $woher gelesen, steht aber nicht in der .env.example");
+    check(strpos($readmeQuelle, $name) !== false,
+        "$name wird in $woher gelesen, steht aber nicht in der README");
+}
+
+// Und die beiden Schluessel des Backup-Skripts, die der Code gar nicht liest.
+foreach (['BACKUP_PATH', 'BACKUP_KEEP_DAYS'] as $name) {
+    check(strpos($envBeispiel, $name) !== false, "$name fehlt in der .env.example");
+    check(strpos($backupQuelle, $name) !== false, "$name wird vom Skript nicht ausgewertet");
+}
+ok('alle ' . (count($gefunden) + 2) . ' Schluessel sind dokumentiert');
 
 PdoConnect::$connection = new FakeConnection();
 
