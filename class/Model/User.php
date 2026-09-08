@@ -701,6 +701,19 @@ class User
         if ($id < 1) return true;
         if (array_key_exists($id, $bekannt)) return $bekannt[$id];
 
+        // DIESE METHODE LAEUFT IM STARTPFAD - App\Helper\Auth::
+        // discardOutdatedSession() ruft sie bei jedem angemeldeten Aufruf,
+        // bevor irgendein Controller dran ist. Faellt sie aus, faellt die
+        // ganze Anwendung aus, und zwar auf JEDER Seite; genau das ist einmal
+        // passiert, weil die Verbindung erst drei Zeilen spaeter aufgebaut
+        // wurde.
+        //
+        // Der Aufruf ist idempotent und kostet nichts, wenn die Verbindung
+        // steht - und eine Testattrappe ueberschreibt er nicht. Er ist kein
+        // Ersatz fuer die richtige Reihenfolge in index.php, sondern der
+        // Gurt daneben.
+        PdoConnect::sicherstellen();
+
         try {
             $stmt = PdoConnect::$connection->prepare(
                 'SELECT deleted FROM user WHERE id = :id'

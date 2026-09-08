@@ -7270,6 +7270,89 @@ check(preg_match('/<details.*?<div class="app-panel".*?<\/details>/s', $einstell
     'im aufklappbaren Bereich steht kein Kasten mehr');
 ok('die eigenen Standorte sind auch ohne Skript erreichbar');
 
+// =====================================================================
+fwrite(STDERR, "\nDie Verbindung steht, bevor jemand sie braucht\n");
+// =====================================================================
+//
+// DER AUSFALL: Jede Seite endete mit "Call to a member function prepare() on
+// null". Die Ursache war eine REIHENFOLGE in index.php, kein Fehler in einer
+// Abfrage:
+//
+//     Auth::discardOutdatedSession();          // fragt seit dem Filter auf
+//                                              // geloeschte Konten die DB
+//     $pdo_instance = new PdoConnect();        // ... erst HIER entstand sie
+//
+// Die Verbindung entstand als NEBENWIRKUNG eines Konstruktors, dessen
+// Ergebnis niemand benutzt - eine Zeile, die aussieht, als koenne man sie
+// verschieben. Genau das war der Fehler: Die Pruefung darueber kam dazu, die
+// Zeile blieb, wo sie war.
+//
+// WARUM KEINE PRUEFUNG DAS GEFUNDEN HAT: Alle setzen PdoConnect::$connection
+// selbst auf eine Attrappe und rufen die Methoden direkt auf. Die
+// Reihenfolge in index.php sah keine an. Das aendert sich hier.
+
+// OHNE KOMMENTARE: Der Kommentar an der neuen Stelle nennt die alte Zeile
+// beim Namen, damit nachvollziehbar bleibt, was dort schiefging - und genau
+// das soll die Pruefung nicht als Rueckfall lesen.
+$startCode = stripPhpNoise(file_get_contents($ROOT . '/index.php'));
+
+// 1. Die Verbindung heisst jetzt, was sie tut.
+check(strpos($startCode, 'PdoConnect::sicherstellen();') !== false,
+    'index.php baut die Verbindung nicht ueber den benannten Aufruf auf');
+check(strpos($startCode, '$pdo_instance') === false,
+    'die Verbindung entsteht weiterhin als Nebenwirkung einer ungenutzten Variablen');
+
+// 2. UND SIE STEHT VOR ALLEM, WAS SIE BRAUCHT. Das ist der eigentliche
+//    Schutz: Jeder kuenftige Aufruf, der die Datenbank braucht, steht
+//    dahinter - sonst schlaegt diese Pruefung an.
+$posVerbindung = strpos($startCode, 'PdoConnect::sicherstellen();');
+foreach (['Auth::discardOutdatedSession', 'Auth::can', 'new $class'] as $braucht) {
+    $pos = strpos($startCode, $braucht);
+    if ($pos === false) continue;
+    check($posVerbindung < $pos,
+        "in index.php steht '$braucht' vor dem Aufbau der Verbindung");
+}
+
+// 3. Und sie steht NACH der HTTPS-Weiterleitung: Eine Anfrage, die nur
+//    umgeleitet wird, soll keine Verbindung oeffnen.
+check(strpos($startCode, "header('Location: ' . \$httpsUrl") < $posVerbindung,
+    'jede http-Anfrage oeffnet eine Datenbankverbindung, nur um umgeleitet zu werden');
+ok('die Verbindung entsteht benannt, nach der Weiterleitung und vor allem, was sie braucht');
+
+// --- Der Ausfall selbst, nachgestellt -------------------------------------
+//
+// IM UNTERPROZESS, und das ist kein Umweg: Der Fehler war ein uncaught Error.
+// Er wuerde diesen Testlauf beenden, statt eine Pruefung fehlschlagen zu
+// lassen - und dann saehe man nicht, WELCHE Annahme verletzt ist.
+//
+// Nachgestellt wird die alte Reihenfolge: angemeldete Sitzung, KEINE
+// Verbindung, und dann der Aufruf aus dem Startpfad. Erwartet wird, dass er
+// nicht mehr am Nullwert scheitert. Ob danach wirklich eine Datenbank da ist,
+// spielt keine Rolle - ohne sie meldet sich PdoConnect selbst und ordentlich.
+$nachstellung = '$R = ' . var_export($ROOT, true) . '; chdir($R);'
+     . 'foreach (["Model/PdoConnect","Helper/Role","Helper/Permission","Model/User",'
+     . '"Helper/Auth"] as $k) require_once "$R/class/$k.php";'
+     . '$_SESSION = ["auth_scheme" => App\\Helper\\Auth::SESSION_SCHEME,'
+     . ' "user" => ["user_id" => 7, "role_id" => App\\Helper\\Role::GUIDE]];'
+     . 'App\\Model\\PdoConnect::$connection = null;'
+     . 'App\\Helper\\Auth::discardOutdatedSession();'
+     . 'echo "DURCHGELAUFEN";';
+$ausgabe = (string)shell_exec(
+    escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($nachstellung) . ' 2>&1'
+);
+check(strpos($ausgabe, 'on null') === false,
+    "der Startpfad scheitert weiterhin an einer fehlenden Verbindung:\n$ausgabe");
+check(strpos($ausgabe, 'Uncaught Error') === false,
+    "der Startpfad endet weiterhin mit einem unbehandelten Fehler:\n$ausgabe");
+// Zwei Ausgaenge sind in Ordnung, und beide sind KEIN Absturz: Entweder es
+// gibt eine Datenbank - dann laeuft der Aufruf durch -, oder es gibt keine -
+// dann meldet PdoConnect das selbst und beendet geordnet.
+check(strpos($ausgabe, 'DURCHGELAUFEN') !== false
+   || strpos($ausgabe, 'Interner Serverfehler') !== false,
+    "der Startpfad endet unerwartet:\n$ausgabe");
+ok('der Startpfad scheitert nicht mehr an einer Verbindung, die es noch nicht gibt');
+
+
 
 
 

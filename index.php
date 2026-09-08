@@ -23,6 +23,23 @@ if (empty($_SERVER['HTTPS']) || $_SERVER['HTTPS'] === 'off') {
     exit;
 }
 
+// ---------------------------------------------------------------------------
+// DIE DATENBANKVERBINDUNG. Ab hier darf JEDE Zeile sie benutzen - das ist der
+// Sinn dieser Stelle, und sie hat einen Ausfall als Anlass.
+//
+// Vorher entstand die Verbindung weiter unten, als Nebenwirkung eines
+// Konstruktors, dessen Ergebnis niemand benutzt: "$pdo_instance = new
+// PdoConnect();". Eine solche Zeile sieht verschiebbar aus. Als darueber eine
+// Pruefung dazukam, die die Datenbank braucht (Auth::discardOutdatedSession
+// fragt seit dem Filter auf geloeschte Konten nach dem Konto der Sitzung),
+// endete jede Seite mit "Call to a member function prepare() on null".
+//
+// SIE STEHT NACH DER HTTPS-WEITERLEITUNG und nicht davor: Eine Anfrage, die
+// nur umgeleitet wird, soll keine Verbindung oeffnen. Alles andere kommt
+// danach - auch die Pruefung der Routentabelle, die selbst keine braucht.
+// ---------------------------------------------------------------------------
+PdoConnect::sicherstellen();
+
 /**
  * Bricht mit einer Meldung ab, ohne interne Details preiszugeben.
  *
@@ -64,11 +81,10 @@ if ($route_errors !== []) {
     deny(500, 'html', 'Die Anwendung ist fehlerhaft konfiguriert. Bitte den Betreiber informieren.');
 }
 
-// Sitzungen aus einer Version mit anderen Rollennummern gelten nicht mehr.
+// Sitzungen aus einer Version mit anderen Rollennummern gelten nicht mehr -
+// und Sitzungen geloeschter Konten auch nicht. Das FRAGT DIE DATENBANK und
+// steht deshalb hinter PdoConnect::sicherstellen() weiter oben.
 Auth::discardOutdatedSession();
-
-// Erstellt eine neue Instanz für die Datenbankverbindung (wird ggf. von Controllern verwendet)
-$pdo_instance = new PdoConnect();
 
 // Liest den 'act'-Parameter aus der Request (GET/POST) aus
 $act = Request::g('act');

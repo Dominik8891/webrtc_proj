@@ -417,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (336 Prüfungen)
+## Was `server_test.php` prüft (338 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1493,6 +1493,36 @@ Initialisierungsblock von `locations_table.js` nichts mehr einblendet
 (Kommentare vorher entfernt — dort steht `.show()` als Beschreibung des
 alten Zustands), dass das Nachladen am `toggle` hängt und **nur beim
 Aufklappen** greift, und dass im Bereich weiterhin ein Kasten steht.
+
+### Die Verbindung steht, bevor jemand sie braucht
+
+Jede Seite endete mit *„Call to a member function `prepare()` on null"*. Die
+Ursache war eine **Reihenfolge** in `index.php` und kein Fehler in einer
+Abfrage: `Auth::discardOutdatedSession()` fragt seit dem Filter auf gelöschte
+Konten die Datenbank — und stand drei Zeilen **vor** `$pdo_instance = new
+PdoConnect();`, der Zeile, die die Verbindung als Nebenwirkung aufbaute.
+
+**Warum keine Prüfung das gefunden hat:** Alle setzen
+`PdoConnect::$connection` selbst auf eine Attrappe und rufen die Methoden
+direkt auf. Die Reihenfolge in `index.php` sah keine an. Das ist jetzt
+abgedeckt, mit zwei Prüfungen, die **einzeln gegengeprüft** sind — jede
+schlägt an, wenn man nur ihren Teil des Fixes zurücknimmt:
+
+* **Die Reihenfolge.** `index.php` baut die Verbindung über den benannten
+  `PdoConnect::sicherstellen()` auf (kein `$pdo_instance` mehr — eine Zeile,
+  die nur eine ungenutzte Variable belegt, sieht verschiebbar aus), und
+  dieser Aufruf steht **vor** allem, was die Datenbank braucht, und **nach**
+  der HTTPS-Weiterleitung: Eine Anfrage, die nur umgeleitet wird, soll keine
+  Verbindung öffnen. Geprüft wird gegen den Quelltext **ohne Kommentare** —
+  der Kommentar an der neuen Stelle nennt die alte Zeile beim Namen.
+* **Der Ausfall selbst, nachgestellt.** Im Unterprozess, und das ist kein
+  Umweg: Der Fehler war ein uncaught `Error` und würde den Testlauf beenden,
+  statt eine Prüfung fehlschlagen zu lassen. Nachgestellt wird die alte Lage
+  — angemeldete Sitzung, **keine** Verbindung — und verlangt, dass der
+  Startpfad nicht mehr am Nullwert scheitert. Zwei Ausgänge sind in Ordnung
+  und beide sind kein Absturz: Es gibt eine Datenbank (der Aufruf läuft
+  durch) oder es gibt keine (`PdoConnect` meldet das selbst und beendet
+  geordnet).
 
 ## Grenzen
 

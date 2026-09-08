@@ -1141,7 +1141,7 @@ stattdessen als auskommentierte Blöcke mit deutschen Erklärtexten im Code.
 | `class/Model/MeteredTurnService.php:10,15-18` | `$configPath` wird gesetzt und **nie verwendet**. |
 | `class/Model/WebRTCHandler.php:16` | Feld `$createt_at` — Tippfehler (`created`), und nie gelesen. |
 | `class/Controller/SettingsController.php:39` | `$mailConfirmed` berechnet, nie verwendet (s. 9.4). |
-| `index.php:25` | `$pdo_instance` — die Variable wird nie benutzt; der Effekt (Aufbau der statischen Verbindung) tritt als Nebenwirkung des Konstruktors ein. Funktioniert, ist aber irreführend. |
+| `index.php:25` | `$pdo_instance` — die Variable wird nie benutzt; der Effekt (Aufbau der statischen Verbindung) tritt als Nebenwirkung des Konstruktors ein. Funktioniert, ist aber irreführend. **Behoben — und die Irreführung war nicht harmlos:** Sie hat später jede Seite lahmgelegt, siehe den Nachtrag unter der Tabelle. |
 | `index.php:37-40` | `if (empty($act))` ist **unerreichbar**: Die Regex-Prüfung in Z. 31 hat leere Strings bereits abgefangen und umgeleitet. |
 | `assets/js/rtc.js:311-329` | `initFakeSelfCall()` — legt eine vollständige Wegwerf-PeerConnection samt zweitem `getUserMedia` an, nur als Chrome-Workaround. Diese PeerConnection wird in `startCall()` (Z. 112) direkt danach durch `createPeerConnection(true)` … das wegen Z. 154 (`if (localPeerConnection) return;`) **gar nicht mehr greift**. Der Call läuft also auf der „Fake"-Verbindung weiter. Fragiler, schwer nachvollziehbarer Pfad. |
 | `class/Model/User.php:279-291` vs. `:358-368` | **Doppelte Logik:** `setUserStatus($status)` (nutzt `$this->id`) und `updateUserStatus($userId, $status)` (nimmt die ID als Parameter) machen exakt dasselbe UPDATE. Dazu kommt der dritte Weg über `setStatus()` + `save()` → `update()` (Z. 91-123), den `UserController::heartbeat()` (Z. 137-138) tatsächlich verwendet — dieser schreibt allerdings **alle** Benutzerfelder neu, um einen Statuswert zu setzen. |
@@ -1183,6 +1183,26 @@ Dafür bräuchte es eine Spalte `user.last_available_at`, die
 `User::startAvailability()` mitschreibt und die niemand wieder leert — eine
 Migration, kein Arbeitsvorrat. Erst danach ließe sich der Vorrat „Guides, die
 seit Wochen nicht bereit waren" bauen.
+
+**Die Verbindung als Nebenwirkung** (`index.php`) — **behoben, nachdem sie
+einmal jede Seite lahmgelegt hat.** Die Zeile `$pdo_instance = new
+PdoConnect();` baute die statische Verbindung auf, ohne dass ihr Ergebnis je
+benutzt wurde. Als oberhalb davon eine Prüfung dazukam, die die Datenbank
+braucht (`Auth::discardOutdatedSession()` fragt seit dem Filter auf gelöschte
+Konten nach dem Konto der Sitzung), endete jeder Aufruf mit *„Call to a member
+function `prepare()` on null"*.
+
+Das war kein Fehler in einer Abfrage, sondern eine **Reihenfolge** — und
+genau die konnte man nicht sehen: Eine Zeile, die nur eine ungenutzte
+Variable belegt, sieht verschiebbar aus.
+
+Die Verbindung entsteht jetzt über einen benannten, idempotenten Aufruf
+(`PdoConnect::sicherstellen()`), gleich nach der HTTPS-Weiterleitung und
+damit vor allem, was sie braucht. `User::isDeleted()` ruft ihn zusätzlich
+selbst, weil sie im Startpfad läuft und ihr Ausfall die ganze Anwendung
+nimmt. Zwei Prüfungen halten beides fest, und sie sind einzeln gegengeprüft:
+Die eine schlägt an, wenn die Reihenfolge in `index.php` kippt, die andere
+stellt den Ausfall im Unterprozess nach.
 
 ### 9.6 Fehlende Fehlerbehandlung
 
