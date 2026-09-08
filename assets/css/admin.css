@@ -1,0 +1,306 @@
+/* ===========================================================================
+   DER VERWALTUNGSBEREICH
+
+   ER DARF NACH WERKZEUG AUSSEHEN - und das heisst hier genau eines: DICHTER.
+   Schmalere Zeilen, kleinere Schrift, Tabellen statt Karten, mehr Zeilen auf
+   einen Blick. Wer verwaltet, vergleicht; wer vergleicht, braucht die Zeilen
+   nebeneinander und nicht untereinander mit Luft dazwischen.
+
+   ER IST ABER KEIN ZWEITES ERSCHEINUNGSBILD. Jede Farbe, jeder Abstand, jeder
+   Radius und jede Schriftgroesse in dieser Datei kommt aus den Variablen von
+   theme.css. Damit gilt hier auch das Farbprofil des Kontos: Wer auf Dunkel
+   oder auf ein anderes Profil stellt, stellt diesen Bereich mit um, ohne dass
+   unten eine einzige Regel dafuer stuende.
+
+   ZWEI FARBEN KOMMEN NICHT VOR: Gruen und Gelb. Sie bedeuten auf der Karte
+   "Guide verfuegbar" und "im Gespraech" - in einer Tabelle mit fuenfhundert
+   Zeilen waeren sie ein Muster ohne Aussage. Zustaende stehen hier als Wort,
+   unterschieden ueber Form und Gewicht (.app-state aus theme.css). Rot kommt
+   vor, aber nur an einer Stelle: an einer Sperre und an einer entfernten
+   Bewertung - also dort, wo wirklich etwas verhindert wird.
+
+   Geladen wird die Datei auf JEDER Seite (assets/html/index.html), wie alle
+   anderen auch. Wirksam wird sie nur unter .adm, und das gibt es nur in
+   App\Helper\AdminView::page().
+   =========================================================================== */
+
+/* --- Kopf und Navigation --------------------------------------------------
+   Die Ueberschrift steht klein: Sie sagt einmal, wo man ist, und danach geht
+   es um den Inhalt. Eine grosse Ueberschrift ueber einer Tabelle kostet die
+   Zeile, die man dafuer sehen koennte. */
+
+.adm__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--app-space-4);
+    flex-wrap: wrap;
+    margin-bottom: var(--app-space-3);
+}
+
+.adm__title {
+    margin: 0;
+    font-size: var(--app-text-md);
+}
+
+.adm__sub {
+    margin: 2px 0 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+/* Die Reiter. Eine Linie unter der Zeile, der aktive Reiter traegt sie in der
+   Akzentfarbe - dasselbe Mittel wie .app-switch in theme.css, nur flach statt
+   als Kaestchen: Vier Ziele nebeneinander sind eine Navigation, keine
+   Auswahl. */
+.adm__nav {
+    display: flex;
+    gap: var(--app-space-1);
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--app-border);
+    margin-bottom: var(--app-space-4);
+}
+
+.adm__tab {
+    padding: var(--app-space-2) var(--app-space-3);
+    font-size: var(--app-text-sm);
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text-muted);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    /* Der Rahmen liegt UNTER der Linie des Behaelters, nicht daneben. */
+    margin-bottom: -1px;
+}
+
+.adm__tab:hover {
+    color: var(--app-text);
+    background: var(--app-surface-sunken);
+}
+
+.adm__tab[aria-current="page"] {
+    color: var(--app-accent-strong);
+    border-bottom-color: var(--app-accent);
+}
+
+/* --- Kaesten --------------------------------------------------------------
+   Derselbe Kasten wie ueberall (.app-panel), nur mit weniger Innenabstand:
+   Eine Verwaltungsseite besteht aus Tabellen, und eine Tabelle braucht keinen
+   Rand von 24 Punkten, um als Karte erkennbar zu sein. */
+
+.adm-panel > .app-panel__body {
+    padding: var(--app-space-3) var(--app-space-4);
+}
+
+.adm-panel__title {
+    margin: 0;
+    font-size: var(--app-text-base);
+    font-weight: var(--app-weight-bold);
+}
+
+/* Zeile aus Ueberschrift und Umschalter ueber einer Tabelle. */
+.adm-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+}
+
+/* Die Zahl neben der Ueberschrift: wie viele Zeilen unten stehen. Sie gehoert
+   zur Ueberschrift und soll sie nicht ueberstimmen - deshalb leiser. */
+.adm-count {
+    color: var(--app-text-faint);
+    font-weight: var(--app-weight-normal);
+    font-size: var(--app-text-sm);
+}
+
+/* --- Die Kacheln der Uebersicht -------------------------------------------
+   Automatisch umbrechend, ohne feste Spaltenzahl: Vier Kacheln nebeneinander
+   auf dem Schreibtisch, zwei auf dem Tablet, eine auf dem Telefon - ohne eine
+   einzige Abfrage der Bildschirmbreite. */
+
+.adm-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--app-space-3);
+    margin-top: var(--app-space-3);
+}
+
+.adm-tile {
+    padding: var(--app-space-3) var(--app-space-4);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius);
+    background: var(--app-surface-sunken);
+}
+
+/* Die einzige Kachel, die Arbeit bedeutet (gesperrte Standorte), traegt eine
+   Kante in der Warnfarbe. Nur die Kante: Eine ganz eingefaerbte Kachel neben
+   drei ruhigen waere ein Alarm, und ein gesperrter Standort ist keiner. */
+.adm-tile--achtung {
+    border-left: 3px solid var(--app-danger);
+}
+
+/* Kein Versal-Kopf. theme.css hat das fuer Tabellenkoepfe ausdruecklich
+   verworfen - "Versalien mit gesperrter Laufweite sind die Optik einer
+   Verwaltungsmaske, sie machen den Kopf laut, ohne ihn lesbarer zu machen" -,
+   und daran aendert sich nichts, nur weil dies wirklich eine Verwaltung ist.
+   Die Ueberschrift steht klein und leise; das genuegt, weil die Zahl
+   darunter laut ist. */
+.adm-tile__title {
+    margin: 0;
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text-muted);
+}
+
+/* Die Zahl ist der Inhalt der Kachel - sie steht allein in ihrer Zeile und in
+   Ziffern gleicher Breite, damit vier Kacheln nebeneinander nicht zappeln. */
+.adm-tile__value {
+    margin: var(--app-space-1) 0 0;
+    font-size: var(--app-text-xl);
+    font-weight: var(--app-weight-bold);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.adm-tile__note,
+.adm-tile__foot {
+    margin: 2px 0 0;
+    font-size: var(--app-text-xs);
+    color: var(--app-text-muted);
+}
+
+.adm-tile__foot { color: var(--app-text-faint); }
+
+/* --- Die Tabellen ---------------------------------------------------------
+   Der eigentliche Unterschied zur Kundenoberflaeche. Schmale Zeilen, kleine
+   Schrift, oben festgeklebter Kopf - eine Liste, durch die man scrollt, darf
+   ihre Spaltennamen nicht verlieren. */
+
+.adm-table {
+    font-size: var(--app-text-sm);
+    margin-bottom: 0;
+    /* AUSDRUECKLICH, und nicht ueberfluessig: Auf jeder Seite dieser Anwendung
+       liegt das CSS von DataTables (assets/html/index.html), und es setzt die
+       Regel von Bootstrap zurueck. Ohne diese Zeile stehen die Zellen mit zwei
+       Punkten Abstand - in einer Tabelle mit getoentem Kopf sieht man das als
+       feine senkrechte Linien zwischen den Spalten. Diese Tabelle wird nicht
+       von DataTables gebaut; sie erbt den Nebeneffekt trotzdem. */
+    border-collapse: collapse;
+}
+
+/* Der Kopf klebt oben fest - eine Liste, durch die man scrollt, darf ihre
+   Spaltennamen nicht verlieren.
+
+   LINKSBUENDIG UND IN NORMALER SCHREIBWEISE: Ohne die erste Angabe zentriert
+   der Browser die Kopfzellen, und ein zentrierter Kopf ueber linksbuendigen
+   Spalten steht neben nichts. Versalien hat theme.css fuer Tabellenkoepfe
+   verworfen - siehe den Hinweis bei .adm-tile__title. */
+.adm-table > thead > tr > th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--app-surface-sunken);
+    border-bottom: 1px solid var(--app-border-strong);
+    font-size: var(--app-text-xs);
+    font-weight: var(--app-weight-medium);
+    color: var(--app-text-muted);
+    text-align: left;
+    padding: var(--app-space-2) var(--app-space-3);
+    white-space: nowrap;
+}
+
+.adm-table > tbody > tr > td {
+    padding: var(--app-space-2) var(--app-space-3);
+    vertical-align: top;
+    border-bottom: 1px solid var(--app-border);
+}
+
+/* Ziffern gleicher Breite in den Zahlenspalten: Kennungen untereinander
+   sollen eine Kante bilden. */
+.adm-num,
+.adm-date {
+    font-variant-numeric: tabular-nums;
+    color: var(--app-text-muted);
+    white-space: nowrap;
+}
+
+.adm-num { width: 1%; }
+
+/* Der Beisatz unter der Hauptangabe einer Zelle: Benutzername unter dem
+   Anzeigenamen, Ort unter dem Titel, Sperrgrund unter der Marke. Eigene
+   Zeile, leiser - so bleibt die Zeile schmal und trotzdem vollstaendig. */
+.adm-sub {
+    display: block;
+    font-size: var(--app-text-xs);
+    color: var(--app-text-muted);
+}
+
+/* Ein Strich statt einer leeren Zelle: In einer dichten Tabelle ist eine
+   leere Zelle nicht von einer fehlenden zu unterscheiden. */
+.adm-none { color: var(--app-text-faint); }
+
+.adm-empty {
+    padding: var(--app-space-5);
+    text-align: center;
+    color: var(--app-text-faint);
+}
+
+/* Bewertungstexte sind Fremdeingabe und koennen lang sein. Sie bekommen eine
+   Breite und duerfen umbrechen - abschneiden waere hier falsch: Die Moderation
+   entscheidet ueber genau diesen Text. */
+.adm-text {
+    display: block;
+    max-width: 46ch;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.adm-stars { white-space: nowrap; }
+
+.adm-stars__value {
+    font-weight: var(--app-weight-bold);
+    font-variant-numeric: tabular-nums;
+    margin-right: var(--app-space-1);
+}
+
+/* Die Sterne selbst sind eine Beigabe fuer das Auge - die Zahl davor traegt
+   die Auskunft. Deshalb leise und ohne Farbe. */
+.adm-stars__marks {
+    color: var(--app-text-faint);
+    letter-spacing: 1px;
+}
+
+/* Eine gesperrte oder entfernte Zeile: erkennbar, ohne die Tabelle
+   einzufaerben. Die Kante links traegt die Bedeutung, der Text wird leiser -
+   was nicht mehr gilt, tritt zurueck. */
+.adm-row--gesperrt > td:first-child {
+    box-shadow: inset 3px 0 0 var(--app-danger);
+}
+
+.adm-row--entfernt > td:first-child {
+    box-shadow: inset 3px 0 0 var(--app-border-strong);
+}
+
+.adm-row--entfernt > td { color: var(--app-text-muted); }
+
+/* --- Schmale Geraete ------------------------------------------------------
+   Die Tabelle wird nicht umgebaut - sie scrollt waagerecht in ihrem Behaelter
+   (.app-table-wrap aus theme.css). Ein Werkzeug auf einem Telefon in Karten
+   zu verwandeln, hiesse die Vergleichbarkeit aufzugeben, um die es hier
+   geht. */
+@media (max-width: 640px) {
+    .adm-tile__value { font-size: var(--app-text-lg); }
+    .adm-table       { font-size: var(--app-text-xs); }
+}
+
+/* Das Benutzerformular. Es steht nicht mittig auf der Seite wie die
+   Anmeldeformulare (.app-auth in theme.css): Es kommt aus einer Liste und
+   fuehrt dorthin zurueck, also faengt es links an, wo auch die Tabelle
+   anfaengt. Eine Breite bekommt es trotzdem - ein Eingabefeld ueber die volle
+   Fensterbreite ist kein Feld mehr, sondern eine Linie. */
+.adm-form { max-width: 520px; }
+
+.adm-form .app-field { margin-bottom: var(--app-space-3); }
+
+.adm-form .app-actions { margin-top: var(--app-space-4); }

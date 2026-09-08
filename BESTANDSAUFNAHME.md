@@ -1149,6 +1149,24 @@ stattdessen als auskommentierte Blöcke mit deutschen Erklärtexten im Code.
 | `assets/js/chat.js:8-26` vs. `:33-46` | **Doppelte Logik:** `appendMsg()` und `appendToMobileChatLog()` enthalten denselben vierzeiligen Übersetzungsblock für die Pfeilsymbole (Z. 15-18 / Z. 37-40). |
 | `assets/js/ui_rtc.js:23-47` + `:66-69` | `initChatUI()` wird **zweimal** registriert: einmal aus `main.js:14` und einmal aus einem eigenen `DOMContentLoaded`-Listener in `ui_rtc.js:66-69`. Die Event-Listener auf `#chat-send-btn` und `#chat-input` werden dadurch **doppelt gebunden** — jede Chatnachricht wird zweimal gesendet, sobald beide Pfade greifen. |
 
+**Die tote Adminseite und die auskommentierte `admin.css`** — **beide behoben**,
+und zwar durch dieselbe Entscheidung. `SystemController::showAdmin()` gab eine
+Zeile Text aus („Willkommen im Admin Panel"), hing an der Route `admin` und
+wurde von nirgends verlinkt; `assets/css/admin.css` war die Stilvorlage dazu
+und stand auskommentiert im Layout. Beides ist der Rest einer Anwendung, die
+als Adminpanel gedacht war — davon zeugte auch die `id="admin-panel"` am
+Inhaltsbereich **jeder** Seite, bis hin zum Anmeldeformular.
+
+Die Verwaltung hat jetzt einen **eigenen Bereich**: `admin` führt auf eine
+Übersicht mit Bestandszahlen, daneben liegen Benutzer-, Standort- und
+Bewertungsliste, alle vier hinter dem Recht, das man für die dortige Handlung
+braucht. `admin.css` gibt es wieder, mit Inhalt und eingebunden; der
+Inhaltsbereich heißt `app-content`. Umgekehrt ist die Kundenoberfläche die
+Adminfälle losgeworden, die sich über sie verteilt hatten — Sperrknöpfe in der
+Standortliste, ein *Entfernen* an jeder Bewertung, gesperrte Standorte auf dem
+Guide-Profil, ein Menüeintrag, den nur einer sah. Siehe
+[`README.md`](README.md), Abschnitt „Der Verwaltungsbereich".
+
 ### 9.6 Fehlende Fehlerbehandlung
 
 | Datei:Zeile | Befund |

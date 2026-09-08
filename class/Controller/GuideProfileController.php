@@ -4,7 +4,6 @@ namespace App\Controller;
 use App\Helper\Auth;
 use App\Helper\GuideView;
 use App\Helper\ImageStore;
-use App\Helper\Permission;
 use App\Helper\Request;
 use App\Helper\Role;
 use App\Helper\ViewHelper;
@@ -71,13 +70,19 @@ class GuideProfileController
             return;
         }
 
-        $eigen        = $user_id > 0 && $user_id === Auth::userId();
-        $darf_sperren = Auth::can(Permission::LOCATION_BLOCK);
+        $eigen = $user_id > 0 && $user_id === Auth::userId();
 
-        // GESPERRTE STANDORTE sieht hier nur, wer sie ueberall sieht: ihr
-        // Eigentuemer und die Moderation. Sonst waere die Sperre ueber den
-        // Umweg "Profil des Anbieters" wirkungslos.
-        $standorte = (new Location())->selectLocationsOfGuide($user_id, $eigen || $darf_sperren);
+        // GESPERRTE STANDORTE sieht hier nur ihr EIGENTUEMER. Sonst waere die
+        // Sperre ueber den Umweg "Profil des Anbieters" wirkungslos.
+        //
+        // HIER STAND AUSSERDEM DIE MODERATION (Recht location.block). Sie ist
+        // mit dem Verwaltungsbereich entfallen: Diese Seite ist eine
+        // Kundenseite und soll fuer jeden Betrachter dasselbe zeigen. Wer
+        // ueber eine Sperre entscheidet, sieht die gesperrten Standorte in
+        // der Liste des Bereichs beisammen (index.php?act=admin_locations) -
+        // dort, wo auch der Sperrgrund steht, und nicht verstreut auf den
+        // Profilen ihrer Anbieter.
+        $standorte = (new Location())->selectLocationsOfGuide($user_id, $eigen);
 
         // Ein Konto ohne Guide-Rolle und ohne Standorte ist kein Guide - es
         // bekommt keine Seite. Ein Guide OHNE Standorte bekommt eine: Er hat
@@ -103,11 +108,13 @@ class GuideProfileController
             // Fuehrungen statt einer Wertung.
             'review_summary' => TourReview::summaryForGuide($user_id),
             'reviews'        => TourReview::latestForGuide($user_id),
-            // Der Entfernen-Knopf. Er haengt am Recht review.remove, das
-            // heute nur der Admin hat - der GUIDE hat es ausdruecklich nicht,
-            // auch auf seinem eigenen Profil nicht: Eine Bewertung, die der
-            // Bewertete loeschen kann, ist keine Auskunft mehr ueber ihn.
-            'moderation'     => Auth::can(Permission::REVIEW_REMOVE),
+            // HIER STAND DER ENTFERNEN-KNOPF an jeder einzelnen Bewertung.
+            // Er ist in den Verwaltungsbereich gezogen
+            // (index.php?act=admin_reviews) - aus demselben Grund wie auf der
+            // Standortseite: Das Profil sieht jetzt fuer jeden Betrachter
+            // gleich aus. Dass der GUIDE das Recht ohnehin nicht hat, bleibt
+            // wie es war: Eine Bewertung, die der Bewertete loeschen kann,
+            // ist keine Auskunft mehr ueber ihn.
         ]));
     }
 

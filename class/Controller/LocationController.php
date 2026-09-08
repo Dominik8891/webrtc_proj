@@ -583,18 +583,25 @@ class LocationController
     /**
      * Gibt alle fremden Locations als JSON zurück (API).
      *
-     * Gesperrte Standorte sind hier nicht dabei - genau das ist der Zweck
-     * der Sperre. Wer sie moderieren darf (Recht location.block), sieht sie
-     * weiterhin, sonst könnte er sie nicht wieder freigeben.
+     * GESPERRTE STANDORTE SIND HIER NIE DABEI - fuer niemanden, auch nicht
+     * fuer die Moderation. Das ist die Aenderung mit dem Verwaltungsbereich:
+     * Vorher bekam ein Aufrufer mit dem Recht location.block ueber DIESE
+     * Route zusaetzlich die gesperrten Zeilen, und die Kundentabelle stellte
+     * ihm zwei zusaetzliche Knoepfe daneben. Damit war die Liste, die ein
+     * Kunde zum Aussuchen benutzt, fuer einen einzigen Betrachter eine
+     * andere.
+     *
+     * Wer sperrt und freigibt, tut das jetzt in der Standortliste des
+     * Bereichs (index.php?act=admin_locations, Location::selectAllForAdmin).
+     * Sie zeigt alles, auch die eigenen Standorte des Betrachters - eine
+     * Verwaltungsliste, keine Kundenliste mit Zusatz.
      *
      * @return void
      */
     public function getLocations()
     {
-        $may_moderate = Auth::can(Permission::LOCATION_BLOCK);
-
         $location = new Location();
-        $data = $location->selectAllLocations(Auth::userId(), $may_moderate);
+        $data = $location->selectAllLocations(Auth::userId());
         header('Content-Type: application/json');
         echo json_encode($data);
         exit();
@@ -870,12 +877,14 @@ class LocationController
                 // dann die Zahl der durchgefuehrten Fuehrungen.
                 'review_summary' => TourReview::summaryForLocation($location_id),
                 'reviews'        => TourReview::latestForLocation($location_id),
-                // Der Entfernen-Knopf an einer Bewertung. Er haengt am Recht
-                // review.remove und nicht an location.block: Das eine nimmt
-                // einen Standort aus der Uebersicht, das andere blendet eine
-                // einzelne Aeusserung aus. Heute hat beides nur der Admin -
-                // das muss aber nicht so bleiben.
-                'moderation'     => Auth::can(Permission::REVIEW_REMOVE),
+                // HIER STAND DER ENTFERNEN-KNOPF an jeder einzelnen
+                // Bewertung - eingeblendet fuer jeden mit dem Recht
+                // review.remove. Er ist in den Verwaltungsbereich gezogen
+                // (index.php?act=admin_reviews): Diese Seite sieht damit fuer
+                // JEDEN Betrachter gleich aus, auch fuer die Moderation, und
+                // die Entscheidung ueber eine Bewertung faellt dort, wo die
+                // Angaben dafuer stehen - Guide, Kunde, Zeitpunkt und die
+                // uebrigen Bewertungen desselben Kontos nebeneinander.
             ]
         ));
     }

@@ -57,8 +57,11 @@ class GuideView
      *                               Ob es einen Durchschnitt gibt, ist dort
      *                               entschieden und nicht hier.
      *        'reviews'        array Die letzten Bewertungen mit Text
-     *        'moderation'     bool  Darf der Betrachter eine Bewertung
-     *                               entfernen (Recht review.remove)?
+     *
+     * HIER STAND 'moderation' - ein Schalter, der an jeder Bewertung einen
+     * Entfernen-Knopf einblendete. Entfernt wird jetzt im
+     * Verwaltungsbereich (index.php?act=admin_reviews); dieses Profil sieht
+     * damit fuer jeden Betrachter gleich aus.
      * @return string HTML
      */
     public static function page(array $in_profil, array $in_standorte, array $in_ansicht): string
@@ -96,7 +99,6 @@ class GuideView
                                              // Fuehrung, um die es ging, die
                                              // Auskunft, die fehlt.
                                              'mit_ort'    => true,
-                                             'moderation' => !empty($in_ansicht['moderation']),
                                          ]),
             '###GUIDE_OFFERS###'  => self::angeboteHtml($in_standorte, $name, $eigen),
         ];

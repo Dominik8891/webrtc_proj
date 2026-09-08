@@ -1,6 +1,7 @@
 <?php
 
 // Importiert die Controller-Klassen, die für die Verarbeitung der jeweiligen Routen zuständig sind
+use App\Controller\AdminController;
 use App\Controller\SignupController;
 use App\Controller\LoginController;
 use App\Controller\SystemController;
@@ -53,8 +54,33 @@ return [
     'login'                 => [LoginController::class              , 'handleLogin'             , Permission::AUTH_LOGIN             , 'html'],
     'logout'                => [LoginController::class              , 'handleLogout'            , Permission::AUTH_LOGOUT            , 'html'],
 
-    // Administrations- und Startseiten
-    'admin'                 => [SystemController::class             , 'showAdmin'               , Permission::SYSTEM_ADMIN           , 'html'],
+    // DER VERWALTUNGSBEREICH
+    //
+    // Ein eigener Bereich mit eigener Navigation, nicht mehr eine Handvoll
+    // Sonderfaelle in der Kundenoberflaeche. Was vorher wo lag, steht in
+    // App\Helper\AdminView; die Kurzfassung: Sperren und Freigeben hingen als
+    // zwei Symbolknoepfe in der Standortliste der Kunden, das Entfernen einer
+    // Bewertung klebte an jeder Bewertung der Standortseite und des
+    // Guide-Profils, und die Benutzerliste stand als einziger Eintrag "nur
+    // fuer den Admin" im Kontomenue.
+    //
+    // DREI ROUTEN, DREI RECHTE, und das ist keine Umstaendlichkeit: Die
+    // Uebersicht traegt system.admin, die Standortliste location.block, die
+    // Bewertungsliste review.remove - also jeweils genau das Recht, das man
+    // fuer die Handlung braucht, die dort stattfindet. Heute hat alle drei
+    // nur der Admin. Kaeme eine reine Moderationsrolle dazu, bekaeme sie die
+    // Liste, zu der ihr Recht passt, und die Navigation zeigte ihr auch nur
+    // diese (AdminView::navHtml) - ohne dass hier etwas nachzuziehen waere.
+    //
+    // ALLE DREI ZEIGEN NUR. Geaendert wird ueber die Routen, die es schon
+    // gab: block_location / unblock_location, review_remove, manage_user /
+    // delete_user. Ein zweiter Schreibweg "fuer den Adminbereich" waere die
+    // Doppelung, wegen der es diesen Bereich gibt.
+    'admin'                 => [AdminController::class              , 'showDashboard'           , Permission::SYSTEM_ADMIN           , 'html'],
+    'admin_locations'       => [AdminController::class              , 'showLocations'           , Permission::LOCATION_BLOCK         , 'html'],
+    'admin_reviews'         => [AdminController::class              , 'showReviews'             , Permission::REVIEW_REMOVE          , 'html'],
+
+    // Startseite
     'home'                  => [SystemController::class             , 'home'                    , Permission::SYSTEM_HOME            , 'html'],
     // Die Route 'start' ist entfallen. Sie las eine Vorlage aus einem
     // Verzeichnis, das es nicht gibt (assets/html/frontend/), und rief danach
@@ -63,7 +89,11 @@ return [
     // nichts.
 
 
-    // Benutzerverwaltung
+    // Benutzerverwaltung - DREI SEITEN DES VERWALTUNGSBEREICHS.
+    //
+    // Sie liegen weiter bei UserController, werden aber in den Rahmen des
+    // Bereichs gesetzt (App\Helper\AdminView::page). Vorher waren es Seiten
+    // wie jede andere und nur an ihrer Adresse als Verwaltung zu erkennen.
     'manage_user'           => [UserController::class               , 'manageUser'              , Permission::USER_MANAGE            , 'html'],
     'list_user'             => [UserController::class               , 'listUser'                , Permission::USER_LIST              , 'html'],
     'delete_user'           => [UserController::class               , 'deleteUser'              , Permission::USER_DELETE            , 'html'],

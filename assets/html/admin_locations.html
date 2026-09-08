@@ -1,0 +1,45 @@
+<!--
+    Die Standortliste des Verwaltungsbereichs.
+    Gefuellt von App\Controller\AdminController.
+
+    Platzhalter:
+      ###FILTER###  Umschalter "Alle" / "Nur gesperrte"
+      ###COUNT###   Zahl der angezeigten Zeilen
+      ###ROWS###    Die Zeilen (App\Helper\AdminView::standortZeilenHtml)
+
+    HIER UND NICHT MEHR IN DER STANDORTUEBERSICHT DER KUNDEN: Sperren und
+    Freigeben hingen vorher als zwei zusaetzliche Symbolknoepfe in derselben
+    Tabelle, die ein Kunde zum Aussuchen benutzt - und dieselbe Tabelle
+    lieferte dem Admin zusaetzlich die gesperrten Zeilen mit. Diese Liste
+    zeigt ALLE Standorte, auch die eigenen des Betrachters, und die gesperrten
+    zuerst.
+
+    Eine reine Serverseite ohne DataTables: Sie ist ein Werkzeug fuer wenige
+    hundert Zeilen, und ein Umschalter beantwortet die eine Frage, die man
+    hier hat, besser als eine Volltextsuche.
+-->
+<section class="app-panel adm-panel">
+    <div class="app-panel__body">
+        <div class="adm-bar">
+            <h2 class="adm-panel__title">Standorte <span class="adm-count">###COUNT###</span></h2>
+            ###FILTER###
+        </div>
+    </div>
+    <div class="app-table-wrap">
+        <table class="table adm-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Standort</th>
+                    <th>Guide</th>
+                    <th>Zustand</th>
+                    <th>Sperre</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+            <tbody>
+                ###ROWS###
+            </tbody>
+        </table>
+    </div>
+</section>

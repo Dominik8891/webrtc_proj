@@ -8,15 +8,11 @@ use App\Helper\ViewHelper;
  */
 class SystemController
 {
-    /**
-     * Gibt die Adminseite aus, optional mit Nachricht.
-     * @param string $msg Optional anzuzeigende Nachricht
-     * @return void
-     */
-    public function showAdmin($msg = "Willkommen im Admin Panel"): void
-    {
-        ViewHelper::output($msg);
-    }
+    // HIER STAND showAdmin(). Die Methode gab eine einzige Zeile Text aus -
+    // "Willkommen im Admin Panel" - und hing an der Route 'admin', auf die
+    // nichts verwies. Die Route gibt es weiter, sie fuehrt jetzt auf die
+    // Uebersicht des Verwaltungsbereichs
+    // (App\Controller\AdminController::showDashboard).
 
     /**
      * Generiert ein HTML-Dropdown-Menü (Select-Optionen) basierend auf einem Array.

@@ -552,6 +552,73 @@ class TourReview
         }
     }
 
+    /**
+     * ALLE Bewertungen - die Liste des Verwaltungsbereichs.
+     *
+     * WARUM SIE NEBEN latestForGuide()/latestForLocation() STEHT
+     * ---------------------------------------------------------
+     * Weil die beiden anderen fuer eine oeffentliche Seite gebaut sind und
+     * genau deshalb drei Dinge weglassen, die die Moderation braucht:
+     *
+     *   1. BEWERTUNGEN OHNE TEXT. Auf einer Standortseite hat eine Zeile aus
+     *      fuenf Sternen nichts zu zeigen - in der Moderationsliste schon:
+     *      Auch eine Ein-Stern-Wertung ohne Wort zaehlt im Durchschnitt und
+     *      kann falsch zugeordnet sein.
+     *   2. ENTFERNTE BEWERTUNGEN. Sie sind ausgeblendet, nicht geloescht
+     *      (siehe remove()), und die Verwaltung ist der eine Ort, an dem das
+     *      auch sichtbar sein muss - samt Grund und Entferner.
+     *   3. WER SIE GESCHRIEBEN HAT. Auf der Standortseite steht kein Name,
+     *      und das bleibt so: Der Benutzername ist die Anmeldekennung und
+     *      geht Fremde nichts an. Fuer eine Beschwerde ist die Frage "kommen
+     *      die drei Ein-Stern-Wertungen alle vom selben Konto" aber genau
+     *      die, auf die es ankommt - und die Verwaltung darf sie stellen.
+     *
+     * DIE LETZTEN ZUERST, wie in den oeffentlichen Listen: Eine Auswahl waere
+     * eine Meinung, und die Moderation faengt bei dem an, was neu ist.
+     *
+     * @param string $in_filter 'alle', 'sichtbar', 'entfernt' oder 'schwach'
+     *                          ('schwach' = ein oder zwei Sterne, sichtbar -
+     *                          die Zeilen, wegen derer sich jemand meldet)
+     * @param int    $in_limit  Obergrenze der Zeilen
+     * @return array<int,array<string,mixed>>
+     */
+    public static function allForAdmin(string $in_filter = 'alle', int $in_limit = 200): array
+    {
+        // Ein Textbaustein in einer Abfrage wird geprueft und nicht
+        // zusammengesetzt - der Filter kommt aus der Adresszeile.
+        $schwach = (int)self::STARS_MIN + 1;
+        $wo = [
+            'sichtbar' => 'WHERE v.' . self::SICHTBAR,
+            'entfernt' => 'WHERE v.removed_at IS NOT NULL',
+            'schwach'  => 'WHERE v.' . self::SICHTBAR . " AND v.stars <= $schwach",
+        ];
+        $where = $wo[$in_filter] ?? '';
+        // LIMIT vertraegt in MySQL keinen gebundenen Parameter, solange PDO
+        // nicht emuliert.
+        $limit = max(1, min(1000, $in_limit));
+
+        try {
+            $query = "SELECT v.id, v.stars, v.body, v.created_at,
+                             v.removed_at, v.removed_reason,
+                             v.location_id, v.guide_user_id, v.customer_user_id,
+                             l.title,
+                             g.username AS guide_username,
+                             k.username AS customer_username
+                        FROM tour_review v
+                        LEFT JOIN location l ON l.id = v.location_id
+                        LEFT JOIN user     g ON g.id = v.guide_user_id
+                        LEFT JOIN user     k ON k.id = v.customer_user_id
+                        $where
+                       ORDER BY v.created_at DESC, v.id DESC
+                       LIMIT $limit";
+            $stmt = PdoConnect::$connection->query($query);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\PDOException $e) {
+            error_log('TourReview::allForAdmin: ' . $e->getMessage());
+            return [];
+        }
+    }
+
     // =================================================================
     // MODERATION
     // =================================================================

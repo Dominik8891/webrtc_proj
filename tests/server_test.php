@@ -41,6 +41,12 @@ require_once $ROOT . '/class/Controller/GuideProfileController.php';
 require_once $ROOT . '/class/Helper/Theme.php';
 require_once $ROOT . '/class/Helper/ViewHelper.php';
 require_once $ROOT . '/class/Helper/Auth.php';
+// Der Verwaltungsbereich. Nach ViewHelper und Auth, weil er beide benutzt:
+// ViewHelper::esc fuer jede Fremdeingabe in seinen Tabellen und Auth::can
+// fuer die Frage, welche Reiter ein Betrachter ueberhaupt bekommt.
+require_once $ROOT . '/class/Model/AdminStats.php';
+require_once $ROOT . '/class/Helper/AdminView.php';
+require_once $ROOT . '/class/Controller/AdminController.php';
 require_once $ROOT . '/class/Helper/Request.php';
 require_once $ROOT . '/class/Helper/Url.php';
 require_once $ROOT . '/class/Model/Chat.php';
@@ -2512,7 +2518,13 @@ function methodenRumpf(string $code, string $name): string {
     $pos = strpos($code, "function $name(");
     check($pos !== false, "Methode $name nicht gefunden");
     $rest = substr($code, $pos);
-    $ende = preg_match('/\n    (?:public|private|protected) function /', $rest, $m, PREG_OFFSET_CAPTURE, 10)
+    // "static" gehoert mit in das Muster: Ohne es endete der Rumpf einer
+    // Methode erst an der naechsten NICHT-statischen - in Klassen, die fast
+    // nur statische Methoden haben (App\Model\TourReview), also praktisch
+    // nie. Eine Pruefung "in diesem Rumpf steht X nicht" las dann den halben
+    // Rest der Klasse mit und schlug an, sobald irgendwo dahinter etwas
+    // Aehnliches dazukam.
+    $ende = preg_match('/\n    (?:public|private|protected)(?: static)? function /', $rest, $m, PREG_OFFSET_CAPTURE, 10)
           ? $m[0][1] : strlen($rest);
     $rumpf = substr($rest, 0, $ende);
     $rumpf = preg_replace('#/\*.*?\*/#s', '', $rumpf);
@@ -5145,12 +5157,17 @@ $eigen = ReviewView::blockHtml(['count' => 0, 'average' => null, 'tours' => 0], 
 check(strpos($eigen, 'Ihre Bewertungen') !== false, 'der Guide sieht seine eigenen nicht als seine');
 check(strpos(ReviewView::blockHtml(['count' => 0, 'average' => null, 'tours' => 0], [], []), 'Bewertungen') !== false,
     'die Ueberschrift fehlt');
-// Der Entfernen-Knopf steht nur bei der Moderation.
+// DER ENTFERNEN-KNOPF STEHT HIER GAR NICHT MEHR - fuer niemanden, auch nicht
+// fuer die Moderation. Er ist in den Verwaltungsbereich gezogen. Geprueft
+// wird deshalb beides: dass der Knopf fehlt UND dass ein von irgendwoher
+// mitgegebener Schalter 'moderation' ihn nicht wiederbelebt. Der zweite Teil
+// ist der wichtigere: Ein vergessener Schalter, der irgendwann wieder gesetzt
+// wird, waere der Sonderfall zurueck.
 $eintrag = [['id' => 3, 'stars' => 5, 'created_at' => '2026-01-02 09:00:00', 'body' => 'Gut.']];
 check(strpos(ReviewView::blockHtml(['count' => 3, 'average' => 5.0, 'tours' => 3], $eintrag, []), 'rev-remove') === false,
     'jeder sieht den Entfernen-Knopf');
-check(strpos(ReviewView::blockHtml(['count' => 3, 'average' => 5.0, 'tours' => 3], $eintrag, ['moderation' => true]), 'rev-remove') !== false,
-    'die Moderation sieht keinen Entfernen-Knopf');
+check(strpos(ReviewView::blockHtml(['count' => 3, 'average' => 5.0, 'tours' => 3], $eintrag, ['moderation' => true]), 'rev-remove') === false,
+    'ein mitgegebener Moderationsschalter bringt den Knopf zurueck');
 ok('Standortseite und Profil zeigen denselben Block');
 
 // --- Gefragt wird nach dem Auflegen, ueber den Heartbeat ------------------
@@ -6318,6 +6335,320 @@ check(preg_match('/@media \(max-width: 700px\).*?\.app-chats::before[^}]*mask-im
     'der Nachrichtenzaehler traegt im schmalen Fall kein eigenes Zeichen');
 check(strpos($topbar, '--icon-inbox:') !== false, 'das Zeichen der Ablage fehlt in der Palette');
 ok('die beiden Zaehler sind auch ohne ihre Beschriftung auseinanderzuhalten');
+
+
+// =====================================================================
+fwrite(STDERR, "\nDer Verwaltungsbereich\n");
+// =====================================================================
+//
+// DER BEFUND: Die Verwaltungsfunktionen hingen in der Kundenoberflaeche und
+// erzeugten dort Sonderfaelle. Die Standortliste bekam fuer einen einzigen
+// Betrachter zwei zusaetzliche Knoepfe UND zusaetzliche Zeilen (gesperrte),
+// an jeder Bewertung der Standortseite und des Guide-Profils klebte fuer ihn
+// ein "Entfernen", und im Kontomenue stand ein Eintrag, den sonst niemand sah.
+//
+// Jede dieser Stellen war ein "wenn Admin, dann anders" mitten in einer
+// Seite, die fuer Kunden gebaut ist. Sie sind in einen eigenen Bereich
+// gezogen (index.php?act=admin und die drei Listen daneben).
+//
+// GEPRUEFT WIRD BEIDES, und der zweite Teil ist der wichtigere:
+//   1. Der Bereich gibt es, er haengt an den richtigen Rechten.
+//   2. Die Sonderfaelle sind WEG und lassen sich nicht wiederbeleben - auch
+//      nicht, indem jemand den alten Schalter wieder setzt.
+
+$adminRouten = require $ROOT . '/config/routes.php';
+
+// --- Die Routen des Bereichs ---------------------------------------------
+foreach ([
+    'admin'           => Permission::SYSTEM_ADMIN,
+    'admin_locations' => Permission::LOCATION_BLOCK,
+    'admin_reviews'   => Permission::REVIEW_REMOVE,
+] as $act => $recht) {
+    check(isset($adminRouten[$act]), "die Route $act fehlt");
+    check($adminRouten[$act][2] === $recht, "die Route $act traegt das falsche Recht");
+    check($adminRouten[$act][3] === 'html', "die Route $act ist keine Seite");
+    check($adminRouten[$act][0] === App\Controller\AdminController::class,
+        "die Route $act fuehrt nicht in den Verwaltungsbereich");
+}
+// Die alte Route 'admin' zeigte auf SystemController::showAdmin und gab eine
+// Zeile Text aus. Die Methode ist weg - bliebe sie stehen, gaebe es zwei
+// Adminseiten, von denen eine nichts kann.
+check(strpos(file_get_contents($ROOT . '/class/Controller/SystemController.php'),
+    'function showAdmin') === false,
+    'die alte, leere Adminseite steht noch im SystemController');
+check(Permission::routeErrors($adminRouten) === [],
+    'die Routentabelle ist nach dem Zuwachs unvollstaendig');
+ok('drei Routen, drei Rechte - und die alte leere Adminseite ist weg');
+
+// --- Wer hineinkommt ------------------------------------------------------
+//
+// Kein Rollenvergleich: Gefragt werden die drei Rechte, und zwar fuer JEDE
+// Rolle einzeln. Bekaeme irgendwann eine weitere Rolle eines davon, faellt
+// hier auf, dass sie damit in den Bereich kommt.
+foreach ([Permission::SYSTEM_ADMIN, Permission::LOCATION_BLOCK,
+          Permission::REVIEW_REMOVE, Permission::USER_LIST] as $recht) {
+    check(Permission::has(Role::ADMIN, $recht) === true,
+        "der Admin hat das Recht $recht nicht");
+    foreach ([Role::TRIAL, Role::USER, Role::GUIDE, Permission::GUEST] as $rolle) {
+        check(Permission::has($rolle, $recht) === false,
+            "die Rolle " . var_export($rolle, true) . " kommt ueber $recht in den Bereich");
+    }
+}
+ok('in den Bereich kommt nur, wer die Handlung darin auch ausfuehren darf');
+
+// --- Die Navigation zeigt, wofuer das Recht da ist ------------------------
+//
+// Sie ist Anzeige und keine Absicherung - entschieden wird in index.php. Ein
+// Reiter, der auf eine Absage fuehrt, waere trotzdem ein Fehler.
+$sessionVorher = $_SESSION ?? [];
+$_SESSION = ['auth_scheme' => App\Helper\Auth::SESSION_SCHEME,
+             'user' => ['user_id' => 1, 'username' => 'chef', 'role_id' => Role::ADMIN]];
+$seiteAdmin = App\Helper\AdminView::page('<p>Inhalt</p>', 'standorte');
+foreach (['act=admin', 'act=list_user', 'act=admin_locations', 'act=admin_reviews'] as $ziel) {
+    check(strpos($seiteAdmin, $ziel) !== false || strpos($seiteAdmin, 'aria-current') !== false,
+        "der Reiter zu $ziel fehlt");
+}
+check(substr_count($seiteAdmin, 'adm__tab') === 4, 'der Bereich hat nicht vier Reiter');
+// Der aktive Reiter ist kein Verweis auf sich selbst.
+check(strpos($seiteAdmin, 'aria-current="page"') !== false, 'kein Reiter steht gerade');
+check(strpos($seiteAdmin, '<a class="adm__tab" href="index.php?act=admin_locations"') === false,
+    'der aktive Reiter ist ein Verweis auf sich selbst');
+check(strpos($seiteAdmin, '<p>Inhalt</p>') !== false, 'der Rahmen verschluckt den Inhalt');
+
+// Ein Guide bekaeme keinen einzigen Reiter - und damit auch keine Sackgasse.
+$_SESSION = ['auth_scheme' => App\Helper\Auth::SESSION_SCHEME,
+             'user' => ['user_id' => 2, 'username' => 'gast', 'role_id' => Role::GUIDE]];
+check(strpos(App\Helper\AdminView::page('<p>x</p>', ''), 'adm__tab') === false,
+    'ein Guide bekommt Reiter in einen Bereich, den er nicht betreten darf');
+$_SESSION = $sessionVorher;
+ok('die Navigation zeigt genau die Reiter, deren Recht der Betrachter hat');
+
+// --- DIE KUNDENOBERFLAECHE KENNT KEINEN ADMIN MEHR ------------------------
+//
+// Der Kern des Umbaus. Geprueft wird an jeder einzelnen Stelle, an der vorher
+// ein Sonderfall stand.
+
+// 1. Die Standortliste der Kunden: keine Sperrknoepfe, kein Moderationsweg.
+$tabelleJs = file_get_contents($ROOT . '/assets/js/locations_table.js');
+foreach (['block-location-btn', 'unblock-location-btn', 'userCan.blockLocation',
+          'act=block_location', 'act=unblock_location'] as $rest) {
+    check(strpos($tabelleJs, $rest) === false,
+        "die Kundentabelle kennt weiterhin '$rest'");
+}
+
+// 2. Und der Server liefert ihr die gesperrten Zeilen nicht mehr mit.
+$locCode = stripPhpNoise(file_get_contents($ROOT . '/class/Controller/LocationController.php'));
+$holen   = methodenRumpf($locCode, 'getLocations');
+check(strpos($holen, 'LOCATION_BLOCK') === false,
+    'getLocations liefert der Moderation weiterhin die gesperrten Standorte mit');
+
+// 3. Die Bewertungen: kein Entfernen-Knopf und kein Schalter, der ihn baut.
+check(strpos(file_get_contents($ROOT . '/class/Helper/ReviewView.php'), 'rev-remove') === false,
+    'der Entfernen-Knopf steht noch am Bewertungsblock');
+foreach (['LocationView', 'GuideView'] as $ansicht) {
+    check(strpos(file_get_contents($ROOT . "/class/Helper/$ansicht.php"), "'moderation' =>") === false,
+        "$ansicht reicht weiterhin einen Moderationsschalter durch");
+}
+$reviewJs = file_get_contents($ROOT . '/assets/js/review.js');
+check(strpos($reviewJs, 'act=review_remove') === false,
+    'das Modul der Kundenfrage entfernt weiterhin Bewertungen');
+
+// 4. Das Guide-Profil zeigt der Moderation keine gesperrten Standorte mehr.
+$profilCode = file_get_contents($ROOT . '/class/Controller/GuideProfileController.php');
+check(strpos($profilCode, 'Permission::') === false,
+    'das Guide-Profil entscheidet weiterhin nach einem Recht, was es zeigt');
+
+// 5. Das Kontomenue: EIN Eintrag, und der fuehrt in den Bereich.
+$viewCode = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
+check(strpos($viewCode, "'Benutzerliste'") === false,
+    'die Benutzerliste steht weiterhin einzeln im Kontomenue');
+check(strpos($viewCode, "\$eintraege['index.php?act=admin'] = 'Verwaltung';") !== false,
+    'der Weg in den Verwaltungsbereich fehlt im Kontomenue');
+check(strpos($viewCode, 'Permission::SYSTEM_ADMIN') !== false,
+    'der Menueeintrag haengt nicht am Recht system.admin');
+
+// 6. window.userCan traegt nichts Administratives mehr ins Frontend.
+foreach (["'blockLocation'", "'manageUsers'"] as $rest) {
+    check(strpos($viewCode, $rest) === false,
+        "window.userCan traegt weiterhin $rest ins Frontend");
+}
+
+// 7. Der Inhaltsbereich heisst nicht mehr nach einem Adminpanel.
+$layout = file_get_contents($ROOT . '/assets/html/index.html');
+check(strpos($layout, '<div id="admin-panel"') === false,
+    'der Inhaltsbereich jeder Seite heisst weiterhin admin-panel');
+check(strpos($layout, '<div id="app-content"') !== false,
+    'der Inhaltsbereich hat keinen Namen mehr');
+ok('kein Sonderfall mehr in der Kundenoberflaeche - an sieben Stellen geprueft');
+
+// --- Der Bereich benutzt dasselbe Erscheinungsbild ------------------------
+//
+// Er darf dichter aussehen, aber nicht anders: Jede Farbe, jeder Abstand und
+// jede Schriftgroesse kommt aus den Variablen von theme.css. Eine feste Farbe
+// hier wuerde beim Wechsel des Farbprofils stehenbleiben - und dann saehe
+// genau eine Seite der Anwendung falsch aus.
+$adminCss = file_get_contents($ROOT . '/assets/css/admin.css');
+$cssOhneKommentar = preg_replace('#/\*.*?\*/#s', '', $adminCss);
+check(preg_match('/#[0-9a-fA-F]{3,8}\b/', $cssOhneKommentar) === 0,
+    'im Verwaltungsbereich steht eine feste Farbe statt einer Variablen');
+check(preg_match('/\b(rgb|rgba|hsl)\(/', $cssOhneKommentar) === 0,
+    'im Verwaltungsbereich steht eine ausgeschriebene Farbe');
+// Und er wird ueberhaupt geladen - sonst waere die Datei folgenlos.
+check(strpos($layout, 'assets/css/admin.css') !== false,
+    'die Gestaltung des Bereichs wird nicht geladen');
+check(strpos($layout, 'assets/js/admin.js') !== false,
+    'die Aktionen des Bereichs werden nicht geladen');
+ok('der Bereich sieht dichter aus, aber nicht anders - nur Variablen aus theme.css');
+
+// --- Die Zahlen der Uebersicht -------------------------------------------
+//
+// Sie zaehlen ueber vier Tabellen, und keine davon gehoert ihnen. Was
+// "durchgefuehrt" heisst, steht deshalb nicht in dieser Klasse, sondern in
+// App\Model\TourRequest - eine zweite Fassung dieser Bedingung waere die, die
+// beim naechsten Umbau vergessen wird.
+$statsCode = file_get_contents($ROOT . '/class/Model/AdminStats.php');
+check(strpos($statsCode, 'TourRequest::conductedSql') !== false,
+    'die Uebersicht schreibt "durchgefuehrt" ein zweites Mal auf');
+check(strpos($statsCode, 'TourRequest::runningSql') !== false,
+    'die Uebersicht schreibt "laeuft gerade" ein zweites Mal auf');
+// Geloeschte Konten zaehlen nicht mit - dieselbe Regel wie in User::getAll().
+check(strpos($statsCode, 'deleted = 0') !== false,
+    'die Uebersicht zaehlt geloeschte Konten mit');
+// Die Rollen kommen aus Role und nicht aus der Abfrage: Eine Rolle ohne ein
+// einziges Konto muss mit einer Null dastehen und nicht fehlen.
+check(strpos($statsCode, 'Role::all()') !== false,
+    'eine Rolle ohne Konten faellt aus der Aufstellung heraus');
+
+// Die Kacheln entstehen aus den fertigen Zahlen; gerechnet wird in der
+// Ansicht nichts. Geprueft an einem vollstaendigen Satz.
+$kacheln = App\Helper\AdminView::bestandHtml([
+    'konten'      => ['gesamt' => 42, 'je_rolle' => [Role::TRIAL => 5, Role::USER => 20,
+                                                    Role::GUIDE => 16, Role::ADMIN => 1],
+                      'neu' => 3],
+    'standorte'   => ['gesamt' => 12, 'gesperrt' => 2, 'anbieter' => 7],
+    'fuehrungen'  => ['gesamt' => 90, 'zeitraum' => 8, 'offen' => 1],
+    'bewertungen' => ['sichtbar' => 30, 'entfernt' => 1, 'schnitt' => 4.2],
+]);
+check(strpos($kacheln, '>42<') !== false, 'die Zahl der Konten fehlt');
+check(strpos($kacheln, 'Guide 16') !== false, 'die Aufstellung nach Rollen fehlt');
+check(strpos($kacheln, '4,2') !== false, 'der Durchschnitt steht nicht deutsch da');
+// Die gesperrten Standorte sind die einzige Zahl, die Arbeit bedeutet: Sie
+// steht als Verweis in die gefilterte Liste.
+check(strpos($kacheln, 'act=admin_locations&filter=gesperrt') !== false,
+    'die gesperrten Standorte fuehren nirgendwohin');
+check(strpos($kacheln, 'adm-tile--achtung') !== false,
+    'die einzige Kachel mit offener Arbeit ist nicht hervorgehoben');
+// Ohne offene Sperre keine Hervorhebung - sonst waere sie Dauerzustand.
+$ruhig = App\Helper\AdminView::bestandHtml([
+    'konten'      => ['gesamt' => 1, 'je_rolle' => [], 'neu' => 0],
+    'standorte'   => ['gesamt' => 0, 'gesperrt' => 0, 'anbieter' => 0],
+    'fuehrungen'  => ['gesamt' => 0, 'zeitraum' => 0, 'offen' => 0],
+    'bewertungen' => ['sichtbar' => 0, 'entfernt' => 0, 'schnitt' => null],
+]);
+check(strpos($ruhig, 'adm-tile--achtung') === false,
+    'die Hervorhebung steht auch ohne gesperrte Standorte');
+check(strpos($ruhig, 'noch kein Durchschnitt') !== false,
+    '"keine Bewertung" wird als Durchschnitt 0,0 ausgegeben');
+ok('die Uebersicht zaehlt mit den Bedingungen der Modelle und deutet nichts selbst');
+
+// --- Die Listen: Fremdeingabe bleibt Fremdeingabe -------------------------
+//
+// Titel, Sperrgrund und Bewertungstext stammen von Nutzern. Sie gehen durch
+// ViewHelper::esc - also auch durch die Rautenregel: Ein Text mit drei Rauten
+// wuerde sonst eine Ersetzung des Servers ausloesen (siehe ViewHelper::esc).
+$boeseZeile = App\Helper\AdminView::standortZeilenHtml([[
+    'id' => 5, 'title' => '<b>Ort</b>', 'blocked' => 1,
+    'blocked_reason' => '<script>alert(1)</script>', 'blocked_at' => '2026-02-03 14:12:00',
+    'user_id' => 9, 'username' => 'anna', 'guide_name' => '###USER###',
+    'availability' => 'idle', 'country_name' => 'Portugal', 'city_name' => 'Lissabon',
+]]);
+check(strpos($boeseZeile, '<b>Ort</b>') === false, 'der Standorttitel wird nicht maskiert');
+check(strpos($boeseZeile, '<script>') === false, 'der Sperrgrund wird nicht maskiert');
+check(strpos($boeseZeile, '###USER###') === false, 'die drei Rauten kommen durch');
+check(strpos($boeseZeile, '03.02.2026 14:12') !== false,
+    'der Zeitpunkt der Sperre fehlt oder steht nicht als Datum da');
+check(strpos($boeseZeile, 'adm-row--gesperrt') !== false, 'die gesperrte Zeile ist nicht erkennbar');
+check(strpos($boeseZeile, 'adm-unblock') !== false, 'die gesperrte Zeile bietet kein Freigeben an');
+check(strpos($boeseZeile, 'act=location&id=5') !== false,
+    'aus der Liste fuehrt kein Weg auf den Standort selbst');
+// Der Benutzername steht hier - anders als in der Kundenliste. Genau dafuer
+// gibt es die Verwaltung.
+check(strpos($boeseZeile, 'anna') !== false, 'die Verwaltung sieht das Konto nicht');
+
+$boeseBewertung = App\Helper\AdminView::bewertungsZeilenHtml([[
+    'id' => 8, 'stars' => 2, 'body' => '<i>schlecht</i> ###USER###',
+    'created_at' => '2026-02-03 14:12:00', 'removed_at' => null,
+    'location_id' => 5, 'title' => 'Alfama',
+    'guide_username' => 'guide1', 'customer_username' => 'kunde1',
+]]);
+check(strpos($boeseBewertung, '<i>schlecht</i>') === false, 'der Bewertungstext wird nicht maskiert');
+check(strpos($boeseBewertung, '###USER###') === false, 'die drei Rauten kommen durch');
+check(strpos($boeseBewertung, 'adm-review-remove') !== false, 'es gibt keinen Weg zum Entfernen');
+// Der Kunde steht mit Namen da - auf der Standortseite ausdruecklich nicht.
+check(strpos($boeseBewertung, 'kunde1') !== false,
+    'die Moderation sieht nicht, von wem die Bewertung kommt');
+
+// Eine entfernte Bewertung bleibt stehen und bekommt keinen zweiten Knopf.
+$entfernt = App\Helper\AdminView::bewertungsZeilenHtml([[
+    'id' => 9, 'stars' => 1, 'body' => 'weg', 'created_at' => '2026-02-03 14:12:00',
+    'removed_at' => '2026-02-04 08:00:00', 'removed_reason' => 'Beleidigung',
+    'location_id' => 5, 'title' => 'Alfama',
+    'guide_username' => 'guide1', 'customer_username' => 'kunde1',
+]]);
+check(strpos($entfernt, 'adm-row--entfernt') !== false, 'die entfernte Zeile ist nicht erkennbar');
+check(strpos($entfernt, 'Beleidigung') !== false, 'der Grund der Entfernung fehlt');
+check(strpos($entfernt, 'adm-review-remove') === false,
+    'eine entfernte Bewertung laesst sich ein zweites Mal entfernen');
+
+// Leere Listen sagen das, statt eine leere Tabelle zu zeigen.
+check(strpos(App\Helper\AdminView::standortZeilenHtml([]), 'adm-empty') !== false,
+    'die leere Standortliste sagt nichts');
+check(strpos(App\Helper\AdminView::bewertungsZeilenHtml([]), 'adm-empty') !== false,
+    'die leere Bewertungsliste sagt nichts');
+ok('die Listen maskieren jede Fremdeingabe und zeigen, was die Verwaltung braucht');
+
+// --- Die Filter kommen aus der Adresszeile --------------------------------
+//
+// Und sie gehen als Textbaustein in eine Abfrage. Was nicht in der Liste der
+// erlaubten Werte steht, faellt auf die Vorgabe zurueck - abgewiesen wird
+// nicht: Ein verstellter Wert soll keine Fehlerseite ergeben.
+$locModell = stripPhpNoise(file_get_contents($ROOT . '/class/Model/Location.php'));
+$adminAbfrage = methodenRumpf($locModell, 'selectAllForAdmin');
+check(preg_match("/\\\$in_filter === 'gesperrt'/", $adminAbfrage) === 1,
+    'der Filter wird in die Abfrage zusammengesetzt statt geprueft');
+check(strpos($adminAbfrage, 'max(1, min(') !== false,
+    'die Zeilengrenze geht ungeprueft in die Abfrage');
+$revModell = stripPhpNoise(file_get_contents($ROOT . '/class/Model/TourReview.php'));
+$revAbfrage = methodenRumpf($revModell, 'allForAdmin');
+check(strpos($revAbfrage, '$wo[$in_filter] ?? ') !== false,
+    'der Bewertungsfilter wird in die Abfrage zusammengesetzt statt nachgeschlagen');
+
+// Die oeffentliche Bewertungsliste holt weiterhin keinen Namen - das ist der
+// Unterschied zwischen den beiden Abfragen und nicht ein Versehen.
+check(strpos(methodenRumpf($revModell, 'letzte'), 'username') === false,
+    'die oeffentliche Bewertungsliste holt jetzt auch Namen');
+check(strpos($revAbfrage, 'customer_username') !== false,
+    'die Verwaltung sieht nicht, von wem eine Bewertung kommt');
+ok('die Filter werden geprueft, nicht zusammengesetzt - und die beiden Listen bleiben verschieden');
+
+// --- Geaendert wird ueber die Routen, die es schon gab ---------------------
+//
+// Der Bereich ZEIGT. Ein zweiter Schreibweg "fuer den Adminbereich" waere
+// genau die Doppelung, wegen der es ihn gibt.
+$adminCtrl = file_get_contents($ROOT . '/class/Controller/AdminController.php');
+foreach (['INSERT', 'UPDATE', 'DELETE', 'PdoConnect'] as $schreibt) {
+    check(strpos($adminCtrl, $schreibt) === false,
+        "der Verwaltungscontroller greift selbst zur Datenbank ($schreibt)");
+}
+$adminJs = file_get_contents($ROOT . '/assets/js/admin.js');
+foreach (['act=block_location', 'act=unblock_location', 'act=review_remove'] as $ziel) {
+    check(strpos($adminJs, $ziel) !== false, "der Bereich ruft $ziel nicht auf");
+}
+// Er meldet sich nur auf seinen eigenen Seiten - sonst haenge auf jeder Seite
+// der Anwendung ein Handler fuer Knoepfe, die es dort nicht gibt.
+check(strpos($adminJs, "document.querySelector('.adm')") !== false,
+    'das Modul des Bereichs haengt sich auf jeder Seite ein');
+ok('der Bereich zeigt und aendert nichts selbst - geschrieben wird ueber die alten Routen');
 
 
 PdoConnect::$connection = new FakeConnection();

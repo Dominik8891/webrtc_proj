@@ -557,6 +557,73 @@ class Location
     }
 
     /**
+     * ALLE Standorte - die Liste des Verwaltungsbereichs.
+     *
+     * WARUM SIE NEBEN selectAllLocations() STEHT UND NICHT DARIN
+     * ---------------------------------------------------------
+     * Weil die beiden verschiedene Fragen beantworten, und das war vorher
+     * derselbe Aufruf mit einem Schalter:
+     *
+     *   selectAllLocations()  "was kann ich als Kunde buchen" - fremde
+     *                         Standorte, nie die eigenen, nie gesperrte.
+     *   diese hier            "was gibt es" - alles, auch die eigenen und
+     *                         gerade die gesperrten, samt Grund und
+     *                         Zeitpunkt der Sperre.
+     *
+     * Der Schalter war eine Sonderfall-Ansicht mitten in der Kundenliste: Wer
+     * moderieren durfte, bekam DIESELBE Tabelle mit zwei zusaetzlichen
+     * Zeilenarten und zwei zusaetzlichen Knoepfen. Genau das soll mit dem
+     * eigenen Bereich verschwinden - zwei Fragen, zwei Abfragen.
+     *
+     * WAS HIER MEHR DRINSTEHT als in der Kundenliste: der BENUTZERNAME des
+     * Guides neben seinem Anzeigenamen, der Sperrgrund und wer wann gesperrt
+     * hat. Der Benutzername ist die Anmeldekennung und geht Kunden nichts an
+     * (siehe die Begruendung in selectAllLocations); die Verwaltung dagegen
+     * verwaltet Konten und findet ein Konto ueber diesen Namen wieder.
+     *
+     * WAS FEHLT: die Bewertungszahlen. Sie gehoeren zur Auswahl eines
+     * Standorts, nicht zu seiner Verwaltung - und sie kosten zwei Joins.
+     *
+     * @param string $in_filter 'alle' oder 'gesperrt'
+     * @param int    $in_limit  Obergrenze der Zeilen
+     * @return array
+     */
+    public function selectAllForAdmin(string $in_filter = 'alle', int $in_limit = 500)
+    {
+        // Wie ueberall in diesem Projekt: Ein Textbaustein in einer Abfrage
+        // wird geprueft und nicht zusammengesetzt. Der Filter kommt aus der
+        // Adresszeile.
+        $where = ($in_filter === 'gesperrt') ? 'WHERE location.blocked = 1' : '';
+        // LIMIT vertraegt in MySQL keinen gebundenen Parameter, solange PDO
+        // nicht emuliert - deshalb als gepruefte Zahl in den Text.
+        $limit = max(1, min(2000, $in_limit));
+
+        try {
+            $query = "SELECT location.id, location.title, location.description,
+                             location.blocked, location.blocked_reason,
+                             location.blocked_at,
+                             user.id AS user_id, user.username,
+                             COALESCE(NULLIF(guide_profile.display_name, ''), user.username)
+                                 AS guide_name,
+                             " . self::AVAILABILITY_SQL . " AS availability,
+                             country.country_name, city.city_name
+                      FROM location
+                      LEFT JOIN user          ON location.user_id = user.id
+                      LEFT JOIN guide_profile ON guide_profile.user_id = user.id
+                      LEFT JOIN city          ON location.city_id = city.id
+                      LEFT JOIN country       ON city.country_id = country.id
+                      $where
+                      ORDER BY location.blocked DESC, location.id DESC
+                      LIMIT $limit";
+            $stmt = PdoConnect::$connection->query($query);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        } catch (\PDOException $e) {
+            error_log('Location::selectAllForAdmin: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Gibt alle gespeicherten Locations eines Users als Array zurück.
      * @param int $in_user_id
      * @return array

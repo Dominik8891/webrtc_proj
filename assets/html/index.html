@@ -38,6 +38,11 @@
          beendet ist. Nach review.css, weil beide Karten dieselbe Flaeche
          benutzen (.app-ask in theme.css). -->
     <link rel="stylesheet" href="assets/css/tour.css">
+    <!-- Der Verwaltungsbereich. Als LETZTE eigene Datei, weil er die
+         Bausteine der uebrigen enger setzt und dafuer das letzte Wort haben
+         muss. Wirksam wird sie nur unter .adm - also nur auf den Seiten des
+         Bereichs (App\Helper\AdminView). -->
+    <link rel="stylesheet" href="assets/css/admin.css">
 
     <!-- JS-Bibliotheken -->
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -103,6 +108,11 @@
          Server ihre Daten mitgeliefert hat - auf jeder anderen Seite tut
          dieses Modul nichts. -->
     <script src="assets/js/location_page.js"></script>
+    <!-- Die Aktionen des Verwaltungsbereichs: sperren, freigeben, eine
+         Bewertung entfernen. Sie standen vorher in locations_table.js und in
+         review.js - also in Modulen der Kundenoberflaeche. Dieses hier haengt
+         sich nur ein, wenn .adm im Dokument steht. -->
+    <script src="assets/js/admin.js"></script>
 
 </head>
 <body>
@@ -175,7 +185,13 @@
     </header>
 
     <main id="app-main" class="app-main">
-        <div id="admin-panel" class="app-page">
+        <!-- Der Inhaltsbereich. Er hiess bis zum Umbau id="admin-panel" -
+             ein Name aus einer Zeit, in der die ganze Anwendung als Adminpanel
+             gedacht war. Er trug ihn auf JEDER Seite, auch auf der Startseite
+             und im Anmeldeformular. Die Verwaltung hat jetzt einen eigenen
+             Bereich (App\Helper\AdminView), und dieser Behaelter heisst nach
+             dem, was er ist. -->
+        <div id="app-content" class="app-page">
             ###CONTENT###
         </div>
     </main>

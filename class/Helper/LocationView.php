@@ -58,8 +58,11 @@ class LocationView
      *                             summaryForLocation). Ob es einen
      *                             Durchschnitt gibt, ist dort entschieden.
      *        'reviews'     array Die letzten Bewertungen mit Text
-     *        'moderation'  bool  Darf der Betrachter eine Bewertung
-     *                             entfernen (Recht review.remove)?
+     *
+     * HIER STAND 'moderation' - ein Schalter, der an jeder Bewertung einen
+     * Entfernen-Knopf einblendete. Entfernt wird jetzt im
+     * Verwaltungsbereich (index.php?act=admin_reviews); diese Seite sieht
+     * damit fuer jeden Betrachter gleich aus.
      * @return string HTML fuer den Inhaltsbereich
      */
     public static function page(array $in_daten, array $in_bilder, array $in_ansicht): string
@@ -111,7 +114,6 @@ class LocationView
                                            // Bewertung zu schreiben waere
                                            // seine sechste Wiederholung.
                                            'mit_ort'    => false,
-                                           'moderation' => !empty($in_ansicht['moderation']),
                                        ]),
             '###FACTS###'       => self::faktenHtml($in_daten),
             '###ACTION###'      => self::aktionHtml($in_daten, $eigen,

@@ -1,0 +1,41 @@
+<!--
+    Die Bewertungsliste des Verwaltungsbereichs.
+    Gefuellt von App\Controller\AdminController.
+
+    Platzhalter:
+      ###FILTER###  Umschalter "Alle" / "Sichtbar" / "1-2 Sterne" / "Entfernt"
+      ###COUNT###   Zahl der angezeigten Zeilen
+      ###ROWS###    Die Zeilen (App\Helper\AdminView::bewertungsZeilenHtml)
+
+    HIER UND NICHT MEHR AN DER EINZELNEN BEWERTUNG: Der Entfernen-Knopf klebte
+    vorher fuer den Admin an jeder Bewertung auf der Standortseite und auf dem
+    Guide-Profil - also mitten in einer Seite, die fuer Kunden gebaut ist, und
+    ohne alles, was fuer die Entscheidung noetig ist. Hier stehen die Zeilen
+    nebeneinander, mit Guide, Kunde und Zeitpunkt, und entfernte bleiben
+    sichtbar: Entfernt ist ausgeblendet, nicht geloescht.
+-->
+<section class="app-panel adm-panel">
+    <div class="app-panel__body">
+        <div class="adm-bar">
+            <h2 class="adm-panel__title">Bewertungen <span class="adm-count">###COUNT###</span></h2>
+            ###FILTER###
+        </div>
+    </div>
+    <div class="app-table-wrap">
+        <table class="table adm-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Sterne</th>
+                    <th>Text</th>
+                    <th>Führung</th>
+                    <th>Abgegeben</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+            <tbody>
+                ###ROWS###
+            </tbody>
+        </table>
+    </div>
+</section>

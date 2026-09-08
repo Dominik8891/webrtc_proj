@@ -164,9 +164,12 @@ class ViewHelper
      * Unterschied zu einem Menueeintrag: Er steht nicht als Angebot da,
      * sondern faerbt sich, wenn dort etwas wartet.
      *
-     * Die Benutzerliste bleibt fuer den Admin stehen - er verwaltet darueber
-     * Konten und braucht den Einstieg. Entschieden wird das ueber das Recht
-     * user.list, das nur noch er hat, und nicht ueber eine Rollenabfrage.
+     * DER EINZIGE EINTRAG, DEN NICHT JEDER SIEHT, ist "Verwaltung" - und
+     * genau deshalb steht dort seit dem Umbau EIN Eintrag und nicht mehr die
+     * Benutzerliste: Er fuehrt in einen eigenen Bereich mit eigener
+     * Navigation (App\Helper\AdminView), in dem alles zusammensteht, was
+     * vorher als Sonderfall in der Kundenoberflaeche verteilt lag. Wer ihn
+     * sieht, entscheidet das Recht system.admin und keine Rollenabfrage.
      *
      * @param string $username Der anzuzeigende Name (wird maskiert)
      * @return string HTML
@@ -178,8 +181,8 @@ class ViewHelper
         $eintraege = [
             'index.php?act=settings' => 'Mein Konto',
         ];
-        if (Auth::can(Permission::USER_LIST)) {
-            $eintraege['index.php?act=list_user'] = 'Benutzerliste';
+        if (Auth::can(Permission::SYSTEM_ADMIN)) {
+            $eintraege['index.php?act=admin'] = 'Verwaltung';
         }
 
         $links = '';
@@ -591,6 +594,18 @@ class ViewHelper
         // hier nicht erscheint, ist keine Absicherung: Die verbindliche
         // Pruefung steht in index.php und passiert erneut, wenn die Route
         // wirklich aufgerufen wird.
+        //
+        // HIER STANDEN blockLocation UND manageUsers. Beide sind mit dem
+        // Verwaltungsbereich entfallen, und der Grund ist derselbe: Sie
+        // steuerten Knoepfe, die es in der Kundenoberflaeche nicht mehr gibt.
+        // blockLocation blendete in der Standortliste zwei Symbolknoepfe ein
+        // (assets/js/locations_table.js); gesperrt und freigegeben wird jetzt
+        // in der Standortliste des Bereichs. manageUsers wurde ueberhaupt
+        // nirgends gelesen - ein Wert, der seit einem Umbau mitfuhr, ohne
+        // etwas zu tun.
+        //
+        // Was hier noch steht, betrifft ausschliesslich Knoepfe, die JEDES
+        // Konto sehen kann - nur eben mit verschiedener Beschriftung.
         $can = [
             'offerLocation' => Auth::can(Permission::LOCATION_OFFER),
             // Darf dieses Konto sich auf bereit stellen? Der Schalter selbst
@@ -598,8 +613,6 @@ class ViewHelper
             // sich bei allen anderen gar nicht erst einzuhaengen.
             'setAvailability' => Auth::can(Permission::USER_AVAILABILITY),
             'becomeGuide'   => Role::mayBecomeGuide($user_role_id),
-            'blockLocation' => Auth::can(Permission::LOCATION_BLOCK),
-            'manageUsers'   => Auth::can(Permission::USER_MANAGE),
             // Guide, dessen Zustimmung eine aeltere Fassung der Bedingungen
             // traegt (App\Model\GuideRole::TERMS_VERSION). Er darf weiterhin
             // alles, was ein Guide darf - nur sein naechster Standort geht

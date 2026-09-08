@@ -19,6 +19,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
     * **Zwei-Faktor-Authentifizierung (2FA/TOTP)** inklusive QR-Code-Generierung.
     * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP.
 * **Anfrage, Führung, Bewertung:** Am Anfang steht eine Anfrage mit Wunschzeitpunkt, die der Guide annimmt oder ablehnt; **beendet** wird die Führung ausdrücklich vom Guide (bis dahin können beide nach einem Verbindungsabbruch wieder einsteigen), und danach wird der Kunde gefragt, wie sie war — Sterne plus freiwilliger Text, **nur in diese Richtung**. Ein Durchschnitt erscheint erst ab drei Bewertungen; darunter steht die Zahl der durchgeführten Führungen statt einer Zahl, die wie ein Urteil aussieht. Details unter [Bewertungen](#-bewertungen).
+* **Eigener Verwaltungsbereich:** Konten, Standorte und Bewertungen liegen hinter einer eigenen Route mit eigener Navigation — dicht und tabellarisch, aber im selben Erscheinungsbild und mit denselben Farbprofilen. Die Kundenoberfläche enthält dafür **keinen einzigen Adminfall mehr**: keine Sperrknöpfe in der Standortliste, kein *Entfernen* an einer Bewertung, kein Menüeintrag, den nur einer sieht. Details unter [Der Verwaltungsbereich](#️-der-verwaltungsbereich).
 * **Rollen- und Rechtesystem:** Vier Rollen (Trial, User, Guide, Admin) mit **benannten Rechten ohne Vererbung und ohne Rangfolge**. Jede Route in `config/routes.php` trägt ihr Recht als Pflichtfeld; `index.php` prüft es, bevor der Controller läuft. Details unten unter [Berechtigungen](#-berechtigungen). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide, Zuschauer oder — bei einem Direktanruf aus der Benutzerverwaltung — Peer; der Client kann sie sich nicht selbst geben. Entscheidend ist, woher der Anruf kam: Von einem Standort aus führt der Angerufene, auch wenn er Admin ist, und der Zuschauer sendet dabei weder Bild noch Ton. Bei einem Direktanruf mit einem Admin gibt es nichts zu steuern, dort läuft die Übertragung in beide Richtungen.
 
 ---
@@ -1510,6 +1511,60 @@ Wer ihn nicht bekommt: der **Eigentümer** (sich selbst schreibt niemand an), ei
 
 ---
 
+## 🛠️ Der Verwaltungsbereich
+
+Die Verwaltungsfunktionen lagen bis zu diesem Umbau **als Sonderfälle in der Kundenoberfläche**. Das war an fünf Stellen sichtbar:
+
+* Die **Standortübersicht** bekam für einen Betrachter mit dem Recht `location.block` zwei zusätzliche Symbolknöpfe *und* zusätzliche Zeilen — dieselbe Route `get_locations` lieferte ihm die gesperrten Standorte mit.
+* An **jeder Bewertung** auf der Standortseite und auf dem Guide-Profil klebte für ihn ein *Entfernen*.
+* Das **Guide-Profil** zeigte ihm gesperrte Standorte seines Anbieters, allen anderen nicht.
+* Im **Kontomenü** stand ein Eintrag *Benutzerliste*, den sonst niemand sah.
+* Die Route `admin` führte auf eine Seite, die eine Zeile Text ausgab (*„Willkommen im Admin Panel"*) und auf die nirgends verwiesen wurde.
+
+Jede dieser Stellen war ein *„wenn Admin, dann anders"* mitten in einer Seite, die für Kunden gebaut ist — und damit eine Gelegenheit, beim nächsten Umbau etwas sichtbar zu machen, was niemand sehen sollte. **Die Kundenoberfläche kennt jetzt keinen Admin mehr.**
+
+### Vier Seiten hinter einer eigenen Adresse
+
+| Route | Seite | Recht |
+|---|---|---|
+| `admin` | Übersicht — der Einstieg | `system.admin` |
+| `list_user` / `manage_user` / `delete_user` | Benutzer, Direktchat und Direktanruf | `user.list` / `user.manage` / `user.delete` |
+| `admin_locations` | Standorte sperren und freigeben | `location.block` |
+| `admin_reviews` | Bewertungen entfernen | `review.remove` |
+
+**Drei Rechte statt eines**, und das ist keine Umständlichkeit: Jede Seite trägt genau das Recht, das man für die Handlung braucht, die dort stattfindet. Heute hat alle drei nur der Admin. Käme eine reine Moderationsrolle dazu, bekäme sie die Seite, zu der ihr Recht passt — und die Navigation zeigte ihr auch nur diese (`AdminView::navHtml`), ohne dass irgendwo etwas nachzuziehen wäre.
+
+**Der Bereich zeigt; geschrieben wird über die Routen, die es schon gab** — `block_location`, `unblock_location`, `review_remove`, `manage_user`, `delete_user`. `AdminController` greift selbst nie zur Datenbank. Ein zweiter Schreibweg *„für den Adminbereich"* wäre genau die Doppelung, wegen der es den Bereich gibt.
+
+### Die Übersicht
+
+Vier Kacheln mit dem Bestand: **Konten** (gesamt, nach Rollen aufgeteilt, neu in 7 Tagen), **Standorte** (gesamt, wie viele Konten anbieten, wie viele gesperrt sind), **Führungen** (durchgeführt in 30 Tagen, insgesamt, wie viele gerade laufen) und **Bewertungen** (sichtbare, Durchschnitt, entfernte).
+
+Gezählt wird in `App\Model\AdminStats`, und die schwierigen Bedingungen kommen aus den Modellen, denen sie gehören: Was *durchgeführt* heißt, steht in `TourRequest::conductedSql()` — eine vergessene Beendigung zählt nach Ablauf der Frist trotzdem mit —, was *läuft gerade* heißt, in `TourRequest::runningSql()`. Eine zweite Fassung dieser Bedingungen wäre die, die beim nächsten Umbau vergessen wird und die Übersicht andere Zahlen zeigen ließe als die Anfragenseite.
+
+Die **gesperrten Standorte** sind die einzige Zahl, die Arbeit bedeutet: eine Sperre ist ein Vorgang, den jemand eröffnet hat und den jemand wieder schließen muss. Sie steht deshalb als Verweis in die gefilterte Liste und hebt ihre Kachel hervor — solange es welche gibt.
+
+> Ein weitergehender Arbeitsvorrat („diese Führungen hängen", „diese Anfragen hat nie jemand beantwortet") steht **noch nicht** dort. Er wäre eine zweite Stelle, an der entschieden wird, was ein Vorgang ist, und braucht dafür jeweils eine Seite, auf der er sich abarbeiten lässt.
+
+### Die Listen
+
+Beide sind **reine Serverseiten ohne DataTables**, mit einem Umschalter statt einer Volltextsuche:
+
+* **Standorte** — alle, auch die eigenen des Betrachters, gesperrte zuerst, mit Sperrgrund und Zeitpunkt. Filter: *Alle* / *Nur gesperrte*. Der Titel führt auf die **normale Standortseite**: Wer über eine Freigabe entscheidet, soll den Standort so ansehen, wie er angeboten wird, und nicht in einer Sonderansicht. Dass ein gesperrter Standort für die Moderation überhaupt aufgeht, entscheidet weiterhin `LocationController::showLocationPage` anhand von `location.block` — das ist Zugang, keine Sonderanzeige.
+* **Bewertungen** — auch die **ohne Text** und auch die **entfernten**, mit Guide *und Kunde* im Klartext. Filter: *Alle* / *Sichtbar* / *1–2 Sterne* / *Entfernt*.
+
+Der Benutzername des Kunden ist der Unterschied zwischen einer öffentlichen Seite und einer Verwaltung: Auf der Standortseite steht er ausdrücklich nicht (er ist die Anmeldekennung), für eine Beschwerde ist *„kommen die drei Ein-Stern-Wertungen alle vom selben Konto"* aber genau die Frage, auf die es ankommt. Deshalb sind es **zwei Abfragen** — `TourReview::letzte()` für die öffentlichen Seiten, `TourReview::allForAdmin()` für die Verwaltung — und nicht eine mit einem Schalter.
+
+### Wie er aussieht
+
+**Dichter, aber nicht anders.** Schmale Zeilen, kleine Schrift, ein oben festklebender Tabellenkopf, Tabellen statt Karten. Jede Farbe, jeder Abstand und jede Schriftgröße in `assets/css/admin.css` kommt aus den Variablen von `theme.css` — der Bereich wechselt das **Farbprofil** des Kontos mit, ohne dass dafür eine einzige Regel dort stünde. Ein Test hält das fest: Eine ausgeschriebene Farbe in dieser Datei lässt ihn fehlschlagen.
+
+**Grün und Gelb kommen nicht vor.** Sie bedeuten auf der Karte *„Guide verfügbar"* und *„im Gespräch"*; in einer Tabelle mit fünfhundert Zeilen wären sie ein Muster ohne Aussage. Zustände stehen als Wort, unterschieden über Form und Gewicht. Rot gibt es an genau zwei Stellen: an einer Sperre und an einer entfernten Bewertung.
+
+Die **Kopfleiste bleibt** dieselbe wie überall — samt Anfragen- und Nachrichtenzähler: Ein Admin ist anderswo Kunde, und seine eigenen Anfragen soll er auch hier nicht verpassen. Darunter liegt die Navigation des Bereichs.
+
+---
+
 ## 🔐 Berechtigungen
 
 ### Rollen
@@ -1544,6 +1599,8 @@ Was eine Rechtetabelle nicht wissen kann, prüfen weiterhin die Controller **und
 Ein Admin **löscht keine fremden Standorte, er sperrt sie** (Recht `location.block`). Der gesperrte Standort verschwindet aus der Übersicht der anderen Nutzer, bleibt aber beim Guide bestehen — in seiner eigenen Standortliste sieht er die Sperre samt Grund. Gelöscht wird nur vom Eigentümer.
 
 Dasselbe Muster bei **Bewertungen** (Recht `review.remove`): Der Admin entfernt eine Bewertung, indem sie ausgeblendet wird — die Zeile bleibt samt Zeitpunkt, Entferner und Grund stehen. Der bewertete Guide hat dieses Recht ausdrücklich **nicht**; siehe [Bewertungen](#-bewertungen).
+
+**Stattfinden tut beides im [Verwaltungsbereich](#️-der-verwaltungsbereich)** und nicht mehr in der Kundenoberfläche. Die beiden Rechte tragen dort zusätzlich die jeweilige Liste: Wer sperren darf, sieht die Standortliste; wer entfernen darf, die Bewertungsliste.
 
 ### Die Guide-Rolle
 

@@ -1,43 +1,53 @@
 <!--
-    Benutzerliste (Werkzeugansicht).
-    Gefuellt von App\Controller\UserController.
+    Die Benutzerliste - eine Seite des Verwaltungsbereichs.
+    Gefuellt von App\Controller\UserController, gerahmt von
+    App\Helper\AdminView::page().
 
     Platzhalter:
       ###NEW###        Knopf "Neuer Benutzer" - nur mit dem Recht user.manage
       ###EMAIL###      Spaltenkopf "E-Mail" - nur fuer die Verwaltung
       ###ACTION###     Spaltenkopf "Aktionen" - nur fuer die Verwaltung
       ###USER_ROWS###  Die Zeilen aus list_user_row.html
--->
-<div class="app-page">
-    <div class="app-toolbar">
-        <div>
-            <h1 class="app-page-head__title">Benutzer</h1>
-            <p class="app-page-head__sub">Anrufen lässt sich, wer gerade online ist.</p>
-        </div>
-        <div>###NEW###</div>
-    </div>
 
-    <div class="app-panel">
-        <div class="app-table-wrap">
-            <table class="table table-striped align-middle mb-0">
-                <thead>
-                    <tr>
-                        <!-- Keine ID-Spalte mehr: Die Zahl aus der Datenbank
-                             sagt niemandem etwas, der die Liste benutzt. Zum
-                             Bearbeiten und Loeschen steht sie in den Verweisen
-                             der Aktionsspalte. -->
-                        <th>Status</th>
-                        <th>Anrufen</th>
-                        <th>Benutzername</th>
-                        <th>Nachricht</th>
-                        ###EMAIL###
-                        ###ACTION###
-                    </tr>
-                </thead>
-                <tbody>
-                    ###USER_ROWS###
-                </tbody>
-            </table>
+    SIE IST DER EINE WEG DER VERWALTUNG ZU EINEM KONTO, das keinen Standort
+    anbietet: Anruf und Chat von hier aus gehen ohne Standortkennung und sind
+    deshalb keine Fuehrung, sondern ein Gespraech (die Rolle "peer", siehe
+    App\Controller\WebRTCController::callRoles). Fuer alle anderen fuehrt der
+    Weg ins Gespraech ueber einen Standort.
+
+    Der eigene aeussere Rahmen ist mit dem Bereich entfallen: Ueberschrift und
+    Navigation stehen jetzt einmal um die ganze Seite, nicht in jeder Vorlage
+    noch einmal.
+-->
+<section class="app-panel adm-panel">
+    <div class="app-panel__body">
+        <div class="adm-bar">
+            <div>
+                <h2 class="adm-panel__title">Benutzer</h2>
+                <p class="adm__sub">Anrufen und schreiben lässt sich, wer gerade online ist.</p>
+            </div>
+            <div>###NEW###</div>
         </div>
     </div>
-</div>
+    <div class="app-table-wrap">
+        <table class="table adm-table">
+            <thead>
+                <tr>
+                    <!-- Keine ID-Spalte: Die Zahl aus der Datenbank sagt
+                         niemandem etwas, der die Liste benutzt. Zum Bearbeiten
+                         und Loeschen steht sie in den Verweisen der
+                         Aktionsspalte. -->
+                    <th>Status</th>
+                    <th>Anrufen</th>
+                    <th>Benutzername</th>
+                    <th>Nachricht</th>
+                    ###EMAIL###
+                    ###ACTION###
+                </tr>
+            </thead>
+            <tbody>
+                ###USER_ROWS###
+            </tbody>
+        </table>
+    </div>
+</section>

@@ -5,18 +5,32 @@ use App\Model\Chat;
 use App\Model\TourRequest;
 use App\Model\TourReview;
 use App\Model\User;
+use App\Helper\AdminView;
 use App\Helper\Auth;
 use App\Helper\Permission;
 use App\Helper\Request;
 use \App\Helper\ViewHelper;
 
 /**
- * UserController – Verwaltung und Anzeige von Benutzern im Adminbereich.
+ * UserController – Verwaltung und Anzeige von Benutzern im Verwaltungsbereich.
  *
  * Der Zugang zu den Routen dieses Controllers wird in index.php anhand der
  * Rechte aus config/routes.php entschieden. Hier steht nur noch, was eine
  * Rechtetabelle nicht wissen kann: welche Spalten und Schaltflächen der
  * Aufrufer in der Benutzerliste sehen darf.
+ *
+ * SEIT DEM UMBAU LIEGEN LISTE UND FORMULAR IM VERWALTUNGSBEREICH. Vorher
+ * waren es Seiten wie jede andere - dieselbe Kopfleiste, derselbe
+ * Inhaltsbereich, keine Navigation, die gesagt haette, wo man ist -, und
+ * erreichbar waren sie ueber einen Menueeintrag, den ausser dem Admin niemand
+ * sah. Jetzt gehen beide durch App\Helper\AdminView::page() und stehen damit
+ * neben der Standort- und der Bewertungsliste.
+ *
+ * AM INHALT AENDERT DAS NICHTS. Die Benutzerliste ist die Stelle geblieben,
+ * an der ein Konto direkt angerufen und angeschrieben werden kann (Rechte
+ * chat.start_direct und der Anruf ohne Standortkennung, siehe
+ * App\Controller\WebRTCController::callRoles) - das ist der eine Weg der
+ * Verwaltung zu einem Konto, das keinen Standort anbietet.
  */
 class UserController
 {
@@ -98,7 +112,9 @@ class UserController
         $out = str_replace("###PASSWORD###" , ""                                          , $out);
         $out = str_replace("###USER_INFO###", $user_info                                  , $out);
 
-        ViewHelper::output($out);
+        // Auch das Formular steht im Rahmen des Bereichs - mit dem Reiter
+        // "Benutzer", denn dorthin gehoert es und dorthin fuehrt "Abbrechen".
+        ViewHelper::output(AdminView::page($out, 'benutzer'));
     }
 
     /**
@@ -137,7 +153,7 @@ class UserController
         $out = str_replace("###ACTION###"    , $action   , $out         );
         $out = str_replace("###NEW###"       , $new      , $out         );
         $out = str_replace("###USER_ROWS###" , $all_rows , $out         );
-        ViewHelper::output($out);
+        ViewHelper::output(AdminView::page($out, 'benutzer'));
     }
 
     /**

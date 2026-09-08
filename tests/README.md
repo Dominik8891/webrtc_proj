@@ -240,6 +240,19 @@ Referenz: [`PROTOKOLL.md`](../PROTOKOLL.md).
     Formular dahinter ohnehin zur Frage weiterleitet. Ohne offenen Punkt
     bleibt es beim Anlege-Knopf.
 
+### Symbolknöpfe und die Kundentabelle (24)
+
+24. **Symbolknöpfe sind ohne Text verständlich** — jeder trägt `aria-label`
+    *und* `title`, und das Label nennt den Standort statt nur die Aktion.
+    Die Hauptaktion („Ansehen") behält ihre Beschriftung.
+
+    Dazu seit dem Verwaltungsbereich: **Sperren und Freigeben gibt es in
+    dieser Tabelle nicht mehr.** Geprüft wird nicht nur, dass die Knöpfe
+    fehlen, sondern dass sie sich auch nicht wieder **anfordern** lassen —
+    ein `'block'` in `showActions`, aus einem Aufruf, den jemand stehen
+    ließ, darf nichts mehr bewirken. Sonst wäre der Sonderfall bei
+    nächster Gelegenheit zurück.
+
 ### Bereitschaft des Guides (40)
 
 40. **Angemeldet ist nicht bereit** — der Kern der Verfügbarkeitsregel. Ein
@@ -404,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (312 Prüfungen)
+## Was `server_test.php` prüft (321 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1308,6 +1321,64 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
       700 px fällt ihr Wort weg; seit es zwei gibt, stünden dort sonst zwei
       gleich aussehende Kreise mit einer Zahl darin. Geprüft wird, dass jeder
       im schmalen Fall sein eigenes Zeichen trägt (Ablage bzw. Sprechblase).
+
+### Der Verwaltungsbereich
+
+Neun Prüfungen um den Umbau, und der zweite Teil ist der wichtigere: Es wird
+nicht nur geprüft, dass es den Bereich gibt, sondern dass die Sonderfälle in
+der Kundenoberfläche **weg sind und sich nicht wiederbeleben lassen**.
+
+* **Drei Routen, drei Rechte.** `admin` trägt `system.admin`,
+  `admin_locations` trägt `location.block`, `admin_reviews` trägt
+  `review.remove` — jeweils genau das Recht, das man für die Handlung
+  braucht, die dort stattfindet. Alle drei sind Seiten (`html`) und führen
+  in den `AdminController`. Die alte, leere Adminseite
+  (`SystemController::showAdmin`) darf nicht mehr existieren: Sonst gäbe es
+  zwei Adminseiten, von denen eine nichts kann.
+* **Wer hineinkommt** — für *jede* Rolle einzeln geprüft, ohne
+  Rollenvergleich. Bekäme irgendwann eine weitere Rolle eines der vier
+  Rechte, fällt hier auf, dass sie damit in den Bereich kommt.
+* **Die Navigation zeigt genau die erlaubten Reiter.** Für den Admin sind es
+  vier, der aktive ist kein Verweis auf sich selbst, und ein Guide bekäme
+  keinen einzigen — also auch keine Sackgasse.
+* **Kein Sonderfall mehr in der Kundenoberfläche**, an sieben Stellen
+  geprüft: keine Sperrknöpfe und kein `userCan.blockLocation` in
+  `locations_table.js`; kein `LOCATION_BLOCK` im Rumpf von
+  `getLocations()`; kein `rev-remove` in `ReviewView` und kein
+  `'moderation' =>` in `LocationView`/`GuideView`; kein `act=review_remove`
+  in `review.js`; kein `Permission::` mehr im `GuideProfileController`;
+  im Kontomenü *Verwaltung* statt *Benutzerliste*, an `system.admin`
+  gehängt; kein `blockLocation`/`manageUsers` in `window.userCan`; und der
+  Inhaltsbereich jeder Seite heißt nicht mehr `admin-panel`.
+* **Dasselbe Erscheinungsbild.** In `assets/css/admin.css` darf **keine
+  ausgeschriebene Farbe** stehen — weder `#rgb` noch `rgb()`/`hsl()`. Eine
+  feste Farbe bliebe beim Wechsel des Farbprofils stehen, und dann sähe
+  genau eine Seite der Anwendung falsch aus. Geprüft wird außerdem, dass
+  die beiden Dateien des Bereichs überhaupt geladen werden.
+* **Die Übersicht deutet nichts selbst.** `AdminStats` benutzt
+  `TourRequest::conductedSql()` und `::runningSql()` statt eigener
+  Bedingungen, zählt gelöschte Konten nicht mit und holt die Rollen aus
+  `Role::all()` — eine Rolle ohne ein einziges Konto muss mit einer Null
+  dastehen und nicht fehlen. Die Kacheln werden mit einem vollständigen
+  Zahlensatz gebaut: Die Hervorhebung steht nur, wenn es gesperrte
+  Standorte gibt, und „noch keine Bewertung" wird nicht zu „Durchschnitt
+  0,0".
+* **Fremdeingabe bleibt Fremdeingabe.** Standorttitel, Sperrgrund und
+  Bewertungstext gehen durch `ViewHelper::esc` — also auch durch die
+  Rautenregel: Ein Text mit `###USER###` würde sonst eine Ersetzung des
+  Servers auslösen. Geprüft wird an einer bewusst bösartigen Zeile, dazu:
+  gesperrte und entfernte Zeilen sind erkennbar, eine entfernte Bewertung
+  lässt sich **nicht ein zweites Mal** entfernen, und leere Listen sagen
+  das, statt eine leere Tabelle zu zeigen.
+* **Die Filter werden geprüft, nicht zusammengesetzt.** Sie kommen aus der
+  Adresszeile und gehen als Textbaustein in eine Abfrage. Und die beiden
+  Bewertungslisten bleiben verschieden: `letzte()` holt weiterhin **keinen**
+  Namen, `allForAdmin()` holt ihn — das ist der Unterschied zwischen einer
+  öffentlichen Seite und einer Verwaltung, kein Versehen.
+* **Der Bereich zeigt und ändert nichts selbst.** Im `AdminController` darf
+  kein `INSERT`, `UPDATE`, `DELETE` und kein `PdoConnect` stehen;
+  `admin.js` ruft die Routen auf, die es schon gab, und hängt sich nur ein,
+  wenn `.adm` im Dokument steht.
 
 ## Grenzen
 

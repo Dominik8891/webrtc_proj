@@ -271,28 +271,13 @@ window.webrtcApp.locationsTable = {
                 warnend: true
             });
         }
-        // Moderation: sperren statt löschen. Der Knopf erscheint nur, wenn der
-        // Server das Recht location.block mitgeschickt hat (window.userCan).
-        // Das ist reine Anzeige - entschieden wird die Berechtigung erneut in
-        // index.php, wenn die Route wirklich aufgerufen wird.
-        if (options.showActions.includes("block")) {
-            actionBtns += (item.blocked == 1)
-                ? this.iconBtn({
-                    klasse: 'unblock-location-btn',
-                    symbol: 'unblock',
-                    titel:  'Freigeben',
-                    label:  'Standort ' + ort + ' freigeben',
-                    id:     item.id
-                })
-                : this.iconBtn({
-                    klasse: 'block-location-btn',
-                    symbol: 'block',
-                    titel:  'Sperren',
-                    label:  'Standort ' + ort + ' sperren',
-                    id:     item.id,
-                    warnend: true
-                });
-        }
+        // HIER STANDEN SPERREN UND FREIGEBEN. Sie erschienen zusaetzlich,
+        // wenn der Server das Recht location.block mitgeschickt hatte - also
+        // fuer genau einen Betrachter sah diese Tabelle anders aus als fuer
+        // alle anderen, und derselbe Aufruf lieferte ihm ausserdem die
+        // gesperrten Zeilen mit. Beides ist in den Verwaltungsbereich gezogen
+        // (index.php?act=admin_locations). Diese Tabelle ist wieder das, was
+        // sie ist: die Liste, aus der ein Kunde auswaehlt.
 
         // Die Symbole in einen Behaelter, damit sie als eine Gruppe stehen und
         // nicht als drei einzelne Zeichen zerfliessen.
@@ -1108,82 +1093,11 @@ window.webrtcApp.locationsTable = {
                 });
             });
 
-        // Sperren (Moderation). Der Grund ist Pflicht - der Guide bekommt
-        // genau diesen Text in seiner Standortliste angezeigt.
-        $(options.tableSelector)
-            .off('click', '.block-location-btn')
-            .on('click', '.block-location-btn', function() {
-                const locationId = $(this).data('locationid');
-                if (!locationId) return;
-
-                // Der Grund wird im Dialog erfragt, nicht im Systemfeld des
-                // Browsers. Fehlt er, sagt das der Dialog selbst - frueher kam
-                // dafuer ein zweites alert() ueber dem ersten.
-                window.webrtcApp.notify.prompt({
-                    title: 'Standort sperren',
-                    text: 'Der Guide bekommt diesen Text in seiner Standortliste zu sehen.',
-                    label: 'Grund',
-                    placeholder: 'Warum wird gesperrt?',
-                    required: true,
-                    requiredText: 'Ohne Grund ist die Sperre für den Guide nicht nachvollziehbar.',
-                    confirmText: 'Sperren',
-                    multiline: true
-                }).then(grund => {
-                    if (grund === null) return;           // abgebrochen
-                    window.webrtcApp.locationsTable.moderate('index.php?act=block_location', {
-                        id: locationId,
-                        reason: grund
-                    }, options);
-                });
-            });
-
-        // Freigeben
-        $(options.tableSelector)
-            .off('click', '.unblock-location-btn')
-            .on('click', '.unblock-location-btn', function() {
-                const locationId = $(this).data('locationid');
-                if (!locationId) return;
-
-                window.webrtcApp.notify.confirm({
-                    title: 'Sperre aufheben?',
-                    text: 'Der Standort erscheint danach wieder auf der Karte und in der Liste.',
-                    confirmText: 'Freigeben'
-                }).then(ja => {
-                    if (!ja) return;
-                    window.webrtcApp.locationsTable.moderate('index.php?act=unblock_location', {
-                        id: locationId
-                    }, options);
-                });
-            });
-    },
-
-    /**
-     * Schickt eine Moderationsanfrage und laedt die Tabelle danach neu.
-     *
-     * @param {string} url - Ziel-Route
-     * @param {Object} data - Nutzdaten
-     * @param {Object} options - Optionen der aufrufenden Tabelle
-     */
-    moderate(url, data, options) {
-        const self = this;
-        $.ajax({
-            url: url,
-            method: 'POST',
-            data: data,
-            dataType: 'json',
-            success: function(response) {
-                if (response && response.success) {
-                    self.loadLocationsTable(options);
-                } else {
-                    window.webrtcApp.notify.error((response && response.error) || 'Die Aktion ist fehlgeschlagen.');
-                }
-            },
-            error: function(xhr) {
-                window.webrtcApp.notify.error(xhr.status === 403
-                    ? 'Dafür fehlt Ihnen die Berechtigung.'
-                    : 'Die Aktion ist fehlgeschlagen.');
-            }
-        });
+        // HIER STANDEN DIE HANDLER FUER SPERREN UND FREIGEBEN samt dem
+        // Dialog, in dem der Grund erfragt wurde. Sie sind mit den Knoepfen
+        // in den Verwaltungsbereich gezogen (assets/js/admin.js) - dort
+        // stehen sie neben den uebrigen Verwaltungsaktionen und nicht in
+        // einem Modul, das die Kundentabelle baut.
     },
 };
 
@@ -1200,13 +1114,11 @@ $(document).ready(function () {
 
     // Uebersicht aller fremden Standorte
     if ($(tabellen.TABLES.overview.selector).length) {
-        // Wer moderieren darf, bekommt zusaetzlich Sperren/Freigeben. Die
-        // Angabe kommt vom Server (ViewHelper::output) und steuert nur die
-        // Anzeige; die Routen pruefen das Recht selbst.
-        const extra = (window.userCan && window.userCan.blockLocation)
-            ? { showActions: ['view', 'block'] }
-            : {};
-        tabellen.bindEvents(tabellen.optionsFor('overview', extra));
+        // Ohne Zusatz: Diese Tabelle sieht fuer JEDEN Angemeldeten gleich
+        // aus. Frueher bekam ein Betrachter mit dem Recht location.block hier
+        // zwei weitere Knoepfe eingehaengt - gesperrt und freigegeben wird
+        // jetzt im Verwaltungsbereich.
+        tabellen.bindEvents(tabellen.optionsFor('overview'));
     }
 
     // Eigene Standorte auf der Einstellungsseite. Geladen wird erst beim

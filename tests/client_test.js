@@ -655,25 +655,22 @@ function ackLastMove(status = 'executed', reason) {
         };
 
         const zelle = tabelle.actionCellHtml(eintrag,
-            { showActions: ['view', 'delete', 'block'] });
+            { showActions: ['view', 'delete'] });
 
         // Ein Symbolknopf je Nebenaktion, und die Hauptaktion behaelt Text.
         // Sie heisst jetzt "Ansehen" und ist ein Verweis: Der Weg fuehrt auf
         // die Standortseite, und erst dort beginnt die Fuehrung.
         assert.ok(zelle.includes('>Ansehen</a>'),
             'die Hauptaktion hat ihre Beschriftung verloren');
-        for (const symbol of ['delete', 'block']) {
-            assert.ok(zelle.includes('app-iconbtn--' + symbol),
-                'Symbolknopf ' + symbol + ' fehlt');
-        }
+        assert.ok(zelle.includes('app-iconbtn--delete'), 'Symbolknopf delete fehlt');
         ok('Nebenaktionen als Symbol, die Hauptaktion mit Text');
 
         // Jeder Symbolknopf traegt beides. Gezaehlt wird stur: so viele
         // aria-label und title wie Symbolknoepfe.
         const anzahl = (text, muster) => (text.match(muster) || []).length;
-        assert.strictEqual(anzahl(zelle, /app-iconbtn /g), 2, 'zwei Symbolknoepfe erwartet');
-        assert.strictEqual(anzahl(zelle, /aria-label="/g), 2, 'nicht jeder Symbolknopf hat ein aria-label');
-        assert.strictEqual(anzahl(zelle, /title="/g), 2, 'nicht jeder Symbolknopf hat einen Tooltip');
+        assert.strictEqual(anzahl(zelle, /app-iconbtn /g), 1, 'ein Symbolknopf erwartet');
+        assert.strictEqual(anzahl(zelle, /aria-label="/g), 1, 'nicht jeder Symbolknopf hat ein aria-label');
+        assert.strictEqual(anzahl(zelle, /title="/g), 1, 'nicht jeder Symbolknopf hat einen Tooltip');
         ok('jeder Symbolknopf hat aria-label und title');
 
         // Das aria-label nennt den Standort - sonst meldet ein
@@ -683,12 +680,24 @@ function ackLastMove(status = 'executed', reason) {
             'das aria-label nennt den Standort nicht:\n' + zelle);
         ok('das aria-label nennt den Standort, nicht nur die Aktion');
 
-        // Gesperrt: aus Sperren wird Freigeben, und das Symbol wechselt mit.
-        const gesperrt = tabelle.actionCellHtml(
+        // SPERREN UND FREIGEBEN GIBT ES IN DIESER TABELLE NICHT MEHR. Sie
+        // standen hier als zwei zusaetzliche Symbolknoepfe, sobald der Server
+        // das Recht location.block mitgeschickt hatte - also sah die Liste,
+        // aus der ein Kunde auswaehlt, fuer genau einen Betrachter anders
+        // aus. Beides liegt jetzt im Verwaltungsbereich.
+        //
+        // Geprueft wird nicht nur, dass die Knoepfe fehlen, sondern dass sie
+        // sich auch nicht wieder ANFORDERN lassen: Ein 'block' in
+        // showActions - aus einem Aufruf, den jemand stehen liess - darf
+        // nichts mehr bewirken.
+        const angefordert = tabelle.actionCellHtml(
             Object.assign({}, eintrag, { blocked: 1 }), { showActions: ['block'] });
-        assert.ok(gesperrt.includes('app-iconbtn--unblock'), 'kein Freigeben-Symbol');
-        assert.ok(!gesperrt.includes('app-iconbtn--block '), 'Sperren-Symbol steht noch da');
-        ok('der gesperrte Standort zeigt Freigeben statt Sperren');
+        assert.strictEqual(angefordert, '',
+            'die Kundentabelle baut weiterhin Sperren/Freigeben');
+        const auchNicht = tabelle.actionCellHtml(eintrag, { showActions: ['view', 'block'] });
+        assert.ok(!auchNicht.includes('block-location-btn'), 'Sperren-Knopf steht noch da');
+        assert.ok(!auchNicht.includes('unblock-location-btn'), 'Freigeben-Knopf steht noch da');
+        ok('die Kundentabelle kennt Sperren und Freigeben nicht mehr');
 
         // Ohne Aktion keine leere Huelle im Markup.
         assert.strictEqual(tabelle.actionCellHtml(eintrag, { showActions: [] }), '');

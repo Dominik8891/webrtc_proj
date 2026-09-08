@@ -90,11 +90,12 @@ window.webrtcApp.review = {
                 return;
             }
 
-            const entfernen = e.target.closest('.rev-remove');
-            if (entfernen) {
-                e.preventDefault();
-                this.entferne(entfernen);
-            }
+            // HIER HING DAS ENTFERNEN EINER BEWERTUNG (.rev-remove). Der
+            // Knopf stand fuer die Moderation an jeder Bewertung der
+            // Standortseite und des Guide-Profils; er ist mit dem
+            // Verwaltungsbereich in assets/js/admin.js gezogen. Dieses Modul
+            // gehoert dem KUNDEN: Es fragt nach der Fuehrung und nimmt die
+            // Antwort entgegen.
         });
     },
 
@@ -396,70 +397,6 @@ window.webrtcApp.review = {
         } catch (e) {
             // Kein Speicher, kein Merken. Die Karte ist trotzdem weg.
         }
-    },
-
-    // -----------------------------------------------------------------
-    // Moderation
-    // -----------------------------------------------------------------
-
-    /**
-     * Ein Admin entfernt eine Bewertung.
-     *
-     * MIT RUECKFRAGE, und mit derselben wie ueberall sonst in dieser
-     * Anwendung (notify.confirm). Der Knopf steht auf einer Seite voller
-     * fremder Texte; ein Fehlklick soll dort nicht die erste Handlung sein.
-     *
-     * ENTFERNT WIRD NICHT GELOESCHT: Die Zeile bleibt in der Datenbank stehen
-     * und wird ausgeblendet (App\Model\TourReview::remove). Der Eintrag
-     * verschwindet hier von der Seite, ohne sie neu zu laden - er ist weg,
-     * und mehr hat der Server dazu nicht zu sagen.
-     *
-     * @param {HTMLElement} knopf
-     */
-    entferne(knopf) {
-        const id = parseInt(knopf.getAttribute('data-id'), 10) || 0;
-        if (!id || this.busy) return;
-
-        window.webrtcApp.notify.confirm({
-            title: 'Bewertung entfernen?',
-            text: 'Die Bewertung verschwindet von dieser Seite und zählt nicht mehr '
-                + 'im Durchschnitt. Gelöscht wird sie nicht – sie bleibt nachvollziehbar '
-                + 'gespeichert. Der Kunde kann diese Führung danach nicht erneut bewerten.',
-            confirmText: 'Entfernen',
-            danger: true
-        }).then(ok => {
-            if (!ok) return;
-            this.busy = true;
-
-            fetch('index.php?act=review_remove', {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: id })
-            })
-            .then(r => r.json())
-            .then(antwort => {
-                this.busy = false;
-                if (!antwort || !antwort.success) {
-                    window.webrtcApp.notify.error(
-                        (antwort && antwort.error) || 'Das hat nicht geklappt.'
-                    );
-                    return;
-                }
-                knopf.closest('.rev-item')?.remove();
-                // Der Durchschnitt daneben stimmt jetzt nicht mehr. Ihn hier
-                // nachzurechnen waere eine zweite Fassung der Regel, ab wann
-                // es ueberhaupt einen gibt (App\Model\TourReview) - die Seite
-                // wird stattdessen beim naechsten Aufruf richtig gebaut.
-                window.webrtcApp.notify.info(
-                    'Entfernt. Der Durchschnitt stimmt nach dem nächsten Laden der Seite.'
-                );
-            })
-            .catch(() => {
-                this.busy = false;
-                window.webrtcApp.notify.error('Keine Verbindung. Bitte erneut versuchen.');
-            });
-        });
     },
 
     // -----------------------------------------------------------------

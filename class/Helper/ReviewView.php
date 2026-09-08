@@ -60,7 +60,14 @@ class ReviewView
      * @param array<string,mixed> $in_ansicht Was der Controller entschieden hat:
      *        'eigen'      bool   Sieht der Bewertete selbst zu?
      *        'mit_ort'    bool   Steht bei jeder Bewertung die Fuehrung dabei?
-     *        'moderation' bool   Darf der Betrachter Bewertungen entfernen?
+     *
+     * HIER STAND EIN DRITTER SCHALTER: 'moderation'. Er blendete an jeder
+     * Bewertung einen Entfernen-Knopf ein, sobald der Betrachter das Recht
+     * review.remove hatte. Damit sah dieser Block fuer einen einzigen
+     * Betrachter anders aus als fuer alle anderen - mitten auf einer Seite,
+     * die fuer Kunden gebaut ist. Entfernt wird jetzt im Verwaltungsbereich
+     * (index.php?act=admin_reviews), und dieser Block sieht fuer jeden
+     * gleich aus.
      * @return string HTML
      */
     public static function blockHtml(array $in_summary, array $in_bewertungen,
@@ -218,11 +225,7 @@ class ReviewView
      * Der Tag beantwortet keine Frage, die jemand hat - "März 2026" sagt
      * alles, worauf es ankommt, naemlich wie alt die Auskunft ist.
      *
-     * DER ENTFERNEN-KNOPF steht nur bei der Moderation und ist bewusst
-     * unauffaellig: Er ist die Ausnahme fuer eine Beschwerde und nicht das,
-     * worum es auf dieser Seite geht. Was er ausloest, ist kein Loeschen -
-     * die Zeile bleibt stehen und wird ausgeblendet (App\Model\TourReview).
-     *
+
      * @param array<string,mixed> $in_bewertung
      * @param array<string,mixed> $in_ansicht
      * @return string HTML
@@ -242,18 +245,12 @@ class ReviewView
 
         $meta = implode(' · ', array_filter([$ort, $monat], static fn($t) => $t !== ''));
 
-        $entfernen = !empty($in_ansicht['moderation'])
-            ? '<button type="button" class="btn btn-secondary btn-sm rev-remove"'
-              . ' data-id="' . (int)($in_bewertung['id'] ?? 0) . '">Entfernen</button>'
-            : '';
-
         return '<li class="rev-item">'
              .   '<div class="rev-item__head">'
              .     self::sterneHtml($sterne)
              .     ($meta !== ''
                     ? '<span class="rev-item__meta">' . self::esc($meta) . '</span>'
                     : '')
-             .     $entfernen
              .   '</div>'
              .   ($text !== ''
                   ? '<p class="rev-item__text">' . nl2br(self::esc($text), false) . '</p>'
