@@ -1122,13 +1122,29 @@ $(document).ready(function () {
     }
 
     // Eigene Standorte auf der Einstellungsseite. Geladen wird erst beim
-    // Aufklappen - die Tabelle ist bis dahin ausgeblendet.
-    if ($(tabellen.TABLES.own.selector).length) {
-        $('#showOwnLocationsBtn').show().on('click', function(e) {
-            e.preventDefault();
-            $('#myLocationsSection').toggle();
-            tabellen.bindEvents(tabellen.optionsFor('own'));
+    // Aufklappen - die Zeilen, nicht der Kasten.
+    //
+    // HIER STAND EIN JAVASCRIPT-SCHALTER: Ein Knopf mit display:none, den
+    // erst .show() sichtbar machte, und ein Bereich, den erst .toggle()
+    // aufklappte. Blieb dieses Skript aus - eine Bibliothek, die nicht laedt,
+    // ein Modul, das vorher wirft -, verlor ein Guide den Weg zu seinen
+    // eigenen Standorten vollstaendig: kein Knopf, kein Bereich, keine
+    // Meldung.
+    //
+    // Das Aufklappen macht jetzt <details> von selbst (assets/html/
+    // settings.html). Dieses Modul haengt sich nur noch in das Ereignis ein,
+    // um die Zeilen nachzuladen - faellt es aus, steht dort eine leere
+    // Tabelle statt gar nichts.
+    const $eigene = $('#myLocationsSection');
+    if ($eigene.length && $(tabellen.TABLES.own.selector).length) {
+        // NUR BEIM AUFKLAPPEN. Das Ereignis kommt in beide Richtungen; der
+        // alte Klick-Handler lud die Tabelle auch beim Zuklappen neu.
+        $eigene.on('toggle', function() {
+            if (this.open) tabellen.bindEvents(tabellen.optionsFor('own'));
         });
+        // Steht der Kasten schon offen (der Browser merkt sich das bei einem
+        // Neuladen), kommt kein toggle mehr - dann jetzt.
+        if ($eigene.prop('open')) tabellen.bindEvents(tabellen.optionsFor('own'));
     }
 
     // Hier stand das Absenden des Dialogs "Beschreibung aendern". Der

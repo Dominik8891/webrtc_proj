@@ -1596,6 +1596,16 @@ Die **Kopfleiste bleibt** dieselbe wie überall — samt Anfragen- und Nachricht
 
 ---
 
+## 🧷 Was ohne JavaScript wegfällt, darf kein Weg sein
+
+Auf der Kontoseite standen ein Knopf mit `style="display:none"` und ein Bereich mit `style="display:none"`. **Sichtbar** wurden beide erst, wenn ein Skript lief — `$('#showOwnLocationsBtn').show()`. Blieb das aus (eine Bibliothek, die nicht lädt; ein anderes Modul, das vorher wirft), verlor ein Guide den Weg zu seinen **eigenen Standorten** vollständig: kein Knopf, kein Bereich, keine Meldung. Er hätte nicht einmal gemerkt, dass etwas fehlt.
+
+Das ist jetzt ein `<details>`/`<summary>` — dieselbe Antwort wie beim Benutzermenü der Kopfleiste: Es lässt sich mit der Tastatur bedienen und geht auch dann auf, wenn kein Skript geladen wurde. `locations_table.js` hängt sich nur noch in das `toggle`-Ereignis ein, um die **Zeilen** nachzuladen — und wenn es das nicht tut, steht dort eine leere Tabelle statt gar nichts.
+
+**Die Regel dahinter** gilt in dieser Anwendung schon länger und ist hier nur nachgezogen: Was ein Skript einblenden muss, ist ohne Skript weg. Der Bereitschaftsschalter und die beiden Zähler der Kopfleiste werden deshalb serverseitig mit ihrem Zustand ausgeliefert; nachgezogen wird nur die Zahl. Ein Test hält das für die eigenen Standorte fest: kein `display:none` auf dem Weg dorthin, und im Initialisierungsblock von `locations_table.js` kein `.show()`.
+
+---
+
 ## 🗑️ Ein gelöschtes Konto verschwindet
 
 **Löschen setzt nur ein Kennzeichen.** `User::del_it()` schreibt `deleted = 1`; die Zeile bleibt stehen, damit vergangene Führungen, Bewertungen und spätere Abrechnungen nachvollziehbar bleiben. Der Fremdschlüssel hilft dabei nicht: `ON DELETE CASCADE` greift nur bei einem echten `DELETE`, und das findet nie statt.

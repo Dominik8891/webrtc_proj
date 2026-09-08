@@ -7213,6 +7213,64 @@ foreach (['unvollständiges Angebot', 'Aufräumjob läuft'] as $wort) {
 $_SESSION = $sessionVorher3;
 ok('fuenf Vorraete, jeder mit einem Weg - und der leere Fall zaehlt alle fuenf auf');
 
+// =====================================================================
+fwrite(STDERR, "\nDer Weg zu den eigenen Standorten haengt nicht an JavaScript\n");
+// =====================================================================
+//
+// DER BEFUND: Auf der Einstellungsseite standen ein Knopf mit
+// style="display:none" und ein Bereich mit style="display:none". SICHTBAR
+// wurden beide erst, wenn ein Skript lief -
+// $('#showOwnLocationsBtn').show(). Blieb das aus - eine Bibliothek, die
+// nicht laedt, ein anderes Modul, das vorher wirft -, verlor ein Guide den
+// Weg zu seinen eigenen Standorten VOLLSTAENDIG: kein Knopf, kein Bereich,
+// keine Meldung. Er haette nicht einmal gemerkt, dass etwas fehlt.
+//
+// Dieselbe Antwort wie beim Benutzermenue der Kopfleiste:
+// <details>/<summary>. Es geht mit der Tastatur auf und auch ohne Skript.
+
+$einstellungen = file_get_contents($ROOT . '/assets/html/settings.html');
+$tabellenJs2   = file_get_contents($ROOT . '/assets/js/locations_table.js');
+
+// Der Bereich klappt von selbst auf.
+check(preg_match('/<details\b[^>]*id="myLocationsSection"/', $einstellungen) === 1,
+    'der Bereich der eigenen Standorte ist kein <details>');
+check(preg_match('/<summary\b/', $einstellungen) === 1,
+    'dem Bereich fehlt die anklickbare Zusammenfassung');
+
+// KEIN display:none MEHR auf dem Weg dorthin. Das ist der Kern: Was ein
+// Skript einblenden muss, ist ohne Skript weg.
+check(preg_match('/id="myLocationsSection"[^>]*display:\s*none/', $einstellungen) === 0,
+    'der Bereich ist weiterhin per Stil versteckt');
+check(strpos($einstellungen, 'id="showOwnLocationsBtn"') === false,
+    'der Knopf, den erst ein Skript sichtbar macht, steht noch da');
+
+// Und das Skript blendet nichts mehr ein - es laedt nur noch nach.
+check(strpos($tabellenJs2, "\$('#showOwnLocationsBtn')") === false,
+    'das Modul macht weiterhin einen Knopf sichtbar');
+// Geprueft wird der INITIALISIERUNGSBLOCK und nicht die ganze Datei: Ein
+// .show() gibt es dort weiterhin, aber fuer die Kartenvorschau beim
+// Ueberfahren - die kann es ohne Skript ohnehin nicht geben. Was hier nichts
+// zu suchen hat, ist ein Einblenden beim SEITENAUFBAU.
+$readyBlock = substr($tabellenJs2, (int)strpos($tabellenJs2, '$(document).ready'));
+// Ohne Kommentare: Dort steht .show() als Beschreibung dessen, was frueher
+// passierte - und genau das soll die Pruefung nicht als Rueckfall lesen.
+$readyCode  = preg_replace('#//[^\n]*#', '', $readyBlock);
+check(strpos($readyCode, '.show()') === false,
+    'beim Seitenaufbau blendet das Modul etwas ein, was ohne Skript fehlt');
+check(strpos($tabellenJs2, "\$eigene.on('toggle'") !== false,
+    'das Nachladen haengt nicht am Aufklappen');
+// NUR beim Aufklappen: Das Ereignis kommt in beide Richtungen, und der alte
+// Klick-Handler lud die Tabelle auch beim Zuklappen neu.
+check(strpos($tabellenJs2, 'if (this.open) tabellen.bindEvents') !== false,
+    'beim Zuklappen wird die Tabelle erneut geladen');
+
+// Der Kasten darin bleibt ein Kasten mit Rumpf - die Regel aus dem Abschnitt
+// "Jeder Kasten hat einen Rumpf" gilt auch innerhalb eines <details>.
+check(preg_match('/<details.*?<div class="app-panel".*?<\/details>/s', $einstellungen) === 1,
+    'im aufklappbaren Bereich steht kein Kasten mehr');
+ok('die eigenen Standorte sind auch ohne Skript erreichbar');
+
+
 
 
 

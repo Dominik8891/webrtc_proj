@@ -73,7 +73,6 @@
 
             <div class="app-actions">
                 <a href='index.php?act=change_pw_page' class="btn btn-secondary">Passwort ändern</a>
-                <button class="btn btn-secondary" id="showOwnLocationsBtn" style="display:none;">Eigene Standorte</button>
             </div>
         </div>
     </div>
@@ -102,9 +101,29 @@
         </div>
     </div>
 
-    <!-- Eigene Standorte. Wird erst beim Aufklappen geladen
-         (assets/js/locations_table.js). -->
-    <div id="myLocationsSection" style="display:none;">
+    <!--
+        Eigene Standorte. Die Zeilen werden erst beim Aufklappen geladen
+        (assets/js/locations_table.js) - der Kasten selbst ist von Anfang an
+        da.
+
+        EIN <details> UND KEIN JAVASCRIPT-SCHALTER, und das ist der Grund:
+        Hier standen ein Knopf mit style="display:none" und ein Bereich mit
+        style="display:none", und SICHTBAR wurden beide erst, wenn ein Skript
+        lief - $('#showOwnLocationsBtn').show(). Blieb das aus, weil eine
+        Bibliothek nicht geladen wurde oder ein anderes Modul vorher warf,
+        verlor ein Guide den Weg zu seinen eigenen Standorten vollstaendig:
+        kein Knopf, kein Bereich, keine Meldung. Er haette nicht einmal
+        gemerkt, dass etwas fehlt.
+
+        Dieselbe Antwort wie beim Benutzermenue der Kopfleiste
+        (App\Helper\ViewHelper::userMenu): <details>/<summary> laesst sich mit
+        der Tastatur bedienen und geht auch dann auf, wenn kein Skript geladen
+        wurde. Das Skript haengt sich nur noch in das toggle-Ereignis ein, um
+        die Zeilen nachzuladen - und wenn es das nicht tut, steht dort eine
+        leere Tabelle statt gar nichts.
+    -->
+    <details class="app-disclosure" id="myLocationsSection">
+        <summary class="app-disclosure__summary">Meine Standorte</summary>
         <div class="app-panel" style="margin-top: var(--app-space-4);">
             <div class="app-panel__head">
                 <h2 class="app-page-head__title">Meine Standorte</h2>
@@ -137,7 +156,7 @@
                 </table>
             </div>
         </div>
-    </div>
+    </details>
 </div>
 
 <!-- Kleine Kartenvorschau beim Ueberfahren der Beschreibung -->

@@ -417,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (335 Prüfungen)
+## Was `server_test.php` prüft (336 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1480,6 +1480,19 @@ mitnimmt:
   lässt; der Cron-Befund **zuletzt** (die vier davor sind Vorgänge, er ist
   eine Betriebsmeldung) und mit dem Dateinamen, der einzurichten ist; und
   der leere Fall zählt alle fünf auf.
+
+### Der Weg zu den eigenen Standorten hängt nicht an JavaScript
+
+Ein Knopf mit `display:none`, den erst `.show()` sichtbar machte, und ein
+Bereich daneben, den erst `.toggle()` aufklappte: Blieb das Skript aus,
+verlor ein Guide den Weg zu seinen eigenen Standorten vollständig — ohne
+Knopf, ohne Bereich, ohne Meldung. Geprüft wird jetzt, dass der Bereich ein
+`<details>` mit `<summary>` ist, dass **kein** `display:none` mehr auf dem
+Weg dorthin steht, dass der alte Knopf verschwunden ist, dass der
+Initialisierungsblock von `locations_table.js` nichts mehr einblendet
+(Kommentare vorher entfernt — dort steht `.show()` als Beschreibung des
+alten Zustands), dass das Nachladen am `toggle` hängt und **nur beim
+Aufklappen** greift, und dass im Bereich weiterhin ein Kasten steht.
 
 ## Grenzen
 

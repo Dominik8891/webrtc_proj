@@ -3416,3 +3416,41 @@ table.dataTable td.col-review      { min-width: 150px; }
         border: 0;
     }
 }
+
+/* ---------------------------------------------------------------------------
+   Aufklappbarer Abschnitt.
+
+   DASSELBE MITTEL WIE BEIM BENUTZERMENUE der Kopfleiste (.app-menu):
+   <details>/<summary> statt eines Schalters aus JavaScript. Es laesst sich mit
+   der Tastatur bedienen, und es geht auch dann auf, wenn kein Skript geladen
+   wurde - der Grund steht ausfuehrlich in assets/html/settings.html.
+
+   Die Zusammenfassung sieht aus wie ein Sekundaerknopf, weil sie an der
+   Stelle steht, an der vorher einer stand. Das Dreieck bleibt: Anders als im
+   Kontomenue, wo der Pfeil eigens gezeichnet wird, ist hier nichts daneben,
+   was die Richtung anzeigen koennte.
+   --------------------------------------------------------------------------- */
+
+.app-disclosure { margin-top: var(--app-space-4); }
+
+.app-disclosure__summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    padding: var(--app-space-2) var(--app-space-4);
+    border: 1px solid var(--app-border-strong);
+    border-radius: var(--app-radius);
+    background: var(--app-surface);
+    color: var(--app-text);
+    font-size: var(--app-text-base);
+    font-weight: var(--app-weight-medium);
+    cursor: pointer;
+    user-select: none;
+}
+
+.app-disclosure__summary:hover { background: var(--app-surface-sunken); }
+
+.app-disclosure__summary:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--app-accent-ring);
+}
