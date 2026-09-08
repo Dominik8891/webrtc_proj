@@ -5691,6 +5691,27 @@ fwrite(STDERR, "\nJeder Kasten hat einen Rumpf\n");
  *         (Bootstrap). Ein Rumpf darum wuerde sie ein zweites Mal einruecken
  *         und den Zweck der Flaeche zerstoeren. So gebaut sind die drei
  *         Listenseiten und der aufklappbare Standortkasten der Einstellungen.
+ *
+ * JEDES KIND MUSS EINES DAVON SEIN - nicht bloss irgendeines.
+ *
+ * DAS WAR DIE LUECKE DIESER PRUEFUNG. In ihrer ersten Fassung reichte EIN
+ * erlaubtes Kind, und damit ging der naheliegendste Halbfehler durch: ein
+ * Rumpf, der nur einen TEIL des Inhalts umschliesst.
+ *
+ *     <section class="app-panel">
+ *         <h2>An meine Standorte</h2>          <-- steht weiter am Rand
+ *         <p>Beschreibungstext.</p>            <-- ebenso
+ *         <div class="app-panel__body">        <-- das eine erlaubte Kind
+ *             <ul class="req-list"></ul>
+ *         </div>
+ *     </section>
+ *
+ * Der Kasten haette einen Rumpf, die Ueberschriften laegen trotzdem buendig
+ * am Rand - genau das Bild, das gemeldet wurde. Die alte Fassung sah das
+ * nicht; sie war zufrieden, sobald irgendwo ein Rumpf stand.
+ *
+ * Ein unmittelbarer TEXT im Kasten zaehlt mit: Auch er liegt am Rand, und ein
+ * Element braucht es dafuer nicht.
  */
 $erlaubteKinder = ['app-panel__body', 'app-panel__head', 'app-table-wrap'];
 
@@ -5716,13 +5737,29 @@ foreach (glob($ROOT . '/assets/html/*.html') as $datei) {
     $xp = new \DOMXPath($doc);
     foreach ($xp->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' app-panel ')]") as $panel) {
         $geprueft++;
-        $gefunden = false;
+        $rumpfe = 0;
         foreach ($panel->childNodes as $kind) {
+            // Ein unmittelbarer Text liegt genauso am Rand wie ein Element.
+            if ($kind instanceof \DOMText) {
+                check(trim($kind->wholeText) === '', basename($datei) . ': Text liegt unmittelbar '
+                    . 'im Kasten und damit buendig an seinem Rand: "'
+                    . substr(trim($kind->wholeText), 0, 40) . '"');
+                continue;
+            }
             if (!($kind instanceof \DOMElement)) continue;
-            if (array_intersect($klassen($kind), $erlaubteKinder) !== []) { $gefunden = true; break; }
+
+            // JEDES Kind, nicht irgendeines - siehe den Kopf von
+            // $erlaubteKinder. Ein Rumpf neben einer Ueberschrift ist der
+            // Fall, den die erste Fassung dieser Pruefung durchgelassen hat.
+            check(array_intersect($klassen($kind), $erlaubteKinder) !== [],
+                basename($datei) . ': <' . $kind->nodeName . ' class="'
+                . $kind->getAttribute('class') . '"> liegt unmittelbar in einer .app-panel '
+                . 'und damit buendig an ihrem Rand. Erlaubt sind '
+                . implode(', ', $erlaubteKinder));
+            $rumpfe++;
         }
-        check($gefunden, basename($datei) . ': eine .app-panel ohne Rumpf - ihr Inhalt liegt '
-            . 'buendig am Rand. Erlaubt sind ' . implode(', ', $erlaubteKinder));
+        // Ein Kasten ganz ohne Kind hat auch keinen Rumpf.
+        check($rumpfe > 0, basename($datei) . ': eine .app-panel ohne jeden Rumpf');
     }
 }
 // Sonst ginge die Pruefung durch, weil sie nichts gefunden hat.
@@ -5750,6 +5787,85 @@ foreach (array_merge(glob($ROOT . '/class/Controller/*.php'),
 }
 check($phpKaesten >= 5, "nur $phpKaesten Kaesten aus PHP gefunden");
 ok("jeder aus PHP gebaute Kasten bringt einen Rumpf mit ($phpKaesten geprueft)");
+
+// --- Und dasselbe am AUSGELIEFERTEN Dokument ------------------------------
+//
+// WARUM NOCH EINMAL: Alles oben liest Dateien. Ausgeliefert wird aber nicht
+// die Datei, sondern das, was App\Helper\ViewHelper daraus macht -
+// template() schneidet den Kopfkommentar weg, output() setzt die Seite in
+// assets/html/index.html ein und ersetzt darin Platzhalter. Eine Pruefung,
+// die nur die Vorlage ansieht, sagt ueber das Ergebnis nichts aus; sie
+// koennte gruen sein, waehrend im Browser etwas anderes ankommt.
+//
+// Geprueft wird die Anfragenseite, weil sie der Anlass war - und als Gast,
+// weil der Seitenrumpf davon nicht abhaengt und der angemeldete Weg eine
+// Datenbank braeuchte.
+// IN EINEM UNTERPROZESS, und das ist kein Umweg, sondern der einzige Weg:
+// ViewHelper::output() endet mit die($out). Es gibt die Seite nicht zurueck,
+// sondern beendet das Programm - ein ob_start() davor faengt sie nicht ein,
+// der Testlauf waere an dieser Stelle einfach zu Ende. Genau deshalb kann
+// diese Pruefung auch nur EINE Seite ansehen; jede weitere braeuchte einen
+// weiteren Prozess.
+//
+// Aufgerufen wird PHP_BINARY und nicht "php": In einer Umgebung, in der
+// mehrere Fassungen liegen, soll es dieselbe sein, die diesen Test ausfuehrt.
+$bau = '$R = ' . var_export($ROOT, true) . '; chdir($R);'
+     . '$_SESSION = []; $_ENV["APP_BASE_URL"] = "https://beispiel.test/";'
+     . 'foreach (["Helper/Role","Helper/Permission","Helper/Auth","Helper/Theme",'
+     . '"Helper/Url","Helper/ViewHelper"] as $k) { require_once "$R/class/$k.php"; }'
+     . 'App\\Helper\\ViewHelper::output('
+     . 'App\\Helper\\ViewHelper::template("$R/assets/html/requests_page.html"));';
+$ausgeliefert = (string)shell_exec(
+    escapeshellarg(PHP_BINARY) . ' -r ' . escapeshellarg($bau) . ' 2>/dev/null'
+);
+
+check(strlen($ausgeliefert) > 2000,
+    'die Seite wurde gar nicht gebaut (' . strlen($ausgeliefert) . ' Zeichen)');
+// Der Beleg, dass wirklich der Ausgabeweg gelaufen ist und nicht nur die
+// Vorlage durchgereicht wurde: Das Grundgeruest kommt aus index.html.
+check(strpos($ausgeliefert, '</html>') !== false,
+    'die Ausgabe traegt kein Seitengeruest - output() ist nicht gelaufen');
+check(strpos($ausgeliefert, '###CONTENT###') === false,
+    'der Platzhalter steht noch in der Ausgabe');
+
+$doc = new \DOMDocument();
+$vorher = libxml_use_internal_errors(true);
+$doc->loadHTML('<?xml encoding="UTF-8">' . $ausgeliefert);
+libxml_clear_errors();
+libxml_use_internal_errors($vorher);
+$xp = new \DOMXPath($doc);
+
+// Dieselbe strenge Regel wie oben, nur auf dem fertigen Dokument.
+$kaesten = $xp->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' app-panel ')]");
+check($kaesten->length === 2, 'die ausgelieferte Anfragenseite hat nicht zwei Kaesten, sondern '
+    . $kaesten->length);
+foreach ($kaesten as $panel) {
+    foreach ($panel->childNodes as $kind) {
+        if ($kind instanceof \DOMText) {
+            check(trim($kind->wholeText) === '', 'ausgeliefert: Text liegt unmittelbar im Kasten');
+            continue;
+        }
+        if (!($kind instanceof \DOMElement)) continue;
+        check(array_intersect($klassen($kind), $erlaubteKinder) !== [],
+            'ausgeliefert: <' . $kind->nodeName . ' class="' . $kind->getAttribute('class')
+            . '"> liegt buendig am Rand seines Kastens');
+    }
+}
+
+// Und die beiden Ueberschriften namentlich: Sie waren der Anlass, und ein
+// Rumpf um irgendetwas anderes hilft ihnen nicht.
+foreach (['req-in-title', 'req-out-title'] as $id) {
+    $h = $xp->query("//*[@id='$id']")->item(0);
+    check($h !== null, "ausgeliefert: die Ueberschrift $id fehlt");
+    $imRumpf = false;
+    for ($el = $h->parentNode; $el instanceof \DOMElement; $el = $el->parentNode) {
+        if (in_array('app-panel__body', $klassen($el), true)) { $imRumpf = true; break; }
+        if (in_array('app-panel', $klassen($el), true)) break;   // Kasten erreicht, kein Rumpf dazwischen
+    }
+    check($imRumpf, "ausgeliefert: $id liegt im Kasten, aber nicht in dessen Rumpf - "
+        . 'die Ueberschrift steht buendig am Rand');
+}
+ok('auch im ausgelieferten Dokument liegt jeder Inhalt in einem Rumpf');
 
 // --- Die Anfragenseite im Einzelnen ---------------------------------------
 //

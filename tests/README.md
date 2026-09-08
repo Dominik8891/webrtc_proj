@@ -404,7 +404,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (293 Prüfungen)
+## Was `server_test.php` prüft (294 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1130,11 +1130,31 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
     und sahen nur eingerückt aus, weil sie ihren *eigenen* Innenabstand haben
     (`.req-item`). Die Überschrift daneben hatte nichts dergleichen.
 
-    * **Jede `.app-panel` in den Vorlagen hat ein erlaubtes Kind** — geprüft
-      über den wirklichen Baum (`DOMDocument`/XPath), nicht über Textzählung:
-      Ein Kasten mit Rumpf *und* ein zweiter ohne fallen bei einer Zählung je
-      Datei nicht auf. Erlaubt sind `app-panel__body`, `app-panel__head` und
-      `app-table-wrap`.
+    * **Jedes Kind einer `.app-panel` ist ein erlaubter Rumpf** — nicht bloß
+      irgendeines. Geprüft über den wirklichen Baum (`DOMDocument`/XPath),
+      nicht über Textzählung: Ein Kasten mit Rumpf *und* ein zweiter ohne
+      fallen bei einer Zählung je Datei nicht auf. Erlaubt sind
+      `app-panel__body`, `app-panel__head` und `app-table-wrap`; ein
+      unmittelbarer **Text** im Kasten zählt mit, auch er liegt am Rand.
+
+      **Das war die Lücke der ersten Fassung.** Sie verlangte *ein* erlaubtes
+      Kind und ließ damit den naheliegendsten Halbfehler durch: einen Rumpf,
+      der nur einen Teil des Inhalts umschließt.
+
+      ```html
+      <section class="app-panel">
+          <h2>An meine Standorte</h2>       <!-- steht weiter am Rand -->
+          <p>Beschreibungstext.</p>         <!-- ebenso -->
+          <div class="app-panel__body">     <!-- das eine erlaubte Kind -->
+              <ul class="req-list"></ul>
+          </div>
+      </section>
+      ```
+
+      Der Kasten hätte einen Rumpf, die Überschriften lägen trotzdem bündig am
+      Rand — genau das gemeldete Bild. Beide Fehlerbilder wurden gegengeprüft:
+      *kein* Rumpf und *halber* Rumpf lassen die Prüfung anschlagen, und sie
+      benennt das Element.
     * **`app-table-wrap` ist die Ausnahme und kein Versehen.** Eine Tabelle
       soll von Rand zu Rand laufen; ihre Zellen tragen den Abstand selbst.
       Ein Rumpf darum würde sie ein zweites Mal einrücken. So gebaut sind die
@@ -1147,6 +1167,20 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
     * **Beide Zählungen sind gegen Leerlauf abgesichert** — findet die Prüfung
       weniger Kästen als erwartet, schlägt sie an, statt durchzugehen, weil sie
       nichts gefunden hat.
+    * **Dieselbe Regel am ausgelieferten Dokument.** Alles andere liest
+      *Dateien*; ausgeliefert wird aber, was `ViewHelper` daraus macht —
+      `template()` schneidet den Kopfkommentar weg, `output()` setzt die Seite
+      in `index.html` ein. Eine Prüfung, die nur die Vorlage ansieht, sagt über
+      das Ergebnis nichts aus. Die Anfragenseite wird deshalb wirklich gebaut
+      und im Ergebnis nachgesehen, ob beide Überschriften in einem Rumpf
+      liegen.
+
+      Das läuft in einem **Unterprozess** (`PHP_BINARY -r`), und das ist kein
+      Umweg: `ViewHelper::output()` endet mit `die($out)` — es gibt die Seite
+      nicht zurück, sondern beendet das Programm. Ein `ob_start()` davor fängt
+      sie nicht ein, der Testlauf wäre an der Stelle zu Ende. Aus demselben
+      Grund sieht diese Prüfung nur *eine* Seite an; jede weitere bräuchte
+      einen weiteren Prozess.
 
     Geprüft wird als **Regel und nicht als Einzelfall** — dieselbe Überlegung
     wie bei den verschachtelten Formularen (35): Ein Bauteil, das man halb
