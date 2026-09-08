@@ -6223,6 +6223,102 @@ foreach (['req-in-title' => 'req-incoming', 'req-out-title' => 'req-outgoing'] a
 }
 ok('auf der Anfragenseite liegen Ueberschrift, Hinweis und Liste im selben Rumpf');
 
+// =====================================================================
+fwrite(STDERR, "\nDie Kopfleiste bricht um, die Knoepfe nicht\n");
+// =====================================================================
+//
+// DER BEFUND: Bei knappem Platz gab die Aktionszeile nach - erst stapelten
+// sich ihre beiden Knoepfe untereinander, dann brach auch noch die
+// Beschriftung "Neue Lokation hinzufuegen" um. Die Leiste behielt dabei ihre
+// festen 56 Punkte, der zu hohe Knopf stand also ueber ihren Rand hinaus.
+// Gemessen im Browser (Chromium): Bei 960 Punkten Fensterbreite war die
+// Aktionszeile 64 Punkte hoch, bei 820 sogar 83 - in einer 56 Punkte hohen
+// Leiste.
+//
+// DIE REGEL DAGEGEN hat zwei Haelften, und einzeln taugt keine davon etwas:
+// Die Bedienelemente behalten ihre Hoehe (sie schrumpfen nicht und brechen
+// ihren Text nicht um), und DAFUER darf die Leiste umbrechen und hoeher
+// werden. Geprueft werden hier beide - denn ohne die zweite Haelfte laufen
+// die Knoepfe waagerecht aus der Leiste heraus statt senkrecht.
+$topbar = $themeCss;
+
+/**
+ * Liest den Rumpf einer Regel aus der Stilvorlage.
+ *
+ * Uebergeben wird der Wahlausdruck MIT seiner geschweiften Klammer, damit
+ * ".app-topbar {" nicht auf ".app-topbar__actions {" trifft.
+ */
+$regel = function (string $wahl) use ($topbar): string {
+    $anfang = strpos($topbar, $wahl);
+    if ($anfang === false) return '';
+    $anfang += strlen($wahl);
+    $ende = strpos($topbar, '}', $anfang);
+    return $ende === false ? '' : substr($topbar, $anfang, $ende - $anfang);
+};
+
+// --- Erste Haelfte: die Leiste darf umbrechen -----------------------------
+$bar = $regel('.app-topbar {');
+check(strpos($bar, 'flex-wrap: wrap') !== false,
+    'die Kopfleiste darf nicht umbrechen - dann bricht wieder ihr Inhalt');
+check(strpos($bar, 'min-height: var(--app-topbar-height)') !== false,
+    'die Kopfleiste hat keine Mindesthoehe');
+// EINE FESTE HOEHE WAERE DER FEHLER SELBST: Sie war der Grund, aus dem der
+// umgebrochene Knopf ueber den Rand hinausstand.
+check(preg_match('/(^|;|\s)height:\s*var\(--app-topbar-height\)/', $bar) !== 1,
+    'die Kopfleiste hat wieder eine feste Hoehe - dann ragt der Inhalt heraus');
+
+// --- Zweite Haelfte: nichts darin gibt nach -------------------------------
+check(strpos($regel('.app-topbar__actions > * {'), 'flex: none') !== false,
+    'die Knoepfe der Aktionszeile schrumpfen wieder - dann bricht ihr Text um');
+check(strpos($regel('.app-topbar__actions {'), 'flex-wrap: nowrap') !== false,
+    'die Aktionszeile stapelt ihre Knoepfe wieder untereinander');
+
+// Die Liste der Bedienelemente, die ihren Text nicht umbrechen duerfen -
+// gesucht wird der EINE Block, in dem sie zusammen stehen. Zwei Bloecke mit
+// derselben Angabe waeren zwei Gelegenheiten, das naechste Element nur in
+// einem davon nachzutragen.
+check(preg_match('/((?:\.[a-z_ .-]+,\s*\n)+[^{}\n]*)\{\s*\n\s*white-space: nowrap;\s*\n\s*\}/',
+    $topbar, $mNowrap) === 1, 'der Block gegen den Zeilenumbruch fehlt');
+$nowrapBlock = $mNowrap[1] ?? '';
+foreach (['.app-topbar .btn', '.app-topbar__brand', '.app-menu__button',
+          '.app-ready', '.app-requests', '.app-chats'] as $teil) {
+    check(strpos($nowrapBlock, $teil) !== false, "$teil darf seinen Text umbrechen");
+}
+
+// --- Das Konto steht rechts, auch in der zweiten Zeile --------------------
+//
+// Der Fuellraum wirkt nur in der ERSTEN Zeile. Ohne das Aussenmass stuende
+// das Konto nach einem Umbruch am linken Rand - unter rechtsbuendigen
+// Knoepfen.
+check(strpos($regel('.app-topbar__account {'), 'margin-left: auto') !== false,
+    'das Konto rutscht beim Umbruch an den linken Rand');
+
+// --- Und die schmalen Geraete --------------------------------------------
+//
+// Dort bekommt die Aktionszeile ihre eigene Zeile: Marke und Konto fuellen
+// auf 320 Punkten die erste bereits aus, daneben blieben ihr null Punkte.
+check(preg_match('/@media \(max-width: 700px\).*?\.app-topbar__actions \{[^}]*flex: 1 1 100%/s', $topbar) === 1,
+    'auf schmalen Geraeten bekommt die Aktionszeile keine eigene Zeile');
+check(preg_match('/@media \(max-width: 700px\).*?\.app-topbar__actions \{[^}]*order: 1/s', $topbar) === 1,
+    'die Aktionszeile steht vor dem Konto - das gehoert nach oben rechts');
+// Ein Gast hat dort nichts stehen. Ohne diese Regel bliebe eine leere zweite
+// Zeile samt ihrem Abstand.
+check(strpos($topbar, '.app-topbar__actions:not(:has(> :not(:empty)))') !== false,
+    'eine leere Aktionszeile belegt weiterhin eine Zeile');
+ok('die Leiste bricht um, die Bedienelemente behalten ihre Hoehe');
+
+// --- Zwei Zaehler nebeneinander muessen unterscheidbar bleiben ------------
+//
+// Unter 700 Punkten faellt das Wort weg und nur die Zahl bleibt. Seit es
+// ZWEI Zaehler gibt, staenden dort zwei gleich aussehende Kreise mit einer
+// Zahl darin - und keiner sagte, wovon er spricht.
+check(preg_match('/@media \(max-width: 700px\).*?\.app-requests::before[^}]*mask-image: var\(--icon-inbox\)/s', $topbar) === 1,
+    'der Anfragenzaehler traegt im schmalen Fall kein eigenes Zeichen');
+check(preg_match('/@media \(max-width: 700px\).*?\.app-chats::before[^}]*mask-image: var\(--icon-chat\)/s', $topbar) === 1,
+    'der Nachrichtenzaehler traegt im schmalen Fall kein eigenes Zeichen');
+check(strpos($topbar, '--icon-inbox:') !== false, 'das Zeichen der Ablage fehlt in der Palette');
+ok('die beiden Zaehler sind auch ohne ihre Beschriftung auseinanderzuhalten');
+
 
 PdoConnect::$connection = new FakeConnection();
 

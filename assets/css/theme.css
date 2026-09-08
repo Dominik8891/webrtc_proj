@@ -153,6 +153,7 @@
        nicht als SVG im Markup, weil die Tabellen teils in PHP und teils in
        JavaScript gebaut werden - so gibt es jede Zeichnung nur einmal.
        Die Farbe kommt ueber currentColor aus dem Knopf, nicht aus dem Bild. */
+    --icon-inbox: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 13h5l1.5 3h5L16 13h5'/%3E%3Cpath d='M5.5 4h13l2.5 9v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5Z'/%3E%3C/svg%3E");
     --icon-chat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 11.5a8.4 8.4 0 0 1-9 8.4 9.9 9.9 0 0 1-3.9-.8L3 21l1.9-4.6A8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4Z'/%3E%3C/svg%3E");
     --icon-edit: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");
     --icon-trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M19 6l-1 14H6L5 6'/%3E%3Cpath d='M10 11v6M14 11v6'/%3E%3C/svg%3E");
@@ -217,7 +218,12 @@
     --app-shadow:    0 2px 8px rgba(19, 23, 30, 0.08);
     --app-shadow-lg: 0 8px 28px rgba(19, 23, 30, 0.16);
 
-    /* --- Kopfleiste ----------------------------------------------------- */
+    /* --- Kopfleiste -----------------------------------------------------
+       DIE MINDESTHOEHE, nicht die Hoehe. Reicht der Platz nicht, bricht die
+       Leiste um und wird hoeher (siehe .app-topbar). Wer sich daran
+       ausrichtet, haelt damit einen Mindestabstand und keinen genauen -
+       fuer die Hinweise oben (.app-toasts) und den Stapel der Chatfenster
+       reicht das, denn die Leiste scrollt mit und steht nicht fest. */
     --app-topbar-height: 56px;
 
     /* --- Bewegung ------------------------------------------------------- */
@@ -330,12 +336,47 @@ a:hover {
    Anwendungsrahmen: Kopfleiste und Inhaltsbereich
    =========================================================================== */
 
+/* ---------------------------------------------------------------------------
+   DIE LEISTE BRICHT UM, DIE KNOEPFE NICHT
+   ---------------------------------------------------------------------------
+   DER BEFUND: Bei knappem Platz schrumpften die Knoepfe der Aktionszeile, bis
+   ihre Beschriftung umbrach - "Neue Lokation hinzufuegen" wurde zweizeilig und
+   damit doppelt so hoch wie die Knoepfe daneben, und der naechste rutschte
+   darunter. Die Leiste behielt dabei ihre festen 56 Punkte, also stand der zu
+   hohe Knopf ueber ihren Rand hinaus. Das sah nach einem Fehler aus, und es
+   war einer.
+
+   DIE REGEL DAGEGEN besteht aus zwei Haelften, und nur zusammen ergeben sie
+   etwas:
+
+     1. KEIN BEDIENELEMENT BRICHT INTERN UM. Sie schrumpfen nicht mehr unter
+        ihre Textbreite (flex: none an den Kindern der Aktionszeile) und ihr
+        Text bleibt in einer Zeile (white-space: nowrap). Damit behaelt jedes
+        von ihnen seine Hoehe - egal, wie schmal das Fenster wird.
+
+     2. DAFUER BRICHT DIE LEISTE UM. Reicht der Platz nicht, wandert der
+        letzte Block in eine zweite Zeile und die Leiste wird hoeher. Das ist
+        der Preis dafuer, und er ist der richtige: Eine Leiste, die zwei
+        Zeilen hoch ist, sieht aus wie eine Entscheidung; ein Knopf, der aus
+        ihr herausragt, sieht aus wie ein Versehen.
+
+   DESHALB min-height STATT height. Solange alles in eine Zeile passt, ist die
+   Leiste genau so hoch wie vorher - die Hoehe steht weiterhin in
+   --app-topbar-height, und alles, was sich daran ausrichtet (das Menue, die
+   Randkarten), stimmt unveraendert. Erst beim Umbruch waechst sie.
+
+   Der senkrechte Innenabstand ist neu und wird im einzeiligen Fall NICHT
+   sichtbar: Der hoechste Block misst rund 36 Punkte, mit zweimal 8 Punkten
+   sind das 52 - die Mindesthoehe von 56 gewinnt. Er wirkt erst in der zweiten
+   Zeile, wo er den Abstand zum Rand traegt.
+   --------------------------------------------------------------------------- */
 .app-topbar {
     display: flex;
     align-items: center;
-    gap: var(--app-space-3);
-    height: var(--app-topbar-height);
-    padding: 0 var(--app-space-5);
+    flex-wrap: wrap;
+    gap: var(--app-space-2) var(--app-space-3);
+    min-height: var(--app-topbar-height);
+    padding: var(--app-space-2) var(--app-space-5);
     background: var(--app-surface);
     border-bottom: 1px solid var(--app-border);
     position: relative;
@@ -373,49 +414,143 @@ a:hover {
     font-weight: var(--app-weight-bold);
 }
 
+/* Der Fuellraum schiebt alles Weitere nach rechts. Er traegt keine Breite und
+   faellt beim Umbruch deshalb nicht ins Gewicht - er bleibt immer in der
+   ersten Zeile. */
 .app-topbar__spacer { flex: 1 1 auto; }
 
+/* KEIN flex-wrap MEHR. Vorher durfte diese Zeile ihre Knoepfe untereinander
+   setzen - und weil die Leiste darueber eine feste Hoehe hatte, ragte der
+   zweite Knopf aus ihr heraus. Passen sie nicht nebeneinander, bricht jetzt
+   die LEISTE um und dieser Block wandert als Ganzes. */
 .app-topbar__actions {
     display: flex;
     align-items: center;
     gap: var(--app-space-2);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
-    min-width: 0;
 }
 
 /* Konto und Anmeldung. Getrennt von den Seitenaktionen, damit sie auf
-   schmalen Geraeten nicht mit weggeschoben werden. */
+   schmalen Geraeten nicht mit weggeschoben werden.
+ *
+ * margin-left: auto UND der Fuellraum daneben - das ist kein Doppel: Der
+ * Fuellraum wirkt in der ERSTEN Zeile, dieses Aussenmass in jeder. Landet der
+ * Block beim Umbruch allein in der zweiten, steht er dort trotzdem rechts und
+ * nicht am linken Rand. */
 .app-topbar__account {
     display: flex;
     align-items: center;
     gap: var(--app-space-2);
     flex: none;
+    margin-left: auto;
+}
+
+/* DIE ZWEITE HAELFTE DER REGEL: Kein Bedienelement der Leiste schrumpft unter
+   seine Textbreite, und keines bricht seinen Text um.
+ *
+ * flex: none an den Kindern der Aktionszeile - das sind die Behaelter, die
+ * assets/js/ui.js fuellt. Ohne diese Angabe gaben sie unter Druck nach, und
+ * der Knopf darin brach um.
+ *
+ * white-space: nowrap an den Bedienelementen selbst, denn nachgeben koennen
+ * sie auch ueber ihren Inhalt: Ein Knopf, der als Textfluss behandelt wird,
+ * bricht zwischen zwei Woertern um, sobald sein Kasten schmaler wird als der
+ * Satz. */
+.app-topbar__actions > * { flex: none; }
+
+/* EIN GAST HAT HIER NICHTS STEHEN. assets/js/ui.js leert beide Behaelter -
+   weder "Standort anbieten" noch "Alle Standorte" gelten fuer ihn. Der Block
+   waere dann null Punkte hoch, wuerde beim Umbruch aber trotzdem eine Zeile
+   belegen und ihren Abstand kosten: eine leere Luecke unter der Leiste, fuer
+   die es keinen Grund gibt.
+ *
+ * Gefragt wird ":hat kein nicht-leeres Kind" und nicht ":empty" - der Block
+ * SELBST ist nie leer, er enthaelt die beiden Behaelter. Ein Browser ohne
+ * :has() ignoriert die Regel und zeigt wieder die Luecke; das ist der
+ * harmlose Ausgang. */
+.app-topbar__actions:not(:has(> :not(:empty))) { display: none; }
+
+.app-topbar .btn,
+.app-topbar__brand,
+.app-menu__button,
+.app-ready,
+.app-requests,
+.app-chats {
+    white-space: nowrap;
 }
 
 @media (max-width: 700px) {
     .app-topbar {
-        height: auto;
         min-height: 48px;
         padding: var(--app-space-2) var(--app-space-3);
-        gap: var(--app-space-2);
     }
-    /* Die Aktionen bleiben in EINER Zeile und werden bei Bedarf geschoben.
-       Drei umgebrochene Knopfreihen haetten sonst die halbe Karte verdeckt.
-       Der Fuellraum entfaellt: Sonst begaenne die Zeile am rechten Rand und
-       die ersten Knoepfe waeren links abgeschnitten statt erreichbar. */
+    /* AUF DEM TELEFON BEKOMMT DIE AKTIONSZEILE IHRE EIGENE ZEILE, und zwar
+       nicht erst bei Bedarf, sondern immer (flex-basis: 100%).
+     *
+     * Der Grund ist Platz und nicht Geschmack: Marke und Konto fuellen auf
+     * einem 320 Punkte breiten Geraet die Zeile bereits aus. Blieben die
+       Aktionen daneben, bekaemen sie null Punkte - sie waeren zwar
+       schiebbar, aber es gaebe nichts zu schieben. Vorher lief die Leiste
+       an dieser Stelle waagerecht ueber den Rand hinaus.
+     *
+     * order: 1 setzt sie hinter das Konto. Ohne das stuenden sie in der
+     * ersten Zeile und das Konto darunter - und das Konto gehoert nach oben
+     * rechts, wo es auf jeder Breite steht.
+     *
+     * Ist nichts anzuzeigen (ein Gast hat weder "Standort anbieten" noch
+     * "Alle Standorte", assets/js/ui.js blendet beide aus), ist der Block
+     * null Punkte hoch. Die zweite Zeile entsteht dann zwar, kostet aber nur
+     * den Zeilenabstand - der Fall ist haeufig genug, dass er nicht
+     * uebersehen werden darf, und selten genug, dass er keine Sonderregel
+     * verdient.
+     *
+     * IN IHRER ZEILE BLEIBEN SIE NEBENEINANDER und werden bei Bedarf
+     * geschoben. Drei umgebrochene Knopfreihen haetten sonst die halbe Karte
+     * verdeckt. */
     .app-topbar__brand { flex: none; }
     .app-topbar__spacer { display: none; }
     .app-topbar__actions {
-        flex: 1 1 auto;
-        flex-wrap: nowrap;
+        order: 1;
+        flex: 1 1 100%;
         justify-content: flex-start;
         min-width: 0;
         overflow-x: auto;
         scrollbar-width: none;
     }
     .app-topbar__actions::-webkit-scrollbar { display: none; }
-    .app-topbar__actions > * { flex: none; }
+}
+
+/* Unter rund 420 Punkten passen Marke und Konto nicht mehr nebeneinander -
+   die Leiste braeuchte eine DRITTE Zeile, nur um den Namen der Anwendung
+   auszuschreiben. Das Zeichen bleibt, das Wort geht: Es fuehrt weiterhin zur
+   Startseite und ist als Marke erkennbar, und der Name steht auf jeder Seite
+   ausserdem in der Fusszeile.
+ *
+ * Die Grenze ist gemessen und nicht geraten: Marke (140) und Konto (226)
+ * ergeben mit Abstand und Rand 402 Punkte. Ohne das Wort sind es 286. */
+@media (max-width: 420px) {
+    .app-topbar__brand span:not(.app-topbar__mark) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    /* UND DIE ABSTAENDE IM KONTO RUECKEN ZUSAMMEN. Vier Bedienelemente mit je
+       acht Punkten Abstand sind auf 320 Punkten Breite zwanzig Punkte zu
+       viel - genau die, die sonst eine dritte Zeile erzwingen. Vier Punkte
+       trennen immer noch sichtbar; es ist der Abstand und nicht die
+       Trefferflaeche, die kleiner wird. */
+    .app-topbar__account { gap: var(--app-space-1); }
+    .app-requests,
+    .app-chats { gap: var(--app-space-1); }
+
+    /* Und der Rand der Leiste ebenso. Auf 320 Punkten sind die letzten acht
+       genau die, die ueber zwei oder drei Zeilen entscheiden. */
+    .app-topbar { padding-left: var(--app-space-2); padding-right: var(--app-space-2); }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1244,11 +1379,40 @@ a:hover {
 
 @media (max-width: 700px) {
     /* Auf schmalen Geraeten bleibt die Zahl, das Wort geht. Sie ist die
-       Auskunft; "Anfragen" bzw. "Nachrichten" erklaert nur, wovon. */
+       Auskunft; "Anfragen" bzw. "Nachrichten" erklaert nur, wovon.
+     *
+     * AN DIE STELLE DES WORTES TRITT EIN ZEICHEN, und das ist keine Zierde:
+     * Seit es zwei Zaehler nebeneinander gibt, staenden dort sonst zwei
+     * gleich aussehende Kreise mit einer Zahl darin, und keiner sagte, wovon
+     * er spricht. Die Ablage steht fuer die Anfragen, die Sprechblase fuer
+     * die Nachrichten - dasselbe Zeichen, mit dem in der Benutzerliste ein
+     * Chat beginnt.
+     *
+     * Fuer Vorleseprogramme aendert sich nichts: Die Bedeutung steht im
+     * title des Elements ("3 ungelesene Nachricht(en)"), das Zeichen ist
+     * reine Anzeige. */
     .app-requests,
     .app-chats { padding: 3px var(--app-space-2); }
     .app-requests__text,
     .app-chats__text { display: none; }
+
+    .app-requests::before,
+    .app-chats::before {
+        content: "";
+        flex: none;
+        width: 1rem;
+        height: 1rem;
+        background-color: currentColor;
+        -webkit-mask-position: center;  mask-position: center;
+        -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+        -webkit-mask-size: contain;     mask-size: contain;
+    }
+    .app-requests::before {
+        -webkit-mask-image: var(--icon-inbox); mask-image: var(--icon-inbox);
+    }
+    .app-chats::before {
+        -webkit-mask-image: var(--icon-chat);  mask-image: var(--icon-chat);
+    }
 }
 
 /* ---------------------------------------------------------------------------

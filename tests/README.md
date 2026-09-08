@@ -404,7 +404,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (310 Prüfungen)
+## Was `server_test.php` prüft (312 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1276,6 +1276,39 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
     wie bei den verschachtelten Formularen (35): Ein Bauteil, das man halb
     benutzen kann, wird irgendwann wieder halb benutzt.
 
+39. **Die Kopfleiste bricht um, die Knöpfe nicht** (Abschnitt „Die Kopfleiste
+    bricht um, die Knöpfe nicht" im Skript).
+
+    **Der Befund**: Bei knappem Platz gab die Aktionszeile nach — erst
+    stapelten sich ihre beiden Knöpfe untereinander, dann brach auch die
+    Beschriftung „Neue Lokation hinzufügen" um. Die Leiste behielt dabei ihre
+    festen 56 Punkte, der zu hohe Knopf stand also über ihren Rand hinaus. Im
+    Browser gemessen: bei 960 px Fensterbreite war die Aktionszeile **64 px**
+    hoch, bei 820 px **83 px** — in einer 56 px hohen Leiste.
+
+    Geprüft werden **beide Hälften der Regel**, denn einzeln taugt keine
+    davon etwas:
+
+    * Die **Leiste darf umbrechen** (`flex-wrap: wrap`) und hat eine
+      **Mindest**höhe. Eine feste `height` wäre der Fehler selbst — sie war
+      der Grund, aus dem der umgebrochene Knopf über den Rand hinausstand,
+      und wird darum ausdrücklich ausgeschlossen.
+    * **Nichts darin gibt nach**: `flex: none` an den Kindern der
+      Aktionszeile, `flex-wrap: nowrap` an der Zeile selbst, und
+      `white-space: nowrap` an allen Bedienelementen der Leiste — geprüft
+      wird, dass sie in **einem** Block stehen, damit das nächste Element
+      nicht nur in einem von zweien nachgetragen wird.
+    * Das **Konto steht rechts, auch in der zweiten Zeile**
+      (`margin-left: auto`). Der Füllraum daneben wirkt nur in der ersten.
+    * Auf **schmalen Geräten** bekommt die Aktionszeile ihre eigene Zeile
+      (`flex: 1 1 100%`, `order: 1`): Marke und Konto füllen auf 320 Punkten
+      die erste bereits aus, daneben blieben ihr null Punkte. Eine **leere**
+      Aktionszeile (ein Gast hat dort nichts) belegt keine Zeile.
+    * Und: **zwei Zähler nebeneinander bleiben unterscheidbar.** Unter
+      700 px fällt ihr Wort weg; seit es zwei gibt, stünden dort sonst zwei
+      gleich aussehende Kreise mit einer Zahl darin. Geprüft wird, dass jeder
+      im schmalen Fall sein eigenes Zeichen trägt (Ablage bzw. Sprechblase).
+
 ## Grenzen
 
 Die Skripte prüfen Logik und Zustandsübergänge, **nicht das reale Netzverhalten**.
@@ -1290,6 +1323,12 @@ Nicht abgedeckt sind insbesondere:
 - alles außerhalb von Verbindungsstabilität, Steuerprotokoll und
   Berechtigungen (Login-Ablauf, Chatinhalte, Kartendarstellung),
 - das Zusammenspiel mit einer echten Datenbank: Geprüft wird, welches SQL
-  abgesetzt wird, nicht was MySQL daraus macht.
+  abgesetzt wird, nicht was MySQL daraus macht,
+- **die tatsächliche Geometrie einer Seite**: Bei den Stilprüfungen (etwa
+  „Die Kopfleiste bricht um, die Knöpfe nicht") wird die **Regel** geprüft
+  und nicht das Ergebnis. Ob eine Leiste bei 960 px wirklich zwei Zeilen hoch
+  ist, sagt nur ein Browser; gemessen wurde das beim Bauen einmal von Hand
+  (Chromium, Breiten von 320 bis 1600), festgehalten ist hier die Regel, aus
+  der es folgt.
 
 Ein grüner Durchlauf ersetzt daher keinen Test mit zwei echten Geräten.
