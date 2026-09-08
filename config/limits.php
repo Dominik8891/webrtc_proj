@@ -356,10 +356,11 @@ return [
      * - und der schadet nicht nur diesem Server, sondern seinem Ruf bei den
      * Empfaengerservern, was sich nicht durch Abschalten reparieren laesst.
      *
-     * Der Versand ist im Registrierungsablauf derzeit auskommentiert (kein
-     * eigener SMTP-Server, Befund N-4). DIE ROUTE send_email_verify IST
-     * TROTZDEM ERREICHBAR und verschickt. Die Bremse gehoert deshalb jetzt
-     * hierher und nicht erst, wenn der Versand wieder eingeschaltet wird.
+     * DER VERSAND HAENGT INZWISCHEN AN EINEM SCHALTER (MAIL_ENABLED, siehe
+     * App\Helper\MailGate) und nicht mehr an Kommentarzeichen. Die Bremse
+     * zaehlt in BEIDEN Stellungen: Bei ausgeschaltetem Versand landet die Mail
+     * im Logfile statt beim Empfaenger - eine Grenze, die dann aussetzt, waere
+     * genau die, die beim Einschalten noch nie gelaufen ist.
      *
      * DREI JE STUNDE deckt den einzigen ehrlichen Fall ab: "die Mail kam
      * nicht an, nochmal". Wer dreimal in einer Stunde keine bekommen hat,

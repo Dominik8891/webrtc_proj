@@ -417,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (342 Prüfungen)
+## Was `server_test.php` prüft (352 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1551,6 +1551,48 @@ Dafür musste die Attrappe mitlernen: `FakeStatement` ist jetzt
 `IteratorAggregate`. `User::getAll()` durchläuft das Statement mit `foreach`
 — ohne diese Zusage lief `foreach` über die **öffentlichen Eigenschaften**
 der Attrappe, und `$row` war der SQL-Text.
+
+### Zwei Schalter statt zweier Kommentarblöcke
+
+* **Die Vorgaben sind „wie bisher".** Die wichtigste Prüfung des Abschnitts:
+  Ohne `MAIL_ENABLED` und `MAIL_VERIFY_REQUIRED` in der `.env` wird
+  verschickt und niemand ausgesperrt. Eine bestehende Installation merkt von
+  den Schaltern nichts.
+* **Beide Zustände in allen dokumentierten Schreibweisen** (`1/true/on/yes/ja`
+  gegen `0/false/off/no/nein`, Groß- und Kleinschreibung und Leerzeichen
+  eingeschlossen) — und ein **unbrauchbarer Wert fällt auf die Vorgabe
+  zurück, nicht auf „aus"**. Stillschweigend `false` daraus zu machen hieße,
+  dass ein Vertipper den Mailversand abstellt, ohne dass es jemandem
+  auffällt.
+* **Jede gesperrte Route gibt es wirklich.** `MailGate::PFLICHTROUTEN` wird
+  gegen `config/routes.php` geprüft: Ein Tippfehler in einem Routennamen
+  fällt sonst nicht auf, weil nichts passiert — die Sperre griffe dann
+  einfach nie, und zwar für genau die Route, die sie hüten soll. Geprüft wird
+  auch die Gegenrichtung: `chat_get_messages` und `request_accept` stehen
+  **nicht** in der Liste (Lesen bleibt frei, und der zusagende Guide wird
+  nicht für die Adresse eines anderen bestraft).
+* **Ausgeschaltet kostet die Pflicht keine einzige Abfrage.** Die Attrappe
+  zählt die abgesetzten Statements mit; bei ausgeschaltetem Schalter darf
+  keines dazukommen.
+* **Bei ausgeschaltetem Versand steht die ganze Mail im Log — ohne die
+  Adresse.** Geprüft wird der Link (`token=…`), der Betreff, dass der
+  Aufrufer trotzdem `true` bekommt (sonst bräche der Passwort-Reset ab,
+  obwohl der Link benutzbar im Log steht) und dass die Empfängeradresse
+  **nicht im Klartext** darin auftaucht.
+* **Alle drei Blöcke laufen wirklich** — am Quelltext geprüft, weil genau das
+  der Befund war: Drei auskommentierte Blöcke, jeder mit einem Fehler darin,
+  den niemand sah, weil sie nie liefen. Der `LoginController` darf dabei die
+  **Anmeldung nicht** sperren (der Weg zu einer neuen Bestätigungsmail setzt
+  eine Anmeldung voraus), und `method_exists($user, 'getEmailVerified')` ist
+  weg — den Getter gibt es jetzt.
+* **Die Sperre fällt an einer Stelle**, in `index.php` und **hinter** der
+  Rechteprüfung: Wer das Recht gar nicht hat, soll die zweite Antwort nicht
+  bekommen. Kein Controller prüft sie ein zweites Mal.
+
+Gelesen wird dafür der **kommentarfreie** Quelltext (`$ohneKommentare`): Die
+Blöcke erklären im Fließtext, was sie ersetzt haben, und nennen das Alte dabei
+beim Namen. Eine Suche im Rohtext würde genau diese Erklärung als Rückfall
+melden — und damit dazu erziehen, sie zu löschen.
 
 ## Grenzen
 

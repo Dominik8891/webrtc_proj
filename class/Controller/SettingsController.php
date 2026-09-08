@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Helper\Auth;
 use App\Helper\GuideView;
 use App\Helper\ImageStore;
+use App\Helper\MailGate;
 use App\Helper\Permission;
 use App\Helper\Request;
 use App\Helper\Role;
@@ -73,24 +74,29 @@ class SettingsController
                         . $guideLabel . '</a>';
         }
 
-        // E-Mail-Bestätigungsstatus (optional)
-        $mailConfirmed = method_exists($user, 'getEmailVerified') ? ($user->getEmailVerified() ? 'Bestätigt' : 'Nicht bestätigt') : '';
-
+        // DER BESTAETIGUNGSSTAND DER ADRESSE - WIEDER IN BETRIEB.
+        //
+        // WAS HIER STAND: derselbe Block auskommentiert, dazu ein
+        // method_exists($user, 'getEmailVerified') davor - und den Getter gab
+        // es gar nicht. Die Zeile haette also auch eingeschaltet nichts
+        // angezeigt; sie stand nur deshalb nie auf, weil sie ohnehin
+        // ausgeschaltet war. Der Getter ist jetzt da, und der Konstruktor laedt
+        // den Wert (App\Model\User).
+        //
+        // GEZEIGT WIRD SIE NUR, WENN SIE ETWAS BEDEUTET - also sobald einer
+        // der beiden Schalter an ist. Solange weder verschickt noch verlangt
+        // wird, waere "Nicht bestätigt" eine Aufforderung zu etwas, das die
+        // Anwendung gar nicht anbietet.
         $mailConfirm = '';
+        if (MailGate::versandAktiv() || MailGate::bestaetigungPflicht()) {
+            $mailConfirm = $user->getEmailVerified()
+                ? '<dt>E-Mail bestätigt</dt><dd>Bestätigt</dd>'
+                : '<dt>E-Mail bestätigt</dt><dd>Nicht bestätigt '
+                  . '<a href="index.php?act=send_email_verify" '
+                  . 'class="btn btn-outline-primary btn-sm">Bestätigungsmail senden</a></dd>';
+        }
+
         $out = ViewHelper::template('assets/html/settings.html');
-        /*
-         * Deaktiviert lassen solange kein eigener SMTP
-         * 
-         *  if ($mailConfirmed !== '') {
-         *      $mailConfirm = "<dt>E-Mail bestätigt</dt><dd>$mailConfirmed</dd>";
-         *  }
-         *
-         * Die Angaben stehen seit dem Umbau der Oberflaeche in einer
-         * Beschreibungsliste (assets/html/settings.html), nicht mehr in einer
-         * Tabelle - deshalb <dt>/<dd> statt <tr>/<td>.
-         * 
-         *
-        */
         $out = str_replace('###USERNAME###', $user->getUsername(), $out);
         $out = str_replace('###EMAIL###', $user->getEmail(), $out);
         $out = str_replace('###TWOFASTATUS###', $status2fa, $out);

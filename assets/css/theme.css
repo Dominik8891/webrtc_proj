@@ -972,6 +972,24 @@ a:hover {
 .app-actions--stretch > .btn { flex: 1 1 auto; }
 
 /* ===========================================================================
+   Der Hinweis auf die unbestaetigte E-Mail-Adresse
+   ---------------------------------------------------------------------------
+   Er steht ueber dem Inhalt JEDER Seite, solange MAIL_VERIFY_REQUIRED an ist
+   und die Adresse des angemeldeten Kontos nicht bestaetigt (App\Helper\
+   MailGate::streifen). Deshalb bekommt er dieselbe Breite wie der Inhalt und
+   keinen eigenen Kasten: Er soll auffallen, aber nicht jeden Seitenaufbau
+   beherrschen.
+   =========================================================================== */
+
+.app-mailhint {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--app-space-5);
+}
+
+/* ===========================================================================
    Ergebnisseiten (bestaetigt, fehlgeschlagen)
    =========================================================================== */
 

@@ -11,8 +11,10 @@
                          traegt (GuideRole::TERMS_VERSION)
       ###GUIDEBTN###     Knopf zur Guide-Frage - fehlt beim Admin; heisst
                          "Neue Bedingungen bestaetigen", solange etwas offen ist
-      ###MAILCONFIRM###  Zeile zum Bestaetigungsstand der E-Mail (derzeit leer,
-                         siehe Controller: kein SMTP-Server)
+      ###MAILCONFIRM###  Zeile zum Bestaetigungsstand der E-Mail samt Knopf
+                         "Bestaetigungsmail senden". Leer, solange weder
+                         MAIL_ENABLED noch MAIL_VERIFY_REQUIRED an ist -
+                         siehe App\Helper\MailGate
       ###THEMES###       Die Auswahl der Farbprofile (SettingsController)
       ###NOTICE###       Rueckmeldung nach dem Speichern des Guide-Profils
                          (Erfolg oder Fehler); im Regelfall leer

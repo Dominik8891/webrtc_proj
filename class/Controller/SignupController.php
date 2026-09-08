@@ -115,21 +115,38 @@ class SignupController
                         // Kontogrenze. Nicht frueher: siehe Methodenkopf.
                         RateLimit::verbuchen('signup', $teile);
 
-                        /*
-                         *
-                         * Viewhelper rausnehmen und Emailverification rein wenn auf Online Server
-                         * da ich keinen SMTP service habe der das kann.
-                         * Lokal läuft es aber
-                         * 
-                        */
-                        // Bestaetigungsseite laden. Genau das macht auch
-                        // EmailVerificationController::sendVerification() in der
-                        // auskommentierten Zeile darunter - nur zusaetzlich mit
-                        // Mailversand. Beim Deaktivieren des Mailversands ist diese
-                        // Zuweisung verlorengegangen, $out war dadurch undefiniert.
-                        $out = ViewHelper::template('assets/html/signup_complete.html');
-                        ViewHelper::output($out);
-                        //(new EmailVerificationController)::sendVerification($user_id);
+                        // DIE BESTAETIGUNGSMAIL - WIEDER IN BETRIEB.
+                        //
+                        // Hier stand ein auskommentierter Aufruf mit der
+                        // Begruendung, es gebe keinen SMTP-Server. Der Aufruf
+                        // laeuft jetzt immer; ob dabei wirklich eine Mail
+                        // hinausgeht, entscheidet MAIL_ENABLED - und ist
+                        // ausgeschaltet, steht der Bestaetigungslink im
+                        // Logfile (App\Model\Email::sendMail). Der Ablauf ist
+                        // also in BEIDEN Faellen derselbe, und das ist der
+                        // Punkt: Ein Weg, der nur in einer Betriebsart
+                        // ueberhaupt ausgefuehrt wird, ist beim Umschalten
+                        // ungeprueft.
+                        //
+                        // DER AUFRUF STAND AUCH SYNTAKTISCH FALSCH DA:
+                        // "(new EmailVerificationController)::sendVerification()"
+                        // mischt Instanz und statischen Aufruf. Genau so sieht
+                        // Code aus, den seit Monaten kein Uebersetzer mehr
+                        // angesehen hat.
+                        //
+                        // OHNE ARGUMENT WAERE ES DAS ANGEMELDETE KONTO - und
+                        // angemeldet ist nach der Registrierung niemand.
+                        // Deshalb die frische Kennung. Sie umgeht zugleich die
+                        // Bremse fuer den Mailversand, und das ist richtig so:
+                        // Die Registrierung selbst ist bereits begrenzt (siehe
+                        // Methodenkopf), und ein frisch angelegtes Konto soll
+                        // seine erste Mail in jedem Fall bekommen.
+                        //
+                        // sendVerification() gibt die Bestaetigungsseite selbst
+                        // aus - dieselbe Vorlage, die hier vorher geladen
+                        // wurde. Zwei Ausgaben waeren zwei Seiten in einer
+                        // Antwort.
+                        (new EmailVerificationController())->sendVerification($user_id);
                         exit;
                     } else {
                         $error = "unknown";

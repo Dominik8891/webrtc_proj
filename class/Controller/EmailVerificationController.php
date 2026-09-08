@@ -136,12 +136,11 @@ class EmailVerificationController
      * fallen draussen an, und dort interessiert nicht, ueber wie viele Konten
      * sie verteilt wurden.
      *
-     * DASS DER VERSAND IM REGISTRIERUNGSABLAUF AUSKOMMENTIERT IST, aendert
-     * daran nichts (kein eigener SMTP-Server, Befund N-4): Die Route
-     * send_email_verify ist erreichbar und verschickt. Die Bremse gehoert
-     * deshalb jetzt hierher und nicht erst dann, wenn der Versand wieder
-     * eingeschaltet wird - sonst geht sie genau in dem Moment vergessen, in
-     * dem sie anfaengt zu zaehlen.
+     * GEBREMST WIRD IN BEIDEN STELLUNGEN DES SCHALTERS. Ob wirklich eine Mail
+     * hinausgeht, entscheidet MAIL_ENABLED (App\Helper\MailGate); bei
+     * ausgeschaltetem Versand steht sie im Logfile. Eine Grenze, die dann
+     * aussetzte, waere genau die, die beim Einschalten noch nie gelaufen ist -
+     * und dann faengt sie in dem Moment an zu zaehlen, in dem es teuer wird.
      *
      * GEZAEHLT WIRD NUR DER WEG UEBER DIE ROUTE. Der Aufruf aus dem
      * Registrierungsablauf uebergibt eine $user_id und bremst nicht: Er ist
@@ -184,7 +183,15 @@ class EmailVerificationController
         }
 
         $this->sendVerificationMail($user_id);
-        $out = ViewHelper::template('assets/html/signup_complete.html');
+
+        // ZWEI WEGE, ZWEI SEITEN. Ueber die Route kommt ein ANGEMELDETES
+        // Konto, das sich eine neue Mail schicken laesst; "Registrierung
+        // erfolgreich - Sie koennen sich jetzt anmelden" waere dort zweimal
+        // falsch. Aus dem Registrierungsablauf kommt die Bestaetigungsseite,
+        // die es dort auch vorher gab.
+        $out = ViewHelper::template($ueberRoute
+            ? 'assets/html/verify_sent.html'
+            : 'assets/html/signup_complete.html');
         ViewHelper::output($out);
     }
 

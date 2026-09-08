@@ -39,6 +39,11 @@ require_once $ROOT . '/class/Helper/ReviewView.php';
 require_once $ROOT . '/class/Controller/ReviewController.php';
 require_once $ROOT . '/class/Controller/GuideProfileController.php';
 require_once $ROOT . '/class/Helper/Theme.php';
+// Die beiden Schalter rund um die E-Mail. Vor ViewHelper gebraucht -
+// output() setzt den Hinweisstreifen ein.
+require_once $ROOT . '/class/Helper/MailGate.php';
+require_once $ROOT . '/class/Helper/LogHelper.php';
+require_once $ROOT . '/class/Model/Email.php';
 require_once $ROOT . '/class/Helper/ViewHelper.php';
 require_once $ROOT . '/class/Helper/Auth.php';
 // Der Verwaltungsbereich. Nach ViewHelper und Auth, weil er beide benutzt:
@@ -85,6 +90,8 @@ use App\Helper\Role;
 use App\Helper\Auth;
 use App\Helper\Permission;
 use App\Helper\Theme;
+use App\Helper\MailGate;
+use App\Model\Email;
 use App\Helper\ViewHelper;
 use App\Helper\Url;
 use App\Controller\ChatController;
@@ -6209,8 +6216,13 @@ ok("jeder aus PHP gebaute Kasten bringt einen Rumpf mit ($phpKaesten geprueft)")
 // mehrere Fassungen liegen, soll es dieselbe sein, die diesen Test ausfuehrt.
 $bau = '$R = ' . var_export($ROOT, true) . '; chdir($R);'
      . '$_SESSION = []; $_ENV["APP_BASE_URL"] = "https://beispiel.test/";'
+     // MailGate steht mit in der Liste, weil output() den Hinweisstreifen zur
+     // unbestaetigten E-Mail-Adresse einsetzt. Als Gast liefert er einen
+     // Leerstring, ohne die Datenbank zu fragen - geladen sein muss die Klasse
+     // trotzdem, sonst endet der Unterprozess mit einem Fatal Error und die
+     // Seite ist null Zeichen lang.
      . 'foreach (["Helper/Role","Helper/Permission","Helper/Auth","Helper/Theme",'
-     . '"Helper/Url","Helper/ViewHelper"] as $k) { require_once "$R/class/$k.php"; }'
+     . '"Helper/Url","Helper/MailGate","Helper/ViewHelper"] as $k) { require_once "$R/class/$k.php"; }'
      . 'App\\Helper\\ViewHelper::output('
      . 'App\\Helper\\ViewHelper::template("$R/assets/html/requests_page.html"));';
 $ausgeliefert = (string)shell_exec(
@@ -7535,6 +7547,197 @@ ok('drei Listen mit Schalter, eine ohne - und jede Vorlage haelt genau den Platz
 
 
 
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nZwei Schalter statt zweier Kommentarbloecke\n");
+
+// --- Die Vorgaben sind "wie bisher" --------------------------------------
+//
+// DAS IST DIE WICHTIGSTE PRUEFUNG DIESES ABSCHNITTS: Eine bestehende
+// Installation, die ihre .env nicht anfasst, darf von den Schaltern nichts
+// merken. Verschickt wird also weiter, und ausgesperrt wird niemand.
+unset($_ENV['MAIL_ENABLED'], $_ENV['MAIL_VERIFY_REQUIRED']);
+check(MailGate::versandAktiv() === true,       'ohne Schluessel wird nicht mehr verschickt');
+check(MailGate::bestaetigungPflicht() === false, 'ohne Schluessel wird ausgesperrt');
+ok('ohne Eintrag in der .env verhaelt sich alles wie vorher');
+
+// --- Die Schreibweisen ---------------------------------------------------
+foreach (['1', 'true', 'on', 'yes', 'ja', 'JA', ' Ja '] as $an) {
+    $_ENV['MAIL_ENABLED'] = $an;
+    check(MailGate::versandAktiv() === true, "'$an' wird nicht als AN gelesen");
+}
+foreach (['0', 'false', 'off', 'no', 'nein', 'NEIN'] as $aus) {
+    $_ENV['MAIL_ENABLED'] = $aus;
+    check(MailGate::versandAktiv() === false, "'$aus' wird nicht als AUS gelesen");
+}
+ok('beide Zustaende in allen dokumentierten Schreibweisen');
+
+// EIN VERTIPPER STELLT DEN VERSAND NICHT AB. Stillschweigend "false" daraus
+// zu machen waere die schlechtere Antwort: Niemandem fiele auf, dass seit dem
+// Vertipper keine Mail mehr hinausgeht.
+$_ENV['MAIL_ENABLED'] = 'jein';
+check(MailGate::versandAktiv() === true, 'ein unbrauchbarer Wert stellt den Versand ab');
+$_ENV['MAIL_VERIFY_REQUIRED'] = 'vielleicht';
+check(MailGate::bestaetigungPflicht() === false, 'ein unbrauchbarer Wert sperrt Konten aus');
+ok('ein unbrauchbarer Wert faellt auf die Vorgabe zurueck, nicht auf "aus"');
+
+// --- Die Sperrliste zeigt auf echte Routen -------------------------------
+//
+// Ein Tippfehler in einem Routennamen waere hier besonders unangenehm: Er
+// faellt nicht auf, weil nichts passiert - die Sperre greift dann einfach
+// nie, und zwar genau fuer die Route, die sie hueten soll.
+$routenTabelle = require $ROOT . '/config/routes.php';
+foreach (MailGate::PFLICHTROUTEN as $pflichtroute) {
+    check(isset($routenTabelle[$pflichtroute]),
+        "PFLICHTROUTEN nennt '$pflichtroute' - diese Route gibt es nicht");
+}
+check(count(MailGate::PFLICHTROUTEN) === count(array_unique(MailGate::PFLICHTROUTEN)),
+    'eine Route steht zweimal in der Liste');
+// Die drei Gruppen, die die Konfiguration zusagt: anfragen, chatten,
+// hochladen. Faellt eine davon heraus, ist es keine Aenderung an einer Liste
+// mehr, sondern eine an der Zusage.
+foreach (['request_create', 'chat_send_message', 'upload_location_image'] as $kern) {
+    check(in_array($kern, MailGate::PFLICHTROUTEN, true),
+        "'$kern' ist nicht mehr gesperrt - eine der drei Gruppen fehlt");
+}
+// UND WAS NICHT DRINSTEHT, IST GENAUSO EINE ENTSCHEIDUNG: Lesen bleibt frei,
+// und der Guide, der zusagt, wird nicht fuer die Adresse eines anderen
+// bestraft.
+foreach (['chat_get_messages', 'request_accept', 'login', 'home'] as $frei) {
+    check(!in_array($frei, MailGate::PFLICHTROUTEN, true),
+        "'$frei' ist gesperrt - Lesen und Zusagen sollten frei bleiben");
+}
+ok('jede gesperrte Route gibt es wirklich, und die freien bleiben frei');
+
+// --- Ausgeschaltete Pflicht sperrt nichts --------------------------------
+//
+// Ohne Datenbankabfrage, und das ist der Punkt: Die Attrappe zaehlt mit. Wer
+// die Pflicht ausgeschaltet laesst, soll dafuer nicht auf jeder Seite eine
+// Abfrage bezahlen.
+$_ENV['MAIL_VERIFY_REQUIRED'] = '0';
+$_SESSION = ['user' => ['user_id' => 42, 'role_id' => Role::USER]];
+PdoConnect::$connection = new FakeConnection();
+$vorher = count(PdoConnect::$connection->statements);
+foreach (MailGate::PFLICHTROUTEN as $pflichtroute) {
+    check(MailGate::sperrt($pflichtroute) === false,
+        "'$pflichtroute' ist gesperrt, obwohl die Pflicht aus ist");
+}
+check(MailGate::streifen() === '', 'der Hinweisstreifen steht da, obwohl die Pflicht aus ist');
+check(count(PdoConnect::$connection->statements) === $vorher,
+    'die ausgeschaltete Pflicht fragt die Datenbank');
+ok('ausgeschaltet kostet die Bestaetigungspflicht keine einzige Abfrage');
+
+// --- Eingeschaltete Pflicht sperrt genau die Liste -----------------------
+// Die Attrappe liefert fuer fetchColumn() die 0 - also email_verified = 0
+// und damit eine unbestaetigte Adresse.
+$_ENV['MAIL_VERIFY_REQUIRED'] = '1';
+check(MailGate::sperrt('request_create') === true, 'die unbestaetigte Adresse darf anfragen');
+check(strpos(MailGate::streifen(), 'send_email_verify') !== false,
+    'der Hinweisstreifen nennt den Weg zu einer neuen Mail nicht');
+// Eine Route, die nicht in der Liste steht, bleibt offen - auch fuer dasselbe
+// Konto.
+check(MailGate::sperrt('home') === false, 'eine Route ausserhalb der Liste ist gesperrt');
+ok('eingeschaltet sperrt sie die Liste - und nur die');
+
+// EIN GAST LAEUFT NICHT IN DIE ABFRAGE. Auf diese Routen kommt er ohnehin
+// nicht (die Rechtepruefung schickt ihn vorher zum Anmeldeformular); die
+// Zeile verhindert die Abfrage mit der Kennung 0.
+$_SESSION = [];
+check(MailGate::sperrt('request_create') === false, 'ein Gast wird hier abgewiesen statt am Recht');
+check(MailGate::streifen() === '', 'ein Gast bekommt den Hinweisstreifen');
+ok('der Gast wird an der Rechtetabelle abgewiesen und nicht hier');
+
+$_SESSION = [];
+unset($_ENV['MAIL_ENABLED'], $_ENV['MAIL_VERIFY_REQUIRED']);
+
+// --- Der ausgeschaltete Versand schreibt den LINK ins Log ----------------
+//
+// WARUM DER GANZE TEXT UND NICHT NUR "haette verschickt": Weil in ihm der
+// Link steht. Ohne ihn muesste sich der Entwickler den Token aus der
+// Datenbank heraussuchen - und genau diese Umstaende waren der Grund, aus dem
+// der Versand einmal auskommentiert wurde.
+$_ENV['MAIL_ENABLED'] = '0';
+$logdatei = tempnam(sys_get_temp_dir(), 'maillog');
+$altesLog = ini_get('error_log');
+ini_set('error_log', $logdatei);
+$geliefert = Email::sendMail(
+    'anna@example.com',
+    "Hallo,\n\nBitte bestätige deine E-Mail:\n\nhttps://beispiel.test/index.php?act=verify_email&token=abc\n",
+    'E-Mail-Adresse bestätigen'
+);
+ini_set('error_log', $altesLog === false ? '' : $altesLog);
+$protokoll = (string)file_get_contents($logdatei);
+@unlink($logdatei);
+
+// Der Aufrufer bekommt true. Sonst braeche der Passwort-Reset ab, obwohl der
+// Link benutzbar im Log steht.
+check($geliefert === true, 'der ausgeschaltete Versand meldet einen Fehlschlag');
+check(strpos($protokoll, 'token=abc') !== false, 'der Link steht nicht im Log');
+check(strpos($protokoll, 'E-Mail-Adresse bestätigen') !== false, 'der Betreff fehlt im Log');
+// UND DIE ADRESSE BLEIBT MASKIERT, auch hier: Sie steht in keinem Log dieser
+// Anwendung im Klartext, und fuer den Link braucht man sie nicht.
+check(strpos($protokoll, 'anna@example.com') === false,
+    'die Empfaengeradresse steht im Klartext im Log');
+ok('bei ausgeschaltetem Versand steht die ganze Mail im Log - ohne die Adresse');
+unset($_ENV['MAIL_ENABLED']);
+
+// --- Die drei Bloecke sind wirklich in Betrieb ---------------------------
+//
+// WARUM AM QUELLTEXT: Weil genau das der Befund war. Drei Bloecke standen
+// auskommentiert da, jeder mit einem Fehler darin, den niemand sah - weil sie
+// nie liefen. Eine Pruefung, die nur das Verhalten ansieht, koennte gruen
+// sein, waehrend die Zeilen wieder hinter // verschwinden.
+$signup = file_get_contents($ROOT . '/class/Controller/SignupController.php');
+check(strpos($signup, '//(new EmailVerificationController)') === false,
+    'der auskommentierte Aufruf steht wieder im SignupController');
+check(preg_match('/^\s*\(new EmailVerificationController\(\)\)->sendVerification\(\$user_id\);/m', $signup) === 1,
+    'die Registrierung verschickt keine Bestaetigungsmail mehr');
+
+// Ab hier OHNE die Kommentare: Die Bloecke erklaeren im Fliesstext, was sie
+// ersetzt haben, und nennen das Alte dabei beim Namen. Eine Suche im Rohtext
+// wuerde genau diese Erklaerung als Rueckfall melden - und damit dazu
+// erziehen, sie zu loeschen.
+$loginQuelle = $ohneKommentare(file_get_contents($ROOT . '/class/Controller/LoginController.php'));
+check(strpos($loginQuelle, 'MailGate::bestaetigungPflicht()') !== false,
+    'der LoginController fragt die Bestaetigungspflicht nicht');
+// DIE ANMELDUNG SELBST DARF SIE NICHT SPERREN: Der Weg zu einer neuen
+// Bestaetigungsmail setzt eine Anmeldung voraus (Recht auth.email_verify_send,
+// das die Rolle Gast nicht hat). Wer nicht hereinkommt, kaeme auch nie an eine
+// neue Mail - die Sperre waere eine Sackgasse ohne Ausgang. Deshalb steht im
+// unbestaetigten Fall ein Log-Eintrag und keine Rueckgabe.
+check(strpos($loginQuelle, 'send_email_verify') === false,
+    'der LoginController bietet den Link an, den ein Abgewiesener nicht erreichen kann');
+check(strpos($loginQuelle, 'outputLoginError') !== false, 'Testannahme veraltet');
+$anmeldeRumpf = methodenRumpf($loginQuelle, 'handleLogin');
+check(substr_count($anmeldeRumpf, 'email_verified') === 1,
+    'die Anmeldung wertet den Bestaetigungsstand mehr als einmal aus');
+
+$settingsQuelle = $ohneKommentare(file_get_contents($ROOT . '/class/Controller/SettingsController.php'));
+check(strpos($settingsQuelle, "method_exists(\$user, 'getEmailVerified')") === false,
+    'die Einstellungsseite sichert einen Getter ab, den es inzwischen gibt');
+check(strpos($settingsQuelle, '$user->getEmailVerified()') !== false,
+    'die Einstellungsseite zeigt den Bestaetigungsstand nicht');
+check(method_exists(User::class, 'getEmailVerified'),
+    'den Getter getEmailVerified() gibt es immer noch nicht');
+ok('alle drei Bloecke laufen - und der Getter, den sie brauchten, existiert');
+
+// --- Die Sperre steht in index.php, nicht in sechs Controllern -----------
+//
+// Dieselbe Ueberlegung wie bei der Rechtepruefung: EINE Stelle. Verteilt auf
+// sechs Methoden waere sie beim siebten Endpunkt vergessen.
+$einstieg = $ohneKommentare(file_get_contents($ROOT . '/index.php'));
+check(strpos($einstieg, 'MailGate::sperrt($act)') !== false,
+    'index.php prueft die Bestaetigungspflicht nicht');
+// UND ZWAR HINTER DER RECHTEPRUEFUNG: Wer das Recht gar nicht hat, soll die
+// zweite Antwort nicht bekommen - sonst erfuehre er aus der Fehlermeldung,
+// dass es die Route gibt und was ihm zu ihr noch fehlt.
+check(strpos($einstieg, 'Auth::can($right)') < strpos($einstieg, 'MailGate::sperrt($act)'),
+    'die Bestaetigungspflicht wird vor dem Recht geprueft');
+foreach (glob($ROOT . '/class/Controller/*.php') as $ctrl) {
+    check(strpos($ohneKommentare(file_get_contents($ctrl)), 'MailGate::sperrt') === false,
+        basename($ctrl) . ' prueft die Sperre ein zweites Mal');
+}
+ok('die Sperre faellt an einer Stelle - hinter der Rechtepruefung');
 
 PdoConnect::$connection = new FakeConnection();
 

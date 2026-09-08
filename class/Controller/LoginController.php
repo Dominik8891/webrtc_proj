@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Model\User;
 use App\Model\RateLimit;
 use App\Helper\Auth;
+use App\Helper\MailGate;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 
@@ -72,17 +73,35 @@ class LoginController
         $user = new User();
 
         if ($user->login($username, $pwd)) {
+            // DIE BESTAETIGUNGSPFLICHT - WIEDER IN BETRIEB, aber nicht mehr
+            // als Abweisung.
+            //
+            // WAS HIER STAND: ein auskommentierter Block, der die Anmeldung
+            // eines unbestaetigten Kontos abbrach und dazu den Link
+            // "Email erneut senden!" auf index.php?act=send_email_verify
+            // anbot. Dieser Link ging ins Leere, und zwar zwangslaeufig: Die
+            // Route traegt das Recht auth.email_verify_send, das keine Rolle
+            // GAST hat (App\Helper\Permission). Wer nicht hereinkam, kam auch
+            // nicht an eine neue Mail - er kam an das Anmeldeformular, von dem
+            // er gerade abgewiesen worden war.
+            //
+            // DESHALB SPERRT DIE PFLICHT NICHT DIE ANMELDUNG, SONDERN DIE
+            // HANDLUNGEN. Wer sich anmeldet, kommt herein, sieht auf jeder
+            // Seite den Hinweisstreifen (App\Helper\ViewHelper) und kann sich
+            // von dort eine neue Mail schicken lassen. Gesperrt sind Anfragen,
+            // Chat und Hochladen - die Liste steht in App\Helper\MailGate, und
+            // geprueft wird sie in index.php, also an derselben Stelle wie
+            // jedes andere Zugangsrecht.
+            //
+            // Der Log-Eintrag bleibt, weil er die Frage beantwortet, die beim
+            // Einschalten der Pflicht als erste kommt: Wie viele
+            // Bestandskonten sind eigentlich betroffen?
             $userDetails = $user->getUserDetails();
-            /*
-             *
-             *  Deaktivier lassen solange kein eigener SMTP SERVER
-             * 
-             * if ($userDetails['email_verified'] != 1) {
-             *   $error_msg = '<p>Bitte bestätige zuerst deine E-Mail-Adresse.</p>' . "<a href='index.php?act=send_email_verify'>Email erneut senden!</a>";
-             *   $this->outputLoginError($error_msg);
-             *   return;
-             * }
-            */ 
+            if (MailGate::bestaetigungPflicht() && (int)($userDetails['email_verified'] ?? 0) !== 1) {
+                error_log('Anmeldung ohne bestaetigte E-Mail-Adresse (UserID '
+                    . (int)$user->getId() . ') - Anfragen, Chat und Hochladen sind gesperrt.');
+            }
+
             if ($user->getTotpEnabled()) {
                 $_SESSION['2fa_userid'] = $user->getId();
                 header("Location: index.php?act=2fa_verify_page");

@@ -51,6 +51,11 @@ class User
                     $this->status       = $result['user_status'] ?? null;
                     $this->totp_secret  = $result['totp_secret'] ?? null;
                     $this->totp_enabled = $result['totp_enabled'] ?? 0;
+                    // Der Bestaetigungsstand der Adresse. Er wurde hier bisher
+                    // NICHT geladen - deshalb lief die Anzeige in den
+                    // Einstellungen ins Leere, und deshalb stand sie
+                    // auskommentiert da.
+                    $this->verified     = $result['email_verified'] ?? 0;
                     // ?? null faengt die Installation ab, in der Migration
                     // 008 noch nicht eingespielt ist: Dann fehlt die Spalte,
                     // und das Konto bekommt einfach das Standardprofil.
@@ -732,6 +737,55 @@ class User
     }
 
     /**
+     * Ist die E-Mail-Adresse dieses Kontos bestaetigt?
+     *
+     * WOZU: An dieser Frage haengt die Bestaetigungspflicht
+     * (App\Helper\MailGate). Gefragt wird sie in index.php, aber NUR auf den
+     * wenigen Routen, die eine bestaetigte Adresse voraussetzen - auf jeder
+     * anderen Seite faellt keine Abfrage an.
+     *
+     * AUS DER DATENBANK UND NICHT AUS DER SITZUNG. Der Bestaetigungsstand
+     * aendert sich MITTEN in einer laufenden Sitzung: Der Nutzer klickt den
+     * Link in der Mail, und danach soll die Anwendung sofort wieder alles
+     * erlauben. Ein Wert in $_SESSION wuerde bis zur naechsten Anmeldung das
+     * Gegenteil behaupten - der Nutzer bestaetigt und bleibt trotzdem
+     * gesperrt.
+     *
+     * Der Zwischenspeicher gilt fuer EINEN Aufruf, so wie bei isDeleted():
+     * Innerhalb eines Seitenaufrufs kann sich der Wert nicht aendern.
+     *
+     * @param  int|string $in_user_id
+     * @return bool
+     */
+    public static function isEmailVerified($in_user_id): bool
+    {
+        static $bekannt = [];
+
+        $id = (int)$in_user_id;
+        if ($id < 1) return false;
+        if (array_key_exists($id, $bekannt)) return $bekannt[$id];
+
+        PdoConnect::sicherstellen();
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                'SELECT email_verified FROM user WHERE id = :id'
+            );
+            $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $wert = $stmt->fetchColumn();
+
+            $bekannt[$id] = ($wert !== false) && ((int)$wert === 1);
+        } catch (PDOException $e) {
+            error_log('User::isEmailVerified: ' . $e->getMessage());
+            // Im Fehlerfall die sichere Seite - dieselbe Ueberlegung wie bei
+            // isDeleted(): im Zweifel nicht durchlassen.
+            $bekannt[$id] = false;
+        }
+        return $bekannt[$id];
+    }
+
+    /**
      * Der Name, der fuer ein geloeschtes Konto stehenbleibt.
      *
      * WARUM UEBERHAUPT ETWAS STEHENBLEIBT: Ein Chatverlauf gehoert BEIDEN
@@ -921,6 +975,18 @@ class User
     public function getRoleId()         { return $this->type_id; }
     public function getTotpSecret()     { return $this->totp_secret; }
     public function getTotpEnabled()    { return $this->totp_enabled; }
+
+    /**
+     * Ist die E-Mail-Adresse DIESES geladenen Kontos bestaetigt?
+     *
+     * Der Wert steht in der Zeile, die der Konstruktor ohnehin geladen hat -
+     * anders als bei der statischen isEmailVerified(), die eine Kennung ohne
+     * Datensatz beantwortet. Wer den Benutzer schon in der Hand hat, fragt
+     * hier und spart die zweite Abfrage.
+     *
+     * @return bool
+     */
+    public function getEmailVerified(): bool { return (int)$this->verified === 1; }
 
     /**
      * Das gespeicherte Farbprofil, roh wie in der Datenbank.

@@ -1110,9 +1110,9 @@ vollständig).
 | Datei:Zeile | Inhalt |
 |---|---|
 | `class/Controller/LoginController.php:38-41` | Eingabelängen-Validierung (`username < 3 \|\| pwd < 8`) — deaktiviert. |
-| `class/Controller/LoginController.php:65-74` | **E-Mail-Verifizierungspflicht beim Login** — deaktiviert, mit Begründung „Deaktiviert lassen solange kein eigener SMTP SERVER". Die gesamte Verifizierungslogik existiert damit ohne Wirkung. |
-| `class/Controller/SignupController.php:64-72` | Versand der Verifikationsmail — deaktiviert (`//(new EmailVerificationController)::sendVerification($user_id);`, Z. 72). Ursache von H-2. Der Aufruf wäre auch syntaktisch falsch: `::` auf einer Instanz für eine Instanzmethode. |
-| `class/Controller/SettingsController.php:43-51` | Anzeige des E-Mail-Bestätigungsstatus — deaktiviert. `$mailConfirmed` (Z. 39) wird berechnet und nie verwendet; `$mailConfirm` bleibt leer (Z. 41). |
+| `class/Controller/LoginController.php:65-74` | **E-Mail-Verifizierungspflicht beim Login** — deaktiviert, mit Begründung „Deaktiviert lassen solange kein eigener SMTP SERVER". Die gesamte Verifizierungslogik existiert damit ohne Wirkung. **Behoben** — siehe Nachtrag unter der Tabelle. |
+| `class/Controller/SignupController.php:64-72` | Versand der Verifikationsmail — deaktiviert (`//(new EmailVerificationController)::sendVerification($user_id);`, Z. 72). Ursache von H-2. Der Aufruf wäre auch syntaktisch falsch: `::` auf einer Instanz für eine Instanzmethode. **Behoben.** |
+| `class/Controller/SettingsController.php:43-51` | Anzeige des E-Mail-Bestätigungsstatus — deaktiviert. `$mailConfirmed` (Z. 39) wird berechnet und nie verwendet; `$mailConfirm` bleibt leer (Z. 41). **Behoben.** |
 | `assets/js/rtc.js:235` | `//document.getElementById('arrow-control').style.display = "";` |
 | `assets/js/rtc.js:240-241` | Zwei Zeilen zum Ausblenden von Chat und Steuerkreuz. |
 | `assets/html/index.html:15` | `<!--<link rel="stylesheet" href="assets/css/admin.css">-->` |
@@ -1123,6 +1123,34 @@ vollständig).
 `assets/`, `class/`, `config/`, `cron/` und `index.php` liefert keine Treffer
 (nur zwei Zufallstreffer in MP3-Binärdateien). Die offenen Punkte stehen
 stattdessen als auskommentierte Blöcke mit deutschen Erklärtexten im Code.
+
+**Die drei E-Mail-Blöcke sind behoben — und sie belegen den Befund selbst.**
+Alle drei hingen an derselben Begründung („kein eigener SMTP-Server"), und in
+allen dreien steckte ein Fehler, den niemand sah, weil sie nie liefen: der
+syntaktisch falsche Aufruf im `SignupController`; der Link *„Email erneut
+senden!"* im `LoginController`, der zwangsläufig ins Leere führte (die Route
+`send_email_verify` trägt `auth.email_verify_send`, und das hat die Rolle
+*Gast* nicht — wer abgewiesen wurde, kam auch nie an eine neue Mail); und im
+`SettingsController` ein `method_exists($user, 'getEmailVerified')` auf einen
+Getter, den es gar nicht gab und dessen Feld der Konstruktor nicht einmal lud.
+
+An ihre Stelle treten **zwei Einstellungen in der `.env`**: `MAIL_ENABLED`
+(wird verschickt? — aus heißt: die Mail landet samt Link im Logfile, der Weg
+läuft ansonsten unverändert) und `MAIL_VERIFY_REQUIRED` (ohne bestätigte
+Adresse kein Anfragen, Chatten oder Hochladen). Getrennt, weil der Versand an
+muss, bevor die Pflicht an darf: In dem Moment, in dem verschickt wird, hat
+noch kein einziges Bestandskonto eine bestätigte Adresse. Die Pflicht sperrt
+ausdrücklich **nicht die Anmeldung** — sonst wäre der Weg zu einer neuen
+Bestätigungsmail versperrt. Siehe [`README.md`](README.md), Abschnitt „Zwei
+Schalter für die E-Mail", und `class/Helper/MailGate.php`.
+
+**Was an dieser Stelle noch auskommentiert bleibt, ist keins von beidem:**
+`Email.php:29` (`SMTPDebug`) und das Cron-Logging sind Debug-Schalter, die man
+im Bedarfsfall von Hand einschaltet — kein Code, der auf eine fehlende
+Infrastruktur wartet. Die Eingabelängen-Prüfung im `LoginController`
+(`LoginController.php:38-41`) ist der dritte Rest: Sie ist dort **entbehrlich**
+geworden, seit die Bremse in der Datenbank sitzt und jeden Fehlversuch zählt,
+egal wie kurz die Eingabe war.
 
 ### 9.5 Tote Pfade und ungenutzter Code
 

@@ -17,7 +17,9 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
 * **NAT Traversal:** Integration von **TURN-Servern** (Metered.ca) für stabile Verbindungen.
 * **High-Security:** * Passwort-Hashing mit individuellem **Pepper**.
     * **Zwei-Faktor-Authentifizierung (2FA/TOTP)** inklusive QR-Code-Generierung.
-    * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP.
+    * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP —
+      beides ueber zwei getrennte Schalter in der `.env` steuerbar
+      (`MAIL_ENABLED`, `MAIL_VERIFY_REQUIRED`), statt im Code auskommentiert.
 * **Anfrage, Führung, Bewertung:** Am Anfang steht eine Anfrage mit Wunschzeitpunkt, die der Guide annimmt oder ablehnt; **beendet** wird die Führung ausdrücklich vom Guide (bis dahin können beide nach einem Verbindungsabbruch wieder einsteigen), und danach wird der Kunde gefragt, wie sie war — Sterne plus freiwilliger Text, **nur in diese Richtung**. Ein Durchschnitt erscheint erst ab drei Bewertungen; darunter steht die Zahl der durchgeführten Führungen statt einer Zahl, die wie ein Urteil aussieht. Details unter [Bewertungen](#-bewertungen).
 * **Eigener Verwaltungsbereich:** Konten, Anfragen, Standorte und Bewertungen liegen hinter einer eigenen Route mit eigener Navigation — dicht und tabellarisch, aber im selben Erscheinungsbild und mit denselben Farbprofilen. Die Kundenoberfläche enthält dafür **keinen einzigen Adminfall mehr**: keine Sperrknöpfe in der Standortliste, kein *Entfernen* an einer Bewertung, kein Menüeintrag, den nur einer sieht. Der Einstieg ist eine Übersicht, die **zuerst zeigt, was Aufmerksamkeit braucht** — hängende Führungen, Anfragen ohne Antwort, gesperrte Standorte — und darunter erst den Bestand. Details unter [Der Verwaltungsbereich](#️-der-verwaltungsbereich).
 * **Rollen- und Rechtesystem:** Vier Rollen (Trial, User, Guide, Admin) mit **benannten Rechten ohne Vererbung und ohne Rangfolge**. Jede Route in `config/routes.php` trägt ihr Recht als Pflichtfeld; `index.php` prüft es, bevor der Controller läuft. Details unten unter [Berechtigungen](#-berechtigungen). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide, Zuschauer oder — bei einem Direktanruf aus der Benutzerverwaltung — Peer; der Client kann sie sich nicht selbst geben. Entscheidend ist, woher der Anruf kam: Von einem Standort aus führt der Angerufene, auch wenn er Admin ist, und der Zuschauer sendet dabei weder Bild noch Ton. Bei einem Direktanruf mit einem Admin gibt es nichts zu steuern, dort läuft die Übertragung in beide Richtungen.
@@ -112,7 +114,15 @@ METERED_APP_NAME=dein_api_name
 # eines einzelnen Servers die Verbindung nicht verhindert.
 STUN_SERVERS=
 
-# E-Mail (SMTP)
+# E-Mail: die beiden Schalter (Vorgaben: Versand an, Pflicht aus)
+# MAIL_ENABLED=0          verschickt nicht, schreibt die Mail samt Link ins Log
+# MAIL_VERIFY_REQUIRED=0  ohne bestaetigte Adresse kein Anfragen/Chatten/Hochladen
+# Getrennt, weil der Versand an muss, bevor die Pflicht an darf - siehe
+# Abschnitt "Zwei Schalter fuer die E-Mail".
+MAIL_ENABLED=0
+MAIL_VERIFY_REQUIRED=0
+
+# E-Mail (SMTP) - nur noetig, wenn MAIL_ENABLED an ist
 SMTP_SERVER=dein.smtp-server.com
 SMTP_PORT=587
 SMTP_USERNAME=dein_login
@@ -1593,6 +1603,158 @@ Der Benutzername des Kunden ist der Unterschied zwischen einer öffentlichen Sei
 **Grün und Gelb kommen nicht vor.** Sie bedeuten auf der Karte *„Guide verfügbar"* und *„im Gespräch"*; in einer Tabelle mit fünfhundert Zeilen wären sie ein Muster ohne Aussage. Zustände stehen als Wort, unterschieden über Form und Gewicht. Rot gibt es an genau zwei Stellen: an einer Sperre und an einer entfernten Bewertung.
 
 Die **Kopfleiste bleibt** dieselbe wie überall — samt Anfragen- und Nachrichtenzähler: Ein Admin ist anderswo Kunde, und seine eigenen Anfragen soll er auch hier nicht verpassen. Darunter liegt die Navigation des Bereichs.
+
+---
+
+## 📧 Zwei Schalter für die E-Mail
+
+### Das Problem
+
+Mailversand und E-Mail-Bestätigung waren im Code **auskommentiert**. Die
+Begründung stand jeweils daneben und war nachvollziehbar: *„Deaktiviert lassen
+solange kein eigener SMTP SERVER"*. Der Preis dafür war es nicht.
+
+Auskommentierter Code ist kein ausgeschalteter Code — er ist Code, den kein
+Übersetzer mehr ansieht, kein Test mehr durchläuft und niemand mehr
+mitpflegt. Was daraus wird, ließ sich an genau diesen drei Stellen ablesen:
+
+* **`SignupController`** — `//(new EmailVerificationController)::sendVerification($user_id);`
+  Der Aufruf war **syntaktisch falsch** (`::` auf einer Instanz für eine
+  Instanzmethode). Er hätte sich beim Wiedereinschalten nicht einmal starten
+  lassen. Dazu kam, dass beim Auskommentieren die Zuweisung `$out = …`
+  mitverschwunden war — der Erfolgspfad der Registrierung gab eine
+  undefinierte Variable aus.
+* **`LoginController`** — die Verifizierungspflicht, samt Link
+  *„Email erneut senden!"* auf `index.php?act=send_email_verify`. Dieser Link
+  **konnte nicht funktionieren**: Die Route trägt das Recht
+  `auth.email_verify_send`, und das hat die Rolle *Gast* nicht. Wer abgewiesen
+  wurde, kam auch nicht an eine neue Mail — er kam an das Anmeldeformular
+  zurück, von dem er gerade abgewiesen worden war.
+* **`SettingsController`** — die Anzeige des Bestätigungsstands, abgesichert
+  mit `method_exists($user, 'getEmailVerified')`. **Den Getter gab es nicht**,
+  und der Konstruktor lud das Feld gar nicht erst. Eingeschaltet hätte die
+  Zeile also weiterhin nichts angezeigt.
+
+Drei Blöcke, drei Fehler, die niemandem auffielen — weil sie nie liefen.
+
+### Zwei Einstellungen, nicht eine
+
+```
+MAIL_ENABLED=0          # Vorgabe: an
+MAIL_VERIFY_REQUIRED=0  # Vorgabe: aus
+```
+
+Gelesen in [`class/Helper/MailGate.php`](class/Helper/MailGate.php). Erlaubt
+sind `1/true/on/yes/ja` und `0/false/off/no/nein`; alles andere gilt als nicht
+gesetzt und wird protokolliert — ein Vertipper stellt nicht stillschweigend
+den Mailversand ab.
+
+**Die Vorgaben sind „wie bisher".** Eine bestehende Installation, die ihre
+`.env` nicht anfasst, merkt von den Schaltern nichts: Es wird verschickt, und
+niemand wird ausgesperrt.
+
+**`MAIL_ENABLED` — wird tatsächlich verschickt?**
+
+Aus heißt *nicht* „der Weg fällt weg". Der gesamte Ablauf läuft unverändert:
+Token anlegen, Link bauen, Bestätigungsseite ausgeben, Bremse zählen lassen.
+Nur die Verbindung zum SMTP-Server unterbleibt — stattdessen landet die
+**vollständige Mail im Logfile**, mitsamt Link:
+
+```
+MAIL_ENABLED=aus - diese E-Mail wurde NICHT verschickt:
+  An:      d***k@example.com
+  Betreff: E-Mail-Adresse bestätigen
+  Text:
+    Hallo,
+    Bitte bestätige deine E-Mail durch Klick auf diesen Link:
+    https://localhost/rctproj/index.php?act=verify_email&token=…
+```
+
+Genau dort holt sich der Entwickler den Bestätigungs- bzw. Reset-Link, ohne
+dass ein SMTP-Server erreichbar sein muss. Die Empfängeradresse bleibt
+**maskiert** — sie steht in keinem Log dieser Anwendung im Klartext, und ein
+ausgeschalteter Versand ist kein Grund davon abzuweichen; für den Link braucht
+man sie nicht.
+
+Der Schalter sitzt in `Email::sendMail()` und damit an der **einen** Stelle,
+durch die jede Mail muss. Vier Aufrufer, die ihn jeder für sich abfragen,
+wären vier Antworten — und beim fünften vergessen. Die Aufrufer merken vom
+ausgeschalteten Versand nichts: Sie bekommen `true` wie bei einer
+abgegebenen Mail. Anders wäre der Passwort-Reset abgebrochen, obwohl der Link
+benutzbar im Log steht.
+
+**`MAIL_VERIFY_REQUIRED` — Pflicht zur Bestätigung?**
+
+An heißt: Ein Konto mit unbestätigter Adresse darf sich anmelden und alles
+lesen, aber **nicht anfragen, nicht chatten und nichts hochladen**.
+
+| Route | |
+|---|---|
+| `request_create` | eine Führung anfragen |
+| `chat_start`, `chat_start_direct`, `chat_send_message` | einen Chat eröffnen und schreiben |
+| `upload_location_image`, `guide_profile_save` | Bilder hochladen |
+
+Die Liste steht als `MailGate::PFLICHTROUTEN` an einer Stelle, geprüft wird
+sie in `index.php` — **unmittelbar hinter der Rechteprüfung** und damit dort,
+wo in dieser Anwendung jede Zugangsentscheidung fällt. Verteilt auf sechs
+Controller wäre sie beim siebten Endpunkt vergessen.
+
+Aufgezählt werden **Routen und keine Rechte**, obwohl die Rechtetabelle der
+naheliegende Ort wäre: `location.edit_own` trägt sowohl das Hochladen eines
+Bildes als auch das Ändern des Beschreibungstextes. Über das Recht gesperrt
+wäre ein unbestätigtes Konto also auch seine eigenen Texte nicht mehr los —
+gemeint ist aber nur das Hochladen.
+
+**Lesen bleibt frei**, im Chat wie überall: Wer schon angeschrieben wurde,
+soll die Antwort sehen können, während seine Bestätigung noch aussteht. Und
+das **Beantworten** einer Anfrage steht bewusst nicht in der Liste: Ein Guide,
+der zusagt, lässt sich auf einen Termin ein, den ein anderer gesetzt hat — ihn
+dabei zu sperren träfe den anfragenden Kunden.
+
+### Die Anmeldung sperrt sie ausdrücklich nicht
+
+Der auskommentierte Block im `LoginController` brach die Anmeldung ab. Genau
+das geht nicht, und der Grund steht oben: Der Weg zu einer neuen
+Bestätigungsmail setzt eine Anmeldung voraus. Eine Sperre an der Anmeldung
+wäre eine Sackgasse ohne Ausgang.
+
+Stattdessen kommt der Nutzer herein und findet **auf jeder Seite** einen
+Hinweisstreifen über dem Inhalt — mit dem Knopf *„Bestätigungsmail senden"*.
+Er steht im Layout und nicht in den einzelnen Seiten, weil er auf jeder stehen
+soll, auch auf denen, die mit Anfragen, Chat und Bildern nichts zu tun haben.
+Auf der Einstellungsseite steht derselbe Knopf noch einmal neben dem Stand der
+Adresse.
+
+Der Login prüft trotzdem — er schreibt den Fall ins Log. Das beantwortet die
+Frage, die beim Einschalten der Pflicht als erste kommt: *Wie viele
+Bestandskonten sind eigentlich betroffen?*
+
+### Warum getrennt
+
+Weil die beiden zu verschiedenen Zeitpunkten scharf werden. In dem Moment, in
+dem der Versand angeht, hat **kein einziges Bestandskonto** eine bestätigte
+Adresse — es wurde ja nie eine Bestätigungsmail verschickt. Ein gemeinsamer
+Schalter würde mit dem ersten Umlegen alle aussperren.
+
+### Der Weg auf einen echten Server
+
+1. `SMTP_*` und `APP_BASE_URL` eintragen, **`MAIL_ENABLED=1`**,
+   `MAIL_VERIFY_REQUIRED` weiter aus. Ab jetzt bekommt jede neue Registrierung
+   ihre Bestätigungsmail, und jedes Bestandskonto kann sich über die
+   Einstellungsseite eine schicken lassen.
+2. Eine Frist abwarten und den Stand prüfen:
+   ```sql
+   SELECT COUNT(*) FROM user WHERE deleted = 0 AND email_verified = 0;
+   ```
+   Im Log stehen die betroffenen Anmeldungen mit Kennung
+   (*„Anmeldung ohne bestaetigte E-Mail-Adresse"*).
+3. **Erst dann `MAIL_VERIFY_REQUIRED=1`.** Vorher prüfen, ob das eigene
+   Administrationskonto bestätigt ist — **es gibt keine Ausnahme für Rollen**.
+   Notfalls von Hand: `UPDATE user SET email_verified = 1 WHERE id = <ID>;`
+
+`APP_BASE_URL` muss **auch bei ausgeschaltetem Versand** gesetzt sein: Ohne
+brauchbare Basisadresse wird kein Token angelegt und folglich auch nichts
+protokolliert — ein falscher Link ist schlimmer als keine Mail.
 
 ---
 

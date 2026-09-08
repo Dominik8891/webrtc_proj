@@ -407,7 +407,17 @@ class ViewHelper
     {
         // Hauptlayout laden (enthält die Platzhalter)
         $out = self::template("assets/html/index.html"); 
-        $out = str_replace("###CONTENT###", $in_content, $out);
+
+        // DER HINWEIS AUF DIE UNBESTAETIGTE ADRESSE steht VOR dem Inhalt und
+        // nicht in der Kopfleiste: Er ist keine Anzeige wie der
+        // Anfragenzaehler, sondern eine offene Aufgabe, und die gehoert
+        // dorthin, wo gelesen wird. Er kommt hier ins Layout und nicht in die
+        // einzelnen Seiten, weil er auf jeder stehen soll - auch auf denen,
+        // die nichts mit Anfragen, Chat oder Bildern zu tun haben.
+        //
+        // Leer, solange MAIL_VERIFY_REQUIRED aus ist (App\Helper\MailGate) -
+        // dann faellt dafuer auch keine Abfrage an.
+        $out = str_replace("###CONTENT###", MailGate::streifen() . $in_content, $out);
 
         // Standardlinks (nicht angemeldet)
         // Gruen ist in dieser Anwendung das Zeichen fuer "ein Guide ist jetzt

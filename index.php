@@ -9,6 +9,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 require_once __DIR__ . '/config/env.php';
 
 use App\Helper\Auth;
+use App\Helper\MailGate;
 use App\Helper\Permission;
 use App\Helper\Request;
 use App\Model\PdoConnect;
@@ -138,6 +139,32 @@ if (!Auth::can($right)) {
     }
 
     deny(403, $kind, 'Für diese Aktion fehlt Ihnen die Berechtigung.');
+}
+
+// ---------------------------------------------------------------------------
+// Die Bestaetigungspflicht (MAIL_VERIFY_REQUIRED, siehe App\Helper\MailGate).
+//
+// SIE STEHT HINTER DER RECHTEPRUEFUNG und nicht davor: Die Rechtefrage lautet
+// "darf diese ROLLE das ueberhaupt", diese hier "ist dieses KONTO so weit".
+// Wer das Recht gar nicht hat, soll die zweite Antwort nicht bekommen - sonst
+// erfuehre ein Aufrufer aus der Fehlermeldung, dass es die Route gibt und was
+// ihm zu ihr noch fehlt.
+//
+// SIE STEHT UEBERHAUPT HIER und nicht in den sechs betroffenen Controllern,
+// aus demselben Grund wie die Rechtepruefung darueber: Eine Entscheidung ueber
+// den Zugang gehoert an EINE Stelle. Verteilt auf sechs Methoden waere sie
+// beim siebten Endpunkt vergessen.
+//
+// Ist der Schalter aus - die Vorgabe -, kostet das eine Feldabfrage und sonst
+// nichts; die Datenbank wird nur auf den Routen der Liste gefragt.
+// ---------------------------------------------------------------------------
+if (MailGate::sperrt($act)) {
+    error_log(sprintf(
+        'Zugriff abgewiesen (E-Mail nicht bestaetigt): act=%s, UserID=%d',
+        $act,
+        Auth::userId()
+    ));
+    deny(403, $kind, MailGate::hinweis());
 }
 
 // Routing: Controller erzeugen und Methode ausführen
