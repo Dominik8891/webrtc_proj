@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Helper\Auth;
+use App\Model\RateLimit;
 use App\Model\TourReview;
 
 /**
@@ -59,6 +60,30 @@ class ReviewController
         $daten   = self::body();
         $request = (int)($daten['request'] ?? 0);
         $sterne  = $daten['stars'] ?? null;
+
+        // --- Die Bremse (Befund N-10) -------------------------------------
+        //
+        // WAS HIER BEGRENZT WIRD, IST NICHT DAS BEWERTEN. Je Fuehrung ist
+        // ohnehin nur eine Bewertung moeglich, und das steht als eindeutiger
+        // Schluessel in der Tabelle (migrations/016), nicht nur hier.
+        //
+        // Begrenzt wird das ABKLOPFEN. Diese Route nimmt eine beliebige
+        // Fuehrungskennung entgegen und antwortet auf "gibt es nicht",
+        // "gehoert dir nicht", "hat nie stattgefunden" und "schon bewertet"
+        // bewusst gleich - aber der ERFOLGSFALL unterscheidet sich, und damit
+        // liesse sich der Kennungsraum absuchen. Deshalb zaehlt hier JEDER
+        // Aufruf und nicht nur der erfolgreiche: Der fehlschlagende ist der,
+        // um den es geht.
+        $teile = ['konto' => RateLimit::konto(Auth::userId())];
+        $rest  = RateLimit::restsperre('review_create', $teile);
+        if ($rest > 0) {
+            self::json([
+                'success' => false,
+                'error'   => 'Zu viele Bewertungen in kurzer Zeit. Bitte '
+                           . RateLimit::wartehinweis($rest) . ' warten.',
+            ]);
+        }
+        RateLimit::verbuchen('review_create', $teile);
 
         if ($request < 1) {
             self::json(['success' => false, 'error' => 'Es fehlt die Führung.']);

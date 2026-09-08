@@ -209,7 +209,7 @@ class TwoFactorController
             return;
         }
 
-        $teile = ['konto' => (string)$userId, 'ip' => RateLimit::ip()];
+        $teile = ['konto' => RateLimit::konto((int)$userId), 'ip' => RateLimit::ip()];
 
         $rest = RateLimit::restsperre('2fa', $teile);
         if ($rest > 0) {

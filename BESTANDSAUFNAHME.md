@@ -927,6 +927,14 @@ der UserID aus der Sitzung, nicht am Benutzernamen). Offen bleiben: kein
 Window/Drift konfiguriert, **keine Backup-Codes**, **kein Replay-Schutz**
 (derselbe Code ist 30 s lang mehrfach verwendbar).
 
+**Ratenbegrenzung der übrigen Endpunkte** (Befund N-10) — **behoben**. Sechs
+Endpunkte, die ein angemeldetes Konto unbegrenzt oft aufrufen konnte, hängen
+jetzt am selben Baustein: Anfragen, Bewertungen, Chat starten, Chat senden,
+TURN-Zugangsdaten, Verifikationsmails. Gezählt wird am Konto aus der Sitzung;
+je IP zusätzlich nur dort, wo ein Aufruf Geld außerhalb dieses Servers kostet
+(TURN-Kontingent, Mailversand). Der gebremste TURN-Abruf liefert die
+STUN-Liste statt eines Fehlers — ein Anruf im einfachen Netz gelingt weiterhin.
+
 **Registrierung**: Die **fehlende Bremse ist behoben** — `signup` begrenzt
 angelegte Konten je IP, `signup_formular` daneben die abgeschickten Formulare,
 damit sich die Grenze nicht durch ungültige Eingaben umgehen lässt (und das

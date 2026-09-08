@@ -404,7 +404,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (294 Prüfungen)
+## Was `server_test.php` prüft (304 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1116,8 +1116,66 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
       Wanderung ist idempotent, hat den eindeutigen Schlüssel `ein_zaehler`
       (ohne ihn ergäben gleichzeitige Versuche zwei Zeilen und damit keine
       Bremse), und die Spaltenbreite passt zu `RateLimit::SCHLUESSEL_MAX`.
+    * **Ohne Anmeldung fällt die Kontoschranke weg.** `Auth::userId()` liefert
+      `0`, und `(string)0` ist `"0"` — ein *nicht leerer* Schlüssel. Die
+      Kontoschranke würde damit nicht wegfallen, sondern sämtliche nicht
+      angemeldeten Aufrufer auf **einen gemeinsamen Zähler** legen: Der erste,
+      der die Grenze erreicht, sperrt alle übrigen mit. `RateLimit::konto()`
+      macht daraus einen Leerstring; geprüft wird, dass dann nur noch die
+      IP-Schranke abgefragt wird.
 
-37. **Jeder Kasten hat einen Rumpf** (Abschnitt „Jeder Kasten hat einen Rumpf"
+37. **Die Bremse an den sechs weiteren Endpunkten** (Abschnitt „Die Bremse an
+    den sechs weiteren Endpunkten" im Skript). Befund N-10: derselbe Baustein,
+    sechs weitere Verbraucher — und der Nachweis, dass es wirklich derselbe
+    ist.
+
+    * **Alle sechs haben eine Aktion** in `config/limits.php`: `request_create`,
+      `review_create`, `chat_start`, `chat_message`, `turn_credentials`,
+      `email_verify_send`.
+    * **Gezählt wird am Konto, nicht an der IP** — der Handelnde ist hier
+      angemeldet, und eine IP-Schranke träfe ein Büro oder ein Mobilfunk-NAT.
+      Die beiden Ausnahmen sind genau die, bei denen ein Aufruf **Geld außerhalb
+      dieses Servers** kostet (TURN-Kontingent, Mailversand); dort interessiert
+      nicht, über wie viele Konten er verteilt wurde.
+    * **Keine Sperre ist kürzer als ihr Fenster** — geprüft für *alle* Aktionen,
+      nicht nur die neuen. Wäre sie kürzer, würde sie zur eigentlichen Taktung:
+      Wer sie abgesessen hat, fängt bei eins an und hätte sofort das volle
+      Kontingent des Fensters. Eine Tagesgrenze mit einstündiger Sperre wäre
+      dann keine Tagesgrenze mehr.
+    * **Geprüft wird vor dem Zählen** — andersherum verlängerte ein Client, der
+      stur weiterprobiert, seine eigene Sperre endlos.
+    * **Jeder Kontoschlüssel geht durch `RateLimit::konto()`** — mit Zählung der
+      Fundstellen, damit die Prüfung nicht durchgeht, weil sie nichts gefunden
+      hat.
+    * **Nur `App\Model\RateLimit` liest `config/limits.php`** (Code ohne
+      Kommentare, repo-weit über `class/`). Das ist die eigentliche Zusicherung
+      hinter „keine Zahl im Code" — ein Zahlenvergleich wäre der falsche Weg
+      und trifft jede zufällige Übereinstimmung mit einer ganz anderen Frist
+      (die `86400` im `EmailVerificationController` ist die Gültigkeit des
+      Verifikations-Tokens).
+    * **Der gebremste TURN-Abruf liefert STUN statt eines Fehlers** — kein
+      HTTP 429: Der Endpunkt hat für den Ausfall des TURN-Dienstes bereits eine
+      brauchbare Antwort (`turnAvailable: false`), und ein Anruf im einfachen
+      Netz gelingt damit weiterhin. Es unterbleibt nur der teure Weg nach
+      draußen. Geprüft wird, dass Metered *nach* der Bremse gefragt wird und
+      die STUN-Liste weiterhin an genau einer Stelle angehängt wird.
+    * **Gebremst wird die Route, nicht der Registrierungsablauf** — der Aufruf
+      aus dem Signup übergibt eine `$user_id` und zählt nicht: Er ist die Folge
+      einer Registrierung, und die ist bereits begrenzt. Sonst bekäme ein frisch
+      angelegtes Konto seine erste Mail unter Umständen gar nicht.
+    * **Die Chatgrenze trägt dem `findOrCreate` Rechnung** — `ui_chat.js` ruft
+      `chat_start` bei *jedem* Öffnen eines Chatfensters auf, nicht nur beim
+      Anlegen. Die Prüfung hält diese Begründung an den Tatsachen fest: Ändert
+      sich der Client, fällt sie auf und die Grenze darf enger werden.
+
+    Und eine Änderung an einer bestehenden Prüfung: `ChatAttrappe::schreibend()`
+    lässt `rate_limit` jetzt aus. Die Prüfung fragt „wurde eine Nachricht
+    geschrieben, obwohl der Absender nicht beteiligt ist" — und die Antwort
+    darauf bleibt nein. Der Zähler ist das Gegenteil: Er **muss** auch beim
+    abgewiesenen Aufruf steigen, denn der Aufruf in einen fremden Chat ist kein
+    Versehen, sondern das Abklopfen fremder Kennungen.
+
+38. **Jeder Kasten hat einen Rumpf** (Abschnitt „Jeder Kasten hat einen Rumpf"
     im Skript).
 
     `.app-panel` trägt nur die **Fläche** — Hintergrund, Rahmen, Rundung,

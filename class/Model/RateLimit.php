@@ -339,6 +339,34 @@ class RateLimit
     }
 
     /**
+     * Die Kennung des handelnden Kontos als Schluesselteil.
+     *
+     * WOZU EINE EIGENE METHODE FUER EINEN CAST: Weil der Cast falsch ist.
+     * App\Helper\Auth::userId() liefert 0, wenn niemand angemeldet ist -
+     * und (string)0 ist "0", also ein NICHT LEERER Schluessel. Eine
+     * Kontoschranke wuerde damit nicht wegfallen, sondern saemtliche nicht
+     * angemeldeten Aufrufer auf EINEN gemeinsamen Zaehler legen: Der erste,
+     * der die Grenze erreicht, sperrt alle uebrigen mit.
+     *
+     * Der Leerstring ist die Antwort darauf. schluessel() laesst eine
+     * Schranke weg, der ein Teil fehlt - die IP-Schranke greift weiter, die
+     * Kontoschranke nicht. Das ist richtig so: Ohne Konto gibt es nichts, was
+     * sie zaehlen koennte.
+     *
+     * NUR FUER KENNUNGEN, nicht fuer Benutzernamen: Beim Login ist der
+     * Kontoteil des Schluessels der eingegebene Name, und der geht
+     * unveraendert hinein (er darf auch leer sein, dann faellt die Schranke
+     * ebenso weg).
+     *
+     * @param  int $userId Kennung, 0 = niemand angemeldet
+     * @return string Die Kennung als Text, '' bei 0
+     */
+    public static function konto(int $userId): string
+    {
+        return $userId > 0 ? (string)$userId : '';
+    }
+
+    /**
      * Die Wartezeit als Satzteil fuer eine Fehlermeldung.
      *
      * AN EINER STELLE, weil drei Controller sie brauchen und der Nutzer

@@ -8,6 +8,7 @@ use App\Helper\Url;
 use App\Helper\ViewHelper;
 use App\Model\PdoConnect;
 use App\Model\Email;
+use App\Model\RateLimit;
 
 /**
  * Controller für die E-Mail-Bestätigung und Verifizierungs-Mails.
@@ -125,12 +126,37 @@ class EmailVerificationController
      * einer fremden ID beliebig oft eine Mail an eine fremde Adresse
      * ausloesen.
      *
+     * DIE BREMSE (Befund N-10)
+     * ------------------------
+     * Jeder Aufruf verschickt eine E-Mail. Ohne Grenze ist das ein
+     * Mailversand-Verstaerker - und der schadet nicht nur diesem Server,
+     * sondern seinem Ruf bei den Empfaengerservern; das laesst sich durch
+     * Abschalten nicht wieder reparieren. Deshalb zaehlt dies neben dem
+     * TURN-Abruf als einziger Endpunkt aus N-10 zusaetzlich je IP: Die Kosten
+     * fallen draussen an, und dort interessiert nicht, ueber wie viele Konten
+     * sie verteilt wurden.
+     *
+     * DASS DER VERSAND IM REGISTRIERUNGSABLAUF AUSKOMMENTIERT IST, aendert
+     * daran nichts (kein eigener SMTP-Server, Befund N-4): Die Route
+     * send_email_verify ist erreichbar und verschickt. Die Bremse gehoert
+     * deshalb jetzt hierher und nicht erst dann, wenn der Versand wieder
+     * eingeschaltet wird - sonst geht sie genau in dem Moment vergessen, in
+     * dem sie anfaengt zu zaehlen.
+     *
+     * GEZAEHLT WIRD NUR DER WEG UEBER DIE ROUTE. Der Aufruf aus dem
+     * Registrierungsablauf uebergibt eine $user_id und bremst nicht: Er ist
+     * die Folge einer Registrierung, und die ist bereits begrenzt (Aktion
+     * 'signup'). Zweimal fuer denselben Vorgang zu zaehlen hiesse, dass ein
+     * frisch angelegtes Konto seine erste Mail unter Umstaenden gar nicht
+     * bekommt.
+     *
      * @param  int|null $user_id null = das angemeldete Konto
      * @return void
      */
     public function sendVerification($user_id = null)
     {
-        $user_id = ($user_id === null) ? Auth::userId() : (int)$user_id;
+        $ueberRoute = ($user_id === null);
+        $user_id = $ueberRoute ? Auth::userId() : (int)$user_id;
 
         if ($user_id < 1) {
             error_log('sendVerification: keine Benutzerkennung - weder uebergeben noch angemeldet.');
@@ -138,8 +164,59 @@ class EmailVerificationController
             exit;
         }
 
+        if ($ueberRoute) {
+            $teile = ['konto' => RateLimit::konto($user_id), 'ip' => RateLimit::ip()];
+            $rest  = RateLimit::restsperre('email_verify_send', $teile);
+            if ($rest > 0) {
+                // Ehrlich statt still: Der Aufrufer ist angemeldet und fragt
+                // nach seiner EIGENEN Adresse - hier gibt es nichts zu
+                // verbergen, und "die Mail ist unterwegs" zu behaupten,
+                // waehrend keine unterwegs ist, laesst ihn weiter warten.
+                error_log("sendVerification: gebremst (UserID {$user_id})");
+                $this->outputVerificationHinweis(
+                    'Es wurde bereits eine Bestätigungsmail verschickt. Bitte sehen Sie '
+                    . 'auch im Spam-Ordner nach. Ein neuer Versand ist '
+                    . RateLimit::wartehinweis($rest) . ' möglich.'
+                );
+                return;
+            }
+            RateLimit::verbuchen('email_verify_send', $teile);
+        }
+
         $this->sendVerificationMail($user_id);
         $out = ViewHelper::template('assets/html/signup_complete.html');
         ViewHelper::output($out);
+    }
+
+    /**
+     * Gibt einen Hinweis statt der Bestaetigungsseite aus.
+     *
+     * Eigene Methode und keine zweite Vorlage: Der Text ist der einzige
+     * Unterschied, und assets/html/signup_complete.html sagt "die Mail ist
+     * unterwegs" - genau das, was hier nicht stimmt.
+     *
+     * @param  string $msg Der Hinweis. Kommt aus dem Code, nie aus der
+     *                     Anfrage - trotzdem maskiert, damit das auch dann
+     *                     noch gilt, wenn jemand hier einmal etwas
+     *                     durchreicht.
+     * @return void
+     */
+    private function outputVerificationHinweis(string $msg): void
+    {
+        $html = '
+                <div class="app-result">
+                    <div class="app-panel">
+                        <div class="app-panel__body">
+                            <div class="app-result__mark app-result__mark--danger" aria-hidden="true">!</div>
+                            <h1 class="app-auth__title">Keine neue Mail verschickt</h1>
+                            <p class="app-result__text">' . htmlspecialchars($msg) . '</p>
+                            <div class="app-actions app-actions--center">
+                                <a href="index.php?act=home" class="btn btn-primary">Zur Startseite</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ';
+        ViewHelper::output($html);
     }
 }
