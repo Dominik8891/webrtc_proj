@@ -404,7 +404,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (290 Prüfungen)
+## Was `server_test.php` prüft (293 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1116,6 +1116,41 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
       Wanderung ist idempotent, hat den eindeutigen Schlüssel `ein_zaehler`
       (ohne ihn ergäben gleichzeitige Versuche zwei Zeilen und damit keine
       Bremse), und die Spaltenbreite passt zu `RateLimit::SCHLUESSEL_MAX`.
+
+37. **Jeder Kasten hat einen Rumpf** (Abschnitt „Jeder Kasten hat einen Rumpf"
+    im Skript).
+
+    `.app-panel` trägt nur die **Fläche** — Hintergrund, Rahmen, Rundung,
+    Schatten. Den **Innenabstand** trägt `.app-panel__body`, und zwar als
+    einzige Stelle. Auf der Anfragenseite fehlte er: Überschrift, Hinweis und
+    Liste lagen unmittelbar im Kasten und damit bündig an seinem Rand.
+
+    Auffällig war es an den Überschriften, aber sie waren nicht die Ursache.
+    Ohne Rumpf fehlte der Abstand **ringsum** — auch die Karten saßen am Rand
+    und sahen nur eingerückt aus, weil sie ihren *eigenen* Innenabstand haben
+    (`.req-item`). Die Überschrift daneben hatte nichts dergleichen.
+
+    * **Jede `.app-panel` in den Vorlagen hat ein erlaubtes Kind** — geprüft
+      über den wirklichen Baum (`DOMDocument`/XPath), nicht über Textzählung:
+      Ein Kasten mit Rumpf *und* ein zweiter ohne fallen bei einer Zählung je
+      Datei nicht auf. Erlaubt sind `app-panel__body`, `app-panel__head` und
+      `app-table-wrap`.
+    * **`app-table-wrap` ist die Ausnahme und kein Versehen.** Eine Tabelle
+      soll von Rand zu Rand laufen; ihre Zellen tragen den Abstand selbst.
+      Ein Rumpf darum würde sie ein zweites Mal einrücken. So gebaut sind die
+      drei Listenseiten (`list_chat`, `list_user`, `locations_table`) und der
+      aufklappbare Standortkasten der Einstellungen — die wurden geprüft und
+      **nicht** angefasst.
+    * **Auch die aus PHP gebauten Kästen** werden geprüft, gröber (sie stehen
+      in Zeichenketten, ein Baum wird daraus nicht): Wer eine `.app-panel`
+      baut, muss im selben Abschnitt auch eines der erlaubten Kinder bauen.
+    * **Beide Zählungen sind gegen Leerlauf abgesichert** — findet die Prüfung
+      weniger Kästen als erwartet, schlägt sie an, statt durchzugehen, weil sie
+      nichts gefunden hat.
+
+    Geprüft wird als **Regel und nicht als Einzelfall** — dieselbe Überlegung
+    wie bei den verschachtelten Formularen (35): Ein Bauteil, das man halb
+    benutzen kann, wird irgendwann wieder halb benutzt.
 
 ## Grenzen
 

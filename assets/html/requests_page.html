@@ -15,6 +15,24 @@
     Ueberschrift bleibt trotzdem stehen. Ein Kasten, der je nach Rolle ganz
     verschwindet, laesst die Seite bei jedem Aufruf anders aussehen.
 
+    JEDER KASTEN HAT EINEN RUMPF
+    ----------------------------
+    .app-panel traegt nur die Flaeche - Hintergrund, Rahmen, Rundung, Schatten
+    (assets/css/theme.css). Den Innenabstand traegt .app-panel__body, und zwar
+    als EINZIGE Stelle. Hier fehlte er: Ueberschrift, Hinweis und Liste lagen
+    unmittelbar im Kasten und damit buendig an seinem Rand.
+
+    Auffaellig war es an den Ueberschriften, aber sie waren nicht die Ursache.
+    Ohne Rumpf fehlte der Abstand RINGSUM - auch die Karten sassen am Rand.
+    Dass sie trotzdem eingerueckt aussahen, lag an ihrem eigenen Innenabstand
+    (.req-item): Der Rahmen der Karte lag am Kastenrand, ihr Text nicht. Die
+    Ueberschrift daneben hatte nichts dergleichen und stand deshalb weiter
+    links als alles andere.
+
+    Geloest wird das mit dem vorhandenen Bauteil und nicht mit einer eigenen
+    Regel fuer .req-block: Eine zweite Stelle mit demselben Abstandswert waere
+    genau die Sorte Doppelung, die dieses Bauteil abschaffen sollte.
+
     DIE ZEILEN KOMMEN AUS DEM SKRIPT und nicht vom Server. Das ist die
     Ausnahme von der Regel dieser Anwendung, und der Grund steht im
     Controller: Der Inhalt aendert sich, waehrend man hinsieht, und muss
@@ -39,22 +57,26 @@
 
     <!-- Eingehend: an die eigenen Standorte gerichtet. -->
     <section class="app-panel req-block" aria-labelledby="req-in-title">
-        <h2 class="req-block__title" id="req-in-title">An meine Standorte</h2>
-        <p class="req-block__hint" id="req-in-empty" hidden>
-            Hier ist gerade nichts offen. Sobald jemand eine Führung an einem Ihrer
-            Standorte anfragt, steht sie hier – und der Zähler in der Kopfleiste sagt es Ihnen.
-        </p>
-        <ul class="req-list" id="req-incoming"></ul>
+        <div class="app-panel__body">
+            <h2 class="req-block__title" id="req-in-title">An meine Standorte</h2>
+            <p class="req-block__hint" id="req-in-empty" hidden>
+                Hier ist gerade nichts offen. Sobald jemand eine Führung an einem Ihrer
+                Standorte anfragt, steht sie hier – und der Zähler in der Kopfleiste sagt es Ihnen.
+            </p>
+            <ul class="req-list" id="req-incoming"></ul>
+        </div>
     </section>
 
     <!-- Ausgehend: selbst gestellt. -->
     <section class="app-panel req-block" aria-labelledby="req-out-title">
-        <h2 class="req-block__title" id="req-out-title">Meine Anfragen</h2>
-        <p class="req-block__hint" id="req-out-empty" hidden>
-            Sie haben noch keine Führung angefragt. Suchen Sie sich auf der Karte einen
-            Ort aus – auf seiner Seite fragen Sie die Führung mit Ihrem Wunschzeitpunkt an.
-        </p>
-        <ul class="req-list" id="req-outgoing"></ul>
+        <div class="app-panel__body">
+            <h2 class="req-block__title" id="req-out-title">Meine Anfragen</h2>
+            <p class="req-block__hint" id="req-out-empty" hidden>
+                Sie haben noch keine Führung angefragt. Suchen Sie sich auf der Karte einen
+                Ort aus – auf seiner Seite fragen Sie die Führung mit Ihrem Wunschzeitpunkt an.
+            </p>
+            <ul class="req-list" id="req-outgoing"></ul>
+        </div>
     </section>
 
     <p class="req-page__foot" id="req-error" hidden>

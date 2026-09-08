@@ -5660,6 +5660,112 @@ check(strpos(file_get_contents($ROOT . '/cron/check_online_status.php'), 'RateLi
 ok('rate_limit steht in der Wanderung, im Dump und im Aufraeum-Cronjob');
 
 
+// =====================================================================
+fwrite(STDERR, "\nJeder Kasten hat einen Rumpf\n");
+// =====================================================================
+//
+// DER BEFUND: Auf der Anfragenseite lagen Ueberschrift, Hinweis und Liste
+// unmittelbar in der .app-panel - und damit buendig an deren Rand.
+//
+// .app-panel traegt nur die FLAECHE: Hintergrund, Rahmen, Rundung, Schatten
+// (assets/css/theme.css). Den INNENABSTAND traegt .app-panel__body, und zwar
+// als einzige Stelle. Ohne Rumpf fehlt er ringsum.
+//
+// Auffaellig war es an den Ueberschriften, aber sie waren nicht die Ursache:
+// Die Karten sassen ebenso am Rand, sahen nur eingerueckt aus, weil sie ihren
+// EIGENEN Innenabstand haben (.req-item). Die Ueberschrift daneben hatte
+// nichts dergleichen.
+//
+// GEPRUEFT WIRD ALS REGEL UND NICHT ALS EINZELFALL - dieselbe Ueberlegung wie
+// bei den verschachtelten Formularen (Abschnitt 35): Ein Bauteil, das man
+// halb benutzen kann, wird irgendwann wieder halb benutzt.
+
+/**
+ * Die erlaubten unmittelbaren Kinder einer .app-panel.
+ *
+ * __body  der Rumpf mit dem Innenabstand - der Regelfall,
+ * __head  die vertiefte Kopfzeile,
+ * app-table-wrap
+ *         eine Tabelle. SIE IST DIE AUSNAHME UND KEIN VERSEHEN: Eine Tabelle
+ *         soll von Rand zu Rand laufen, ihre Zellen tragen den Abstand selbst
+ *         (Bootstrap). Ein Rumpf darum wuerde sie ein zweites Mal einruecken
+ *         und den Zweck der Flaeche zerstoeren. So gebaut sind die drei
+ *         Listenseiten und der aufklappbare Standortkasten der Einstellungen.
+ */
+$erlaubteKinder = ['app-panel__body', 'app-panel__head', 'app-table-wrap'];
+
+/** Liest die Klassenliste eines Elements. */
+$klassen = function (\DOMElement $el): array {
+    return preg_split('/\s+/', trim($el->getAttribute('class')), -1, PREG_SPLIT_NO_EMPTY);
+};
+
+$geprueft = 0;
+foreach (glob($ROOT . '/assets/html/*.html') as $datei) {
+    $roh = file_get_contents($datei);
+    if (strpos($roh, 'app-panel') === false) continue;
+
+    // Die Vorlagen sind Bruchstuecke und keine ganzen Dokumente, und sie
+    // enthalten Platzhalter wie ###CHAT_ROWS###. loadHTML meldet das als
+    // Warnung - die interessiert hier nicht, geprueft wird der Baum.
+    $doc = new \DOMDocument();
+    $vorher = libxml_use_internal_errors(true);
+    $doc->loadHTML('<?xml encoding="UTF-8">' . $roh);
+    libxml_clear_errors();
+    libxml_use_internal_errors($vorher);
+
+    $xp = new \DOMXPath($doc);
+    foreach ($xp->query("//*[contains(concat(' ', normalize-space(@class), ' '), ' app-panel ')]") as $panel) {
+        $geprueft++;
+        $gefunden = false;
+        foreach ($panel->childNodes as $kind) {
+            if (!($kind instanceof \DOMElement)) continue;
+            if (array_intersect($klassen($kind), $erlaubteKinder) !== []) { $gefunden = true; break; }
+        }
+        check($gefunden, basename($datei) . ': eine .app-panel ohne Rumpf - ihr Inhalt liegt '
+            . 'buendig am Rand. Erlaubt sind ' . implode(', ', $erlaubteKinder));
+    }
+}
+// Sonst ginge die Pruefung durch, weil sie nichts gefunden hat.
+check($geprueft >= 15, "nur $geprueft Kaesten geprueft - die Vorlagen wurden nicht gelesen");
+ok("jede .app-panel in den Vorlagen hat einen Rumpf ($geprueft geprueft)");
+
+// --- Und dieselbe Regel fuer die Kaesten, die aus PHP kommen --------------
+//
+// Grober, weil sie in Zeichenketten stehen und kein Baum daraus wird: Wer
+// eine .app-panel baut, muss im selben Bauabschnitt auch eines der erlaubten
+// Kinder bauen. Das faengt den Fall "Kasten hingeschrieben, Rumpf vergessen"
+// ab, um den es hier geht.
+$phpKaesten = 0;
+foreach (array_merge(glob($ROOT . '/class/Controller/*.php'),
+                     glob($ROOT . '/class/Helper/*.php'),
+                     glob($ROOT . '/assets/js/*.js')) as $datei) {
+    $roh = file_get_contents($datei);
+    $anzahl = preg_match_all('/app-panel(?![_a-zA-Z-])/', $roh);
+    if ($anzahl === 0) continue;
+    $phpKaesten += $anzahl;
+    $rumpfe = 0;
+    foreach ($erlaubteKinder as $kind) { $rumpfe += substr_count($roh, $kind); }
+    check($rumpfe >= $anzahl, basename($datei) . ": $anzahl Kaesten, aber nur $rumpfe Rumpf-"
+        . 'oder Kopfzeilen - mindestens einer liegt ohne Innenabstand da');
+}
+check($phpKaesten >= 5, "nur $phpKaesten Kaesten aus PHP gefunden");
+ok("jeder aus PHP gebaute Kasten bringt einen Rumpf mit ($phpKaesten geprueft)");
+
+// --- Die Anfragenseite im Einzelnen ---------------------------------------
+//
+// Der Ausgangspunkt, festgehalten: Beide Abschnitte tragen ihren Rumpf, und
+// die Liste liegt darin - nicht daneben. Ein Rumpf, der nur die Ueberschrift
+// umschliesst, saehe im Zaehler oben genauso aus und waere trotzdem falsch:
+// Dann stuende die Ueberschrift eingerueckt und die Karten wieder am Rand.
+$anfragen = file_get_contents($ROOT . '/assets/html/requests_page.html');
+foreach (['req-in-title' => 'req-incoming', 'req-out-title' => 'req-outgoing'] as $titel => $liste) {
+    check(preg_match('/<div class="app-panel__body">.*?id="' . $titel . '".*?id="' . $liste . '".*?<\/div>/s',
+        $anfragen) === 1,
+        "requests_page.html: $titel und $liste liegen nicht im selben Rumpf");
+}
+ok('auf der Anfragenseite liegen Ueberschrift, Hinweis und Liste im selben Rumpf');
+
+
 PdoConnect::$connection = new FakeConnection();
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");
