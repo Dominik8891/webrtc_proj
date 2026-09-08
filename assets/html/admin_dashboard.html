@@ -3,18 +3,26 @@
     Gefuellt von App\Controller\AdminController.
 
     Platzhalter:
-      ###TILES###   Die Kachelreihe mit den Bestandszahlen (App\Helper\AdminView)
+      ###VORRAT###  Was auf jemanden wartet (App\Helper\AdminView::vorratHtml)
+      ###TILES###   Die Bestandszahlen  (App\Helper\AdminView::bestandHtml)
 
-    WAS HIER STEHT UND WARUM SO WENIG: Zahlen zum Bestand, sonst nichts. Die
-    Seite beantwortet vier Fragen - wie viele Konten, wer bietet an, wird
-    gefuehrt, wie kommt es an - und fuehrt von dort in die Listen. Ein
-    Arbeitsvorrat ("das und das wartet auf dich") steht bewusst noch nicht
-    hier; er waere eine zweite Stelle, an der entschieden wird, was ein
-    Vorgang ist, und die will erst festgelegt sein.
+    ZWEI BLOECKE, UND DIE REIHENFOLGE IST DER PUNKT. Oben steht, was
+    Aufmerksamkeit braucht, darunter, wie gross der Laden ist. Andersherum
+    saehe eine Aufgabe aus wie eine Bestandszahl: "42 Konten" nimmt man zur
+    Kenntnis, "3 haengende Fuehrungen" soll jemanden dazu bringen, etwas zu
+    tun.
 
-    Die einzige Zahl, die heute schon Arbeit bedeutet, ist die der gesperrten
-    Standorte - sie steht als Verweis in ihrer Kachel.
+    Der Arbeitsvorrat zeigt nur, was offen ist. Ist nichts offen, steht dort
+    ein Satz, der aufzaehlt, was geprueft wurde - erst damit ist die Leere
+    eine Auskunft.
 -->
+<section class="app-panel adm-panel">
+    <div class="app-panel__body">
+        <h2 class="adm-panel__title">Braucht Aufmerksamkeit</h2>
+        ###VORRAT###
+    </div>
+</section>
+
 <section class="app-panel adm-panel">
     <div class="app-panel__body">
         <h2 class="adm-panel__title">Bestand</h2>

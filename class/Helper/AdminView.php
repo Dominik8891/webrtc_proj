@@ -2,6 +2,7 @@
 namespace App\Helper;
 
 use App\Model\AdminStats;
+use App\Model\TourRequest;
 use App\Model\TourReview;
 
 /**
@@ -54,6 +55,7 @@ class AdminView
     private const REITER = [
         'uebersicht'  => ['index.php?act=admin'          , 'Übersicht'   , Permission::SYSTEM_ADMIN],
         'benutzer'    => ['index.php?act=list_user'      , 'Benutzer'    , Permission::USER_LIST],
+        'anfragen'    => ['index.php?act=admin_requests' , 'Anfragen'    , Permission::REQUEST_LIST_ALL],
         'standorte'   => ['index.php?act=admin_locations', 'Standorte'   , Permission::LOCATION_BLOCK],
         'bewertungen' => ['index.php?act=admin_reviews'  , 'Bewertungen' , Permission::REVIEW_REMOVE],
     ];
@@ -120,6 +122,119 @@ class AdminView
     // =================================================================
 
     /**
+     * DER ARBEITSVORRAT - was auf jemanden wartet.
+     *
+     * ER STEHT AUF DER UEBERSICHT GANZ OBEN, vor den Bestandszahlen, und das
+     * ist die ganze Begruendung fuer diesen eigenen Block: Eine Aufgabe, die
+     * zwischen Bestandszahlen steht, sieht aus wie eine Bestandszahl. "42
+     * Konten" nimmt man zur Kenntnis; "3 haengende Fuehrungen" soll jemanden
+     * dazu bringen, etwas zu tun.
+     *
+     * GEZEIGT WIRD NUR, WAS OFFEN IST. Eine Zeile mit einer Null, die jeden
+     * Tag dasteht, erzieht dazu, den ganzen Block zu ueberlesen - und dann
+     * faellt die Vier daneben auch nicht mehr auf. Ist nichts offen, steht
+     * dort EIN Satz, der aufzaehlt, was geprueft wurde: Erst damit ist die
+     * Leere eine Auskunft und nicht bloss ein leerer Kasten.
+     *
+     * JEDE ZEILE FUEHRT DORTHIN, WO SICH DER VORRAT ABARBEITEN LAESST - aber
+     * nur, wenn der Betrachter die Seite auch aufrufen darf. Die Zahl sieht
+     * er in jedem Fall (er ist auf dieser Uebersicht, also hat er
+     * system.admin); der Verweis waere sonst ein Klick in eine Absage.
+     *
+     * @param array{haengend:int, unbeantwortet:int, gesperrt:int} $in_vorrat
+     *        Aus App\Model\AdminStats::vorrat()
+     * @return string HTML
+     */
+    public static function vorratHtml(array $in_vorrat): string
+    {
+        $haengend      = max(0, (int)($in_vorrat['haengend']      ?? 0));
+        $unbeantwortet = max(0, (int)($in_vorrat['unbeantwortet'] ?? 0));
+        $gesperrt      = max(0, (int)($in_vorrat['gesperrt']      ?? 0));
+
+        $zeilen = '';
+
+        // ZUERST DIE HAENGENDEN FUEHRUNGEN, weil sie als Einzige gerade
+        // JEMANDEN aufhalten: Solange eine offen ist, steht beim Kunden der
+        // Startknopf und die Bewertung wird nicht faellig.
+        if ($haengend > 0) {
+            $zeilen .= self::vorratZeileHtml(
+                $haengend,
+                $haengend === 1 ? 'Führung hängt' : 'Führungen hängen',
+                'Begonnen und von niemandem beendet. Solange das so bleibt, steht '
+                . 'beim Kunden der Startknopf, und die Bewertung wird nicht fällig.',
+                'index.php?act=admin_requests&filter=haengend',
+                Permission::REQUEST_LIST_ALL
+            );
+        }
+
+        if ($unbeantwortet > 0) {
+            $zeilen .= self::vorratZeileHtml(
+                $unbeantwortet,
+                'Anfrage' . ($unbeantwortet === 1 ? '' : 'n') . ' ohne Antwort',
+                'Verfallen, ohne dass der Guide zu- oder abgesagt hat – in den letzten '
+                . TourRequest::VORRAT_TAGE . ' Tagen. Der Kunde hat gewartet und nichts bekommen.',
+                'index.php?act=admin_requests&filter=unbeantwortet',
+                Permission::REQUEST_LIST_ALL
+            );
+        }
+
+        if ($gesperrt > 0) {
+            $zeilen .= self::vorratZeileHtml(
+                $gesperrt,
+                'Standort' . ($gesperrt === 1 ? '' : 'e') . ' gesperrt',
+                'Ein Vorgang, den jemand eröffnet hat und den jemand wieder '
+                . 'schließen muss – oder bestätigen.',
+                'index.php?act=admin_locations&filter=gesperrt',
+                Permission::LOCATION_BLOCK
+            );
+        }
+
+        if ($zeilen === '') {
+            return '<p class="adm-vorrat__leer">Nichts offen: keine hängende Führung, '
+                 . 'keine unbeantwortete Anfrage, kein gesperrter Standort.</p>';
+        }
+
+        return '<ul class="adm-vorrat">' . $zeilen . '</ul>';
+    }
+
+    /**
+     * Eine Zeile des Arbeitsvorrats.
+     *
+     * DIE ZAHL LINKS UND GROSS, daneben was es ist und warum es zaehlt. Der
+     * Satz ist nicht Zierde: Wer diese Seite zum ersten Mal sieht, weiss
+     * nicht, was "haengend" bedeutet - und ohne das ist die Zahl keine
+     * Aufgabe, sondern ein Raetsel.
+     *
+     * OHNE DAS RECHT KEIN VERWEIS, aber die Zeile bleibt: Dass etwas offen
+     * ist, darf jeder wissen, der auf diese Uebersicht darf. Nur der Weg
+     * dorthin haengt am Recht der Zielseite.
+     *
+     * @param int    $in_zahl
+     * @param string $in_titel  Wird maskiert
+     * @param string $in_text   Wird maskiert
+     * @param string $in_ziel   Adresse der Liste
+     * @param string $in_recht  Recht, das die Zielseite verlangt
+     * @return string HTML
+     */
+    private static function vorratZeileHtml(int $in_zahl, string $in_titel,
+                                            string $in_text, string $in_ziel,
+                                            string $in_recht): string
+    {
+        $titel = ViewHelper::esc($in_titel);
+        $kopf  = Auth::can($in_recht)
+               ? '<a href="' . $in_ziel . '">' . $titel . '</a>'
+               : $titel;
+
+        return '<li class="adm-vorrat__item">'
+             .   '<span class="adm-vorrat__count">' . $in_zahl . '</span>'
+             .   '<span class="adm-vorrat__body">'
+             .     '<span class="adm-vorrat__title">' . $kopf . '</span>'
+             .     '<span class="adm-vorrat__note">' . ViewHelper::esc($in_text) . '</span>'
+             .   '</span>'
+             . '</li>';
+    }
+
+    /**
      * Die Kachelreihen der Uebersicht.
      *
      * VIER GRUPPEN, und jede beantwortet eine Frage, die man beim Aufmachen
@@ -165,16 +280,12 @@ class AdminView
                  'Standorte',
                  (int)($standorte['gesamt'] ?? 0),
                  (int)($standorte['anbieter'] ?? 0) . ' Konten bieten an',
-                 // DIE EINZIGE ZAHL DIESER SEITE, DIE ARBEIT BEDEUTET: Eine
-                 // Sperre ist ein Vorgang, den jemand eroeffnet hat und den
-                 // jemand wieder schliessen muss. Sie steht deshalb als
-                 // Verweis da und nicht als Beisatz - ein Klick fuehrt in die
-                 // Liste, in der genau diese Zeilen stehen.
-                 (int)($standorte['gesperrt'] ?? 0) > 0
-                     ? '<a href="index.php?act=admin_locations&filter=gesperrt">'
-                       . (int)$standorte['gesperrt'] . ' gesperrt</a>'
-                     : 'keine gesperrt',
-                 (int)($standorte['gesperrt'] ?? 0) > 0
+                 // HIER STAND DIE SPERRE ALS VERWEIS UND MIT HERVORHEBUNG.
+                 // Sie ist in den Arbeitsvorrat darueber gezogen, wo sie
+                 // hingehoert: Eine Sperre ist eine Aufgabe und keine
+                 // Bestandszahl. Genannt wird sie hier trotzdem - zum Bestand
+                 // gehoert sie auch.
+                 (int)($standorte['gesperrt'] ?? 0) . ' davon gesperrt'
                )
              . self::kachelHtml(
                  'Führungen',
@@ -201,26 +312,28 @@ class AdminView
      * gross und allein in ihrer Zeile - eine Kachel, in der die Zahl
      * mitschwimmt, muss man lesen statt anzusehen.
      *
-     * $in_fuss darf HTML enthalten (ein Verweis), $in_titel und $in_zusatz
-     * nicht - sie werden maskiert. Der Aufrufer ist ausschliesslich diese
-     * Klasse; von aussen kommt hier nichts herein.
+     * KEINE KACHEL IST HERVORGEHOBEN, und seit dem Arbeitsvorrat darueber ist
+     * das auch richtig: Hier stehen ausschliesslich Bestandszahlen, und keine
+     * davon ist dringender als eine andere. Was dringend ist, steht oben.
+     *
+     * Alle vier Angaben werden maskiert. Der Aufrufer ist ausschliesslich
+     * diese Klasse; von aussen kommt hier nichts herein - die Regel gilt
+     * trotzdem, weil sie sonst beim naechsten Aufrufer vergessen wird.
      *
      * @param string $in_titel
      * @param int    $in_zahl
      * @param string $in_zusatz Erste Zeile unter der Zahl
-     * @param string $in_fuss   Zweite Zeile, darf einen Verweis enthalten
-     * @param bool   $in_achtung Hebt den Fuss hervor
+     * @param string $in_fuss   Zweite Zeile
      * @return string HTML
      */
     private static function kachelHtml(string $in_titel, int $in_zahl,
-                                       string $in_zusatz, string $in_fuss,
-                                       bool $in_achtung = false): string
+                                       string $in_zusatz, string $in_fuss): string
     {
-        return '<section class="adm-tile' . ($in_achtung ? ' adm-tile--achtung' : '') . '">'
+        return '<section class="adm-tile">'
              .   '<h2 class="adm-tile__title">' . ViewHelper::esc($in_titel) . '</h2>'
              .   '<p class="adm-tile__value">' . number_format($in_zahl, 0, ',', '.') . '</p>'
              .   '<p class="adm-tile__note">' . ViewHelper::esc($in_zusatz) . '</p>'
-             .   '<p class="adm-tile__foot">' . $in_fuss . '</p>'
+             .   '<p class="adm-tile__foot">' . ViewHelper::esc($in_fuss) . '</p>'
              . '</section>';
     }
 
@@ -364,6 +477,172 @@ class AdminView
     }
 
     // =================================================================
+    // DIE ANFRAGENLISTE - DIE SEITE ZUM ABARBEITEN
+    // =================================================================
+
+    /**
+     * Die Zeilen der Anfragenliste.
+     *
+     * WAS AUF DIESER SEITE ABGEARBEITET WIRD, und was ausdruecklich nicht:
+     *
+     * Die Verwaltung greift in eine Verabredung NICHT ein. Sie nimmt keine
+     * Anfrage an, sie lehnt keine ab, und sie beendet keine fremde Fuehrung -
+     * dafuer gibt es kein Recht und soll es keines geben: Was zwischen einem
+     * Guide und seinem Kunden ausgemacht ist, kann ein Dritter nicht
+     * abschliessen, ohne zu wissen, ob es stattgefunden hat.
+     *
+     * ABGEARBEITET WIRD DURCH ANSPRECHEN. Jede Zeile traegt deshalb den
+     * Chatknopf zum GUIDE - denselben wie die Benutzerliste, mit derselben
+     * Route (chat_start_direct, Recht chat.start_direct). Das ist die
+     * Handlung, die einen dieser Vorgaenge wirklich aufloest: "Deine Fuehrung
+     * von heute Mittag laeuft noch, magst du sie beenden?" oder "Bei dir
+     * sind drei Anfragen verfallen - passt der Standort noch?".
+     *
+     * DIE VORRAETE LOESEN SICH VERSCHIEDEN AUF: Eine haengende Fuehrung
+     * verschwindet von selbst, sobald die Frist durch ist (closedSql) - die
+     * Zeile ist ein Anlass, kein Auftrag. Eine unbeantwortete Anfrage
+     * verschwindet erst aus dem Zeitfenster (TourRequest::VORRAT_TAGE); sie
+     * ist eine Auskunft ueber einen Guide, nicht ueber einen Vorgang.
+     *
+     * @param array<int,array<string,mixed>> $in_zeilen Aus TourRequest::allForAdmin()
+     * @return string HTML
+     */
+    public static function anfrageZeilenHtml(array $in_zeilen): string
+    {
+        if ($in_zeilen === []) {
+            return '<tr><td colspan="6" class="adm-empty">Nichts in dieser Ansicht.</td></tr>';
+        }
+
+        $namen = TourRequest::statusNames();
+
+        $html = '';
+        foreach ($in_zeilen as $zeile) {
+            $id       = (int)($zeile['id'] ?? 0);
+            $laeuft   = !empty($zeile['running']);
+            $zustand  = (string)($zeile['status'] ?? '');
+            $guide_id = (int)($zeile['guide_user_id'] ?? 0);
+            $titel    = trim((string)($zeile['title'] ?? ''));
+            if ($titel === '') $titel = 'Ohne Titel';
+
+            $ort = trim(implode(', ', array_filter([
+                (string)($zeile['city_name']    ?? ''),
+                (string)($zeile['country_name'] ?? ''),
+            ])));
+
+            $html .= '<tr' . ($laeuft ? ' class="adm-row--haengt"' : '') . '>'
+                  .   '<td class="adm-num">' . $id . '</td>'
+                  .   '<td>' . self::anfrageZustandHtml($zustand, $laeuft, $namen) . '</td>'
+                  .   '<td>'
+                  .     '<a href="index.php?act=location&id=' . (int)($zeile['location_id'] ?? 0) . '">'
+                  .       ViewHelper::esc($titel) . '</a>'
+                  .     ($ort !== '' ? '<span class="adm-sub">' . ViewHelper::esc($ort) . '</span>' : '')
+                  .   '</td>'
+                  .   '<td>'
+                  .     '<a href="index.php?act=guide&id=' . $guide_id . '">'
+                  .       ViewHelper::esc((string)($zeile['guide_name'] ?? '')) . '</a>'
+                  .     '<span class="adm-sub">' . ViewHelper::esc((string)($zeile['guide_username'] ?? '')) . '</span>'
+                  .   '</td>'
+                  .   '<td>'
+                  .     ViewHelper::esc((string)($zeile['customer_username'] ?? '?'))
+                  .     '<span class="adm-sub">' . self::anfrageZeitHtml($zeile) . '</span>'
+                  .   '</td>'
+                  .   '<td>' . self::guideChatKnopfHtml($guide_id, (string)($zeile['guide_name'] ?? '')) . '</td>'
+                  . '</tr>';
+        }
+        return $html;
+    }
+
+    /**
+     * Der Zustand einer Anfrage als Wort.
+     *
+     * "haengt" IST KEIN ZUSTAND DER DATENBANK, sondern die Zuspitzung von
+     * "angenommen und begonnen und nicht beendet" (TourRequest::runningSql).
+     * In dieser Liste ist genau das die Auskunft, um die es geht - deshalb
+     * steht sie vor dem gerechneten Status und nicht daneben.
+     *
+     * Die uebrigen Woerter kommen aus TourRequest::statusNames() und nicht
+     * aus dieser Klasse: Anfragenseite und Verwaltung benennen denselben
+     * Zustand, und zwei Fassungen desselben Wortes waeren eine zu viel.
+     *
+     * @param string               $in_status
+     * @param bool                 $in_laeuft
+     * @param array<string,string> $in_namen
+     * @return string HTML
+     */
+    private static function anfrageZustandHtml(string $in_status, bool $in_laeuft,
+                                               array $in_namen): string
+    {
+        if ($in_laeuft) {
+            return '<span class="app-tag app-tag--warn">hängt</span>';
+        }
+
+        $wort = $in_namen[$in_status] ?? $in_status;
+        // Abgelaufen ist der einzige der uebrigen Zustaende, der etwas
+        // bedeutet, was jemand haette verhindern koennen. Er bekommt deshalb
+        // eine Marke, die uebrigen bleiben Text.
+        return $in_status === TourRequest::STATUS_EXPIRED
+            ? '<span class="app-tag app-tag--danger">' . ViewHelper::esc($wort) . '</span>'
+            : '<span class="adm-none">' . ViewHelper::esc($wort) . '</span>';
+    }
+
+    /**
+     * Die Zeitangabe einer Zeile - und zwar die, auf die es ankommt.
+     *
+     * DREI FAELLE, DREI FRAGEN:
+     *
+     *   laeuft noch   Seit wann? "seit 3 Std" ist der Unterschied zwischen
+     *                 einer normalen Fuehrung und einer, die haengt.
+     *   abgelaufen    Wann ist sie verfallen? Danach sortiert die Liste.
+     *   sonst         Der Wunschzeitpunkt - worum es ueberhaupt ging.
+     *
+     * Eine Zeile mit allen drei Zeitpunkten waere vollstaendig und
+     * unlesbar. Es steht die eine da, die zur Zeile gehoert.
+     *
+     * @param array<string,mixed> $in_zeile
+     * @return string Maskierter Text
+     */
+    private static function anfrageZeitHtml(array $in_zeile): string
+    {
+        if (!empty($in_zeile['running'])) {
+            $seit = (int)($in_zeile['running_since'] ?? 0);
+            return ViewHelper::esc('läuft seit ' . self::dauer($seit));
+        }
+
+        if (($in_zeile['status'] ?? '') === TourRequest::STATUS_EXPIRED) {
+            return ViewHelper::esc('verfallen ' . self::datum($in_zeile['expires_at'] ?? null));
+        }
+
+        return ViewHelper::esc('Wunsch: ' . self::datum($in_zeile['wish_at'] ?? null));
+    }
+
+    /**
+     * Der Chatknopf zum Guide.
+     *
+     * DERSELBE KNOPF WIE IN DER BENUTZERLISTE, bis auf die Klasse
+     * (.start-chat-btn) und das Datenfeld - beide liest assets/js/main.js,
+     * und von dort geht es in denselben Direktchat. Nachgebaut wird hier
+     * nichts: Ein zweiter Weg in denselben Chat waere ein zweiter Ort, an dem
+     * man ihn spaeter aendern muss.
+     *
+     * @param int    $in_guide_id
+     * @param string $in_name Nur fuer das aria-label
+     * @return string HTML
+     */
+    private static function guideChatKnopfHtml(int $in_guide_id, string $in_name): string
+    {
+        if ($in_guide_id < 1) return '<span class="adm-none">–</span>';
+
+        $name = ViewHelper::esc($in_name !== '' ? $in_name : ('#' . $in_guide_id));
+
+        return '<div class="app-actions-cell">'
+             . '<button type="button" class="app-iconbtn app-iconbtn--chat start-chat-btn"'
+             . ' data-userid="' . $in_guide_id . '"'
+             . ' aria-label="Chat mit ' . $name . '"'
+             . ' title="Guide anschreiben"></button>'
+             . '</div>';
+    }
+
+    // =================================================================
     // DIE BEWERTUNGSLISTE
     // =================================================================
 
@@ -477,6 +756,34 @@ class AdminView
 
         $zeit = strtotime($roh);
         return $zeit === false ? '' : date('d.m.Y H:i', $zeit);
+    }
+
+    /**
+     * Eine Zeitspanne in Sekunden als lesbare Dauer.
+     *
+     * GROB UND ABSICHTLICH: "seit 3 Std 12 Min" beantwortet die Frage dieser
+     * Liste - laeuft das noch normal oder haengt es? Sekunden beantworten sie
+     * nicht und machen die Zeile nur laenger. Unter einer Minute steht
+     * "gerade eben": Eine Fuehrung, die vor vierzig Sekunden begonnen hat,
+     * ist kein Vorgang.
+     *
+     * @param int $in_sekunden Negatives und Null ergeben "gerade eben"
+     * @return string
+     */
+    private static function dauer(int $in_sekunden): string
+    {
+        if ($in_sekunden < 60) return 'gerade eben';
+
+        $minuten = intdiv($in_sekunden, 60);
+        $stunden = intdiv($minuten, 60);
+        $rest    = $minuten % 60;
+
+        if ($stunden < 1)  return $minuten . ' Min';
+        // Ab einem Tag sind die Minuten keine Auskunft mehr - da ist laengst
+        // klar, dass etwas nicht stimmt.
+        if ($stunden >= 24) return intdiv($stunden, 24) . ' Tg ' . ($stunden % 24) . ' Std';
+
+        return $stunden . ' Std' . ($rest > 0 ? ' ' . $rest . ' Min' : '');
     }
 
     /**

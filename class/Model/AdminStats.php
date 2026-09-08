@@ -70,6 +70,46 @@ class AdminStats
     }
 
     /**
+     * DIE ARBEITSVORRAETE - was auf jemanden wartet.
+     *
+     * DER UNTERSCHIED ZU bestand(): Die Zahlen dort BESCHREIBEN, diese hier
+     * FORDERN. "42 Konten" ist eine Auskunft; "3 haengende Fuehrungen" ist
+     * eine Aufgabe. Deshalb stehen sie getrennt und auf der Uebersicht als
+     * Erstes - eine Aufgabe, die zwischen Bestandszahlen steht, sieht aus
+     * wie eine Bestandszahl.
+     *
+     * DREI VORRAETE, und alle drei haben gemeinsam, dass sie heute NIRGENDS
+     * auffallen:
+     *
+     *   haengend       Fuehrungen, die begonnen haben und die niemand
+     *                  beendet hat. Der Guide sieht seine eigenen in der
+     *                  Kopfleiste - aber nur, wenn er die Seite offen hat.
+     *   unbeantwortet  Anfragen, die ohne Antwort verfallen sind. Gemerkt
+     *                  hat das bisher nur der Kunde, der gewartet hat.
+     *   gesperrt       Standorte unter Sperre. Ein Vorgang, den jemand
+     *                  eroeffnet hat und den jemand wieder schliessen muss.
+     *
+     * WAS DIE ZAHLEN BEDEUTEN, steht nicht hier, sondern bei den
+     * Bedingungen, aus denen sie kommen (App\Model\TourRequest::
+     * runningSql, ::unansweredSql). Diese Klasse zaehlt.
+     *
+     * @return array{haengend:int, unbeantwortet:int, gesperrt:int}
+     */
+    public static function vorrat(): array
+    {
+        $anfragen = TourRequest::adminCounters();
+
+        return [
+            'haengend'      => (int)($anfragen['haengend'] ?? 0),
+            'unbeantwortet' => (int)($anfragen['unbeantwortet'] ?? 0),
+            // Aus derselben Abfrage wie die Bestandskachel - die Zahl steht
+            // an beiden Stellen und darf nicht zweimal verschieden
+            // ermittelt werden.
+            'gesperrt'      => (int)(self::standorte()['gesperrt'] ?? 0),
+        ];
+    }
+
+    /**
      * Konten: gesamt, je Rolle, neu im Zeitraum.
      *
      * GELOESCHTE KONTEN ZAEHLEN NICHT MIT. Sie stehen weiter in der Tabelle

@@ -78,6 +78,12 @@ return [
     // Doppelung, wegen der es diesen Bereich gibt.
     'admin'                 => [AdminController::class              , 'showDashboard'           , Permission::SYSTEM_ADMIN           , 'html'],
     'admin_locations'       => [AdminController::class              , 'showLocations'           , Permission::LOCATION_BLOCK         , 'html'],
+    // Die Anfragenliste der Verwaltung - die Seite, auf der die beiden
+    // Arbeitsvorraete der Uebersicht abgearbeitet werden. Eigenes Recht
+    // (request.list_all), weil es hier um FREMDE Vorgaenge geht: request.list
+    // hat jedes Konto fuer seine eigenen. Sie zeigt nur; angenommen,
+    // abgelehnt und beendet wird weiter von den Beteiligten.
+    'admin_requests'        => [AdminController::class              , 'showRequests'            , Permission::REQUEST_LIST_ALL       , 'html'],
     'admin_reviews'         => [AdminController::class              , 'showReviews'             , Permission::REVIEW_REMOVE          , 'html'],
 
     // Startseite

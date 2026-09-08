@@ -19,7 +19,7 @@ Diese Web-Applikation ist ein interaktives **Remote-Guidance-System**. Es ermög
     * **Zwei-Faktor-Authentifizierung (2FA/TOTP)** inklusive QR-Code-Generierung.
     * E-Mail-Verifizierung (`email_verified`) und Passwort-Reset via SMTP.
 * **Anfrage, Führung, Bewertung:** Am Anfang steht eine Anfrage mit Wunschzeitpunkt, die der Guide annimmt oder ablehnt; **beendet** wird die Führung ausdrücklich vom Guide (bis dahin können beide nach einem Verbindungsabbruch wieder einsteigen), und danach wird der Kunde gefragt, wie sie war — Sterne plus freiwilliger Text, **nur in diese Richtung**. Ein Durchschnitt erscheint erst ab drei Bewertungen; darunter steht die Zahl der durchgeführten Führungen statt einer Zahl, die wie ein Urteil aussieht. Details unter [Bewertungen](#-bewertungen).
-* **Eigener Verwaltungsbereich:** Konten, Standorte und Bewertungen liegen hinter einer eigenen Route mit eigener Navigation — dicht und tabellarisch, aber im selben Erscheinungsbild und mit denselben Farbprofilen. Die Kundenoberfläche enthält dafür **keinen einzigen Adminfall mehr**: keine Sperrknöpfe in der Standortliste, kein *Entfernen* an einer Bewertung, kein Menüeintrag, den nur einer sieht. Details unter [Der Verwaltungsbereich](#️-der-verwaltungsbereich).
+* **Eigener Verwaltungsbereich:** Konten, Anfragen, Standorte und Bewertungen liegen hinter einer eigenen Route mit eigener Navigation — dicht und tabellarisch, aber im selben Erscheinungsbild und mit denselben Farbprofilen. Die Kundenoberfläche enthält dafür **keinen einzigen Adminfall mehr**: keine Sperrknöpfe in der Standortliste, kein *Entfernen* an einer Bewertung, kein Menüeintrag, den nur einer sieht. Der Einstieg ist eine Übersicht, die **zuerst zeigt, was Aufmerksamkeit braucht** — hängende Führungen, Anfragen ohne Antwort, gesperrte Standorte — und darunter erst den Bestand. Details unter [Der Verwaltungsbereich](#️-der-verwaltungsbereich).
 * **Rollen- und Rechtesystem:** Vier Rollen (Trial, User, Guide, Admin) mit **benannten Rechten ohne Vererbung und ohne Rangfolge**. Jede Route in `config/routes.php` trägt ihr Recht als Pflichtfeld; `index.php` prüft es, bevor der Controller läuft. Details unten unter [Berechtigungen](#-berechtigungen). Im laufenden Call vergibt der Server zusätzlich die Rolle Guide, Zuschauer oder — bei einem Direktanruf aus der Benutzerverwaltung — Peer; der Client kann sie sich nicht selbst geben. Entscheidend ist, woher der Anruf kam: Von einem Standort aus führt der Angerufene, auch wenn er Admin ist, und der Zuschauer sendet dabei weder Bild noch Ton. Bei einem Direktanruf mit einem Admin gibt es nichts zu steuern, dort läuft die Übertragung in beide Richtungen.
 
 ---
@@ -1523,30 +1523,53 @@ Die Verwaltungsfunktionen lagen bis zu diesem Umbau **als Sonderfälle in der Ku
 
 Jede dieser Stellen war ein *„wenn Admin, dann anders"* mitten in einer Seite, die für Kunden gebaut ist — und damit eine Gelegenheit, beim nächsten Umbau etwas sichtbar zu machen, was niemand sehen sollte. **Die Kundenoberfläche kennt jetzt keinen Admin mehr.**
 
-### Vier Seiten hinter einer eigenen Adresse
+### Fünf Seiten hinter einer eigenen Adresse
 
 | Route | Seite | Recht |
 |---|---|---|
 | `admin` | Übersicht — der Einstieg | `system.admin` |
 | `list_user` / `manage_user` / `delete_user` | Benutzer, Direktchat und Direktanruf | `user.list` / `user.manage` / `user.delete` |
+| `admin_requests` | Anfragen und Führungen — die Arbeitsvorräte | `request.list_all` |
 | `admin_locations` | Standorte sperren und freigeben | `location.block` |
 | `admin_reviews` | Bewertungen entfernen | `review.remove` |
 
-**Drei Rechte statt eines**, und das ist keine Umständlichkeit: Jede Seite trägt genau das Recht, das man für die Handlung braucht, die dort stattfindet. Heute hat alle drei nur der Admin. Käme eine reine Moderationsrolle dazu, bekäme sie die Seite, zu der ihr Recht passt — und die Navigation zeigte ihr auch nur diese (`AdminView::navHtml`), ohne dass irgendwo etwas nachzuziehen wäre.
+**Ein Recht je Seite**, und das ist keine Umständlichkeit: Jede trägt genau das Recht, das man für die Handlung braucht, die dort stattfindet. Heute hat alle nur der Admin. Käme eine reine Moderationsrolle dazu, bekäme sie die Seite, zu der ihr Recht passt — und die Navigation zeigte ihr auch nur diese (`AdminView::navHtml`), ohne dass irgendwo etwas nachzuziehen wäre.
+
+`request.list_all` ist dabei ausdrücklich **nicht** `request.list`: Das zweite hat jedes angemeldete Konto, weil jeder seine eigenen Anfragen sehen muss. Das erste gibt Einblick in fremde Vorgänge — wer mit wem wann verabredet war — und gehört nur dorthin, wo jemand dafür einen Grund hat. **Es erlaubt nur zu sehen:** Angenommen, abgelehnt und beendet wird weiterhin ausschließlich von den Beteiligten.
 
 **Der Bereich zeigt; geschrieben wird über die Routen, die es schon gab** — `block_location`, `unblock_location`, `review_remove`, `manage_user`, `delete_user`. `AdminController` greift selbst nie zur Datenbank. Ein zweiter Schreibweg *„für den Adminbereich"* wäre genau die Doppelung, wegen der es den Bereich gibt.
 
-### Die Übersicht
+### Die Übersicht: zuerst die Arbeit, dann der Bestand
 
-Vier Kacheln mit dem Bestand: **Konten** (gesamt, nach Rollen aufgeteilt, neu in 7 Tagen), **Standorte** (gesamt, wie viele Konten anbieten, wie viele gesperrt sind), **Führungen** (durchgeführt in 30 Tagen, insgesamt, wie viele gerade laufen) und **Bewertungen** (sichtbare, Durchschnitt, entfernte).
+**Zwei Blöcke, und die Reihenfolge ist der Punkt.** Oben steht, was Aufmerksamkeit braucht, darunter, wie groß der Laden ist. Andersherum sähe eine Aufgabe aus wie eine Bestandszahl: „42 Konten" nimmt man zur Kenntnis, „3 hängende Führungen" soll jemanden dazu bringen, etwas zu tun.
 
-Gezählt wird in `App\Model\AdminStats`, und die schwierigen Bedingungen kommen aus den Modellen, denen sie gehören: Was *durchgeführt* heißt, steht in `TourRequest::conductedSql()` — eine vergessene Beendigung zählt nach Ablauf der Frist trotzdem mit —, was *läuft gerade* heißt, in `TourRequest::runningSql()`. Eine zweite Fassung dieser Bedingungen wäre die, die beim nächsten Umbau vergessen wird und die Übersicht andere Zahlen zeigen ließe als die Anfragenseite.
+**Braucht Aufmerksamkeit** — drei Arbeitsvorräte, und alle drei fielen vorher an keiner Stelle auf:
 
-Die **gesperrten Standorte** sind die einzige Zahl, die Arbeit bedeutet: eine Sperre ist ein Vorgang, den jemand eröffnet hat und den jemand wieder schließen muss. Sie steht deshalb als Verweis in die gefilterte Liste und hebt ihre Kachel hervor — solange es welche gibt.
+| Vorrat | Was er bedeutet | Wo er sich abarbeiten lässt |
+|---|---|---|
+| **Führungen hängen** | Begonnen und von niemandem beendet. Solange das so bleibt, steht beim Kunden der Startknopf, und die Bewertung wird nicht fällig. Der Guide sieht das in seiner Kopfleiste — aber nur seine eigenen und nur, solange er die Seite offen hat. | `admin_requests&filter=haengend` |
+| **Anfragen ohne Antwort** | Verfallen, ohne dass der Guide zu- oder abgesagt hat. Der Kunde hat gewartet und nichts bekommen; gemerkt hat das bisher nur er. | `admin_requests&filter=unbeantwortet` |
+| **Standorte gesperrt** | Ein Vorgang, den jemand eröffnet hat und den jemand wieder schließen muss — oder bestätigen. | `admin_locations&filter=gesperrt` |
 
-> Ein weitergehender Arbeitsvorrat („diese Führungen hängen", „diese Anfragen hat nie jemand beantwortet") steht **noch nicht** dort. Er wäre eine zweite Stelle, an der entschieden wird, was ein Vorgang ist, und braucht dafür jeweils eine Seite, auf der er sich abarbeiten lässt.
+**Gezeigt wird nur, was offen ist.** Eine Zeile mit einer Null, die jeden Tag dasteht, erzieht dazu, den ganzen Block zu überlesen — und dann fällt die Vier daneben auch nicht mehr auf. Ist nichts offen, steht dort ein Satz, der aufzählt, was geprüft wurde: Erst damit ist die Leere eine Auskunft und nicht bloß ein leerer Kasten. Neben jeder Zahl steht, **warum** sie zählt; ohne das ist sie kein Auftrag, sondern ein Rätsel.
 
-### Die Listen
+Ein Vorrat, der sich **nicht abhaken lässt**, bekommt ein Zeitfenster. Eine unbeantwortete Anfrage bleibt für immer unbeantwortet — ohne Fenster wäre die Zahl eine, die nur wächst und die dann niemand mehr ansieht; sie reicht deshalb 14 Tage zurück (`TourRequest::VORRAT_TAGE`, so lang wie der maximale Vorlauf einer Anfrage). Eine hängende Führung braucht keines: Sie löst sich nach der Frist von selbst auf.
+
+**Bestand** — vier Kacheln, alle gleichrangig, keine hervorgehoben und keine mit einem Verweis: **Konten** (gesamt, nach Rollen, neu in 7 Tagen), **Standorte** (gesamt, wie viele Konten anbieten, wie viele gesperrt sind), **Führungen** (durchgeführt in 30 Tagen, insgesamt, wie viele laufen) und **Bewertungen** (sichtbare, Durchschnitt, entfernte).
+
+Gezählt wird in `App\Model\AdminStats`, und die schwierigen Bedingungen kommen aus den Modellen, denen sie gehören: Was *durchgeführt* heißt, steht in `TourRequest::conductedSql()` — eine vergessene Beendigung zählt nach Ablauf der Frist trotzdem mit —, was *läuft gerade* in `::runningSql()`, was *unbeantwortet* heißt in `::unansweredSql()`. Eine zweite Fassung dieser Bedingungen wäre die, die beim nächsten Umbau vergessen wird und die Übersicht andere Zahlen zeigen ließe als die Anfragenseite.
+
+### Die Anfragenliste — und was „abarbeiten" hier heißt
+
+Vier Ansichten: *Hängende Führungen*, *Ohne Antwort*, *Offen* (was gerade auf eine Antwort wartet und noch kann — kein Vorrat, sondern der Blick nach vorn) und *Alle*. Die Vorgabe ist *Hängende Führungen*: Wer die Seite aufruft, kommt von der Übersicht und sucht die Arbeit, nicht das Archiv.
+
+**Die Verwaltung greift in eine Verabredung nicht ein.** Sie nimmt keine Anfrage an, lehnt keine ab und beendet keine fremde Führung — dafür gibt es kein Recht und soll es keines geben: Was zwischen einem Guide und seinem Kunden ausgemacht ist, kann ein Dritter nicht abschließen, ohne zu wissen, ob es stattgefunden hat.
+
+**Abgearbeitet wird durch Ansprechen.** Jede Zeile trägt den Chatknopf zum Guide — denselben wie die Benutzerliste, mit derselben Route (`chat_start_direct`). Das ist die Handlung, die einen dieser Vorgänge wirklich auflöst: *„Deine Führung von heute Mittag läuft noch, magst du sie beenden?"* oder *„Bei dir sind drei Anfragen verfallen — passt der Standort noch?"*.
+
+Die Zeile zeigt **beide Seiten der Verabredung** mit Namen. In der Liste des Guides steht ein Partnername, weil er sein eines Gegenüber kennt; hier braucht es beide — sonst lässt sich nicht sehen, ob dieselben zwei Konten dreimal aneinander vorbeigelaufen sind.
+
+### Die Listen für Standorte und Bewertungen
 
 Beide sind **reine Serverseiten ohne DataTables**, mit einem Umschalter statt einer Volltextsuche:
 
@@ -1580,7 +1603,7 @@ Die Nummern sind **Etiketten, keine Rangfolge**: Eine höhere Nummer bedeutet ni
 
 ### Rechte
 
-Geprüft wird nie eine Rolle, sondern immer ein **benanntes Recht** (`user.delete`, `location.block`, `chat.read`, `request.answer`, `request.finish`, `review.create`, …). Die vollständige Zuordnung steht in `class/Helper/Permission.php`; jede Rolle führt ihre Rechte selbst auf, es gibt **keine Vererbung**. Auch "nicht angemeldet" ist dort eine Rolle (`Permission::GUEST`) mit einer ausgeschriebenen Liste.
+Geprüft wird nie eine Rolle, sondern immer ein **benanntes Recht** (`user.delete`, `location.block`, `chat.read`, `request.answer`, `request.finish`, `request.list_all`, `review.create`, …). Die vollständige Zuordnung steht in `class/Helper/Permission.php`; jede Rolle führt ihre Rechte selbst auf, es gibt **keine Vererbung**. Auch "nicht angemeldet" ist dort eine Rolle (`Permission::GUEST`) mit einer ausgeschriebenen Liste.
 
 ### Durchsetzung
 

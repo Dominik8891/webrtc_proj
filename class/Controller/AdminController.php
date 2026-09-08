@@ -6,6 +6,7 @@ use App\Helper\Request;
 use App\Helper\ViewHelper;
 use App\Model\AdminStats;
 use App\Model\Location;
+use App\Model\TourRequest;
 use App\Model\TourReview;
 
 /**
@@ -57,9 +58,52 @@ class AdminController
     public function showDashboard(): void
     {
         $out = ViewHelper::template('assets/html/admin_dashboard.html');
-        $out = str_replace('###TILES###', AdminView::bestandHtml(AdminStats::bestand()), $out);
+        // ZWEI BLOECKE, UND DIE REIHENFOLGE IST DER PUNKT: erst der
+        // Arbeitsvorrat, dann der Bestand. Eine Aufgabe, die zwischen
+        // Bestandszahlen steht, sieht aus wie eine Bestandszahl.
+        $out = str_replace('###VORRAT###', AdminView::vorratHtml(AdminStats::vorrat()), $out);
+        $out = str_replace('###TILES###',  AdminView::bestandHtml(AdminStats::bestand()), $out);
 
         ViewHelper::output(AdminView::page($out, 'uebersicht'));
+    }
+
+    /**
+     * Die Anfragenliste - die Seite, auf der die beiden Arbeitsvorraete der
+     * Uebersicht abgearbeitet werden.
+     *
+     * VIER ANSICHTEN, und die ersten beiden sind die Vorraete:
+     *
+     *   haengend       begonnene Fuehrungen, die niemand beendet hat. Die
+     *                  laengst laufende steht oben.
+     *   unbeantwortet  Anfragen, die ohne Zu- oder Absage verfallen sind -
+     *                  im Zeitfenster aus TourRequest::VORRAT_TAGE.
+     *   offen          was gerade auf eine Antwort wartet und noch kann.
+     *                  Kein Vorrat, sondern der Blick nach vorn: Hier steht,
+     *                  was morgen unbeantwortet waere.
+     *   alle           der ganze Verlauf.
+     *
+     * DIE VORGABE IST 'haengend' und nicht 'alle': Wer diese Seite aufruft,
+     * kommt von der Uebersicht und sucht die Arbeit, nicht das Archiv.
+     *
+     * @return void
+     */
+    public function showRequests(): void
+    {
+        $filter = self::filter(Request::g('filter'),
+                               ['haengend', 'unbeantwortet', 'offen', 'alle']);
+        $zeilen = TourRequest::allForAdmin($filter, self::ZEILEN_MAX);
+
+        $out = ViewHelper::template('assets/html/admin_requests.html');
+        $out = str_replace('###FILTER###', self::filterHtml('admin_requests', $filter, [
+            'haengend'      => 'Hängende Führungen',
+            'unbeantwortet' => 'Ohne Antwort',
+            'offen'         => 'Offen',
+            'alle'          => 'Alle',
+        ]), $out);
+        $out = str_replace('###COUNT###', (string)count($zeilen), $out);
+        $out = str_replace('###ROWS###',  AdminView::anfrageZeilenHtml($zeilen), $out);
+
+        ViewHelper::output(AdminView::page($out, 'anfragen'));
     }
 
     /**

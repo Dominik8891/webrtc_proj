@@ -417,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (321 Prüfungen)
+## Was `server_test.php` prüft (325 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1328,10 +1328,10 @@ Neun Prüfungen um den Umbau, und der zweite Teil ist der wichtigere: Es wird
 nicht nur geprüft, dass es den Bereich gibt, sondern dass die Sonderfälle in
 der Kundenoberfläche **weg sind und sich nicht wiederbeleben lassen**.
 
-* **Drei Routen, drei Rechte.** `admin` trägt `system.admin`,
-  `admin_locations` trägt `location.block`, `admin_reviews` trägt
-  `review.remove` — jeweils genau das Recht, das man für die Handlung
-  braucht, die dort stattfindet. Alle drei sind Seiten (`html`) und führen
+* **Vier Routen, vier Rechte.** `admin` trägt `system.admin`,
+  `admin_requests` trägt `request.list_all`, `admin_locations` trägt
+  `location.block`, `admin_reviews` trägt `review.remove` — jeweils genau
+  das Recht, das man für die Handlung braucht, die dort stattfindet. Alle drei sind Seiten (`html`) und führen
   in den `AdminController`. Die alte, leere Adminseite
   (`SystemController::showAdmin`) darf nicht mehr existieren: Sonst gäbe es
   zwei Adminseiten, von denen eine nichts kann.
@@ -1339,7 +1339,7 @@ der Kundenoberfläche **weg sind und sich nicht wiederbeleben lassen**.
   Rollenvergleich. Bekäme irgendwann eine weitere Rolle eines der vier
   Rechte, fällt hier auf, dass sie damit in den Bereich kommt.
 * **Die Navigation zeigt genau die erlaubten Reiter.** Für den Admin sind es
-  vier, der aktive ist kein Verweis auf sich selbst, und ein Guide bekäme
+  fünf, der aktive ist kein Verweis auf sich selbst, und ein Guide bekäme
   keinen einzigen — also auch keine Sackgasse.
 * **Kein Sonderfall mehr in der Kundenoberfläche**, an sieben Stellen
   geprüft: keine Sperrknöpfe und kein `userCan.blockLocation` in
@@ -1360,9 +1360,9 @@ der Kundenoberfläche **weg sind und sich nicht wiederbeleben lassen**.
   Bedingungen, zählt gelöschte Konten nicht mit und holt die Rollen aus
   `Role::all()` — eine Rolle ohne ein einziges Konto muss mit einer Null
   dastehen und nicht fehlen. Die Kacheln werden mit einem vollständigen
-  Zahlensatz gebaut: Die Hervorhebung steht nur, wenn es gesperrte
-  Standorte gibt, und „noch keine Bewertung" wird nicht zu „Durchschnitt
-  0,0".
+  Zahlensatz gebaut: **keine** Kachel ist hervorgehoben und aus keiner führt
+  ein Verweis heraus — was Arbeit bedeutet, steht im Vorratsblock darüber —,
+  und „noch keine Bewertung" wird nicht zu „Durchschnitt 0,0".
 * **Fremdeingabe bleibt Fremdeingabe.** Standorttitel, Sperrgrund und
   Bewertungstext gehen durch `ViewHelper::esc` — also auch durch die
   Rautenregel: Ein Text mit `###USER###` würde sonst eine Ersetzung des
@@ -1379,6 +1379,43 @@ der Kundenoberfläche **weg sind und sich nicht wiederbeleben lassen**.
   kein `INSERT`, `UPDATE`, `DELETE` und kein `PdoConnect` stehen;
   `admin.js` ruft die Routen auf, die es schon gab, und hängt sich nur ein,
   wenn `.adm` im Dokument steht.
+
+### Die Arbeitsvorräte
+
+Vier Prüfungen um die beiden Vorräte auf der Übersicht und die Seite, auf
+der sie sich abarbeiten lassen.
+
+* **Was „unbeantwortet" heißt** — geprüft wird der SQL-Baustein
+  (`TourRequest::unansweredSql`), weil er die Definition *ist*: kein
+  `decided_at` (eine **Absage** ist eine Antwort und zählt nicht mit), kein
+  `started_at`, und abgelaufen — und zwar in **beiden** Schreibweisen,
+  gerechnet (`status 'open'` und Frist durch) wie festgeschrieben
+  (`status 'expired'`). Die Auskunft darf nicht davon abhängen, ob der
+  Cronjob läuft. Eine **zurückgezogene** Anfrage trägt ebenfalls kein
+  `decided_at` und darf trotzdem nicht mitzählen.
+* **Ein Vorrat, der auflaufen kann, hat ein Zeitfenster — der andere nicht.**
+  `VORRAT_TAGE` muss mindestens den maximalen Vorlauf einer Anfrage abdecken
+  (`config/requests.php`, `lead_time_max`), sonst fiele eine lange vorher
+  gestellte Anfrage aus dem Vorrat, bevor jemand sie gesehen hat. Und
+  geprüft wird, dass die **hängenden** Führungen kein Fenster tragen: Sie
+  lösen sich von selbst auf und können gar nicht auflaufen.
+* **Die Übersicht zeigt nur, was offen ist.** Ein leerer Vorrat baut keine
+  Zeilen, sondern **einen Satz — und der zählt auf, was geprüft wurde**,
+  sonst wäre die Leere keine Auskunft. Ein voller zeigt alle drei, die
+  hängenden Führungen **zuerst** (sie sind der einzige Vorrat, der gerade
+  jemanden aufhält), jeweils mit dem Satz, der sagt *warum* die Zahl zählt,
+  und mit dem Verweis dorthin, wo sie sich abarbeiten lässt. Einzahl und
+  Mehrzahl werden gebeugt („1 Führung hängt" / „3 Führungen hängen").
+  Fehlt das Recht der Zielseite, verschwindet **der Verweis** — nicht die
+  Zeile: Dass etwas offen ist, darf jeder wissen, der auf die Übersicht
+  darf; ein Klick in eine Absage nicht.
+* **Die Seite zum Abarbeiten zeigt und greift nicht ein.** Fremdeingabe
+  (Standorttitel, Namen) wird maskiert, die hängende Zeile ist erkennbar,
+  die Laufzeit steht lesbar da („läuft seit 3 Std 12 Min") und nicht in
+  Sekunden, **beide** Seiten der Verabredung stehen mit Namen, und der
+  Chatknopf zeigt auf den **Guide**. Der `AdminController` ruft weder
+  `TourRequest::accept` noch `::finish` noch `::cancel` auf: Was zwischen
+  einem Guide und seinem Kunden ausgemacht ist, schließt kein Dritter ab.
 
 ## Grenzen
 

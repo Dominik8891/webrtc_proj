@@ -274,6 +274,30 @@ class Permission
     public const REQUEST_LIST = 'request.list';
 
     /**
+     * ALLE Anfragen sehen - fremde eingeschlossen.
+     *
+     * Ein eigenes Recht neben request.list, und der Unterschied ist der
+     * ganze Punkt: request.list hat JEDES angemeldete Konto, weil jeder
+     * seine eigenen Anfragen sehen muss. Dieses hier gibt Einblick in die
+     * Vorgaenge anderer Leute - wer mit wem wann verabredet war - und
+     * gehoert deshalb nur dorthin, wo jemand dafuer einen Grund hat.
+     *
+     * WOFUER ES DA IST: die beiden Arbeitsvorraete der Verwaltung. Eine
+     * Fuehrung, die begonnen hat und die niemand beendet, haelt beim Kunden
+     * den Startknopf offen und die Bewertung zurueck; eine Anfrage, die ein
+     * Guide verstreichen laesst, ist ein Kunde, der keine Antwort bekommen
+     * hat. Beides faellt heute nirgends auf - der Guide sieht nur seine
+     * eigenen Zahlen, und der Kunde wartet.
+     *
+     * ES ERLAUBT NUR ZU SEHEN. Angenommen, abgelehnt und beendet wird
+     * weiterhin ausschliesslich von den Beteiligten (request.answer,
+     * request.finish) - und dort steht die Zustaendigkeit zusaetzlich in der
+     * WHERE-Klausel. Die Verwaltung greift in eine Verabredung nicht ein;
+     * sie sieht sie und spricht den Guide an.
+     */
+    public const REQUEST_LIST_ALL = 'request.list_all';
+
+    /**
      * Eine eigene Anfrage zuruecknehmen.
      *
      * Beide Seiten duerfen das: der Kunde, der es sich anders ueberlegt, und
@@ -587,6 +611,10 @@ class Permission
             // Beenden gehoert zum Fuehren: Wer zusagt, schliesst auch ab.
             self::REQUEST_FINISH,
             self::REQUEST_LIST,
+            // NUR HIER: der Blick auf fremde Anfragen. Er traegt die beiden
+            // Arbeitsvorraete der Verwaltung - haengende Fuehrungen und
+            // Anfragen, die ein Guide hat verstreichen lassen.
+            self::REQUEST_LIST_ALL,
             self::REQUEST_CANCEL,
             // Bewerten darf jedes angemeldete Konto: Wer eine Fuehrung
             // angefragt und erlebt hat, darf sagen, wie sie war.

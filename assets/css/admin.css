@@ -12,12 +12,20 @@
    oder auf ein anderes Profil stellt, stellt diesen Bereich mit um, ohne dass
    unten eine einzige Regel dafuer stuende.
 
-   ZWEI FARBEN KOMMEN NICHT VOR: Gruen und Gelb. Sie bedeuten auf der Karte
-   "Guide verfuegbar" und "im Gespraech" - in einer Tabelle mit fuenfhundert
-   Zeilen waeren sie ein Muster ohne Aussage. Zustaende stehen hier als Wort,
-   unterschieden ueber Form und Gewicht (.app-state aus theme.css). Rot kommt
-   vor, aber nur an einer Stelle: an einer Sperre und an einer entfernten
-   Bewertung - also dort, wo wirklich etwas verhindert wird.
+   DIE DREI NADELFARBEN DER KARTE KOMMEN NICHT VOR: --app-live (gruen),
+   --app-warn-solid (gelb) und --app-idle (grau) bedeuten dort "Guide
+   verfuegbar", "im Gespraech" und "kein Guide vor Ort". In einer Tabelle mit
+   fuenfhundert Zeilen waeren sie ein Muster ohne Aussage, und dieselbe Farbe
+   hiesse an zwei Orten Verschiedenes. Zustaende stehen hier als Wort,
+   unterschieden ueber Form und Gewicht (.app-state aus theme.css).
+
+   AUSNAHMEN SIND DIE ZWEI TOENE, DIE NICHTS ANDERES BEDEUTEN KOENNEN, und
+   beide nur an einzelnen Zeilen, nie flaechig:
+     --app-danger  an einer Sperre und an einer entfernten Bewertung, also
+                   dort, wo wirklich etwas verhindert wird.
+     --app-warn    (der gedeckte Schriftton, nicht das Signalgelb) am
+                   Arbeitsvorrat und an einer haengenden Fuehrung: Dort
+                   wartet etwas, dort ist nichts kaputt.
 
    Geladen wird die Datei auf JEDER Seite (assets/html/index.html), wie alle
    anderen auch. Wirksam wird sie nur unter .adm, und das gibt es nur in
@@ -133,13 +141,6 @@
     background: var(--app-surface-sunken);
 }
 
-/* Die einzige Kachel, die Arbeit bedeutet (gesperrte Standorte), traegt eine
-   Kante in der Warnfarbe. Nur die Kante: Eine ganz eingefaerbte Kachel neben
-   drei ruhigen waere ein Alarm, und ein gesperrter Standort ist keiner. */
-.adm-tile--achtung {
-    border-left: 3px solid var(--app-danger);
-}
-
 /* Kein Versal-Kopf. theme.css hat das fuer Tabellenkoepfe ausdruecklich
    verworfen - "Versalien mit gesperrter Laufweite sind die Optik einer
    Verwaltungsmaske, sie machen den Kopf laut, ohne ihn lesbarer zu machen" -,
@@ -171,6 +172,76 @@
 }
 
 .adm-tile__foot { color: var(--app-text-faint); }
+
+/* --- Der Arbeitsvorrat -----------------------------------------------------
+   Er steht ueber den Bestandskacheln und sieht bewusst ANDERS aus als sie:
+   eine Liste, keine Kacheln. Kacheln stehen nebeneinander und sind damit
+   gleichrangig - das ist fuer Bestandszahlen richtig. Ein Vorrat ist eine
+   Reihenfolge: Was oben steht, ist zuerst dran.
+
+   Gezeigt wird nur, was offen ist (App\Helper\AdminView::vorratHtml). Der
+   Block kann deshalb ganz aus einem Satz bestehen - dafuer .adm-vorrat__leer. */
+
+.adm-vorrat {
+    list-style: none;
+    margin: var(--app-space-3) 0 0;
+    padding: 0;
+}
+
+.adm-vorrat__item {
+    display: flex;
+    align-items: baseline;
+    gap: var(--app-space-3);
+    padding: var(--app-space-3) 0;
+    border-top: 1px solid var(--app-border);
+}
+
+.adm-vorrat__item:first-child { border-top: 0; padding-top: 0; }
+
+/* Die Zahl traegt die Auskunft und steht deshalb gross und links, in einer
+   festen Spaltenbreite: So bilden mehrere Zeilen eine Kante, statt dass die
+   Beschriftungen je nach Stellenzahl verspringen. Ziffern gleicher Breite
+   aus demselben Grund. */
+.adm-vorrat__count {
+    flex: none;
+    min-width: 2.5ch;
+    text-align: right;
+    font-size: var(--app-text-lg);
+    font-weight: var(--app-weight-bold);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    /* Die Warnfarbe, nicht die Gefahrenfarbe: Hier wartet etwas, hier ist
+       nichts kaputt. Rot traegt in diesem Bereich die Sperre und die
+       entfernte Bewertung - also das, was wirklich etwas verhindert. */
+    color: var(--app-warn);
+}
+
+.adm-vorrat__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.adm-vorrat__title {
+    font-weight: var(--app-weight-medium);
+}
+
+/* Der Satz darunter ist nicht Zierde: Wer diese Seite zum ersten Mal sieht,
+   weiss nicht, was "haengt" bedeutet - und ohne das ist die Zahl kein
+   Auftrag, sondern ein Raetsel. */
+.adm-vorrat__note {
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+}
+
+/* Nichts offen. Ein Satz und keine leere Flaeche - und er zaehlt auf, was
+   geprueft wurde, sonst waere er keine Auskunft. */
+.adm-vorrat__leer {
+    margin: var(--app-space-3) 0 0;
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+}
 
 /* --- Die Tabellen ---------------------------------------------------------
    Der eigentliche Unterschied zur Kundenoberflaeche. Schmale Zeilen, kleine
@@ -283,6 +354,16 @@
 }
 
 .adm-row--entfernt > td { color: var(--app-text-muted); }
+
+/* Eine Fuehrung, die haengt. Die Warnfarbe und nicht Rot: Sie loest sich nach
+   der Frist von selbst auf (App\Model\TourRequest::closedSql) - hier wartet
+   etwas, hier ist nichts kaputt. */
+/* Der gedeckte Warnton (--app-warn), NICHT das Signalgelb der Karte
+   (--app-warn-solid): Das gehoert der Nadel "Guide im Gespraech" und darf
+   hier nicht dieselbe Flaeche einfaerben. */
+.adm-row--haengt > td:first-child {
+    box-shadow: inset 3px 0 0 var(--app-warn);
+}
 
 /* --- Schmale Geraete ------------------------------------------------------
    Die Tabelle wird nicht umgebaut - sie scrollt waagerecht in ihrem Behaelter

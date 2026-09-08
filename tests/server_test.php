@@ -6362,6 +6362,7 @@ $adminRouten = require $ROOT . '/config/routes.php';
 foreach ([
     'admin'           => Permission::SYSTEM_ADMIN,
     'admin_locations' => Permission::LOCATION_BLOCK,
+    'admin_requests'  => Permission::REQUEST_LIST_ALL,
     'admin_reviews'   => Permission::REVIEW_REMOVE,
 ] as $act => $recht) {
     check(isset($adminRouten[$act]), "die Route $act fehlt");
@@ -6378,7 +6379,7 @@ check(strpos(file_get_contents($ROOT . '/class/Controller/SystemController.php')
     'die alte, leere Adminseite steht noch im SystemController');
 check(Permission::routeErrors($adminRouten) === [],
     'die Routentabelle ist nach dem Zuwachs unvollstaendig');
-ok('drei Routen, drei Rechte - und die alte leere Adminseite ist weg');
+ok('vier Routen, vier Rechte - und die alte leere Adminseite ist weg');
 
 // --- Wer hineinkommt ------------------------------------------------------
 //
@@ -6386,7 +6387,8 @@ ok('drei Routen, drei Rechte - und die alte leere Adminseite ist weg');
 // Rolle einzeln. Bekaeme irgendwann eine weitere Rolle eines davon, faellt
 // hier auf, dass sie damit in den Bereich kommt.
 foreach ([Permission::SYSTEM_ADMIN, Permission::LOCATION_BLOCK,
-          Permission::REVIEW_REMOVE, Permission::USER_LIST] as $recht) {
+          Permission::REVIEW_REMOVE, Permission::USER_LIST,
+          Permission::REQUEST_LIST_ALL] as $recht) {
     check(Permission::has(Role::ADMIN, $recht) === true,
         "der Admin hat das Recht $recht nicht");
     foreach ([Role::TRIAL, Role::USER, Role::GUIDE, Permission::GUEST] as $rolle) {
@@ -6404,11 +6406,12 @@ $sessionVorher = $_SESSION ?? [];
 $_SESSION = ['auth_scheme' => App\Helper\Auth::SESSION_SCHEME,
              'user' => ['user_id' => 1, 'username' => 'chef', 'role_id' => Role::ADMIN]];
 $seiteAdmin = App\Helper\AdminView::page('<p>Inhalt</p>', 'standorte');
-foreach (['act=admin', 'act=list_user', 'act=admin_locations', 'act=admin_reviews'] as $ziel) {
+foreach (['act=admin', 'act=list_user', 'act=admin_requests',
+          'act=admin_locations', 'act=admin_reviews'] as $ziel) {
     check(strpos($seiteAdmin, $ziel) !== false || strpos($seiteAdmin, 'aria-current') !== false,
         "der Reiter zu $ziel fehlt");
 }
-check(substr_count($seiteAdmin, 'adm__tab') === 4, 'der Bereich hat nicht vier Reiter');
+check(substr_count($seiteAdmin, 'adm__tab') === 5, 'der Bereich hat nicht fuenf Reiter');
 // Der aktive Reiter ist kein Verweis auf sich selbst.
 check(strpos($seiteAdmin, 'aria-current="page"') !== false, 'kein Reiter steht gerade');
 check(strpos($seiteAdmin, '<a class="adm__tab" href="index.php?act=admin_locations"') === false,
@@ -6532,21 +6535,22 @@ $kacheln = App\Helper\AdminView::bestandHtml([
 check(strpos($kacheln, '>42<') !== false, 'die Zahl der Konten fehlt');
 check(strpos($kacheln, 'Guide 16') !== false, 'die Aufstellung nach Rollen fehlt');
 check(strpos($kacheln, '4,2') !== false, 'der Durchschnitt steht nicht deutsch da');
-// Die gesperrten Standorte sind die einzige Zahl, die Arbeit bedeutet: Sie
-// steht als Verweis in die gefilterte Liste.
-check(strpos($kacheln, 'act=admin_locations&filter=gesperrt') !== false,
-    'die gesperrten Standorte fuehren nirgendwohin');
-check(strpos($kacheln, 'adm-tile--achtung') !== false,
-    'die einzige Kachel mit offener Arbeit ist nicht hervorgehoben');
-// Ohne offene Sperre keine Hervorhebung - sonst waere sie Dauerzustand.
+// KEINE KACHEL IST HERVORGEHOBEN UND KEINE FUEHRT IRGENDWOHIN. Hier stehen
+// nur Bestandszahlen; was Arbeit bedeutet, steht im Vorratsblock darueber.
+// Vorher trug die Standortkachel den Verweis auf die gesperrten - eine
+// Aufgabe zwischen Bestandszahlen, und genau das soll sie nicht sein.
+check(strpos($kacheln, 'adm-tile--achtung') === false,
+    'eine Bestandskachel ist hervorgehoben');
+check(strpos($kacheln, '<a ') === false,
+    'aus einer Bestandskachel fuehrt ein Verweis heraus');
+check(strpos($kacheln, '2 davon gesperrt') !== false,
+    'die gesperrten Standorte fehlen im Bestand');
 $ruhig = App\Helper\AdminView::bestandHtml([
     'konten'      => ['gesamt' => 1, 'je_rolle' => [], 'neu' => 0],
     'standorte'   => ['gesamt' => 0, 'gesperrt' => 0, 'anbieter' => 0],
     'fuehrungen'  => ['gesamt' => 0, 'zeitraum' => 0, 'offen' => 0],
     'bewertungen' => ['sichtbar' => 0, 'entfernt' => 0, 'schnitt' => null],
 ]);
-check(strpos($ruhig, 'adm-tile--achtung') === false,
-    'die Hervorhebung steht auch ohne gesperrte Standorte');
 check(strpos($ruhig, 'noch kein Durchschnitt') !== false,
     '"keine Bewertung" wird als Durchschnitt 0,0 ausgegeben');
 ok('die Uebersicht zaehlt mit den Bedingungen der Modelle und deutet nichts selbst');
@@ -6649,6 +6653,180 @@ foreach (['act=block_location', 'act=unblock_location', 'act=review_remove'] as 
 check(strpos($adminJs, "document.querySelector('.adm')") !== false,
     'das Modul des Bereichs haengt sich auf jeder Seite ein');
 ok('der Bereich zeigt und aendert nichts selbst - geschrieben wird ueber die alten Routen');
+
+// =====================================================================
+fwrite(STDERR, "\nDie Arbeitsvorraete\n");
+// =====================================================================
+//
+// DER BEFUND: Zwei Dinge gingen bisher an jeder Stelle vorbei.
+//
+//   1. Eine FUEHRUNG, die begonnen hat und die niemand beendet, haelt beim
+//      Kunden den Startknopf offen und die Bewertung zurueck. Der Guide
+//      sieht das in seiner Kopfleiste - aber nur seine eigenen und nur,
+//      solange er die Seite offen hat.
+//   2. Eine ANFRAGE, die ein Guide verstreichen laesst, ist ein Kunde ohne
+//      Antwort. Gemerkt hat das bisher nur er selbst.
+//
+// Beides steht jetzt auf der Uebersicht und hat eine Seite, auf der es sich
+// abarbeiten laesst (index.php?act=admin_requests).
+
+// --- Was "unbeantwortet" heisst -------------------------------------------
+//
+// Eng gefasst, und jede der drei Bedingungen hat einen Grund. Geprueft wird
+// der SQL-Baustein, weil er die Definition IST.
+$unbeantwortet = TourRequest::unansweredSql('r');
+check(strpos($unbeantwortet, 'r.decided_at IS NULL') !== false,
+    'eine beantwortete Anfrage zaehlt als unbeantwortet');
+check(strpos($unbeantwortet, 'r.started_at IS NULL') !== false,
+    'eine Anfrage, aus der ein Gespraech wurde, zaehlt als unbeantwortet');
+// Beide Ablaufwege, weil die Auskunft nicht davon abhaengen darf, ob der
+// Cronjob laeuft: gerechnet (status 'open' und Frist durch) und
+// festgeschrieben (status 'expired').
+check(strpos($unbeantwortet, "r.status = 'open' AND r.expires_at <= NOW()") !== false,
+    'die gerechnete Variante fehlt - ohne Cronjob zaehlt nichts');
+check(strpos($unbeantwortet, "r.status = 'expired'") !== false,
+    'die festgeschriebene Variante fehlt - mit Cronjob zaehlt nichts');
+// Eine ZURUECKGEZOGENE Anfrage traegt ebenfalls kein decided_at. Sie darf
+// nicht mitzaehlen: Da hat sich jemand anders entschieden.
+check(strpos($unbeantwortet, "'cancelled'") === false
+      && strpos($unbeantwortet, "r.status = 'open'") !== false,
+    'eine zurueckgezogene Anfrage koennte mitzaehlen');
+ok('unbeantwortet heisst: nie zugesagt, nie abgesagt, nie stattgefunden - und abgelaufen');
+
+// --- Ein Vorrat braucht ein Zeitfenster -----------------------------------
+//
+// Er laesst sich nicht abhaken: Eine vor einem halben Jahr verfallene
+// Anfrage bleibt verfallen. Ohne Fenster waere die Zahl eine, die nur
+// waechst - und die dann niemand mehr ansieht.
+check(TourRequest::VORRAT_TAGE >= 14,
+    'das Fenster ist kuerzer als der maximale Vorlauf einer Anfrage');
+$config = require $ROOT . '/config/requests.php';
+check(TourRequest::VORRAT_TAGE * 86400 >= (int)$config['lead_time_max'],
+    'eine lange vorher gestellte Anfrage faellt aus dem Vorrat, bevor sie auffaellt');
+check(strpos(TourRequest::imVorratSql('r'), 'r.expires_at >= DATE_SUB(NOW()') !== false,
+    'das Fenster rechnet nicht ab dem Ablauf');
+// Die HAENGENDEN tragen bewusst KEIN Fenster: Sie loesen sich von selbst auf
+// (closedSql), koennen also gar nicht auflaufen.
+$zaehler = stripPhpNoise(file_get_contents($ROOT . '/class/Model/TourRequest.php'));
+$zaehlerRumpf = methodenRumpf($zaehler, 'adminCounters');
+check(preg_match('/SUM\(\$laufend\)\s+AS haengend/', $zaehlerRumpf) === 1,
+    'die haengenden Fuehrungen tragen ein Zeitfenster, das sie nicht brauchen');
+check(strpos($zaehlerRumpf, 'SUM($offen AND $fenster) AS unbeantwortet') !== false,
+    'die unbeantworteten Anfragen tragen kein Zeitfenster');
+ok('der Vorrat, der auflaufen kann, hat ein Fenster - der andere nicht');
+
+// --- Die Uebersicht zeigt nur, was offen ist ------------------------------
+//
+// Eine Zeile mit einer Null, die jeden Tag dasteht, erzieht dazu, den ganzen
+// Block zu ueberlesen. Ist nichts offen, steht dort EIN Satz - und der
+// zaehlt auf, was geprueft wurde, sonst waere die Leere keine Auskunft.
+$sessionVorher2 = $_SESSION ?? [];
+$_SESSION = ['auth_scheme' => App\Helper\Auth::SESSION_SCHEME,
+             'user' => ['user_id' => 1, 'username' => 'chef', 'role_id' => Role::ADMIN]];
+
+$leer = App\Helper\AdminView::vorratHtml(
+    ['haengend' => 0, 'unbeantwortet' => 0, 'gesperrt' => 0]);
+check(strpos($leer, 'adm-vorrat__item') === false, 'ein leerer Vorrat zeigt Zeilen');
+check(strpos($leer, 'Nichts offen') !== false, 'ein leerer Vorrat sagt nichts');
+foreach (['hängende Führung', 'unbeantwortete Anfrage', 'gesperrter Standort'] as $wort) {
+    check(strpos($leer, $wort) !== false,
+        "der leere Vorrat sagt nicht, dass auf '$wort' geprueft wurde");
+}
+
+$voll = App\Helper\AdminView::vorratHtml(
+    ['haengend' => 3, 'unbeantwortet' => 1, 'gesperrt' => 2]);
+check(substr_count($voll, 'adm-vorrat__item') === 3, 'nicht alle drei Vorraete stehen da');
+// Die haengenden Fuehrungen stehen OBEN: Sie sind der einzige Vorrat, der
+// gerade jemanden aufhaelt.
+check(strpos($voll, 'Führungen hängen') < strpos($voll, 'Anfrage ohne Antwort'),
+    'die haengenden Fuehrungen stehen nicht zuerst');
+// Einzahl und Mehrzahl - eine "1 Anfragen" waere eine Kleinigkeit, die eine
+// Seite billig aussehen laesst.
+check(strpos($voll, '>1</span>') !== false && strpos($voll, 'Anfrage ohne Antwort') !== false,
+    'die Einzahl fehlt');
+check(strpos($voll, 'Führungen hängen') !== false, 'die Mehrzahl fehlt');
+// Und die Einzahl beugt das Verb mit: "1 Führungen hängen" waere eine
+// Kleinigkeit, die eine Seite billig aussehen laesst.
+check(strpos(App\Helper\AdminView::vorratHtml(
+        ['haengend' => 1, 'unbeantwortet' => 0, 'gesperrt' => 0]), 'Führung hängt') !== false,
+    'die Einzahl der haengenden Fuehrung fehlt');
+// Jede Zeile fuehrt dorthin, wo sie sich abarbeiten laesst.
+check(strpos($voll, 'act=admin_requests&filter=haengend') !== false,
+    'die haengenden Fuehrungen fuehren nirgendwohin');
+check(strpos($voll, 'act=admin_requests&filter=unbeantwortet') !== false,
+    'die unbeantworteten Anfragen fuehren nirgendwohin');
+check(strpos($voll, 'act=admin_locations&filter=gesperrt') !== false,
+    'die gesperrten Standorte fuehren nirgendwohin');
+// Und der Satz sagt, WARUM die Zahl zaehlt. Ohne ihn ist sie ein Raetsel.
+check(strpos($voll, 'Startknopf') !== false,
+    'bei den haengenden Fuehrungen steht nicht, was sie aufhalten');
+
+// OHNE DAS RECHT KEIN VERWEIS, aber die Zeile bleibt. Ein Betrachter mit
+// system.admin, dem request.list_all fehlt, bekaeme sonst einen Klick in
+// eine Absage.
+$_SESSION = ['auth_scheme' => App\Helper\Auth::SESSION_SCHEME,
+             'user' => ['user_id' => 2, 'username' => 'guide', 'role_id' => Role::GUIDE]];
+$ohneRecht = App\Helper\AdminView::vorratHtml(
+    ['haengend' => 3, 'unbeantwortet' => 1, 'gesperrt' => 2]);
+check(strpos($ohneRecht, 'act=admin_requests') === false,
+    'der Vorrat verweist auf eine Seite, die der Betrachter nicht aufrufen darf');
+check(substr_count($ohneRecht, 'adm-vorrat__item') === 3,
+    'ohne Recht verschwindet die Zahl statt nur des Verweises');
+$_SESSION = $sessionVorher2;
+ok('der Vorrat zeigt nur Offenes, nennt den Grund und verweist nur, wo es weitergeht');
+
+// --- Die Seite zum Abarbeiten ---------------------------------------------
+//
+// Sie ZEIGT. Die Verwaltung nimmt keine Anfrage an, lehnt keine ab und
+// beendet keine fremde Fuehrung - dafuer gibt es kein Recht und soll es
+// keines geben.
+$anfragenZeilen = App\Helper\AdminView::anfrageZeilenHtml([[
+    'id' => 12, 'status' => 'accepted', 'running' => 1, 'running_since' => 11520,
+    'location_id' => 5, 'title' => '<b>Alfama</b>', 'city_name' => 'Lissabon',
+    'country_name' => 'Portugal', 'guide_user_id' => 9, 'guide_name' => '###USER###',
+    'guide_username' => 'anna', 'customer_username' => 'kunde1',
+    'wish_at' => '2026-02-03 14:00:00', 'expires_at' => '2026-02-03 15:00:00',
+]]);
+check(strpos($anfragenZeilen, '<b>Alfama</b>') === false, 'der Standorttitel wird nicht maskiert');
+check(strpos($anfragenZeilen, '###USER###') === false, 'die drei Rauten kommen durch');
+check(strpos($anfragenZeilen, 'adm-row--haengt') !== false, 'die haengende Zeile ist nicht erkennbar');
+check(strpos($anfragenZeilen, 'hängt') !== false, 'der Zustand "haengt" fehlt');
+// Die Dauer grob und lesbar: 11520 Sekunden sind 3 Stunden 12 Minuten.
+check(strpos($anfragenZeilen, 'läuft seit 3 Std 12 Min') !== false,
+    'die Laufzeit fehlt oder steht in Sekunden da');
+// BEIDE Namen - sonst laesst sich nicht sehen, ob dieselben zwei Konten
+// dreimal aneinander vorbeigelaufen sind.
+check(strpos($anfragenZeilen, 'anna') !== false && strpos($anfragenZeilen, 'kunde1') !== false,
+    'die Liste zeigt nicht beide Seiten der Verabredung');
+// Der Weg zum Abarbeiten: derselbe Chatknopf wie in der Benutzerliste, und
+// er zeigt auf den GUIDE - nicht auf den Kunden.
+check(strpos($anfragenZeilen, 'start-chat-btn') !== false,
+    'aus der Zeile fuehrt kein Weg zum Guide');
+check(strpos($anfragenZeilen, 'data-userid="9"') !== false,
+    'der Chatknopf zeigt nicht auf den Guide');
+
+// Eine verfallene Anfrage: andere Marke, andere Zeitangabe.
+$verfallen = App\Helper\AdminView::anfrageZeilenHtml([[
+    'id' => 13, 'status' => 'expired', 'running' => 0,
+    'location_id' => 5, 'title' => 'Alfama', 'guide_user_id' => 9,
+    'guide_name' => 'Anna', 'guide_username' => 'anna', 'customer_username' => 'kunde2',
+    'wish_at' => '2026-02-03 14:00:00', 'expires_at' => '2026-02-03 15:00:00',
+]]);
+check(strpos($verfallen, 'adm-row--haengt') === false,
+    'eine verfallene Anfrage wird als haengend gezeichnet');
+check(strpos($verfallen, 'verfallen 03.02.2026 15:00') !== false,
+    'bei einer verfallenen Anfrage fehlt der Zeitpunkt des Ablaufs');
+check(strpos(App\Helper\AdminView::anfrageZeilenHtml([]), 'adm-empty') !== false,
+    'die leere Anfragenliste sagt nichts');
+
+// Und der Controller schreibt auch hier nichts.
+$ctrlRumpf = file_get_contents($ROOT . '/class/Controller/AdminController.php');
+check(strpos($ctrlRumpf, 'TourRequest::accept') === false
+   && strpos($ctrlRumpf, 'TourRequest::finish') === false
+   && strpos($ctrlRumpf, 'TourRequest::cancel') === false,
+    'die Verwaltung greift in eine Verabredung ein');
+ok('die Anfragenliste zeigt beide Seiten und fuehrt zum Guide - eingegriffen wird nicht');
+
 
 
 PdoConnect::$connection = new FakeConnection();

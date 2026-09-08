@@ -1,0 +1,43 @@
+<!--
+    Die Anfragenliste des Verwaltungsbereichs - die Seite zum Abarbeiten.
+    Gefuellt von App\Controller\AdminController.
+
+    Platzhalter:
+      ###FILTER###  Umschalter "Hängende Führungen" / "Ohne Antwort" / "Offen" / "Alle"
+      ###COUNT###   Zahl der angezeigten Zeilen
+      ###ROWS###    Die Zeilen (App\Helper\AdminView::anfrageZeilenHtml)
+
+    WAS HIER ABGEARBEITET WIRD, UND WAS NICHT: Die Verwaltung greift in eine
+    Verabredung nicht ein - sie nimmt keine Anfrage an, lehnt keine ab und
+    beendet keine fremde Fuehrung. Was zwischen einem Guide und seinem Kunden
+    ausgemacht ist, kann ein Dritter nicht abschliessen, ohne zu wissen, ob es
+    stattgefunden hat.
+
+    Abgearbeitet wird durch ANSPRECHEN: Jede Zeile traegt den Chatknopf zum
+    Guide - denselben wie die Benutzerliste, mit derselben Route.
+-->
+<section class="app-panel adm-panel">
+    <div class="app-panel__body">
+        <div class="adm-bar">
+            <h2 class="adm-panel__title">Anfragen <span class="adm-count">###COUNT###</span></h2>
+            ###FILTER###
+        </div>
+    </div>
+    <div class="app-table-wrap">
+        <table class="table adm-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Zustand</th>
+                    <th>Führung</th>
+                    <th>Guide</th>
+                    <th>Kunde</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+            <tbody>
+                ###ROWS###
+            </tbody>
+        </table>
+    </div>
+</section>

@@ -64,6 +64,20 @@ class TourRequest
     public const STATUS_CANCELLED = 'cancelled';
 
     /**
+     * Wie weit ein Arbeitsvorrat der Verwaltung zurueckreicht, in Tagen.
+     *
+     * Die Begruendung steht bei imVorratSql(), das diese Zahl benutzt: Ein
+     * Vorrat, der sich nicht abhaken laesst, braucht ein Zeitfenster, sonst
+     * ist er nach kurzer Zeit eine Zahl, die nur waechst.
+     *
+     * Sie steht hier und nicht in App\Model\AdminStats: Die Bedingung, in
+     * der sie wirkt, gehoert dieser Klasse - und die Beschriftung auf der
+     * Uebersicht liest dieselbe Konstante, damit dort nicht "7 Tage" steht,
+     * waehrend die Abfrage vierzehn nimmt.
+     */
+    public const VORRAT_TAGE = 14;
+
+    /**
      * Alle Zustaende, in der Reihenfolge ihres Ablaufs.
      *
      * @return string[]
@@ -260,6 +274,70 @@ class TourRequest
         return "($a.status = '" . self::STATUS_ACCEPTED . "'
                  AND $a.started_at IS NOT NULL
                  AND NOT " . self::closedSql($a) . ")";
+    }
+
+    /**
+     * Hat der Guide auf diese Anfrage NIE geantwortet - als SQL-Bedingung?
+     *
+     * DER ERSTE DER BEIDEN ARBEITSVORRAETE DER VERWALTUNG. Was er meint, ist
+     * eng gefasst und deshalb aussagekraeftig: Ein Kunde hat gefragt, die
+     * Frist ist verstrichen, und es kam weder eine Zusage noch eine Absage.
+     *
+     *   decided_at IS NULL   Weder angenommen noch abgelehnt. Nur antwort()
+     *                        setzt diese Spalte - eine ABSAGE zaehlt also
+     *                        NICHT als unbeantwortet. Ein Guide, der ablehnt,
+     *                        hat geantwortet.
+     *   started_at IS NULL   Es kam auch kein Gespraech zustande.
+     *   abgelaufen           Entweder gerechnet (status 'open', Frist
+     *                        verstrichen) oder bereits festgeschrieben
+     *                        (status 'expired', der Cronjob war da). Beide
+     *                        Faelle sind derselbe Vorgang, und die Auskunft
+     *                        darf nicht davon abhaengen, ob ein Job laeuft.
+     *
+     * WAS NICHT DAZUGEHOERT: eine ZURUECKGEZOGENE Anfrage. Sie traegt
+     * ebenfalls kein decided_at, aber den Status 'cancelled' - da hat sich
+     * jemand anders entschieden, und dem Guide ist nichts vorzuwerfen.
+     *
+     * @param string $in_alias
+     * @return string SQL-Bedingung
+     */
+    public static function unansweredSql(string $in_alias = 'r'): string
+    {
+        $a = self::alias($in_alias);
+
+        return "($a.decided_at IS NULL
+                 AND $a.started_at IS NULL
+                 AND (($a.status = '" . self::STATUS_OPEN . "' AND $a.expires_at <= NOW())
+                      OR $a.status = '" . self::STATUS_EXPIRED . "'))";
+    }
+
+    /**
+     * Faellt dieser Vorgang noch in das Zeitfenster eines Arbeitsvorrats?
+     *
+     * WARUM EIN VORRAT EIN ZEITFENSTER BRAUCHT: Er laesst sich nicht
+     * abhaken. Eine Anfrage, die vor einem halben Jahr unbeantwortet
+     * verfallen ist, bleibt das fuer immer - ohne Fenster waere die Zahl auf
+     * der Uebersicht eine, die nur waechst und die nach kurzer Zeit niemand
+     * mehr ansieht. Das Gegenteil eines Arbeitsvorrats.
+     *
+     * VIERZEHN TAGE, und die Zahl hat einen Grund: Eine Anfrage darf sich
+     * hoechstens zwei Wochen im Voraus stellen (config/requests.php,
+     * lead_time_max). Ein kuerzeres Fenster liesse eine lange vorher
+     * gestellte Anfrage schon wieder herausfallen, bevor jemand sie gesehen
+     * hat.
+     *
+     * Gerechnet wird ab dem ABLAUF und nicht ab dem Anlegen: Bis dahin war
+     * die Anfrage in Ordnung.
+     *
+     * @param string $in_alias
+     * @return string SQL-Bedingung
+     */
+    public static function imVorratSql(string $in_alias = 'r'): string
+    {
+        $a    = self::alias($in_alias);
+        $tage = (int)self::VORRAT_TAGE;
+
+        return "($a.expires_at >= DATE_SUB(NOW(), INTERVAL $tage DAY))";
     }
 
     /**
@@ -679,6 +757,145 @@ class TourRequest
         } catch (\PDOException $e) {
             error_log('Fehler beim Zaehlen der Anfragen: ' . $e->getMessage());
             return $leer;
+        }
+    }
+
+    // =================================================================
+    // DIE VERWALTUNG: ALLE ANFRAGEN, UND WAS DAVON ARBEIT IST
+    //
+    // Zugang ueber das Recht request.list_all, das nur die Verwaltung hat.
+    // Beide Abfragen ZEIGEN; geaendert wird an einer Anfrage hier nichts -
+    // siehe die Begruendung bei App\Helper\Permission::REQUEST_LIST_ALL.
+    // =================================================================
+
+    /**
+     * Die beiden Arbeitsvorraete als Zahlen.
+     *
+     * SIE STEHEN AUF DER UEBERSICHT DER VERWALTUNG, und beide meinen etwas,
+     * das heute an keiner Stelle auffaellt:
+     *
+     *   haengend       Fuehrungen, die begonnen haben und die niemand
+     *                  beendet hat. Solange eine offen ist, steht beim
+     *                  Kunden der Startknopf, und die Bewertung wird nicht
+     *                  faellig - der Guide sieht das in seiner Kopfleiste,
+     *                  aber nur fuer sich selbst.
+     *   unbeantwortet  Anfragen, die ohne jede Antwort verfallen sind. Der
+     *                  Kunde hat gewartet und nichts bekommen; gemerkt hat
+     *                  das bisher niemand ausser ihm.
+     *
+     * DER ZWEITE ZAEHLER TRAEGT EIN ZEITFENSTER, der erste nicht - und das
+     * ist kein Versehen: Eine haengende Fuehrung loest sich von selbst auf
+     * (nach der Frist gilt sie als durchgefuehrt, closedSql), sie kann also
+     * gar nicht auflaufen. Eine unbeantwortete Anfrage bleibt fuer immer
+     * unbeantwortet und braucht deshalb imVorratSql().
+     *
+     * EINE ABFRAGE FUER BEIDE ZAHLEN: Sie zaehlen ueber dieselbe Tabelle.
+     *
+     * @return array{haengend:int, unbeantwortet:int}
+     */
+    public static function adminCounters(): array
+    {
+        $laufend = self::runningSql('r');
+        $offen   = self::unansweredSql('r');
+        $fenster = self::imVorratSql('r');
+
+        try {
+            $stmt = PdoConnect::$connection->query(
+                "SELECT SUM($laufend)            AS haengend,
+                        SUM($offen AND $fenster) AS unbeantwortet
+                   FROM tour_request r"
+            );
+            $zeile = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if ($zeile !== false) {
+                return [
+                    'haengend'      => (int)$zeile['haengend'],
+                    'unbeantwortet' => (int)$zeile['unbeantwortet'],
+                ];
+            }
+        } catch (\PDOException $e) {
+            error_log('TourRequest::adminCounters: ' . $e->getMessage());
+        }
+
+        return ['haengend' => 0, 'unbeantwortet' => 0];
+    }
+
+    /**
+     * Die Anfragenliste der Verwaltung.
+     *
+     * WARUM SIE NEBEN forGuide()/forCustomer() STEHT: Die beiden dort sind
+     * an eine Kennung gebunden (WHERE guide_user_id = :id) und liefern genau
+     * eine Seite der Verabredung. Diese hier ist an KEINE gebunden und
+     * liefert beide Seiten mit Namen - das ist ein anderer Zugriff und
+     * deshalb eine andere Abfrage, kein zusaetzlicher Parameter an einer
+     * bestehenden. Ein Schalter "und wenn Admin, dann ohne WHERE" waere
+     * genau die Stelle, an der so etwas eines Tages versehentlich aufgeht.
+     *
+     * WAS SIE MEHR LIEFERT: BEIDE Benutzernamen. In der Liste des Guides
+     * steht ein Partnername, weil er den einen Gegenueber kennt; hier
+     * braucht es beide - sonst laesst sich nicht sehen, ob dieselben zwei
+     * Konten dreimal aneinander vorbeigelaufen sind.
+     *
+     * @param string $in_filter 'haengend', 'unbeantwortet', 'offen' oder 'alle'
+     * @param int    $in_limit  Obergrenze der Zeilen
+     * @return array<int,array<string,mixed>>
+     */
+    public static function allForAdmin(string $in_filter = 'haengend', int $in_limit = 200): array
+    {
+        // Ein Textbaustein in einer Abfrage wird nachgeschlagen und nicht
+        // zusammengesetzt - der Filter kommt aus der Adresszeile.
+        $wo = [
+            'haengend'      => self::runningSql('r'),
+            'unbeantwortet' => self::unansweredSql('r') . ' AND ' . self::imVorratSql('r'),
+            'offen'         => "(r.status = '" . self::STATUS_OPEN . "' AND r.expires_at > NOW())",
+            'alle'          => '1',
+        ];
+        $where = $wo[$in_filter] ?? $wo['haengend'];
+
+        // WONACH SORTIERT WIRD, haengt vom Vorrat ab, und bei beiden Vorraeten
+        // steht das Aelteste oben: Bei den haengenden ist die laengst begonnene
+        // die dringendste, bei den unbeantworteten die laengst verfallene. Bei
+        // den OFFENEN dagegen laeuft die Frist noch - dort steht oben, was
+        // zuerst verfaellt.
+        $sortierung = [
+            'haengend'      => 'r.started_at ASC',
+            'unbeantwortet' => 'r.expires_at ASC',
+            'offen'         => 'r.expires_at ASC',
+            'alle'          => 'r.created_at DESC',
+        ];
+        $order = $sortierung[$in_filter] ?? $sortierung['haengend'];
+
+        // LIMIT vertraegt in MySQL keinen gebundenen Parameter, solange PDO
+        // nicht emuliert.
+        $limit = max(1, min(1000, $in_limit));
+
+        try {
+            $query = "SELECT " . self::spalten('r') . ",
+                             -- Wie lange die Fuehrung schon laeuft. Die
+                             -- Auskunft, um die es im Vorrat der haengenden
+                             -- geht: eine Fuehrung seit zehn Minuten ist
+                             -- normal, eine seit drei Stunden nicht.
+                             TIMESTAMPDIFF(SECOND, r.started_at, NOW()) AS running_since,
+                             l.title,
+                             city.city_name, country.country_name,
+                             g.username AS guide_username,
+                             k.username AS customer_username,
+                             COALESCE(NULLIF(gp.display_name, ''), g.username)
+                                 AS guide_name
+                      FROM tour_request r
+                      LEFT JOIN location l       ON l.id = r.location_id
+                      LEFT JOIN city             ON city.id = l.city_id
+                      LEFT JOIN country          ON country.id = city.country_id
+                      LEFT JOIN user g           ON g.id = r.guide_user_id
+                      LEFT JOIN user k           ON k.id = r.customer_user_id
+                      LEFT JOIN guide_profile gp ON gp.user_id = r.guide_user_id
+                     WHERE $where
+                     ORDER BY $order
+                     LIMIT $limit";
+            $stmt = PdoConnect::$connection->query($query);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        } catch (\PDOException $e) {
+            error_log('TourRequest::allForAdmin: ' . $e->getMessage());
+            return [];
         }
     }
 
