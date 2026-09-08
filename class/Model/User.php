@@ -419,13 +419,19 @@ class User
     {
         if (empty($userIds)) return [];
         $in  = str_repeat('?,', count($userIds) - 1) . '?';
+        // deleted kommt mit: Der Benutzername eines geloeschten Kontos wird
+        // nicht mehr herausgegeben - er ist die Anmeldekennung und gehoert zu
+        // einem Konto, das es nicht mehr gibt. Stehen bleibt ein Platzhalter,
+        // damit ein Chatverlauf nicht namenlos wird (siehe NAME_GELOESCHT).
         $stmt = PdoConnect::$connection->prepare(
-            "SELECT id, username FROM user WHERE id IN ($in)"
+            "SELECT id, username, deleted FROM user WHERE id IN ($in)"
         );
         $stmt->execute($userIds);
         $usernames = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            $usernames[$row['id']] = $row['username'];
+            $usernames[$row['id']] = ((int)$row['deleted'] === 1)
+                ? self::NAME_GELOESCHT
+                : $row['username'];
         }
         return $usernames;
     }
@@ -628,6 +634,101 @@ class User
             $this->email
         ];
     }
+
+    // =================================================================
+    // GELOESCHTE KONTEN
+    //
+    // "Geloescht" heisst in dieser Anwendung: deleted = 1. Die Zeile bleibt
+    // stehen (del_it() setzt nur das Kennzeichen), damit vergangene
+    // Fuehrungen, Bewertungen und Abrechnungen nachvollziehbar bleiben.
+    //
+    // DARAUS FOLGT EINE PFLICHT, die vorher an vielen Stellen fehlte: JEDE
+    // Abfrage, die etwas an andere Nutzer ausliefert, muss das Kennzeichen
+    // selbst pruefen. Der Fremdschluessel hilft dabei nicht - ON DELETE
+    // CASCADE greift nur bei einem echten DELETE, und das findet nie statt.
+    // Ein geloeschtes Konto behielt deshalb seine Nadeln auf der Karte,
+    // seine Standortseiten, seine Bilder und seine Erreichbarkeit.
+    // =================================================================
+
+    /**
+     * "Dieses Konto gibt es noch" - als SQL-Bedingung.
+     *
+     * DIE EINE FASSUNG DIESER REGEL, aus demselben Grund wie
+     * App\Model\Location::AVAILABILITY_SQL: Sie steht in einem Dutzend
+     * Abfragen, und ausgeschrieben waere sie ein Dutzend Gelegenheiten, sie
+     * beim naechsten Umbau an einer Stelle zu vergessen. Genau das ist
+     * vorher passiert - nur eben von Anfang an.
+     *
+     * DER ALIAS IST PFLICHTPARAMETER MIT VORGABE: Dieselben Abfragen
+     * verbinden die Tabelle mal als `user`, mal als `g`, `k` oder `partner`.
+     * Geprueft wird er trotzdem, wie jeder Textbaustein in einer Abfrage
+     * (dieselbe Regel wie App\Model\TourRequest::alias).
+     *
+     * @param string $in_alias Tabellenalias in der Abfrage
+     * @return string SQL-Bedingung
+     */
+    public static function activeSql(string $in_alias = 'user'): string
+    {
+        $sauber = preg_replace('/[^a-zA-Z_]/', '', $in_alias);
+        if ($sauber === '') $sauber = 'user';
+
+        return "$sauber.deleted = 0";
+    }
+
+    /**
+     * Ist dieses Konto geloescht?
+     *
+     * FUER DIE STELLEN, AN DENEN KEINE ABFRAGE STEHT, sondern eine
+     * Entscheidung: Darf dieser Anruf zustande kommen, darf in diesen Chat
+     * geschrieben werden. Dort gibt es keine WHERE-Klausel, in die sich
+     * activeSql() einsetzen liesse.
+     *
+     * EIN UNBEKANNTES KONTO GILT ALS GELOESCHT. Das ist die sichere Seite:
+     * Wer nicht gefunden wird, bekommt nichts - und nicht "im Zweifel doch".
+     *
+     * Der Zwischenspeicher lebt nur fuer die Dauer der Anfrage. Ohne ihn
+     * fragte eine einzige Rollenvergabe im Signaling zweimal nach derselben
+     * Zeile (Anrufer, Angerufener), und das bei jedem ausgelieferten Offer.
+     *
+     * @param int $in_user_id
+     * @return bool
+     */
+    public static function isDeleted($in_user_id): bool
+    {
+        static $bekannt = [];
+
+        $id = (int)$in_user_id;
+        if ($id < 1) return true;
+        if (array_key_exists($id, $bekannt)) return $bekannt[$id];
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                'SELECT deleted FROM user WHERE id = :id'
+            );
+            $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $wert = $stmt->fetchColumn();
+
+            $bekannt[$id] = ($wert === false) || ((int)$wert === 1);
+        } catch (PDOException $e) {
+            error_log('User::isDeleted: ' . $e->getMessage());
+            // Im Fehlerfall die sichere Seite: nichts ausliefern.
+            $bekannt[$id] = true;
+        }
+        return $bekannt[$id];
+    }
+
+    /**
+     * Der Name, der fuer ein geloeschtes Konto stehenbleibt.
+     *
+     * WARUM UEBERHAUPT ETWAS STEHENBLEIBT: Ein Chatverlauf gehoert BEIDEN
+     * Seiten. Wer mit jemandem geschrieben hat, darf seine eigenen
+     * Nachrichten behalten - und dann muss in der Liste etwas stehen, wo
+     * vorher ein Name stand. Was dort NICHT mehr stehen darf, ist der
+     * Benutzername: Er ist die Anmeldekennung und gehoert zu einem Konto,
+     * das es nicht mehr gibt.
+     */
+    public const NAME_GELOESCHT = 'Gelöschtes Konto';
 
     /**
      * Gibt alle User-IDs als Array zurück.

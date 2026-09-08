@@ -478,7 +478,13 @@ class Location
                       LEFT JOIN city          ON location.city_id = city.id
                       LEFT JOIN country       ON city.country_id = country.id
                       " . TourReview::aggregateJoinSql('location') . "
-                      WHERE user.id != :user_id" . $blocked_filter;
+                      -- KEIN STANDORT EINES GELOESCHTEN KONTOS. Die Zeile
+                      -- bleibt in der Datenbank stehen (User::del_it setzt
+                      -- nur ein Kennzeichen), auf die Karte und in diese
+                      -- Liste gehoert sie nicht mehr - siehe
+                      -- App\Model\User::activeSql().
+                      WHERE user.id != :user_id
+                        AND " . User::activeSql('user') . $blocked_filter;
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt ->bindParam(":user_id", $in_user_id);
             $stmt->execute();
@@ -546,7 +552,8 @@ class Location
                       LEFT JOIN city    ON location.city_id = city.id
                       LEFT JOIN country ON city.country_id = country.id
                       " . TourReview::aggregateJoinSql('location') . "
-                      WHERE location.blocked = 0";
+                      WHERE location.blocked = 0
+                        AND " . User::activeSql('user');
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->execute();
             return $stmt->fetchAll(\PDO::FETCH_ASSOC);
@@ -603,6 +610,14 @@ class Location
                              location.blocked, location.blocked_reason,
                              location.blocked_at,
                              user.id AS user_id, user.username,
+                             -- HIER BEWUSST OHNE FILTER: Die Verwaltung sieht
+                             -- auch die Standorte eines geloeschten Kontos -
+                             -- sie sind es, die nach einer Loeschung
+                             -- uebrigbleiben. Ueberall sonst sind sie weg
+                             -- (App\Model\User::activeSql); damit die Zeile
+                             -- hier nicht auf eine Seite verweist, die es
+                             -- nicht mehr gibt, kommt das Kennzeichen mit.
+                             user.deleted AS user_deleted,
                              COALESCE(NULLIF(guide_profile.display_name, ''), user.username)
                                  AS guide_name,
                              " . self::AVAILABILITY_SQL . " AS availability,
@@ -716,7 +731,11 @@ class Location
                       LEFT JOIN location_image AS cover
                              ON cover.location_id = location.id
                             AND cover.role = '" . LocationImage::ROLE_COVER . "'
-                      WHERE location.user_id = :user_id" . $blocked_filter . "
+                      -- Auch hier: kein Standort eines geloeschten Kontos.
+                      -- Diese Liste steht auf dem Guide-Profil, also auf
+                      -- einer Seite, die jeder aufrufen kann.
+                      WHERE location.user_id = :user_id
+                        AND " . User::activeSql('user') . $blocked_filter . "
                       ORDER BY country.country_name ASC, city.city_name ASC, location.id ASC";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':user_id', $user_id, \PDO::PARAM_INT);
@@ -793,7 +812,13 @@ class Location
                       LEFT JOIN guide_profile ON guide_profile.user_id = user.id
                       LEFT JOIN city          ON location.city_id = city.id
                       LEFT JOIN country       ON city.country_id = country.id
-                      WHERE location.id = :id";
+                      -- Ein geloeschtes Konto hat keine Standortseite mehr -
+                      -- und die Antwort ist dieselbe wie fuer einen Standort,
+                      -- den es nie gab. Ueber diese eine Zeile faellt auch
+                      -- die Anfrage weg: App\Controller\RequestController
+                      -- laedt den Standort mit genau dieser Methode.
+                      WHERE location.id = :id
+                        AND " . User::activeSql('user');
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
             $stmt->execute();
@@ -829,7 +854,12 @@ class Location
                              location.blocked
                       FROM location
                       JOIN user ON location.user_id = user.id
-                      WHERE location.id = :id";
+                      -- Ohne diese Zeile meldete ein Standort, dessen Konto
+                      -- geloescht ist, weiterhin 'live' - die Standortseite
+                      -- gibt es dann zwar nicht mehr, aber diese Route wird
+                      -- im Takt abgefragt und antwortete weiter.
+                      WHERE location.id = :id
+                        AND " . User::activeSql('user');
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
             $stmt->execute();
@@ -875,8 +905,16 @@ class Location
         if ($id < 1) return null;
 
         try {
+            // JOIN user statt eines schlichten SELECT auf location: Ohne
+            // ihn liesse sich dem Konto eines geloeschten Guides weiter
+            // schreiben - diese Methode ist der einzige Weg, auf dem ein
+            // Kunde ein Gegenueber fuer einen Chat bekommt.
             $stmt = PdoConnect::$connection->prepare(
-                "SELECT user_id, blocked FROM location WHERE id = :id"
+                "SELECT location.user_id, location.blocked
+                   FROM location
+                   JOIN user ON location.user_id = user.id
+                  WHERE location.id = :id
+                    AND " . User::activeSql('user')
             );
             $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
             $stmt->execute();

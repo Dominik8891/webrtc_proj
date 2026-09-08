@@ -181,6 +181,15 @@ class ChatController
             return;
         }
 
+        // AUCH DIE VERWALTUNG SCHREIBT KEINEM GELOESCHTEN KONTO. Der Weg
+        // ueber einen Standort faellt schon in Location::guideIdOf() weg;
+        // dieser hier nimmt eine Kontokennung entgegen und braucht die
+        // Pruefung deshalb selbst.
+        if (User::isDeleted($targetId)) {
+            echo json_encode(['success' => false, 'error' => 'Dieses Konto gibt es nicht mehr.']);
+            return;
+        }
+
         $teile = ['konto' => RateLimit::konto($currentUserId)];
         $rest  = RateLimit::restsperre('chat_start', $teile);
         if ($rest > 0) {
@@ -386,6 +395,17 @@ class ChatController
             return;
         }
 
+        // IN EINEN CHAT MIT EINEM GELOESCHTEN KONTO WIRD NICHT GESCHRIEBEN.
+        // Der VERLAUF bleibt lesbar - er gehoert beiden Seiten, und wer mit
+        // jemandem geschrieben hat, darf seine eigenen Nachrichten behalten.
+        // Was nicht mehr geht, ist etwas hinzuzufuegen: Gelesen wuerde es
+        // nie, und ein geloeschtes Konto soll nichts mehr empfangen.
+        if (User::isDeleted($chat->partnerVon($currentUserId))) {
+            echo json_encode(['success' => false,
+                'error' => 'Dieses Konto gibt es nicht mehr. Der Verlauf bleibt erhalten.']);
+            return;
+        }
+
         $newMsg = ChatMessage::add($chatId, $currentUserId, $msg);
         echo json_encode(['success' => true, 'message' => [
             'id' => $newMsg->getId(),
@@ -467,7 +487,13 @@ class ChatController
         foreach ($chats as $chat) {
             // Partner ermitteln
             $partnerId = $chat->partnerVon($currentUserId);
-            $partnerName = (new User($partnerId))->getUsername();
+            // UEBER getUsernamesByIds() und nicht ueber "new User": Nur dort
+            // steht die Regel, dass der Benutzername eines geloeschten Kontos
+            // nicht mehr herausgegeben wird (User::NAME_GELOESCHT). Ein
+            // zweiter Weg zum selben Namen waere ein zweiter Ort, an dem sie
+            // fehlen kann.
+            $namen       = User::getUsernamesByIds([$partnerId]);
+            $partnerName = $namen[$partnerId] ?? User::NAME_GELOESCHT;
 
             // ZWEI ZUSTAENDE, NICHT MEHR DREI. "Offen" war die noch nicht
             // angenommene Einladung; die gibt es seit Migration 019 nicht

@@ -383,11 +383,7 @@ class AdminView
                   .       ViewHelper::esc($titel) . '</a>'
                   .     ($ort !== '' ? '<span class="adm-sub">' . ViewHelper::esc($ort) . '</span>' : '')
                   .   '</td>'
-                  .   '<td>'
-                  .     '<a href="index.php?act=guide&id=' . (int)($zeile['user_id'] ?? 0) . '">'
-                  .       ViewHelper::esc((string)($zeile['guide_name'] ?? '')) . '</a>'
-                  .     '<span class="adm-sub">' . ViewHelper::esc((string)($zeile['username'] ?? '')) . '</span>'
-                  .   '</td>'
+                  .   '<td>' . self::guideZelleHtml($zeile) . '</td>'
                   .   '<td>' . self::zustandHtml((string)($zeile['availability'] ?? 'idle')) . '</td>'
                   .   '<td>' . self::sperrHtml($gesperrt, (string)($zeile['blocked_reason'] ?? ''),
                                                $zeile['blocked_at'] ?? null) . '</td>'
@@ -395,6 +391,41 @@ class AdminView
                   . '</tr>';
         }
         return $html;
+    }
+
+    /**
+     * Die Guide-Zelle der Standortliste - mit dem Kennzeichen "geloescht".
+     *
+     * WARUM DIESE ZELLE EINEN SONDERFALL HAT und die uebrigen Listen nicht:
+     * Ein geloeschtes Konto ist ueberall sonst verschwunden - keine Nadel,
+     * keine Standortseite, kein Bild (App\Model\User::activeSql). Seine
+     * Standortzeilen bleiben aber stehen, denn geloescht heisst hier
+     * "Kennzeichen gesetzt" und nicht "Zeile weg". Die Verwaltung ist der
+     * eine Ort, an dem man sie sehen muss - und dann muss auch dabeistehen,
+     * warum der Verweis auf die Standortseite ins Leere fuehrt.
+     *
+     * KEIN VERWEIS AUF DAS PROFIL eines geloeschten Kontos: Die Seite gibt es
+     * nicht mehr, und ein Verweis, der auf eine Fehlseite fuehrt, ist
+     * schlimmer als keiner.
+     *
+     * @param array<string,mixed> $in_zeile
+     * @return string HTML
+     */
+    private static function guideZelleHtml(array $in_zeile): string
+    {
+        $id       = (int)($in_zeile['user_id'] ?? 0);
+        $name     = ViewHelper::esc((string)($in_zeile['guide_name'] ?? ''));
+        $konto    = ViewHelper::esc((string)($in_zeile['username'] ?? ''));
+        $geloescht = (int)($in_zeile['user_deleted'] ?? 0) === 1;
+
+        if ($geloescht) {
+            return '<span class="adm-none">' . $name . '</span>'
+                 . '<span class="app-tag app-tag--danger">Konto gelöscht</span>'
+                 . '<span class="adm-sub">' . $konto . '</span>';
+        }
+
+        return '<a href="index.php?act=guide&id=' . $id . '">' . $name . '</a>'
+             . '<span class="adm-sub">' . $konto . '</span>';
     }
 
     /**

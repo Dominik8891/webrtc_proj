@@ -323,6 +323,28 @@ class WebRTCController
     {
         $fuehrung = ['caller' => self::ROLE_VIEWER, 'callee' => self::ROLE_GUIDE];
 
+        // EIN GELOESCHTES KONTO RUFT NICHT AN UND WIRD NICHT ANGERUFEN.
+        //
+        // Diese Pruefung steht VOR allen anderen, auch vor dem Wiedereinstieg
+        // in eine laufende Fuehrung: Sie ist die einzige, die nicht davon
+        // abhaengt, was verabredet war. Wer sein Konto loeschen laesst, ist
+        // ab diesem Moment nicht mehr erreichbar - auch nicht ueber eine
+        // Zusage von gestern.
+        //
+        // WARUM HIER UND NICHT IN DEN ABFRAGEN: Zu einem Anruf gehoeren zwei
+        // Kennungen, und keine davon kommt aus einer Standort- oder
+        // Anfragezeile - sie stehen im Offer. Es gibt keine WHERE-Klausel, in
+        // die sich das einsetzen liesse; callRoles() ist die eine Stelle, an
+        // der ueber JEDEN Anruf entschieden wird.
+        //
+        // Der Anrufer kann ebenfalls geloescht sein: Seine Sitzung wird zwar
+        // beim naechsten Seitenaufruf verworfen (App\Helper\Auth::
+        // discardOutdatedSession), aber ein laufendes Skript im Browser
+        // schickt weiter Offers.
+        if (User::isDeleted($callerId) || User::isDeleted($calleeId)) {
+            return null;
+        }
+
         // DER WIEDEREINSTIEG IN EINE LAUFENDE FUEHRUNG - und die einzige
         // Stelle, an der NICHT die Frage entscheidet, wer gewaehlt hat.
         //

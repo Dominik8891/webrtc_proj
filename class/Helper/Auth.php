@@ -57,12 +57,26 @@ class Auth
      * Verwirft Sitzungsdaten, die nicht mehr zum aktuellen Aufbau passen.
      *
      * Wird von index.php vor jeder Rechteprüfung aufgerufen. Betroffen sind
-     * zwei Fälle:
+     * drei Fälle:
      *   1. Die Session stammt aus einer Version mit anderen Rollennummern.
      *   2. Die gespeicherte Rolle lässt sich nicht auflösen (etwa weil die
      *      Rolle inzwischen entfernt wurde).
-     * Beides führt zur Abmeldung und nicht etwa zu einer Notfallrolle: Ein
-     * Konto ohne auflösbare Rolle darf nichts.
+     *   3. DAS KONTO IST GELÖSCHT.
+     * Alles drei führt zur Abmeldung und nicht etwa zu einer Notfallrolle:
+     * Ein Konto ohne auflösbare Rolle darf nichts.
+     *
+     * ZUM DRITTEN FALL. Löschen setzt nur ein Kennzeichen
+     * (App\Model\User::del_it) - die Sitzung eines gelöschten Kontos lief
+     * deshalb weiter, bis sich jemand abmeldete. Solange sie lief, war das
+     * Konto angemeldet, erreichbar und konnte schreiben; alle Filter, die
+     * seine Standorte und sein Profil aus der Anwendung nehmen
+     * (App\Model\User::activeSql), wirkten nach außen, aber nicht auf es
+     * selbst.
+     *
+     * DAS KOSTET EINE ABFRAGE JE ANGEMELDETEM AUFRUF, und sie ist es wert:
+     * Der Schlüssel ist der Primärschlüssel, und die Alternative wäre ein
+     * Konto, das nach seiner Löschung weiterarbeitet. Für Gäste fällt sie
+     * nicht an - die Methode ist vorher schon zurück.
      *
      * @return void
      */
@@ -76,6 +90,12 @@ class Auth
 
         if ($scheme !== self::SESSION_SCHEME || $role === null || $userId < 1) {
             error_log('Auth: veraltete oder unvollstaendige Sitzung verworfen.');
+            unset($_SESSION['user'], $_SESSION['auth_scheme']);
+            return;
+        }
+
+        if (User::isDeleted($userId)) {
+            error_log('Auth: Sitzung eines geloeschten Kontos verworfen (#' . $userId . ').');
             unset($_SESSION['user'], $_SESSION['auth_scheme']);
         }
     }

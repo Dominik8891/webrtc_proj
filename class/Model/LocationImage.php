@@ -204,7 +204,15 @@ class LocationImage
                         location.user_id, location.blocked
                    FROM location_image
                    JOIN location ON location_image.location_id = location.id
-                  WHERE location_image.id = :id"
+                   -- UND DAS KONTO MUSS ES NOCH GEBEN. Ohne diese Zeile
+                   -- blieben die Bilder eines geloeschten Kontos abrufbar,
+                   -- auch nachdem die Standortseite verschwunden ist - und
+                   -- Bildkennungen sind fortlaufend. Dies ist der einzige
+                   -- Weg, auf dem eine hochgeladene Datei einen Browser
+                   -- erreicht (App\Controller\LocationController::serveImage).
+                   JOIN user     ON location.user_id = user.id
+                  WHERE location_image.id = :id
+                    AND " . User::activeSql('user')
             );
             $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
             $stmt->execute();

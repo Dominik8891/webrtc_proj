@@ -1588,6 +1588,34 @@ Die **Kopfleiste bleibt** dieselbe wie überall — samt Anfragen- und Nachricht
 
 ---
 
+## 🗑️ Ein gelöschtes Konto verschwindet
+
+**Löschen setzt nur ein Kennzeichen.** `User::del_it()` schreibt `deleted = 1`; die Zeile bleibt stehen, damit vergangene Führungen, Bewertungen und spätere Abrechnungen nachvollziehbar bleiben. Der Fremdschlüssel hilft dabei nicht: `ON DELETE CASCADE` greift nur bei einem echten `DELETE`, und das findet nie statt.
+
+**Daraus folgt eine Pflicht, die vorher an fast allen Stellen fehlte:** Jede Abfrage, die etwas an *andere* ausliefert, muss das Kennzeichen selbst prüfen. Ein gelöschtes Konto behielt sonst seine Nadeln auf der Karte, seine Standortseiten, seine Bilder und sein Profil — und anrufbar und anschreibbar war es auch noch. Das ist nicht nur falsch, es ist datenschutzrechtlich nicht haltbar.
+
+### Ein Baustein, ein Kennzeichen
+
+`App\Model\User::activeSql($alias)` liefert `<alias>.deleted = 0` — aus demselben Grund, aus dem es `Location::AVAILABILITY_SQL` gibt: Die Bedingung steht in einem Dutzend Abfragen, und ausgeschrieben wäre sie ein Dutzend Gelegenheiten, sie beim nächsten Umbau an einer Stelle zu vergessen. Der Alias ist ein Textbaustein in einer Abfrage und wird geprüft wie jeder andere.
+
+Gefiltert wird jetzt in: der **öffentlichen Karte** (`selectPublicMapLocations`), der **Standortübersicht** (`selectAllLocations`), dem **Guide-Profil** (`selectLocationsOfGuide`), der **Standortseite** (`selectOneForPage` — und damit auch beim Anfragen, das den Standort mit derselben Methode lädt), ihrem **Takt** (`availabilityOf`), dem **Chatziel** (`guideIdOf`, das dafür erst einen JOIN bekommen hat), dem **Standortbild** (`LocationImage::findWithLocation`) und dem **Profilbild** (`GuideProfile::avatarOf`). Bild und Avatar sind der einzige Weg, auf dem eine hochgeladene Datei einen Browser erreicht — ohne Filter blieben sie abrufbar, nachdem die Seite verschwunden ist, und die Kennungen sind fortlaufend.
+
+### Drei Stellen ohne WHERE-Klausel
+
+Für sie gibt es `User::isDeleted($id)` (mit Zwischenspeicher für die Dauer der Anfrage; ein unbekanntes Konto gilt als gelöscht — die sichere Seite):
+
+* **Der Anruf.** `WebRTCController::callRoles()` weist ihn ab, **vor allem anderen** — auch vor dem Wiedereinstieg in eine laufende Führung. Wer gelöscht ist, ist nicht mehr erreichbar, auch nicht über eine Zusage von gestern. Zu einem Anruf gehören zwei Kennungen aus dem Offer; es gibt keine WHERE-Klausel, in die sich das einsetzen ließe.
+* **Der Chat.** Der Weg über einen Standort fällt schon in `guideIdOf()` weg; der Direktzugang der Verwaltung und das Senden prüfen selbst. **Der Verlauf bleibt lesbar** — er gehört beiden Seiten, und wer mit jemandem geschrieben hat, darf seine eigenen Nachrichten behalten. Was nicht mehr geht, ist etwas hinzuzufügen. Der **Benutzername** verschwindet trotzdem: Er ist die Anmeldekennung, und statt seiner steht `User::NAME_GELOESCHT`.
+* **Die Sitzung.** `Auth::discardOutdatedSession()` verwirft sie. Vorher lief die Sitzung eines gelöschten Kontos weiter, bis sich jemand abmeldete — und solange sie lief, war das Konto angemeldet, erreichbar und konnte schreiben. Das kostet eine Abfrage je angemeldetem Aufruf auf den Primärschlüssel; für Gäste fällt sie nicht an.
+
+### Was übrig bleibt, sieht die Verwaltung
+
+Die Standortliste des Verwaltungsbereichs filtert **bewusst nicht** — sie ist der eine Ort, an dem die übriggebliebenen Zeilen sichtbar bleiben müssen. Damit eine solche Zeile nicht auf eine Seite verweist, die es nicht mehr gibt, trägt sie die Marke *Konto gelöscht* und keinen Verweis auf das Profil.
+
+> **Offen:** Was beim Löschen mit den Standorten selbst geschehen soll, ist damit nicht entschieden — sie bleiben stehen und sind nur unsichtbar. Die Bilddateien liegen weiter auf der Platte.
+
+---
+
 ## 🔐 Berechtigungen
 
 ### Rollen

@@ -417,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (325 Prüfungen)
+## Was `server_test.php` prüft (332 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1416,6 +1416,49 @@ der sie sich abarbeiten lassen.
   Chatknopf zeigt auf den **Guide**. Der `AdminController` ruft weder
   `TourRequest::accept` noch `::finish` noch `::cancel` auf: Was zwischen
   einem Guide und seinem Kunden ausgemacht ist, schließt kein Dritter ab.
+
+### Ein gelöschtes Konto verschwindet
+
+Sechs Prüfungen um den Datenschutzfehler: `del_it()` setzt nur ein
+Kennzeichen, und keine der ausliefernden Abfragen las es.
+
+* **Der Baustein.** `User::activeSql()` liefert `<alias>.deleted = 0`, und der
+  Alias wird geprüft wie jeder Textbaustein in einer Abfrage — ein
+  `"x; DROP TABLE user; --"` kommt als `x.deleted = 0` heraus.
+* **Sechs Abfragen auf einmal**: Karte, Übersicht, Guide-Profil,
+  Standortseite, ihr Takt und das Chatziel. Für `guideIdOf()` wird zusätzlich
+  geprüft, dass sie überhaupt mit `user` verbindet — vorher kam sie ohne aus.
+* **Die Dateien**: Standortbild und Profilbild sind der einzige Weg, auf dem
+  eine hochgeladene Datei einen Browser erreicht.
+* **Die Verwaltung filtert nicht** — sie muss sehen, was übrig bleibt —,
+  **bekommt aber das Kennzeichen mit**, und ihre Zeile trägt dann die Marke
+  *Konto gelöscht* statt eines Verweises auf ein Profil, das es nicht
+  mehr gibt.
+* **Anruf, Chat und Sitzung** haben keine WHERE-Klausel und fragen
+  `User::isDeleted()`. Beim Anruf wird zusätzlich die **Reihenfolge**
+  geprüft: Die Prüfung steht vor dem Wiedereinstieg in eine laufende
+  Führung, sonst hielte eine Zusage von gestern sie aus.
+* **Der Name**: `getUsernamesByIds()` holt `deleted` mit, und der Platzhalter
+  sagt, was er meint.
+
+### Die Sicht des Eigentümers bleibt
+
+Beim Umbau auf den Verwaltungsbereich ist die Moderationssicht aus mehreren
+Kundenseiten verschwunden. Die Sicht des **Eigentümers** stand an denselben
+Stellen und in derselben Zeile — sie durfte dabei nicht mitgehen. Eine
+Prüfung hält sie an vier Stellen fest, damit der nächste Umbau sie nicht
+mitnimmt:
+
+* die **eigene Standortliste** verbirgt nichts (kein `location.blocked = 0`)
+  und liefert Sperre *und* Grund — und sie filtert **nicht** auf `deleted`:
+  Wer sie aufruft, ist angemeldet;
+* das **eigene Guide-Profil** zeigt die gesperrten mit, ein fremder
+  Betrachter nicht;
+* die **Kachel** dort trägt die Marke *Gesperrt*;
+* und beide Controller entscheiden das über das **Eigentum**, nicht über ein
+  Recht (`selectLocationsOfGuide($user_id, $eigen)`, `$ist_eigen` in
+  `showLocationPage`). Stünde dort ein Recht, wäre die Eigentümersicht beim
+  nächsten Umbau der Moderation wieder mit weg.
 
 ## Grenzen
 

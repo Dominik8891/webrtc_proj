@@ -259,8 +259,18 @@ class GuideProfile
         if ($user_id < 1) return null;
 
         try {
+            // MIT DEM KONTO VERBUNDEN, obwohl der Dateiname allein in
+            // guide_profile steht: forUser() weiter oben laesst ein
+            // geloeschtes Konto nicht mehr durch, und das Bild ist Teil
+            // derselben Seite. Ohne diese Verbindung bliebe es abrufbar,
+            // nachdem das Profil verschwunden ist - dies ist der einzige Weg,
+            // auf dem die Datei einen Browser erreicht.
             $stmt = PdoConnect::$connection->prepare(
-                "SELECT avatar_file FROM guide_profile WHERE user_id = :user_id"
+                "SELECT guide_profile.avatar_file
+                   FROM guide_profile
+                   JOIN user ON user.id = guide_profile.user_id
+                  WHERE guide_profile.user_id = :user_id
+                    AND " . User::activeSql('user')
             );
             $stmt->bindParam(':user_id', $user_id, \PDO::PARAM_INT);
             $stmt->execute();

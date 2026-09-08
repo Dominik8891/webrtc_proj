@@ -70,6 +70,7 @@ use App\Controller\UserController;
 use App\Controller\LocationController;
 use App\Model\Location;
 use App\Model\LocationImage;
+use App\Model\User;
 use App\Helper\ImageStore;
 use App\Helper\Languages;
 use App\Helper\Availability;
@@ -207,6 +208,11 @@ class FakeConnection {
     // jede andere, damit auch diese Statements pruefbar sind.
     public function exec($sql) { $this->statements[] = new FakeStatement($sql); return 0; }
 
+    // query() setzt eine Abfrage ohne Platzhalter ab - so arbeiten die
+    // Listen der Verwaltung, deren Filter feste Textbausteine sind
+    // (App\Model\Location::selectAllForAdmin, TourRequest::allForAdmin).
+    public function query($sql) { $s = new FakeStatement($sql); $this->statements[] = $s; return $s; }
+
     // Nach einem INSERT fragt das Modell die neue Kennung ab.
     public function lastInsertId() { return 42; }
 }
@@ -286,6 +292,19 @@ class FakeUserStatement {
         return $this->users[$id] ?? false;
     }
     public function fetchAll($mode = null) { return []; }
+    /**
+     * Nur fuer App\Model\User::isDeleted(): "SELECT deleted FROM user".
+     *
+     * Ein Konto, das die Attrappe nicht kennt, gilt als geloescht - genau
+     * wie in der echten Methode, wo eine fehlende Zeile die sichere Seite
+     * ist. Ein bekanntes Konto ohne ausdrueckliches 'deleted' gilt als
+     * vorhanden; sonst muesste jeder aeltere Testfall das Feld nachtragen.
+     */
+    public function fetchColumn($i = 0) {
+        $id   = (int)($this->params[':id'] ?? 0);
+        $user = $this->users[$id] ?? null;
+        return $user === null ? 1 : (int)($user['deleted'] ?? 0);
+    }
 }
 class FakeUserConnection {
     public $users = [];
@@ -2180,13 +2199,19 @@ fwrite(STDERR, "\n24) Chat: nur ueber einen Standort, und nur unter Beteiligten\
  * nichts, wenn die Nachricht trotzdem in der Datenbank landet.
  */
 class ChatAttrappeStatement {
-    public $sql; public $params = []; private $zeile;
-    public function __construct($sql, $zeile) { $this->sql = $sql; $this->zeile = $zeile; }
+    public $sql; public $params = []; private $zeile; private $geloeschte;
+    public function __construct($sql, $zeile, array $geloeschte = []) {
+        $this->sql = $sql; $this->zeile = $zeile; $this->geloeschte = $geloeschte;
+    }
     public function bindParam($k, &$v, $type = null) { $this->params[$k] = $v; }
     public function execute($params = null) { if ($params !== null) $this->params = $params; return true; }
     public function fetch($mode = null) { return $this->zeile; }
     public function fetchAll($mode = null) { return []; }
     public function rowCount() { return 1; }
+    /** Nur fuer App\Model\User::isDeleted(): "SELECT deleted FROM user". */
+    public function fetchColumn($i = 0) {
+        return in_array((int)($this->params[':id'] ?? 0), $this->geloeschte, true) ? 1 : 0;
+    }
 }
 class ChatAttrappe {
     public $statements = [];
@@ -2194,11 +2219,17 @@ class ChatAttrappe {
     public $chat = false;
     /** Zeile, die Location::guideIdOf() liefert; false = Standort gibt es nicht. */
     public $standort = false;
+    /** Kontokennungen, die als geloescht gelten (App\Model\User::isDeleted). */
+    public $geloeschte = [];
     public function prepare($sql) {
         $zeile = false;
         if (preg_match('/^\s*SELECT\s.*\sFROM\s+chat\s/i', $sql))          $zeile = $this->chat;
-        if (preg_match('/^\s*SELECT\s+user_id,\s*blocked\s+FROM\s+location/i', $sql)) $zeile = $this->standort;
-        $s = new ChatAttrappeStatement($sql, $zeile);
+        // guideIdOf() verbindet seit dem Filter auf geloeschte Konten mit
+        // `user` und qualifiziert deshalb seine Spalten.
+        if (preg_match('/^\s*SELECT\s+location\.user_id,\s*location\.blocked\s+FROM\s+location/is', $sql)) {
+            $zeile = $this->standort;
+        }
+        $s = new ChatAttrappeStatement($sql, $zeile, $this->geloeschte);
         $this->statements[] = $s;
         return $s;
     }
@@ -6826,6 +6857,220 @@ check(strpos($ctrlRumpf, 'TourRequest::accept') === false
    && strpos($ctrlRumpf, 'TourRequest::cancel') === false,
     'die Verwaltung greift in eine Verabredung ein');
 ok('die Anfragenliste zeigt beide Seiten und fuehrt zum Guide - eingegriffen wird nicht');
+
+// =====================================================================
+fwrite(STDERR, "\nEin geloeschtes Konto verschwindet\n");
+// =====================================================================
+//
+// DER BEFUND: App\Model\User::del_it() setzt nur `deleted = 1` - die Zeile
+// bleibt stehen, damit vergangene Fuehrungen und Bewertungen
+// nachvollziehbar bleiben. Der Fremdschluessel half dabei nicht: ON DELETE
+// CASCADE greift nur bei einem echten DELETE, und das findet nie statt.
+//
+// Die Folge war, dass ein geloeschtes Konto weiter oeffentlich sichtbar war:
+// seine Nadeln auf der Karte, seine Standortseiten, seine Bilder, sein
+// Profil - und anrufbar und anschreibbar war es auch noch. Das ist nicht nur
+// falsch, es ist datenschutzrechtlich nicht haltbar.
+//
+// DIE REGEL: Jede Abfrage, die etwas an ANDERE ausliefert, prueft das
+// Kennzeichen selbst - ueber den einen Baustein User::activeSql().
+
+// Die schlichte Attrappe, die nur mitschreibt - die Abschnitte davor haben
+// eigene, die auf ihre Abfragen antworten.
+$fake = new FakeConnection();
+PdoConnect::$connection = $fake;
+
+check(User::activeSql('user') === 'user.deleted = 0',
+    'der Baustein prueft nicht auf das Kennzeichen');
+check(User::activeSql('g') === 'g.deleted = 0', 'der Alias wird nicht uebernommen');
+// Der Alias ist ein Textbaustein in einer Abfrage und wird deshalb geprueft -
+// dieselbe Regel wie bei TourRequest::alias().
+check(User::activeSql("x; DROP TABLE user; --") === 'xDROPTABLEuser.deleted = 0',
+    'der Alias geht ungeprueft in die Abfrage');
+check(User::activeSql('') === 'user.deleted = 0', 'ein leerer Alias ergibt keine gueltige Bedingung');
+ok('ein Baustein, ein Kennzeichen - und der Alias wird geprueft');
+
+// --- Jede Abfrage, die an Kunden ausliefert -------------------------------
+$fake->statements = [];
+$L = new Location();
+$L->selectAllLocations(7);
+$L->selectPublicMapLocations();
+$L->selectLocationsOfGuide(7);
+$L->selectOneForPage(5);
+$L->availabilityOf(5);
+$L->guideIdOf(5);
+
+$erwartet = [
+    'selectAllLocations'       => 0,   // die Uebersicht
+    'selectPublicMapLocations' => 1,   // die oeffentliche Karte
+    'selectLocationsOfGuide'   => 2,   // das Guide-Profil
+    'selectOneForPage'         => 3,   // die Standortseite
+    'availabilityOf'           => 4,   // der Takt der Standortseite
+    'guideIdOf'                => 5,   // das Gegenueber eines Chats
+];
+foreach ($erwartet as $name => $i) {
+    check(isset($fake->statements[$i]), "keine Abfrage fuer $name");
+    check(strpos($fake->statements[$i]->sql, 'user.deleted = 0') !== false,
+        "$name liefert weiterhin die Standorte eines geloeschten Kontos aus");
+}
+// guideIdOf() kam vorher ganz ohne `user` aus - der Filter braucht dort erst
+// einen JOIN. Ohne ihn liesse sich dem Konto eines geloeschten Guides weiter
+// schreiben.
+check(strpos($fake->statements[5]->sql, 'JOIN user') !== false,
+    'guideIdOf verbindet nicht mit dem Konto');
+ok('Karte, Uebersicht, Profil, Standortseite, Takt und Chatziel filtern das Kennzeichen');
+
+// --- Und die Dateien, die zu diesen Seiten gehoeren ------------------------
+//
+// Bild und Avatar sind der EINZIGE Weg, auf dem eine hochgeladene Datei einen
+// Browser erreicht (sie liegen ausserhalb des Webroots). Ohne Filter blieben
+// sie abrufbar, nachdem die Seite verschwunden ist - und die Kennungen sind
+// fortlaufend.
+$fake->statements = [];
+LocationImage::findWithLocation(3);
+check(strpos($fake->statements[0]->sql, 'user.deleted = 0') !== false,
+    'die Bilder eines geloeschten Kontos bleiben abrufbar');
+$fake->statements = [];
+GuideProfile::avatarOf(7);
+check(strpos($fake->statements[0]->sql, 'user.deleted = 0') !== false,
+    'das Profilbild eines geloeschten Kontos bleibt abrufbar');
+// Das Profil selbst filterte schon vorher - geprueft wird, dass es dabei
+// bleibt.
+$fake->statements = [];
+GuideProfile::forUser(7);
+check(strpos($fake->statements[0]->sql, 'deleted = 0') !== false,
+    'die Profilseite eines geloeschten Kontos geht wieder auf');
+ok('auch die Dateien verschwinden, nicht nur die Seiten');
+
+// --- Die Verwaltung sieht sie weiterhin - und sagt es --------------------
+//
+// Sie ist der EINE Ort, an dem die uebriggebliebenen Zeilen sichtbar bleiben
+// muessen. Damit die Zeile dort nicht auf eine Seite verweist, die es nicht
+// mehr gibt, kommt das Kennzeichen mit.
+$fake->statements = [];
+$L->selectAllForAdmin('alle');
+check(strpos($fake->statements[0]->sql, 'user.deleted = 0') === false,
+    'die Verwaltung sieht die Standorte eines geloeschten Kontos nicht mehr');
+check(strpos($fake->statements[0]->sql, 'user.deleted AS user_deleted') !== false,
+    'der Verwaltung fehlt das Kennzeichen');
+
+$zeileGeloescht = App\Helper\AdminView::standortZeilenHtml([[
+    'id' => 5, 'title' => 'Alfama', 'blocked' => 0, 'blocked_reason' => null,
+    'blocked_at' => null, 'user_id' => 9, 'username' => 'anna',
+    'guide_name' => 'Anna', 'user_deleted' => 1, 'availability' => 'idle',
+    'country_name' => 'Portugal', 'city_name' => 'Lissabon',
+]]);
+check(strpos($zeileGeloescht, 'Konto gelöscht') !== false,
+    'die Verwaltung sieht nicht, dass das Konto geloescht ist');
+check(strpos($zeileGeloescht, 'act=guide&id=9') === false,
+    'die Zeile verweist auf ein Profil, das es nicht mehr gibt');
+ok('die Verwaltung behaelt den Blick auf das, was uebrigbleibt');
+
+// --- Kein Anruf, kein Chat, keine Sitzung ---------------------------------
+//
+// Fuer diese drei gibt es keine WHERE-Klausel, in die sich der Filter
+// einsetzen liesse: Zu einem Anruf gehoeren zwei Kennungen aus dem Offer, und
+// eine Sitzung ist gar keine Abfrage. Sie fragen deshalb User::isDeleted().
+$rtcCode  = file_get_contents($ROOT . '/class/Controller/WebRTCController.php');
+$rollen   = methodenRumpf(stripPhpNoise($rtcCode), 'callRoles');
+check(strpos($rollen, 'User::isDeleted($callerId) || User::isDeleted($calleeId)') !== false,
+    'ein geloeschtes Konto kann weiterhin anrufen oder angerufen werden');
+// VOR allem anderen, auch vor dem Wiedereinstieg in eine laufende Fuehrung:
+// Wer geloescht ist, ist nicht mehr erreichbar - auch nicht ueber eine Zusage
+// von gestern.
+check(strpos($rollen, 'isDeleted') < strpos($rollen, 'runningBetween'),
+    'die Pruefung steht hinter dem Wiedereinstieg - eine Zusage von gestern haelt sie aus');
+
+$chatCode = file_get_contents($ROOT . '/class/Controller/ChatController.php');
+check(substr_count($chatCode, 'User::isDeleted') === 2,
+    'Direktchat und Senden pruefen das Kennzeichen nicht beide');
+// Der VERLAUF bleibt lesbar - er gehoert beiden Seiten. Was nicht mehr geht,
+// ist etwas hinzuzufuegen.
+check(strpos($chatCode, 'Der Verlauf bleibt erhalten') !== false,
+    'mit dem Konto verschwindet auch der eigene Verlauf');
+check(strpos($chatCode, 'User::getUsernamesByIds([$partnerId])') !== false,
+    'die Chatliste holt den Benutzernamen an der Regel vorbei');
+
+$authCode = file_get_contents($ROOT . '/class/Helper/Auth.php');
+check(strpos($authCode, 'User::isDeleted($userId)') !== false,
+    'die Sitzung eines geloeschten Kontos laeuft weiter');
+ok('geloescht heisst: kein Anruf, keine neue Nachricht, keine laufende Sitzung');
+
+// --- Und der Name selbst --------------------------------------------------
+//
+// Der Benutzername ist die Anmeldekennung. Er gehoert nicht zu einem Konto,
+// das es nicht mehr gibt - stehen bleibt ein Platzhalter, damit ein
+// Chatverlauf nicht namenlos wird.
+check(User::NAME_GELOESCHT !== '' && stripos(User::NAME_GELOESCHT, 'gelösch') !== false,
+    'der Platzhalter sagt nicht, was er meint');
+$fake->statements = [];
+User::getUsernamesByIds([4, 5]);
+check(strpos($fake->statements[0]->sql, 'deleted') !== false,
+    'die Namensabfrage weiss nicht, ob ein Konto geloescht ist');
+ok('der Benutzername eines geloeschten Kontos wird nicht mehr herausgegeben');
+
+// =====================================================================
+fwrite(STDERR, "\nDie Sicht des EIGENTUEMERS bleibt\n");
+// =====================================================================
+//
+// DER ANLASS: Beim Umbau auf den Verwaltungsbereich ist die Moderationssicht
+// aus mehreren Kundenseiten verschwunden. Die Sicht des EIGENTUEMERS stand
+// an denselben Stellen und in derselben Zeile - sie durfte dabei nicht
+// mitgehen.
+//
+// Diese Pruefungen halten sie fest, damit der naechste Umbau sie nicht
+// mitnimmt. Ein gesperrter Standort muss fuer seinen Guide sichtbar bleiben,
+// gekennzeichnet und mit dem Grund: Sonst weiss er nicht, was passiert ist,
+// und kann nichts aendern.
+
+// 1. Die EIGENE Standortliste (Einstellungsseite) verbirgt nichts.
+$fake->statements = [];
+$L->selectAllLocationsOfOneUser(7);
+$eigeneSql = $fake->statements[0]->sql;
+check(strpos($eigeneSql, 'location.blocked = 0') === false,
+    'die eigene Liste verbirgt den gesperrten Standort');
+check(strpos($eigeneSql, 'location.blocked') !== false
+   && strpos($eigeneSql, 'blocked_reason') !== false,
+    'der eigenen Liste fehlen Sperre oder Grund');
+// Und sie filtert NICHT auf geloescht: Es ist die eigene Liste, und wer sie
+// aufruft, ist angemeldet.
+check(strpos($eigeneSql, 'user.deleted') === false,
+    'die eigene Liste filtert auf ein Kennzeichen, das fuer sie nicht gilt');
+
+// 2. Das EIGENE Guide-Profil zeigt die gesperrten mit.
+$fake->statements = [];
+$L->selectLocationsOfGuide(7, true);      // $in_with_blocked, wie beim Eigentuemer
+check(strpos($fake->statements[0]->sql, 'location.blocked = 0') === false,
+    'das eigene Profil verbirgt den gesperrten Standort');
+$fake->statements = [];
+$L->selectLocationsOfGuide(7, false);     // wie bei jedem anderen Betrachter
+check(strpos($fake->statements[0]->sql, 'location.blocked = 0') !== false,
+    'ein fremder Betrachter sieht die gesperrten Standorte');
+
+// 3. Die Kennzeichnung auf dem eigenen Profil.
+$eigenesProfil = App\Helper\GuideView::angeboteHtml(
+    [['id' => 5, 'title' => 'Alfama', 'blocked' => 1, 'availability' => 'idle',
+      'city_name' => 'Lissabon', 'country_name' => 'Portugal']],
+    'Anna', true);
+check(strpos($eigenesProfil, 'Gesperrt') !== false,
+    'auf dem eigenen Profil steht nicht, dass der Standort gesperrt ist');
+
+// 4. Der Controller entscheidet das ueber das EIGENTUM und nicht ueber ein
+//    Recht. Stuende dort ein Recht, waere die Eigentuemersicht beim naechsten
+//    Umbau der Moderation wieder mit weg.
+$profilCode = stripPhpNoise(file_get_contents($ROOT . '/class/Controller/GuideProfileController.php'));
+$profilRumpf = methodenRumpf($profilCode, 'showProfilePage');
+check(strpos($profilRumpf, 'selectLocationsOfGuide($user_id, $eigen)') !== false,
+    'das Guide-Profil entscheidet nicht mehr ueber das Eigentum');
+
+$ortRumpf = methodenRumpf(stripPhpNoise(file_get_contents(
+    $ROOT . '/class/Controller/LocationController.php')), 'showLocationPage');
+check(strpos($ortRumpf, '$ist_eigen') !== false,
+    'die Standortseite kennt den Eigentuemer nicht mehr');
+check(preg_match('/blocked.*?===\s*1\s*&&\s*!\$ist_eigen/s', $ortRumpf) === 1,
+    'der Eigentuemer kommt nicht mehr auf die Seite seines gesperrten Standorts');
+ok('der Guide sieht seinen gesperrten Standort - in der Liste, auf dem Profil und auf der Seite');
+
 
 
 
