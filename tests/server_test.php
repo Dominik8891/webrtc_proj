@@ -7739,6 +7739,241 @@ foreach (glob($ROOT . '/class/Controller/*.php') as $ctrl) {
 }
 ok('die Sperre faellt an einer Stelle - hinter der Rechtepruefung');
 
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nEine gescheiterte Registrierung ist kein Erfolg\n");
+
+/**
+ * Eine Attrappe, die auch SCHEITERN kann.
+ *
+ * Die allgemeine FakeStatement kennt nur den Erfolgsfall - execute() gibt
+ * immer true. Genau der Fehlerfall ist hier aber der Gegenstand: Es geht um
+ * die Frage, was passiert, NACHDEM ein INSERT abgewiesen wurde.
+ */
+class SignupStatement extends FakeStatement {
+    /** Wird beim naechsten execute() geworfen und danach zurueckgesetzt. */
+    public static $wirft = null;
+    /** Was fetchColumn() liefert: false = keine Zeile, 0 = lebend, 1 = geloescht. */
+    public static $spalte = false;
+    public function execute() {
+        if (self::$wirft !== null) { $e = self::$wirft; self::$wirft = null; throw $e; }
+        return true;
+    }
+    public function fetchColumn($i = 0) { return self::$spalte; }
+}
+
+/**
+ * Die Verbindung dazu - mit EINSTELLBARER letzter Kennung.
+ *
+ * Das ist der Kern des Befundes: lastInsertId() liefert nach einem
+ * gescheiterten INSERT nicht 0, sondern den letzten Wert DIESER VERBINDUNG.
+ * Im Registrierungsablauf ist das die Zeile, die RateLimit::verbuchen() eine
+ * Zeile vorher in rate_limit angelegt hat. 4711 steht hier fuer diese fremde
+ * Kennung.
+ */
+class SignupConnection extends FakeConnection {
+    public $letzteKennung = 4711;
+    public function prepare($sql) { $s = new SignupStatement($sql); $this->statements[] = $s; return $s; }
+    public function lastInsertId() { return $this->letzteKennung; }
+}
+
+/** Der doppelte Schluessel, so wie ihn der Treiber meldet. */
+class FakeDuplicateException extends \PDOException {
+    public function __construct($schluessel = 'user.email') {
+        parent::__construct("SQLSTATE[23000]: Integrity constraint violation: "
+            . "1062 Duplicate entry 'anna' for key '$schluessel'");
+        // PDOException traegt den SQLSTATE als ZEICHENKETTE - deshalb prueft
+        // der Code mit === '23000' und nicht mit === 23000.
+        $this->code = '23000';
+    }
+}
+
+$_ENV['PEPPER'] = 'testpepper';
+$signupVerbindung = new SignupConnection();
+PdoConnect::$connection = $signupVerbindung;
+
+// --- DER GEFAEHRLICHE FALL -----------------------------------------------
+//
+// Doppelte Adresse: Der INSERT scheitert, und lastInsertId() liefert die
+// Kennung der Zaehlerzeile. Vorher kam genau hier eine POSITIVE Kennung
+// heraus - die Registrierung meldete Erfolg, buchte ein Konto, das es nicht
+// gibt, und schickte eine Bestaetigungsmail an das FREMDE Konto #4711.
+SignupStatement::$wirft = new FakeDuplicateException('user.email');
+$grund = null;
+$ergebnis = (new User())->register('anna', 'anna@example.com', 'geheim12', $grund);
+check($ergebnis === null,
+    'eine gescheiterte Registrierung liefert eine Kennung (' . var_export($ergebnis, true) . ')');
+check($ergebnis !== 4711, 'die Kennung der Zaehlerzeile kommt als Benutzerkennung zurueck');
+check($grund === User::REG_VERGEBEN, "der Grund ist '$grund' statt 'vergeben'");
+ok('der doppelte Schluessel liefert keine fremde Kennung mehr, sondern den Grund');
+
+// --- Und die Unterscheidung, die vorher fehlte ---------------------------
+//
+// Eine echte Stoerung ist etwas anderes als eine vergebene Adresse. Vorher
+// war beides "Ein unbekannter Fehler ist aufgetreten."
+$sonstiger = new \PDOException('SQLSTATE[HY000]: General error: 2006 MySQL server has gone away');
+SignupStatement::$wirft = $sonstiger;
+$grund = null;
+check((new User())->register('anna', 'anna@example.com', 'geheim12', $grund) === null,
+    'eine Stoerung liefert eine Kennung');
+check($grund === User::REG_UNBEKANNT, "der Grund ist '$grund' statt 'unbekannt'");
+ok('eine Stoerung ist nicht dasselbe wie eine vergebene Angabe');
+
+// --- Der Erfolgsfall bleibt der Erfolgsfall ------------------------------
+SignupStatement::$wirft = null;
+$grund = null;
+$neu = (new User())->register('bea', 'bea@example.com', 'geheim12', $grund);
+check($neu === 4711, 'die neue Kennung kommt nicht mehr an (' . var_export($neu, true) . ')');
+check($grund === null, 'der Erfolgsfall traegt einen Grund');
+ok('eine geglueckte Registrierung liefert die Kennung und keinen Grund');
+
+// --- Zweimal anlegen ist ein Fehler im Aufrufer, kein stilles Nichts -----
+//
+// Vorher stand am Anfang von create() ein blosses "return;". Ein Objekt, das
+// schon eine Kennung traegt, wurde damit nicht angelegt - und der Aufrufer
+// erfuhr es nicht.
+$schon = new User();
+$reflex = new ReflectionProperty(User::class, 'id');
+$reflex->setAccessible(true);
+$reflex->setValue($schon, 9);
+$anlegen = new ReflectionMethod(User::class, 'create');
+$anlegen->setAccessible(true);
+$geworfen = false;
+try { $anlegen->invoke($schon); } catch (\LogicException $e) { $geworfen = true; }
+check($geworfen, 'create() legt ein bestehendes Konto still nicht an, statt zu melden');
+ok('create() auf einem bestehenden Konto meldet sich, statt zu schweigen');
+
+// --- PROJEKTWEIT: lastInsertId() steht hinter einem geglueckten execute() -
+//
+// DIE REGEL: Zwischen dem execute(), das die Zeile anlegt, und dem
+// lastInsertId(), das ihre Kennung holt, darf kein catch liegen. Sonst wird
+// die Kennung auch dann gelesen, wenn gar nichts eingefuegt wurde - und dann
+// ist es die Kennung eines FREMDEN Datensatzes.
+//
+// Die Pruefung ist eine Naeherung ueber den Zeilenlauf und kein Parser: Sie
+// merkt sich, wo zuletzt ein execute() und wo zuletzt ein catch stand. Fuer
+// den Fall, um den es geht, reicht das - im alten register() lag zwischen
+// beidem der catch-Block von create().
+$verstoesse = [];
+foreach (glob($ROOT . '/class/Model/*.php') as $modell) {
+    $zeilen      = file($modell);
+    $letztesExec = null;
+    $letzterCatch = null;
+    foreach ($zeilen as $nr => $zeile) {
+        // Kommentarzeilen zaehlen nicht mit - der Befund ist in mehreren
+        // davon ausfuehrlich beschrieben.
+        $rumpf = trim($zeile);
+        if ($rumpf === '' || $rumpf[0] === '*' || strpos($rumpf, '//') === 0) continue;
+
+        if (strpos($zeile, '->execute(') !== false) $letztesExec  = $nr;
+        if (strpos($zeile, 'catch (')    !== false) $letzterCatch = $nr;
+        if (strpos($zeile, 'lastInsertId(') === false) continue;
+
+        if ($letztesExec === null || ($letzterCatch !== null && $letzterCatch > $letztesExec)) {
+            $verstoesse[] = basename($modell) . ':' . ($nr + 1);
+        }
+    }
+}
+check($verstoesse === [],
+    'lastInsertId() steht ohne gegluecktes execute() davor: ' . implode(', ', $verstoesse));
+// Sonst ginge die Pruefung durch, weil sie nichts gefunden hat.
+$stellen = 0;
+foreach (glob($ROOT . '/class/Model/*.php') as $modell) {
+    $stellen += substr_count(file_get_contents($modell), 'lastInsertId(');
+}
+check($stellen >= 8, "nur $stellen Stellen mit lastInsertId gefunden - die Pruefung sieht nichts");
+ok("alle Stellen mit lastInsertId folgen einem geglueckten execute() ($stellen geprueft)");
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDer Index kennt kein 'deleted' - die Pruefung jetzt auch nicht\n");
+
+// --- Drei Zustaende statt zweier -----------------------------------------
+$k = new User();
+$k->setUsername('anna');
+$k->setEmail('anna@example.com');
+
+SignupStatement::$spalte = false;   // keine Zeile
+check($k->usernameStand() === User::KENNUNG_FREI,     'ein freier Name gilt nicht als frei');
+check($k->emailStand()    === User::KENNUNG_FREI,     'eine freie Adresse gilt nicht als frei');
+SignupStatement::$spalte = 0;       // Zeile, deleted = 0
+check($k->usernameStand() === User::KENNUNG_VERGEBEN, 'ein vergebener Name gilt nicht als vergeben');
+check($k->emailStand()    === User::KENNUNG_VERGEBEN, 'eine vergebene Adresse gilt nicht als vergeben');
+SignupStatement::$spalte = 1;       // Zeile, deleted = 1
+check($k->usernameStand() === User::KENNUNG_GELOESCHT, 'ein geloeschtes Konto bleibt unerkannt');
+check($k->emailStand()    === User::KENNUNG_GELOESCHT, 'ein geloeschtes Konto bleibt unerkannt');
+ok('frei, vergeben und geloescht sind drei verschiedene Antworten');
+
+// --- Und die Abfrage dahinter --------------------------------------------
+//
+// DER KERN DES BEFUNDES: Hier stand "AND deleted = 0". Der eindeutige Index
+// kennt dieses Kennzeichen nicht - die Pruefung sagte "frei", der INSERT
+// scheiterte, und beim Nutzer kam "unbekannter Fehler" an.
+$signupVerbindung->statements = [];
+SignupStatement::$spalte = 0;
+$k->emailStand();
+$abfrage = $signupVerbindung->statements[0]->sql;
+check(strpos($abfrage, 'deleted = 0') === false,
+    "die Pruefung filtert weiter auf deleted: $abfrage");
+// Bei doppeltem Namen entscheidet das LEBENDE Konto: "vergeben" hilft weiter,
+// "geloescht" waere daneben falsch.
+check(strpos($abfrage, 'ORDER BY deleted ASC') !== false,
+    "ohne Ordnung entscheidet der Zufall, welche Zeile antwortet: $abfrage");
+check(strpos($abfrage, 'SELECT *') === false,
+    'die Pruefung liest die ganze Zeile, obwohl sie nur eine Spalte braucht');
+ok('gefragt wird ohne deleted-Filter - so wie der Index es auch tut');
+
+// Die alten Namen sind weg. Bliebe einer stehen, faende ihn der naechste
+// Aufrufer und haette wieder die Fassung mit dem Filter.
+check(!method_exists(User::class, 'emailExists'),    'emailExists() gibt es noch');
+check(!method_exists(User::class, 'usernameExists'), 'usernameExists() gibt es noch');
+ok('die beiden Methoden mit dem deleted-Filter gibt es nicht mehr');
+
+// --- Was der Nutzer davon zu sehen bekommt -------------------------------
+$signupQuelle = $ohneKommentare(file_get_contents($ROOT . '/class/Controller/SignupController.php'));
+foreach (['usernameStand()', 'emailStand()', 'User::KENNUNG_GELOESCHT',
+          'User::REG_VERGEBEN'] as $stueck) {
+    check(strpos($signupQuelle, $stueck) !== false,
+        "der SignupController benutzt $stueck nicht");
+}
+// Vier eigene Meldungen - und "unknown" ist nicht mehr der Sammelfall fuer
+// alles, was der Nutzer selbst beheben koennte.
+foreach (['username_geloescht', 'email_geloescht', 'vergeben_rennen'] as $fall) {
+    check(substr_count($signupQuelle, $fall) >= 2,
+        "der Fall $fall wird gesetzt, aber nicht beantwortet (oder umgekehrt)");
+}
+// Die Meldung zur Adresse nennt als einzige den Betreiber: Einen Namen sucht
+// man sich neu aus, eine E-Mail-Adresse hat man nur die eine.
+$meldungen = methodenRumpf($signupQuelle, 'outputSignupError');
+check(strpos($meldungen, 'Betreiber') !== false,
+    'die Meldung zur geloeschten Adresse nennt keinen Ausweg');
+ok('vier Faelle, vier Meldungen - und ein Ausweg, wo der Nutzer keinen hat');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDer Benutzername wird eindeutig (S-14)\n");
+
+$wanderung20 = file_get_contents($ROOT . '/migrations/020_username_eindeutig.sql');
+check(strpos($wanderung20, 'ADD UNIQUE KEY `username`') !== false,
+    'die Wanderung legt den Index nicht an');
+// SCHRITT 1 MUSS EINE LESENDE PRUEFUNG SEIN: Zwei LEBENDE Konten mit
+// demselben Namen kann keine Migration reparieren - welches den Namen behalten
+// darf, ist eine Entscheidung ueber Menschen.
+check(strpos($wanderung20, 'HAVING COUNT(*) > 1') !== false,
+    'die Wanderung sucht vorher nicht nach Doppelungen');
+check(strpos($wanderung20, '`deleted` = 0') !== false,
+    'die Vorabpruefung unterscheidet nicht zwischen lebenden und geloeschten Konten');
+// Und geloeschte Konten raeumt sie selbst aus dem Weg - ihr Name wird
+// nirgends mehr angezeigt (User::NAME_GELOESCHT).
+check(strpos($wanderung20, "'_geloescht_'") !== false,
+    'die Wanderung benennt kollidierende geloeschte Konten nicht um');
+check(strpos($wanderung20, 'u.`deleted` = 1') !== false,
+    'die Umbenennung trifft auch lebende Konten');
+
+$dump = file_get_contents($ROOT . '/database.sql');
+check(strpos($dump, 'UNIQUE KEY `username` (`username`)') !== false,
+    'der Dump kennt den Index auf username nicht');
+check(strpos($dump, 'UNIQUE KEY `email` (`email`)') !== false,
+    'der Dump hat den Index auf email verloren');
+ok('der Index steht in der Wanderung und im Dump, und die Wanderung raeumt vorher auf');
+
 PdoConnect::$connection = new FakeConnection();
 
 fwrite(STDERR, "\n$passed Pruefungen bestanden.\n");

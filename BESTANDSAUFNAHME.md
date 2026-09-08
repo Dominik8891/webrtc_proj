@@ -1101,9 +1101,48 @@ vollständig).
 | **S-11** | `class/Model/User.php:165-167` | `register()` akzeptiert Passwörter ab **3 Zeichen**. Der Controller prüft davor auf 8 (`SignupController.php:50`) — die Model-Methode ist aber öffentlich und die schwächere Regel wäre die letzte Verteidigungslinie. Widerspruch zweier Validierungsebenen. |
 | **S-12** | `class/Controller/PasswordController.php:189` | `password_verify($pwd_peppered, $result['pwd'])` ohne vorherige Prüfung, ob `$result` überhaupt gefunden wurde (Z. 180). Bei unbekanntem Benutzernamen → Zugriff auf `null['pwd']` → Fatal Error. Zusätzlich wird der Benutzername aus dem **Request** genommen (Z. 171), nicht aus der Session — die Bindung an den eingeloggten Nutzer fehlt. |
 | **S-13** | `class/Helper/ViewHelper.php:80` | `'<script>window.userRole = "' . $user_role . '";</script>'` — Interpolation in einen JS-String ohne Escaping. Aktuell ungefährlich, da `$user_role` aus `usertype.name` (Stammdaten) kommt; als Muster aber fragil. Direkt darüber wird bei `$user->getUsername()` korrekt `htmlspecialchars()` verwendet (Z. 58). |
-| **S-14** | `class/Model/User.php` / `database.sql:49-51` | `user.username` hat **kein UNIQUE-Constraint** (`database.sql:49`). Die Eindeutigkeit hängt allein an `usernameExists()` (`User.php:240-253`) — zwischen Prüfung (`SignupController.php:56`) und Insert (Z. 62) liegt ein klassisches TOCTOU-Fenster. Da `login()` per `WHERE username = :username` sucht (`User.php:193`), führen Duplikate zu unvorhersehbarer Kontozuordnung. |
+| **S-14** | `class/Model/User.php` / `database.sql:49-51` | `user.username` hat **kein UNIQUE-Constraint** (`database.sql:49`). Die Eindeutigkeit hängt allein an `usernameExists()` (`User.php:240-253`) — zwischen Prüfung (`SignupController.php:56`) und Insert (Z. 62) liegt ein klassisches TOCTOU-Fenster. Da `login()` per `WHERE username = :username` sucht (`User.php:193`), führen Duplikate zu unvorhersehbarer Kontozuordnung. **Behoben** (Migration 020) — siehe Nachtrag unter der Tabelle. |
 | **S-15** | `assets/html/index.html:8-29` | **Keine Subresource Integrity** bei 8 CDN-Einbindungen; zwei davon (`leaflet`, `leaflet-pip@latest`) ohne Versionspin (Details in Abschnitt 2.3). |
 | **S-16** | `config/error_handler.php:7` | Das Logfile liegt mit `__DIR__ . '/../php-error.log'` **im Webroot**. Zusammen mit S-8 (2FA-Secrets) und den Passwort-Reset-Logs (`PasswordController.php:61,137,146`) ist das eine direkt abrufbare Sammlung sensibler Daten, sofern der Webserver `.log` nicht sperrt. |
+
+**Nachtrag zu S-14, und ein Befund, der dabei aufgefallen ist.**
+
+Der fehlende `UNIQUE`-Index auf `user.username` ist per **Migration 020**
+nachgezogen; `emailStand()`/`usernameStand()` fragen jetzt **ohne**
+`deleted`-Filter, weil der Index diesen Filter auch nicht kennt. Das war das
+sichtbare Ende einer längeren Kette:
+
+* **Die Vorabprüfung und der Index widersprachen sich.** Löschen setzt nur ein
+  Kennzeichen (`User::del_it()`), die Zeile bleibt mit Name und Adresse
+  stehen. `emailExists()` filterte auf `deleted = 0` und sagte „frei", der
+  `UNIQUE KEY email` sagte „belegt". Beim **Benutzernamen** scheiterte
+  dagegen gar nichts — es entstand still ein zweites Konto mit demselben
+  Namen, weil es dort keinen Index gab. Der lautere der beiden Fehler war
+  der harmlosere.
+
+* **`register()` las `lastInsertId()` außerhalb des `try`** (`User.php:261`) —
+  **neuer Befund, in dieser Aufnahme vorher nicht enthalten, und der
+  gefährlichste der Kette.** `create()` fing die `PDOException` selbst ab und
+  gab `null` zurück; den Rückgabewert sah `register()` gar nicht an. Nach
+  einem gescheiterten `INSERT` liefert `lastInsertId()` aber nicht `0`,
+  sondern den letzten Wert **dieser Verbindung** — und unmittelbar davor legt
+  `RateLimit::verbuchen('signup_formular')` eine Zeile in `rate_limit` an,
+  einer Tabelle mit `AUTO_INCREMENT`. War diese Zählerzeile neu, stand ihre
+  Kennung in `$user_id`: Die Registrierung meldete **Erfolg**, buchte ein
+  Konto, das es nicht gibt, und schickte über `sendVerification($user_id)`
+  eine Bestätigungsmail an das **fremde** Konto mit genau dieser Kennung. Gab
+  es die Zählerzeile schon, war `lastInsertId()` gleich `0` und der Nutzer sah
+  „Ein unbekannter Fehler ist aufgetreten." — dieselbe Ursache, zwei völlig
+  verschiedene Auswirkungen, je nachdem, ob es der erste Versuch von dieser
+  Adresse war. `create()` reicht seine Ausnahme jetzt durch, `register()`
+  wertet sie aus und nennt den Grund. Ein Test prüft die Regel projektweit
+  über alle 13 Fundstellen von `lastInsertId()`.
+
+* **Die Meldung nennt jetzt vier Fälle** statt eines: vergeben, gelöscht (mit
+  Verweis auf den Betreiber, weil eine E-Mail-Adresse anders als ein
+  Benutzername nicht austauschbar ist), das Rennen zwischen Prüfung und
+  `INSERT` (SQLSTATE 23000, behandelt wie in `TourReview::create()`) und die
+  echte Störung.
 
 ### 9.4 Auskommentierte Blöcke
 

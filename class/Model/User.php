@@ -91,28 +91,60 @@ class User
      * aber ein selbstvergebener Rang beim Registrieren darf gar nicht erst
      * moeglich aussehen - das Feld ist deshalb entfernt.
      *
-     * @return int|null Neue User-ID oder null bei Fehler
+     * DIESE METHODE FAENGT NICHTS MEHR AB, UND DAS IST DER KERN
+     * ----------------------------------------------------------
+     * Vorher stand hier ein try/catch, das die PDOException protokollierte
+     * und null zurueckgab. Den Rueckgabewert hat register() aber gar nicht
+     * angesehen - es las danach unbedingt lastInsertId(). Und lastInsertId()
+     * liefert nach einem GESCHEITERTEN INSERT nicht etwa 0, sondern den
+     * letzten Wert, den DIESE VERBINDUNG erzeugt hat.
+     *
+     * WAS DARAUS WURDE: Im Registrierungsablauf laeuft unmittelbar vorher
+     * RateLimit::verbuchen('signup_formular') - ein INSERT in eine Tabelle
+     * mit AUTO_INCREMENT. War die Zaehlerzeile fuer diese IP neu, stand
+     * anschliessend IHRE Kennung in $user_id. Die Registrierung meldete dann
+     * Erfolg, buchte ein Konto, das es nicht gibt, und schickte eine
+     * Bestaetigungsmail an das FREMDE Konto mit genau dieser Kennung. Gab es
+     * die Zaehlerzeile schon, war lastInsertId() gleich 0, und der Nutzer sah
+     * "ein unbekannter Fehler ist aufgetreten" - dieselbe Ursache, zwei
+     * voellig verschiedene Auswirkungen, je nachdem, ob es der erste Versuch
+     * von dieser Adresse war.
+     *
+     * Die Ausnahme geht deshalb an den Aufrufer. Er ist der einzige, der
+     * entscheiden kann, ob ein doppelter Schluessel eine Stoerung ist oder
+     * die normale Antwort auf eine schon vergebene Adresse (register()).
+     *
+     * lastInsertId() steht jetzt hinter dem geglueckten execute() und nur
+     * dort - so wie an allen anderen Stellen des Projekts auch.
+     *
+     * @return int Die neue Benutzerkennung, immer groesser als 0
+     * @throws \PDOException   wenn der INSERT scheitert - insbesondere
+     *                         SQLSTATE 23000 bei doppelter E-Mail-Adresse
+     * @throws \LogicException wenn das Objekt bereits eine Kennung traegt
      */
-    private function create()
+    private function create(): int
     {
-        if ($this->id > 0) return;
-        try {
-            $stmt = PdoConnect::$connection->prepare(
-                "INSERT INTO user ( username,  email,  pwd,  type_id) 
-                          VALUES  (:username, :email, :pwd, :type_id)"
-            );
-            $default_role = Role::TRIAL;
-            $stmt->bindParam(":username", $this->username);
-            $stmt->bindParam(":email", $this->email);
-            $stmt->bindParam(":pwd", $this->pwd);
-            $stmt->bindParam(":type_id", $default_role, \PDO::PARAM_INT);
-            $stmt->execute();
-            $this->id = PdoConnect::$connection->lastInsertId();
-            return $this->id;
-        } catch (PDOException $e) {
-            error_log("Fehler beim Erstellen des Benutzers: " . $e->getMessage());
-            return null;
+        // Vorher ein stilles "return;". Ein Objekt, das schon eine Kennung
+        // traegt, ein zweites Mal anlegen zu wollen ist ein Fehler im
+        // Aufrufer und kein Zustand, den man wegschweigt - er kam als
+        // "erfolgreich angelegt" beim Nutzer an.
+        if ($this->id > 0) {
+            throw new \LogicException('User::create() auf einem Konto, das es schon gibt (#' . $this->id . ').');
         }
+
+        $stmt = PdoConnect::$connection->prepare(
+            "INSERT INTO user ( username,  email,  pwd,  type_id) 
+                      VALUES  (:username, :email, :pwd, :type_id)"
+        );
+        $default_role = Role::TRIAL;
+        $stmt->bindParam(":username", $this->username);
+        $stmt->bindParam(":email", $this->email);
+        $stmt->bindParam(":pwd", $this->pwd);
+        $stmt->bindParam(":type_id", $default_role, \PDO::PARAM_INT);
+        $stmt->execute();
+
+        $this->id = (int)PdoConnect::$connection->lastInsertId();
+        return $this->id;
     }
 
     /**
@@ -177,7 +209,16 @@ class User
         if ($this->id > 0) {
             return $this->update();
         }
-        return $this->create() !== null;
+
+        // create() reicht seine Ausnahme jetzt durch (siehe dort). Hier wird
+        // sie aufgefangen, weil save() ein Ja/Nein verspricht - anders als
+        // register(), das den GRUND braucht und ihn deshalb selbst auswertet.
+        try {
+            return $this->create() > 0;
+        } catch (\Exception $e) {
+            error_log('Fehler beim Erstellen des Benutzers: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -230,38 +271,109 @@ class User
         $this->update();
     }
 
+    /** Grund eines Fehlschlags in register(): Name oder Adresse ist vergeben. */
+    public const REG_VERGEBEN  = 'vergeben';
+
+    /** Grund eines Fehlschlags in register(): alles andere. */
+    public const REG_UNBEKANNT = 'unbekannt';
+
     /**
      * Registriert einen neuen Benutzer nach Validierung.
-     * @param string $in_username
-     * @param string $in_email
-     * @param string $in_pwd
-     * @return int|null User-ID oder null bei Fehler
+     *
+     * DER GRUND GEHT MIT ZURUECK, UND ZWAR ALS ZWEITER WERT
+     * -----------------------------------------------------
+     * Vorher gab es nur "Kennung oder null". Der Aufrufer konnte damit nicht
+     * unterscheiden, ob die Adresse vergeben ist - etwas, das der Nutzer
+     * selbst beheben kann - oder ob der Server eine Stoerung hat. Beides kam
+     * als "Ein unbekannter Fehler ist aufgetreten." beim Nutzer an.
+     *
+     * Deshalb der Ausgabeparameter: Die Rueckgabe bleibt die Kennung (kein
+     * Aufrufer muss sich aendern, der den Grund nicht braucht), und wer ihn
+     * braucht, reicht eine Variable hinein.
+     *
+     * SQLSTATE 23000 IST DER DOPPELTE SCHLUESSEL. Dasselbe Vorgehen wie in
+     * App\Model\TourReview::create(): Der doppelte Schluessel ist hier keine
+     * Stoerung, sondern die Regel - der eindeutige Index auf user.email (und
+     * seit Migration 020 auch auf user.username) ist die letzte
+     * Verteidigungslinie hinter der Vorabpruefung im Controller. Zwischen
+     * dieser Pruefung und dem INSERT liegt ein Fenster, in dem sich ein
+     * zweiter Aufruf denselben Namen sichern kann; genau dafuer ist der Index
+     * da, und genau deshalb darf sein Zuschlagen keine Fehlermeldung sein.
+     *
+     * WELCHER der beiden Schluessel zugeschlagen hat, wird bewusst NICHT
+     * ausgewertet: Das stuende nur im Klartext der Treibermeldung
+     * ("Duplicate entry '...' for key 'user.email'"), und darauf eine
+     * Fallunterscheidung zu bauen hiesse, den Wortlaut einer fremden
+     * Fehlermeldung zur Schnittstelle zu erklaeren. Der Controller nennt
+     * deshalb im Rennfall beide Angaben.
+     *
+     * @param  string      $in_username
+     * @param  string      $in_email
+     * @param  string      $in_pwd
+     * @param  string|null $out_grund Bei Fehlschlag REG_VERGEBEN oder
+     *                                REG_UNBEKANNT, bei Erfolg null
+     * @return int|null               User-ID oder null bei Fehler
      */
-    public function register($in_username, $in_email, $in_pwd) {
+    public function register($in_username, $in_email, $in_pwd, &$out_grund = null) {
+        // Zuerst zuruecksetzen: Der Aufrufer koennte dieselbe Variable ein
+        // zweites Mal hineinreichen, und ein alter Grund neben einer neuen
+        // Kennung waere schlimmer als gar keiner.
+        $out_grund = null;
+
+        // Die drei folgenden Pruefungen kann der Controller nicht ausloesen -
+        // er prueft Name, Adresse und Passwortlaenge vorher und strenger.
+        // Sie bleiben als Absicherung der oeffentlichen Methode stehen; wer
+        // hier hereinlaeuft, hat einen Fehler im Aufrufer und keinen in der
+        // Eingabe. Deshalb REG_UNBEKANNT und nicht etwa eine eigene Meldung.
         if (!preg_match('/^[\w]{3,20}$/', $in_username)) {
             error_log("Ungültiger Username: $in_username");
+            $out_grund = self::REG_UNBEKANNT;
             return null;
         }
         if (!filter_var($in_email, FILTER_VALIDATE_EMAIL)) {
             // Eingabewert nur maskiert loggen. Er ist hier zwar ungueltig,
             // kann aber trotzdem eine echte Adresse mit Tippfehler sein.
             error_log("Ungültige E-Mail: " . LogHelper::maskEmail($in_email));
+            $out_grund = self::REG_UNBEKANNT;
             return null;
         }
         if (strlen($in_pwd) < 3) {
             error_log("Zu kurzes Passwort für Benutzer: $in_username");
+            $out_grund = self::REG_UNBEKANNT;
             return null;
         }
+
         try {
             $hased_pwd = $this->pwdEncrypt($in_pwd);
             $this->username = $in_username;
             $this->email    = $in_email;
             $this->pwd      = $hased_pwd;
-            $this->create();
-            $this->id = PdoConnect::$connection->lastInsertId();
-            return $this->id;
-        } catch (\Exception $e) {
+
+            // DIE KENNUNG KOMMT AUS create() UND NICHT MEHR AUS EINEM ZWEITEN
+            // lastInsertId(). Der zweite Aufruf war der Fehler: Er lief auch
+            // dann, wenn der INSERT gescheitert war, und lieferte dann die
+            // Kennung des zuletzt eingefuegten FREMDEN Datensatzes. Siehe
+            // create().
+            return $this->create();
+        } catch (PDOException $e) {
+            // PDOException VOR \Exception - sie ist eine davon, und PHP
+            // nimmt den ersten passenden Zweig.
+            if ($e->getCode() === '23000') {
+                // Kein Eintrag mit der Adresse: Sie steht im Klartext in der
+                // Treibermeldung, und das Log dieser Anwendung fuehrt keine
+                // Adressen im Klartext (App\Helper\LogHelper).
+                error_log('Registrierung abgewiesen: Benutzername oder E-Mail-Adresse '
+                    . 'ist bereits vergeben (Benutzername ' . $in_username . ').');
+                $out_grund = self::REG_VERGEBEN;
+                return null;
+            }
             error_log("Fehler bei der Benutzer-Registrierung: " . $e->getMessage());
+            $out_grund = self::REG_UNBEKANNT;
+            return null;
+        } catch (\Exception $e) {
+            // Hierher kommt vor allem der fehlende PEPPER aus pwdEncrypt().
+            error_log("Fehler bei der Benutzer-Registrierung: " . $e->getMessage());
+            $out_grund = self::REG_UNBEKANNT;
             return null;
         }
     }
@@ -319,41 +431,106 @@ class User
         }
     }
 
+    /** Kennung ist frei - es gibt keine Zeile dazu. */
+    public const KENNUNG_FREI      = 'frei';
+
+    /** Kennung gehoert einem bestehenden Konto. */
+    public const KENNUNG_VERGEBEN  = 'vergeben';
+
+    /** Kennung gehoert einem GELOESCHTEN Konto und bleibt trotzdem belegt. */
+    public const KENNUNG_GELOESCHT = 'geloescht';
+
     /**
-     * Prüft, ob der Username bereits existiert.
-     * @return bool
+     * DIE BEIDEN VORABPRUEFUNGEN FRAGEN NICHT MEHR NACH `deleted`
+     * ===========================================================
+     * Hier stand "... AND deleted = 0", und genau das war der Fehler.
+     *
+     * Loeschen setzt in dieser Anwendung nur ein Kennzeichen (del_it()) - die
+     * Zeile bleibt stehen, mit Benutzername und E-Mail-Adresse darin. Der
+     * eindeutige Index auf user.email kennt das Kennzeichen aber nicht; fuer
+     * ihn ist die Adresse belegt. Die Pruefung sagte also "frei", der INSERT
+     * scheiterte, und der Nutzer bekam "Ein unbekannter Fehler ist
+     * aufgetreten." - eine Meldung, mit der er nichts anfangen kann, weil die
+     * Auskunft, die er braucht, im Logfile stand.
+     *
+     * Beim BENUTZERNAMEN war es schlimmer und stiller: Dort gab es gar keinen
+     * eindeutigen Index (Befund S-14), also scheiterte auch nichts - es
+     * entstand einfach ein zweites Konto mit demselben Namen. Migration 020
+     * zieht den Index nach, damit hier und in der Datenbank dieselbe Regel
+     * gilt.
+     *
+     * WARUM DREI ZUSTAENDE UND NICHT ZWEI: Weil der Nutzer bei einem
+     * geloeschten Konto etwas anderes tun muss als bei einem bestehenden. Bei
+     * einer vergebenen Adresse hilft "Passwort vergessen"; bei der Adresse
+     * eines geloeschten Kontos hilft gar nichts, was der Nutzer selbst tun
+     * kann - dann muss er den Betreiber fragen. Ein blosses true/false koennte
+     * ihm das nicht sagen.
+     *
+     * ORDER BY deleted: Tragen zwei Zeilen dieselbe Kennung - beim
+     * Benutzernamen bis Migration 020 moeglich -, entscheidet die des
+     * LEBENDEN Kontos. "Vergeben" ist die Auskunft, die weiterhilft;
+     * "geloescht" waere daneben falsch.
+     *
+     * @return string KENNUNG_FREI, KENNUNG_VERGEBEN oder KENNUNG_GELOESCHT
      */
-    public function usernameExists() {
-        try {
-            $stmt = PdoConnect::$connection->prepare(
-                "SELECT * FROM user WHERE username = :username AND deleted = 0"
-            );
-            $stmt->bindParam(":username", $this->username);
-            $stmt->execute();
-            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-            return (bool)$result;
-        } catch (PDOException $e) {
-            error_log("Fehler bei Username-Check: " . $e->getMessage());
-            return false;
-        }
+    public function usernameStand(): string
+    {
+        return self::standVon('username', $this->username);
     }
 
     /**
-     * Prüft, ob die E-Mail bereits existiert.
-     * @return bool
+     * Ist die E-Mail-Adresse noch zu haben? Siehe usernameStand().
+     *
+     * @return string KENNUNG_FREI, KENNUNG_VERGEBEN oder KENNUNG_GELOESCHT
      */
-    public function emailExists() {
+    public function emailStand(): string
+    {
+        return self::standVon('email', $this->email);
+    }
+
+    /**
+     * Die gemeinsame Abfrage hinter usernameStand() und emailStand().
+     *
+     * EINE METHODE UND NICHT ZWEIMAL DERSELBE RUMPF: Die beiden unterschieden
+     * sich vorher nur in einem Spaltennamen - und beide trugen denselben
+     * Fehler. Genau so entstehen zwei Fassungen einer Regel, von denen die
+     * zweite beim naechsten Mal vergessen wird.
+     *
+     * Der Spaltenname kommt aus dem Code und nie aus einer Anfrage; er wird
+     * trotzdem gegen eine feste Liste geprueft, damit das auch dann noch gilt,
+     * wenn hier einmal jemand etwas durchreicht.
+     *
+     * @param  string $in_spalte 'username' oder 'email'
+     * @param  mixed  $in_wert   Der gesuchte Wert
+     * @return string
+     */
+    private static function standVon(string $in_spalte, $in_wert): string
+    {
+        if (!in_array($in_spalte, ['username', 'email'], true)) {
+            throw new \LogicException("User::standVon(): unbekannte Spalte '$in_spalte'.");
+        }
+        if (!is_scalar($in_wert) || (string)$in_wert === '') return self::KENNUNG_FREI;
+
         try {
             $stmt = PdoConnect::$connection->prepare(
-                "SELECT * FROM user WHERE email = :email AND deleted = 0"
+                "SELECT deleted FROM user WHERE `$in_spalte` = :wert ORDER BY deleted ASC LIMIT 1"
             );
-            $stmt->bindParam(":email", $this->email);
+            $wert = (string)$in_wert;
+            $stmt->bindParam(':wert', $wert);
             $stmt->execute();
-            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-            return (bool)$result;
+            $gefunden = $stmt->fetchColumn();
+
+            if ($gefunden === false) return self::KENNUNG_FREI;
+            return ((int)$gefunden === 1) ? self::KENNUNG_GELOESCHT : self::KENNUNG_VERGEBEN;
         } catch (PDOException $e) {
-            error_log("Fehler bei Email-Check: " . $e->getMessage());
-            return false;
+            error_log("Fehler bei der Pruefung von $in_spalte: " . $e->getMessage());
+            // FREI und nicht VERGEBEN: Diese Abfrage ist die Bequemlichkeit,
+            // nicht die Absicherung. Wer sie bei einer Stoerung auf "vergeben"
+            // stellt, weist eine gueltige Registrierung mit einer Meldung ab,
+            // die nicht stimmt. Die verbindliche Antwort gibt der eindeutige
+            // Index, und der antwortet gleich darauf beim INSERT
+            // (register(), SQLSTATE 23000).
+            return self::KENNUNG_FREI;
         }
     }
 

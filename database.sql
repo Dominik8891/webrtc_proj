@@ -435,7 +435,26 @@ CREATE TABLE IF NOT EXISTS `user` (
   `location_updated_at` datetime DEFAULT NULL,
 
   PRIMARY KEY (`id`),
+
+  -- BEIDE EINDEUTIG, UND BEIDE OHNE RUECKSICHT AUF `deleted` (Migration 020
+  -- fuer den Benutzernamen; die Adresse trug den Index schon immer).
+  --
+  -- MySQL kennt keinen Index mit Bedingung - "eindeutig, aber nur unter den
+  -- lebenden Konten" laesst sich hier nicht hinschreiben. Name und Adresse
+  -- eines geloeschten Kontos bleiben deshalb dauerhaft belegt. Das ist kein
+  -- Versehen, sondern die Zusage, auf die sich der Anwendungscode stuetzt:
+  -- App\Model\User::usernameStand()/emailStand() fragen aus genau diesem
+  -- Grund ebenfalls OHNE `deleted`-Filter, und der SignupController sagt dem
+  -- Nutzer, wenn eine Angabe an einem geloeschten Konto haengt.
+  --
+  -- Vorher fehlte der Index auf `username` (Befund S-14). Die Eindeutigkeit
+  -- hing allein an einer Abfrage im Code, und zwischen dieser Abfrage und dem
+  -- INSERT lag ein Fenster: Zwei gleichzeitige Registrierungen ergaben zwei
+  -- lebende Konten mit demselben Namen - und der Name ist die
+  -- Anmeldekennung, ueber die User::login() das Konto sucht.
+  UNIQUE KEY `username` (`username`),
   UNIQUE KEY `email` (`email`),
+
   KEY `type_id` (`type_id`),
   CONSTRAINT `user_ibfk_1` FOREIGN KEY (`type_id`) REFERENCES `usertype` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

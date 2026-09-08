@@ -103,13 +103,44 @@ class SignupController
                 $user = new User();
                 $user->setUsername($username);
                 $user->setEmail($email);
-                if ($user->usernameExists()) {
+
+                // DREI ZUSTAENDE JE ANGABE, NICHT ZWEI (App\Model\User).
+                //
+                // Die Vorabpruefung fragte frueher nur nach LEBENDEN Konten
+                // ("AND deleted = 0"). Der eindeutige Index in der Datenbank
+                // kennt dieses Kennzeichen aber nicht: Die Adresse eines
+                // geloeschten Kontos ist weiter belegt. Die Pruefung sagte
+                // also "frei", der INSERT scheiterte, und beim Nutzer kam
+                // "Ein unbekannter Fehler ist aufgetreten." an.
+                //
+                // Jetzt bekommt er die Auskunft, die zu seiner Lage passt -
+                // und die ist bei einem geloeschten Konto eine andere: Gegen
+                // eine vergebene Adresse hilft "Passwort vergessen", gegen die
+                // eines geloeschten Kontos hilft nur der Betreiber.
+                $nameStand = $user->usernameStand();
+                // Die zweite Abfrage nur, wenn die erste nichts gefunden hat.
+                // Steht der Name schon fest als Fehler, wird $emailStand unten
+                // gar nicht mehr gelesen - dann waere sie eine Abfrage fuer
+                // eine Antwort, die niemand ansieht.
+                $emailStand = $nameStand === User::KENNUNG_FREI
+                    ? $user->emailStand()
+                    : User::KENNUNG_FREI;
+
+                if ($nameStand === User::KENNUNG_VERGEBEN) {
                     $error = "username";
-                } elseif ($user->emailExists()) {
+                } elseif ($nameStand === User::KENNUNG_GELOESCHT) {
+                    $error = "username_geloescht";
+                } elseif ($emailStand === User::KENNUNG_VERGEBEN) {
                     $error = "email";
+                } elseif ($emailStand === User::KENNUNG_GELOESCHT) {
+                    $error = "email_geloescht";
                 } else {
-                    // User anlegen
-                    $user_id = $user->register($username, $email, $pwd);
+                    // User anlegen. Der Grund eines Fehlschlags kommt als
+                    // zweiter Wert zurueck - ohne ihn liesse sich "die Angabe
+                    // ist vergeben" nicht von "der Server hat eine Stoerung"
+                    // unterscheiden, und genau diese Unterscheidung fehlte.
+                    $grund   = null;
+                    $user_id = $user->register($username, $email, $pwd, $grund);
                     if ($user_id > 0) {
                         // Das Konto steht - jetzt zaehlt es gegen die
                         // Kontogrenze. Nicht frueher: siehe Methodenkopf.
@@ -149,10 +180,27 @@ class SignupController
                         (new EmailVerificationController())->sendVerification($user_id);
                         exit;
                     } else {
-                        $error = "unknown";
+                        // DER EINDEUTIGE INDEX HAT ZUGESCHLAGEN, obwohl die
+                        // Pruefung ein paar Zeilen weiter oben "frei" sagte.
+                        // Dazwischen liegt ein Fenster, in dem sich ein
+                        // zweiter Aufruf denselben Namen sichern kann - genau
+                        // dafuer ist der Index da. Das ist keine Stoerung,
+                        // sondern die Regel, und deshalb bekommt der Nutzer
+                        // hier auch keine Fehlermeldung, sondern die
+                        // Aufforderung, es noch einmal zu versuchen.
+                        //
+                        // WELCHE der beiden Angaben es war, sagt die Meldung
+                        // nicht: Das stuende nur im Klartext der
+                        // Treibermeldung, und darauf eine Fallunterscheidung
+                        // zu bauen hiesse, den Wortlaut einer fremden
+                        // Fehlermeldung zur Schnittstelle zu erklaeren (siehe
+                        // App\Model\User::register).
+                        $error = ($grund === User::REG_VERGEBEN) ? "vergeben_rennen" : "unknown";
+
                         // Adresse nur maskiert loggen - der User wurde nicht angelegt,
                         // eine UserID gibt es an dieser Stelle noch nicht.
-                        error_log("Fehler bei der Registrierung für User $username/" . LogHelper::maskEmail($email));
+                        error_log("Fehler bei der Registrierung für User $username/"
+                            . LogHelper::maskEmail($email) . " (Grund: " . ($grund ?? 'unbekannt') . ")");
                     }
                 }
             }
@@ -183,6 +231,36 @@ class SignupController
         switch ($error) {
             case "username":         $msg = "Der Benutzername ist bereits vergeben."; break;
             case "email":            $msg = "Die E-Mail-Adresse ist bereits vergeben."; break;
+            // DIE BEIDEN MELDUNGEN ZUM GELOESCHTEN KONTO SIND VERSCHIEDEN,
+            // weil der Nutzer verschieden viel dagegen tun kann.
+            //
+            // Einen Benutzernamen sucht er sich einfach neu aus - dafuer
+            // braucht er niemanden. Seine E-Mail-Adresse dagegen hat er nur
+            // die eine; sagt man ihm dort nur "vergeben", steht er vor einer
+            // Tuer ohne Klinke. Deshalb nennt diese Meldung als einzige den
+            // Betreiber.
+            //
+            // KEINE ADRESSE UND KEIN FORMULAR IM TEXT: Wohin man sich wendet,
+            // steht nicht im Code. Sobald es eine Kontaktseite gibt, gehoert
+            // sie hierher verlinkt - bis dahin waere eine erfundene Adresse
+            // schlechter als der allgemeine Hinweis.
+            case "username_geloescht":
+                $msg = "Dieser Benutzername gehört zu einem gelöschten Konto und lässt "
+                     . "sich nicht neu vergeben. Bitte wählen Sie einen anderen.";
+                break;
+            case "email_geloescht":
+                $msg = "Zu dieser E-Mail-Adresse gab es bereits ein Konto, das gelöscht "
+                     . "wurde. Sie lässt sich deshalb nicht erneut verwenden. Bitte "
+                     . "nutzen Sie eine andere Adresse oder wenden Sie sich an den Betreiber.";
+                break;
+            // Der Rennfall: Zwischen Pruefung und Anlage hat sich jemand
+            // anderes die Angabe gesichert. Nicht "Fehler", sondern "gleich
+            // noch einmal" - beim zweiten Versuch greift die Vorabpruefung und
+            // sagt genau, welche der beiden Angaben es war.
+            case "vergeben_rennen":
+                $msg = "Benutzername oder E-Mail-Adresse wurde soeben vergeben. "
+                     . "Bitte versuchen Sie es noch einmal.";
+                break;
             case "pw":               $msg = "Die Passwörter stimmen nicht überein."; break;
             case "username_invalid": $msg = "Ungültiger Benutzername. Nur Buchstaben/Zahlen/Unterstrich, 3-20 Zeichen."; break;
             case "email_invalid":    $msg = "Bitte gib eine gültige E-Mail-Adresse ein."; break;

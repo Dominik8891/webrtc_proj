@@ -417,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (352 Prüfungen)
+## Was `server_test.php` prüft (362 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1593,6 +1593,53 @@ Gelesen wird dafür der **kommentarfreie** Quelltext (`$ohneKommentare`): Die
 Blöcke erklären im Fließtext, was sie ersetzt haben, und nennen das Alte dabei
 beim Namen. Eine Suche im Rohtext würde genau diese Erklärung als Rückfall
 melden — und damit dazu erziehen, sie zu löschen.
+
+### Eine gescheiterte Registrierung ist kein Erfolg
+
+* **Der gefährliche Fall.** Die Attrappe wirft beim `INSERT` einen doppelten
+  Schlüssel (SQLSTATE 23000) und liefert danach aus `lastInsertId()` die
+  Kennung **4711** — sie steht für die Zeile, die `RateLimit::verbuchen()`
+  eine Zeile vorher in `rate_limit` angelegt hat. Geprüft wird, dass
+  `register()` `null` zurückgibt und eben **nicht** 4711: Vorher kam genau
+  hier eine positive Kennung heraus, die Registrierung meldete Erfolg und
+  schickte eine Bestätigungsmail an das *fremde* Konto mit dieser Kennung.
+* **Störung ≠ vergeben.** Ein anderer `PDOException` liefert
+  `REG_UNBEKANNT`, der doppelte Schlüssel `REG_VERGEBEN`. Vorher war beides
+  „Ein unbekannter Fehler ist aufgetreten."
+* **`create()` auf einem bestehenden Konto wirft.** Dort stand ein stilles
+  `return;` — der Aufrufer erfuhr nicht, dass nichts angelegt wurde.
+* **Projektweit: `lastInsertId()` folgt einem geglückten `execute()`.** Über
+  alle 13 Fundstellen in `class/Model/`: Zwischen dem `execute()`, das die
+  Zeile anlegt, und dem `lastInsertId()`, das ihre Kennung holt, darf kein
+  `catch` liegen. Eine Näherung über den Zeilenlauf, kein Parser — für den
+  Fall, um den es geht, reicht sie: Baut man das alte
+  `$this->create(); … lastInsertId();` wieder ein, meldet sie die Zeile.
+
+### Der Index kennt kein `deleted` — die Prüfung jetzt auch nicht
+
+* **Drei Zustände statt zweier.** `usernameStand()`/`emailStand()` liefern
+  *frei*, *vergeben* oder *gelöscht*. Der dritte ist der, den es vorher nicht
+  gab: Löschen setzt nur ein Kennzeichen, der eindeutige Index kennt das aber
+  nicht — die Prüfung sagte „frei", der `INSERT` scheiterte.
+* **Die Abfrage selbst** enthält kein `deleted = 0` mehr, dafür
+  `ORDER BY deleted ASC` (bei zwei Zeilen mit demselben Namen entscheidet das
+  **lebende** Konto — „vergeben" hilft weiter, „gelöscht" wäre daneben
+  falsch) und liest nur noch eine Spalte statt `SELECT *`.
+* **Die alten Namen sind weg.** `emailExists()`/`usernameExists()` existieren
+  nicht mehr — bliebe einer stehen, fände ihn der nächste Aufrufer und hätte
+  wieder die Fassung mit dem Filter.
+* **Vier Fälle, vier Meldungen.** Jeder neue Fehlercode wird gesetzt *und*
+  beantwortet, und die Meldung zur gelöschten Adresse nennt als einzige den
+  Betreiber: Einen Benutzernamen sucht man sich neu aus, eine E-Mail-Adresse
+  hat man nur die eine.
+
+### Der Benutzername wird eindeutig (S-14)
+
+Geprüft werden Wanderung und Dump: `ADD UNIQUE KEY`, die **lesende**
+Vorabprüfung auf zwei *lebende* Konten mit demselben Namen (die kann keine
+Migration reparieren — welches den Namen behalten darf, ist eine Entscheidung
+über Menschen), und dass die Umbenennung kollidierender Konten ausschließlich
+`deleted = 1` trifft.
 
 ## Grenzen
 
