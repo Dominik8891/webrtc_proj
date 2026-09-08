@@ -1167,6 +1167,23 @@ Standortliste, ein *Entfernen* an jeder Bewertung, gesperrte Standorte auf dem
 Guide-Profil, ein Menüeintrag, den nur einer sah. Siehe
 [`README.md`](README.md), Abschnitt „Der Verwaltungsbereich".
 
+**Wann ein Guide zuletzt BEREIT war, steht nirgends** — **offen, braucht eine
+Migration.** `user.available_until` wird vom Cronjob auf NULL gesetzt, sobald
+die Frist abgelaufen ist (`cron/check_online_status.php`), und auch das
+Abmelden räumt sie weg. Damit lässt sich die Frage „welche Guides haben seit
+Wochen keine Bereitschaft mehr eingeschaltet" nicht beantworten — und das ist
+genau die Frage, an der ein eingeschlafenes Angebot auffiele.
+
+Messbar ist nur `user.updated_at`, und das ist eine **andere** Aussage: Es
+sagt „seit wann meldet sich kein Browser mehr", nicht „seit wann führt
+niemand mehr". Ein Guide kann täglich die Seite offen haben und trotzdem nie
+auf bereit stehen.
+
+Dafür bräuchte es eine Spalte `user.last_available_at`, die
+`User::startAvailability()` mitschreibt und die niemand wieder leert — eine
+Migration, kein Arbeitsvorrat. Erst danach ließe sich der Vorrat „Guides, die
+seit Wochen nicht bereit waren" bauen.
+
 ### 9.6 Fehlende Fehlerbehandlung
 
 | Datei:Zeile | Befund |

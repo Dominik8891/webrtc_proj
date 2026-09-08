@@ -6649,8 +6649,8 @@ ok('die Listen maskieren jede Fremdeingabe und zeigen, was die Verwaltung brauch
 // nicht: Ein verstellter Wert soll keine Fehlerseite ergeben.
 $locModell = stripPhpNoise(file_get_contents($ROOT . '/class/Model/Location.php'));
 $adminAbfrage = methodenRumpf($locModell, 'selectAllForAdmin');
-check(preg_match("/\\\$in_filter === 'gesperrt'/", $adminAbfrage) === 1,
-    'der Filter wird in die Abfrage zusammengesetzt statt geprueft');
+check(strpos($adminAbfrage, '$wo[$in_filter] ?? ') !== false,
+    'der Standortfilter wird in die Abfrage zusammengesetzt statt nachgeschlagen');
 check(strpos($adminAbfrage, 'max(1, min(') !== false,
     'die Zeilengrenze geht ungeprueft in die Abfrage');
 $revModell = stripPhpNoise(file_get_contents($ROOT . '/class/Model/TourReview.php'));
@@ -7070,6 +7070,149 @@ check(strpos($ortRumpf, '$ist_eigen') !== false,
 check(preg_match('/blocked.*?===\s*1\s*&&\s*!\$ist_eigen/s', $ortRumpf) === 1,
     'der Eigentuemer kommt nicht mehr auf die Seite seines gesperrten Standorts');
 ok('der Guide sieht seinen gesperrten Standort - in der Liste, auf dem Profil und auf der Seite');
+
+// =====================================================================
+fwrite(STDERR, "\nZwei Vorraete, die heute nirgends auffallen\n");
+// =====================================================================
+
+$fake = new FakeConnection();
+PdoConnect::$connection = $fake;
+
+// --- Unvollstaendige Angebote ---------------------------------------------
+//
+// Fuenf Dinge, und jedes einzelne kostet den Guide Kunden, ohne dass er es
+// merkt: Ein halb ausgefuelltes Angebot sieht fuer seinen Eigentuemer fertig
+// aus - er weiss ja, was er anbietet.
+$unvoll = Location::unvollstaendigSql('location');
+foreach (['latitude', 'longitude', 'title', 'description_long',
+          'availability_slots'] as $spalte) {
+    check(strpos($unvoll, "location.$spalte") !== false,
+        "die Vollstaendigkeit prueft $spalte nicht");
+}
+// Das Bild ueber NOT EXISTS und nicht ueber einen JOIN: Ein JOIN auf
+// location_image vervielfachte die Zeile, und die Bedingung soll sich auch
+// in ein WHERE und in ein SUM() einsetzen lassen.
+check(strpos($unvoll, 'NOT EXISTS') !== false && strpos($unvoll, 'location_image') !== false,
+    'das fehlende Bild wird nicht geprueft');
+check(strpos($unvoll, 'JOIN location_image') === false,
+    'das Bild wird ueber einen JOIN geprueft - der vervielfacht die Zeile');
+// Leerstring UND NULL, beides: Ein Formular, das ein Feld leer laesst,
+// schreibt je nach Weg das eine oder das andere.
+check(substr_count($unvoll, "= ''") === 2,
+    'ein leeres Textfeld gilt weiterhin als ausgefuellt');
+// Der Alias ist ein Textbaustein in einer Abfrage.
+check(strpos(Location::unvollstaendigSql('x; DROP TABLE location; --'), 'xDROPTABLElocation.latitude') !== false,
+    'der Alias geht ungeprueft in die Abfrage');
+
+// Die Maengel stehen in JEDER Zeile, nicht nur im Filter - ein Standort kann
+// gesperrt UND unvollstaendig sein.
+$fake->statements = [];
+(new Location())->selectAllForAdmin('gesperrt');
+check(strpos($fake->statements[0]->sql, 'AS fehlt_bild') !== false,
+    'die Sperrliste verschweigt, was am Angebot fehlt');
+$fake->statements = [];
+(new Location())->selectAllForAdmin('unvollstaendig');
+check(strpos($fake->statements[0]->sql, 'WHERE (location.latitude IS NULL') !== false,
+    'der Filter "unvollstaendig" filtert nicht');
+
+// Und die Zeile sagt, WAS fehlt - sonst muesste man jeden Standort einzeln
+// aufmachen.
+$luecken = App\Helper\AdminView::standortZeilenHtml([[
+    'id' => 5, 'title' => '', 'blocked' => 0, 'user_id' => 9, 'username' => 'anna',
+    'guide_name' => 'Anna', 'availability' => 'idle',
+    'country_name' => 'Portugal', 'city_name' => 'Lissabon',
+    'fehlt_ort' => 1, 'fehlt_bild' => 1, 'fehlt_titel' => 1,
+    'fehlt_text' => 0, 'fehlt_zeiten' => 0,
+]]);
+foreach (['keine Nadel', 'kein Bild', 'kein Titel'] as $wort) {
+    check(strpos($luecken, $wort) !== false, "die Zeile nennt '$wort' nicht");
+}
+check(strpos($luecken, 'kein Text') === false && strpos($luecken, 'keine Zeiten') === false,
+    'die Zeile nennt Maengel, die es nicht gibt');
+$vollstaendig = App\Helper\AdminView::standortZeilenHtml([[
+    'id' => 6, 'title' => 'Alfama', 'blocked' => 0, 'user_id' => 9, 'username' => 'anna',
+    'guide_name' => 'Anna', 'availability' => 'idle',
+    'fehlt_ort' => 0, 'fehlt_bild' => 0, 'fehlt_titel' => 0,
+    'fehlt_text' => 0, 'fehlt_zeiten' => 0,
+]]);
+check(strpos($vollstaendig, 'vollständig') !== false,
+    'ein vollstaendiges Angebot hinterlaesst eine leere Zelle');
+
+// Kopf und Zeile muessen gleich viele Spalten haben - sonst steht die
+// Tabelle schief, und zwar erst im Browser. Die Tabellen des
+// Verwaltungsbereichs tragen keine id (sie werden nicht von DataTables
+// gebaut), deshalb wird der Kopf hier direkt gezaehlt.
+$adminVorlage = file_get_contents($ROOT . '/assets/html/admin_locations.html');
+preg_match('/<thead\b.*?<tr\b(.*?)<\/tr>/is', $adminVorlage, $kopfTreffer);
+$spaltenKopf  = preg_match_all('/<th\b/i', $kopfTreffer[1] ?? '');
+$spaltenZeile = substr_count(explode('</tr>', $luecken)[0], '<td');
+check($spaltenKopf === $spaltenZeile,
+    "Kopf und Zeile der Standortliste haben verschiedene Spaltenzahlen "
+    . "($spaltenKopf gegen $spaltenZeile)");
+ok('unvollstaendig ist genau definiert, steht in jeder Zeile und sagt, was fehlt');
+
+// --- Der Cronjob laeuft nicht ---------------------------------------------
+//
+// Der stillste Ausfall dieser Anwendung: check_online_status.php ist die
+// einzige Stelle, die user_status je auf 'offline' setzt. Laeuft der Job
+// nicht, bleibt jedes Konto fuer immer online.
+$statsCode2 = stripPhpNoise(file_get_contents($ROOT . '/class/Model/AdminStats.php'));
+$cronRumpf  = methodenRumpf($statsCode2, 'cronRueckstand');
+check(strpos($cronRumpf, "user_status <> 'offline'") !== false,
+    'gezaehlt wird nicht der stehengebliebene Status');
+check(strpos($cronRumpf, 'updated_at < DATE_SUB(NOW()') !== false,
+    'gezaehlt wird ohne Altersgrenze');
+check(strpos($cronRumpf, 'deleted = 0') !== false,
+    'geloeschte Konten zaehlen im Rueckstand mit');
+// GEGEN EIN VIELFACHES DES TIMEOUTS und nicht gegen den Timeout selbst: Der
+// ist mit 45 Sekunden so knapp, dass zwischen zwei Laeufen staendig Konten
+// darueber liegen. Eine Zahl, die bei laufendem Job dauernd ungleich null
+// ist, waere kein Vorrat, sondern Rauschen.
+check(strpos($cronRumpf, "presence['offline_timeout']") !== false,
+    'die Grenze steht als Zahl im Code statt in config/presence.php');
+check(strpos($cronRumpf, 'self::CRON_FAKTOR') !== false,
+    'gerechnet wird gegen den Timeout selbst - das ist ein Rennen, kein Befund');
+$presence = require $ROOT . '/config/presence.php';
+check(App\Model\AdminStats::CRON_FAKTOR * (int)$presence['offline_timeout'] >= 600,
+    'die Grenze liegt unter zehn Minuten - dann meldet sie auch einen laufenden Cronjob');
+ok('der Rueckstand wird gegen ein Vielfaches des Timeouts gerechnet, nicht gegen ihn selbst');
+
+// --- Beide stehen im Vorrat und fuehren irgendwohin ----------------------
+$sessionVorher3 = $_SESSION ?? [];
+$_SESSION = ['auth_scheme' => App\Helper\Auth::SESSION_SCHEME,
+             'user' => ['user_id' => 1, 'username' => 'chef', 'role_id' => Role::ADMIN]];
+
+$alleFuenf = App\Helper\AdminView::vorratHtml([
+    'haengend' => 1, 'unbeantwortet' => 1, 'gesperrt' => 1,
+    'unvollstaendig' => 2, 'cron' => 3,
+]);
+check(substr_count($alleFuenf, 'adm-vorrat__item') === 5, 'es stehen nicht alle fuenf Vorraete da');
+check(strpos($alleFuenf, 'act=admin_locations&filter=unvollstaendig') !== false,
+    'die unvollstaendigen Angebote fuehren nirgendwohin');
+// Der Cronjob ist KEIN Vorgang, sondern ein Befund ueber die Installation -
+// abzuarbeiten ist er nicht, einzurichten schon. Er fuehrt deshalb dorthin,
+// wo der Schaden zu sehen ist: in die Benutzerliste.
+check(strpos($alleFuenf, 'act=list_user') !== false,
+    'der Cron-Rueckstand fuehrt nicht dorthin, wo er sich auswirkt');
+check(strpos($alleFuenf, 'check_online_status.php') !== false,
+    'der Cron-Rueckstand sagt nicht, was einzurichten ist');
+// Und er steht ZULETZT: Die vier davor sind Vorgaenge, er ist eine
+// Betriebsmeldung.
+check(strrpos($alleFuenf, 'check_online_status.php') > strpos($alleFuenf, 'unvollständig'),
+    'die Betriebsmeldung draengt sich vor die Vorgaenge');
+
+$leerFuenf = App\Helper\AdminView::vorratHtml([
+    'haengend' => 0, 'unbeantwortet' => 0, 'gesperrt' => 0,
+    'unvollstaendig' => 0, 'cron' => 0,
+]);
+check(strpos($leerFuenf, 'adm-vorrat__item') === false, 'ein leerer Vorrat zeigt Zeilen');
+foreach (['unvollständiges Angebot', 'Aufräumjob läuft'] as $wort) {
+    check(strpos($leerFuenf, $wort) !== false,
+        "der leere Vorrat sagt nicht, dass auf '$wort' geprueft wurde");
+}
+$_SESSION = $sessionVorher3;
+ok('fuenf Vorraete, jeder mit einem Weg - und der leere Fall zaehlt alle fuenf auf');
+
 
 
 

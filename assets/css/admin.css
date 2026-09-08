@@ -385,3 +385,12 @@
 .adm-form .app-field { margin-bottom: var(--app-space-3); }
 
 .adm-form .app-actions { margin-top: var(--app-space-4); }
+
+/* Mehrere Marken in einer Zelle - die Maengel eines Angebots. Sie duerfen
+   umbrechen: fuenf Marken passen in keine Tabellenspalte, und abgeschnitten
+   waere die Liste unvollstaendig, obwohl sie genau davon handelt. */
+.adm-marken {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--app-space-1);
+}

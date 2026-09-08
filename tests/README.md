@@ -417,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (332 Prüfungen)
+## Was `server_test.php` prüft (335 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1459,6 +1459,27 @@ mitnimmt:
   Recht (`selectLocationsOfGuide($user_id, $eigen)`, `$ist_eigen` in
   `showLocationPage`). Stünde dort ein Recht, wäre die Eigentümersicht beim
   nächsten Umbau der Moderation wieder mit weg.
+
+### Zwei Vorräte, die heute nirgends auffallen
+
+* **Unvollständige Angebote.** Geprüft wird der SQL-Baustein
+  (`Location::unvollstaendigSql`): alle fünf Spalten kommen vor, das
+  fehlende Bild über `NOT EXISTS` und **nicht** über einen JOIN (der
+  vervielfachte die Zeile und ließe sich weder in ein `WHERE` noch in ein
+  `SUM()` einsetzen), Leerstring **und** `NULL` bei den Textfeldern, und der
+  Alias wird geprüft. Dazu: Die Mängel stehen in **jeder** Zeile, auch in
+  der Sperrliste; die Zeile nennt genau die, die es gibt, und sonst
+  „vollständig"; und Kopf und Zeile der Tabelle haben gleich viele Spalten.
+* **Der Cron-Rückstand.** Gezählt wird der stehengebliebene Status, mit
+  Altersgrenze, ohne gelöschte Konten — und die Grenze kommt aus
+  `config/presence.php` mal `CRON_FAKTOR`, nicht als Zahl aus dem Code.
+  Zusätzlich wird nachgerechnet, dass sie **mindestens zehn Minuten**
+  ergibt: Gegen den Timeout selbst (45 s) gerechnet meldete die Zahl auch
+  einen laufenden Cronjob.
+* **Alle fünf im Vorrat.** Jeder mit einem Weg dorthin, wo er sich abarbeiten
+  lässt; der Cron-Befund **zuletzt** (die vier davor sind Vorgänge, er ist
+  eine Betriebsmeldung) und mit dem Dateinamen, der einzurichten ist; und
+  der leere Fall zählt alle fünf auf.
 
 ## Grenzen
 

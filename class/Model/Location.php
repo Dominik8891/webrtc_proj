@@ -564,6 +564,94 @@ class Location
     }
 
     /**
+     * Ist dieses Angebot UNVOLLSTAENDIG - als SQL-Bedingung?
+     *
+     * FUENF DINGE, und jedes einzelne kostet den Guide Kunden, ohne dass er
+     * es merkt. Das ist der Grund fuer diesen Vorrat: Ein halb ausgefuelltes
+     * Angebot sieht fuer seinen Eigentuemer fertig aus - er weiss ja, was er
+     * anbietet. Was fehlt, sieht nur, wer davorsteht.
+     *
+     *   OHNE KOORDINATEN   Der Standort hat keine Nadel. Er ist auf der
+     *                      Karte nicht zu finden, und die Karte ist der
+     *                      Einstieg dieser Anwendung.
+     *   OHNE TITEL         Altbestand vor migrations/011. In der Liste steht
+     *                      dann die Beschreibung an seiner Stelle, auf der
+     *                      Seite der Ort.
+     *   OHNE AUSFUEHRLICHE BESCHREIBUNG
+     *                      Die Standortseite ist die Seite, auf der ein Kunde
+     *                      seine Entscheidung trifft. Ein Satz reicht dafuer
+     *                      nicht.
+     *   OHNE UEBLICHE ZEITEN
+     *                      Dann weiss niemand, wann sich eine Anfrage lohnt -
+     *                      und der Guide bekommt Anfragen zu Zeiten, zu denen
+     *                      er nicht kann (migrations/014).
+     *   OHNE BILD          Ein Angebot ohne Bild wird nicht gebucht. Geprueft
+     *                      mit NOT EXISTS statt mit einem JOIN: Ein JOIN auf
+     *                      location_image vervielfachte die Zeile, und die
+     *                      Bedingung soll sich auch in ein WHERE einsetzen
+     *                      lassen.
+     *
+     * WAS NICHT DAZUGEHOERT: die Dauer und die Sprachen. Beide haben eine
+     * brauchbare Vorgabe, und ein Standort ohne sie ist nicht unauffindbar,
+     * sondern nur etwas magerer.
+     *
+     * @param string $in_alias Tabellenalias in der Abfrage
+     * @return string SQL-Bedingung
+     */
+    public static function unvollstaendigSql(string $in_alias = 'location'): string
+    {
+        $a = self::alias($in_alias);
+
+        return "($a.latitude IS NULL OR $a.longitude IS NULL
+                 OR $a.title IS NULL            OR $a.title = ''
+                 OR $a.description_long IS NULL OR $a.description_long = ''
+                 OR $a.availability_slots IS NULL
+                 OR NOT EXISTS (SELECT 1 FROM location_image bild
+                                 WHERE bild.location_id = $a.id))";
+    }
+
+    /**
+     * Die einzelnen Maengel als Spalten - fuer die Zeile in der Liste.
+     *
+     * WARUM NEBEN unvollstaendigSql() UND NICHT DARIN: Die eine Bedingung
+     * beantwortet "ist etwas offen" und taugt fuer WHERE und COUNT; diese
+     * hier beantwortet "was genau", und das braucht fuenf Werte. Beide
+     * beschreiben dasselbe, und deshalb stehen sie nebeneinander - faellt
+     * eines der fuenf weg, faellt es in beiden auf.
+     *
+     * @param string $in_alias
+     * @return string Spaltenliste (ohne fuehrendes Komma)
+     */
+    public static function maengelColumnsSql(string $in_alias = 'location'): string
+    {
+        $a = self::alias($in_alias);
+
+        return "($a.latitude IS NULL OR $a.longitude IS NULL)          AS fehlt_ort,
+                ($a.title IS NULL OR $a.title = '')                    AS fehlt_titel,
+                ($a.description_long IS NULL OR $a.description_long = '') AS fehlt_text,
+                ($a.availability_slots IS NULL)                        AS fehlt_zeiten,
+                (NOT EXISTS (SELECT 1 FROM location_image bild
+                              WHERE bild.location_id = $a.id))         AS fehlt_bild";
+    }
+
+    /**
+     * Nur Buchstaben, Ziffern und Unterstriche im Tabellenalias.
+     *
+     * Der Alias kommt ausschliesslich aus diesem Projekt und nie von aussen.
+     * Er geht aber als Textbaustein in eine Abfrage, und ein Textbaustein in
+     * einer Abfrage wird geprueft - dieselbe Regel wie bei
+     * App\Model\TourRequest::alias().
+     *
+     * @param string $in_alias
+     * @return string
+     */
+    private static function alias(string $in_alias): string
+    {
+        $sauber = preg_replace('/[^a-zA-Z_]/', '', $in_alias);
+        return $sauber === '' ? 'location' : $sauber;
+    }
+
+    /**
      * ALLE Standorte - die Liste des Verwaltungsbereichs.
      *
      * WARUM SIE NEBEN selectAllLocations() STEHT UND NICHT DARIN
@@ -600,7 +688,12 @@ class Location
         // Wie ueberall in diesem Projekt: Ein Textbaustein in einer Abfrage
         // wird geprueft und nicht zusammengesetzt. Der Filter kommt aus der
         // Adresszeile.
-        $where = ($in_filter === 'gesperrt') ? 'WHERE location.blocked = 1' : '';
+        $wo = [
+            'gesperrt'       => 'WHERE location.blocked = 1',
+            'unvollstaendig' => 'WHERE ' . self::unvollstaendigSql('location'),
+            'alle'           => '',
+        ];
+        $where = $wo[$in_filter] ?? '';
         // LIMIT vertraegt in MySQL keinen gebundenen Parameter, solange PDO
         // nicht emuliert - deshalb als gepruefte Zahl in den Text.
         $limit = max(1, min(2000, $in_limit));
@@ -621,7 +714,13 @@ class Location
                              COALESCE(NULLIF(guide_profile.display_name, ''), user.username)
                                  AS guide_name,
                              " . self::AVAILABILITY_SQL . " AS availability,
-                             country.country_name, city.city_name
+                             country.country_name, city.city_name,
+                             -- WAS AN DIESEM ANGEBOT FEHLT - immer mitgeliefert
+                             -- und nicht nur im Filter: Ein Standort kann
+                             -- gesperrt UND unvollstaendig sein, und wer die
+                             -- Sperrliste durchgeht, soll das Zweite nicht
+                             -- uebersehen.
+                             " . self::maengelColumnsSql('location') . "
                       FROM location
                       LEFT JOIN user          ON location.user_id = user.id
                       LEFT JOIN guide_profile ON guide_profile.user_id = user.id

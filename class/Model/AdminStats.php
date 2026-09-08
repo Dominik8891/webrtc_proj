@@ -50,6 +50,24 @@ class AdminStats
     public const ZEITRAUM_TAGE = 30;
 
     /**
+     * Ab dem Wievielfachen des Offline-Timeouts ein stehengebliebener Status
+     * als "der Cronjob laeuft nicht" gilt.
+     *
+     * WARUM NICHT DER TIMEOUT SELBST: Er ist mit 45 Sekunden
+     * (config/presence.php) so knapp bemessen, dass zwischen zwei Laeufen des
+     * Jobs staendig Konten darueber liegen - wer seinen Browser vor einer
+     * Minute geschlossen hat, ist voellig regelrecht noch 'online'. Eine
+     * Zahl, die bei laufendem Cronjob dauernd ungleich null ist, waere kein
+     * Vorrat, sondern Rauschen.
+     *
+     * Zwanzig ergibt eine Viertelstunde. Steht ein Konto so lange auf
+     * 'online', ohne dass sein Browser sich meldet, hat der Job seit
+     * mindestens einer Viertelstunde nicht mehr aufgeraeumt - und das ist
+     * keine Frage der Taktung mehr.
+     */
+    public const CRON_FAKTOR = 20;
+
+    /**
      * Alle Zahlen der Uebersicht auf einmal.
      *
      * @return array<string,mixed> Siehe die vier Bausteine unten. Bei einem
@@ -78,34 +96,47 @@ class AdminStats
      * Erstes - eine Aufgabe, die zwischen Bestandszahlen steht, sieht aus
      * wie eine Bestandszahl.
      *
-     * DREI VORRAETE, und alle drei haben gemeinsam, dass sie heute NIRGENDS
+     * FUENF VORRAETE, und alle fuenf haben gemeinsam, dass sie heute NIRGENDS
      * auffallen:
      *
-     *   haengend       Fuehrungen, die begonnen haben und die niemand
-     *                  beendet hat. Der Guide sieht seine eigenen in der
-     *                  Kopfleiste - aber nur, wenn er die Seite offen hat.
-     *   unbeantwortet  Anfragen, die ohne Antwort verfallen sind. Gemerkt
-     *                  hat das bisher nur der Kunde, der gewartet hat.
-     *   gesperrt       Standorte unter Sperre. Ein Vorgang, den jemand
-     *                  eroeffnet hat und den jemand wieder schliessen muss.
+     *   haengend        Fuehrungen, die begonnen haben und die niemand
+     *                   beendet hat. Der Guide sieht seine eigenen in der
+     *                   Kopfleiste - aber nur, wenn er die Seite offen hat.
+     *   unbeantwortet   Anfragen, die ohne Antwort verfallen sind. Gemerkt
+     *                   hat das bisher nur der Kunde, der gewartet hat.
+     *   gesperrt        Standorte unter Sperre. Ein Vorgang, den jemand
+     *                   eroeffnet hat und den jemand wieder schliessen muss.
+     *   unvollstaendig  Angebote ohne Nadel, ohne Bild, ohne Titel, ohne Text
+     *                   oder ohne Zeiten. Fuer den Guide sehen sie fertig
+     *                   aus - er weiss ja, was er anbietet.
+     *   cron            Konten, die auf 'online' stehen und sich seit
+     *                   Langem nicht mehr melden. Der stillste Ausfall
+     *                   dieser Anwendung: Ohne Aufraeumjob bleibt JEDES
+     *                   Konto fuer immer online.
      *
      * WAS DIE ZAHLEN BEDEUTEN, steht nicht hier, sondern bei den
      * Bedingungen, aus denen sie kommen (App\Model\TourRequest::
-     * runningSql, ::unansweredSql). Diese Klasse zaehlt.
+     * runningSql, ::unansweredSql, App\Model\Location::unvollstaendigSql).
+     * Diese Klasse zaehlt.
      *
-     * @return array{haengend:int, unbeantwortet:int, gesperrt:int}
+     * @return array{haengend:int, unbeantwortet:int, gesperrt:int,
+     *               unvollstaendig:int, cron:int}
      */
     public static function vorrat(): array
     {
         $anfragen = TourRequest::adminCounters();
 
+        $standorte = self::standorte();
+
         return [
-            'haengend'      => (int)($anfragen['haengend'] ?? 0),
-            'unbeantwortet' => (int)($anfragen['unbeantwortet'] ?? 0),
+            'haengend'       => (int)($anfragen['haengend'] ?? 0),
+            'unbeantwortet'  => (int)($anfragen['unbeantwortet'] ?? 0),
             // Aus derselben Abfrage wie die Bestandskachel - die Zahl steht
             // an beiden Stellen und darf nicht zweimal verschieden
             // ermittelt werden.
-            'gesperrt'      => (int)(self::standorte()['gesperrt'] ?? 0),
+            'gesperrt'       => (int)($standorte['gesperrt'] ?? 0),
+            'unvollstaendig' => (int)($standorte['unvollstaendig'] ?? 0),
+            'cron'           => self::cronRueckstand(),
         ];
     }
 
@@ -189,23 +220,71 @@ class AdminStats
         try {
             $stmt = PdoConnect::$connection->query(
                 "SELECT COUNT(*)                  AS gesamt,
-                        SUM(blocked = 1)          AS gesperrt,
-                        COUNT(DISTINCT user_id)   AS anbieter
+                        SUM(location.blocked = 1) AS gesperrt,
+                        COUNT(DISTINCT location.user_id) AS anbieter,
+                        SUM(" . Location::unvollstaendigSql('location') . ") AS unvollstaendig
                    FROM location"
             );
             $zeile = $stmt->fetch(\PDO::FETCH_ASSOC);
             if ($zeile !== false) {
                 return [
-                    'gesamt'   => (int)$zeile['gesamt'],
-                    'gesperrt' => (int)$zeile['gesperrt'],
-                    'anbieter' => (int)$zeile['anbieter'],
+                    'gesamt'         => (int)$zeile['gesamt'],
+                    'gesperrt'       => (int)$zeile['gesperrt'],
+                    'anbieter'       => (int)$zeile['anbieter'],
+                    'unvollstaendig' => (int)$zeile['unvollstaendig'],
                 ];
             }
         } catch (\PDOException $e) {
             error_log('AdminStats::standorte: ' . $e->getMessage());
         }
 
-        return ['gesamt' => 0, 'gesperrt' => 0, 'anbieter' => 0];
+        return ['gesamt' => 0, 'gesperrt' => 0, 'anbieter' => 0, 'unvollstaendig' => 0];
+    }
+
+    /**
+     * Wie viele Konten auf 'online' stehen, ohne dass sich ihr Browser meldet.
+     *
+     * DER STILLSTE AUSFALL DIESER ANWENDUNG. cron/check_online_status.php ist
+     * die EINZIGE Stelle, die user_status je auf 'offline' setzt (neben dem
+     * Abmelden). Laeuft der Job nicht, bleibt jedes Konto fuer immer
+     * 'online' - und das faellt nirgends auf:
+     *
+     *   Die KARTE luegt nicht mit, und genau deshalb merkt es niemand: Sie
+     *   verlangt zusaetzlich eine laufende Bereitschaft, und die haengt an
+     *   einem Zeitpunkt, der von selbst ablaeuft (Location::AVAILABILITY_SQL).
+     *   Ein Standort wird also von allein wieder grau.
+     *
+     *   Die BENUTZERLISTE dagegen zeigt den rohen Status - dort steht dann
+     *   die ganze Plattform als "Online", und der Anrufknopf ist bei jedem
+     *   Konto offen. Genau dorthin fuehrt diese Zahl.
+     *
+     * GERECHNET GEGEN EIN VIELFACHES DES TIMEOUTS, nicht gegen den Timeout
+     * selbst - die Begruendung steht bei CRON_FAKTOR.
+     *
+     * @return int
+     */
+    private static function cronRueckstand(): int
+    {
+        $presence = require __DIR__ . '/../../config/presence.php';
+        // Die Zahl kommt aus einer Konfigurationsdatei und nie von aussen,
+        // geht aber als Textbaustein in die Abfrage - deshalb durch (int).
+        $grenze = (int)$presence['offline_timeout'] * (int)self::CRON_FAKTOR;
+
+        try {
+            $stmt = PdoConnect::$connection->query(
+                "SELECT COUNT(*) AS rueckstand
+                   FROM user
+                  WHERE deleted = 0
+                    AND user_status <> 'offline'
+                    AND updated_at < DATE_SUB(NOW(), INTERVAL $grenze SECOND)"
+            );
+            $zeile = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if ($zeile !== false) return (int)$zeile['rueckstand'];
+        } catch (\PDOException $e) {
+            error_log('AdminStats::cronRueckstand: ' . $e->getMessage());
+        }
+
+        return 0;
     }
 
     /**

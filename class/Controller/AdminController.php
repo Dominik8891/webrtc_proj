@@ -109,23 +109,29 @@ class AdminController
     /**
      * Die Standortliste.
      *
-     * ZWEI ANSICHTEN, EINE ABFRAGE: 'alle' und 'gesperrt'. Der Filter kommt
-     * aus der Adresszeile und wird gegen eine feste Liste geprueft, bevor er
-     * das Modell erreicht - alles andere ist 'alle'. Damit ist er zugleich
-     * verweisbar: Die Kachel der Uebersicht zeigt auf
-     * index.php?act=admin_locations&filter=gesperrt.
+     * DREI ANSICHTEN, EINE ABFRAGE: 'alle', 'gesperrt' und 'unvollstaendig'.
+     * Der Filter kommt aus der Adresszeile und wird gegen eine feste Liste
+     * geprueft, bevor er das Modell erreicht - alles andere ist 'alle'. Damit
+     * ist er zugleich verweisbar: Der Arbeitsvorrat der Uebersicht zeigt auf
+     * index.php?act=admin_locations&filter=gesperrt beziehungsweise
+     * &filter=unvollstaendig.
+     *
+     * WAS AN EINEM ANGEBOT FEHLT, steht in JEDER Zeile und nicht nur im
+     * dritten Filter: Ein Standort kann gesperrt UND unvollstaendig sein, und
+     * wer die Sperrliste durchgeht, soll das Zweite nicht uebersehen.
      *
      * @return void
      */
     public function showLocations(): void
     {
-        $filter = self::filter(Request::g('filter'), ['alle', 'gesperrt']);
+        $filter = self::filter(Request::g('filter'), ['alle', 'gesperrt', 'unvollstaendig']);
         $zeilen = (new Location())->selectAllForAdmin($filter, self::ZEILEN_MAX);
 
         $out = ViewHelper::template('assets/html/admin_locations.html');
         $out = str_replace('###FILTER###', self::filterHtml('admin_locations', $filter, [
-            'alle'     => 'Alle',
-            'gesperrt' => 'Nur gesperrte',
+            'alle'           => 'Alle',
+            'gesperrt'       => 'Gesperrte',
+            'unvollstaendig' => 'Unvollständige',
         ]), $out);
         $out = str_replace('###COUNT###', (string)count($zeilen), $out);
         $out = str_replace('###ROWS###',  AdminView::standortZeilenHtml($zeilen), $out);

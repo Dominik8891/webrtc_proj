@@ -2,6 +2,7 @@
 namespace App\Helper;
 
 use App\Model\AdminStats;
+use App\Model\Location;
 use App\Model\TourRequest;
 use App\Model\TourReview;
 
@@ -147,9 +148,11 @@ class AdminView
      */
     public static function vorratHtml(array $in_vorrat): string
     {
-        $haengend      = max(0, (int)($in_vorrat['haengend']      ?? 0));
-        $unbeantwortet = max(0, (int)($in_vorrat['unbeantwortet'] ?? 0));
-        $gesperrt      = max(0, (int)($in_vorrat['gesperrt']      ?? 0));
+        $haengend       = max(0, (int)($in_vorrat['haengend']       ?? 0));
+        $unbeantwortet  = max(0, (int)($in_vorrat['unbeantwortet']  ?? 0));
+        $gesperrt       = max(0, (int)($in_vorrat['gesperrt']       ?? 0));
+        $unvollstaendig = max(0, (int)($in_vorrat['unvollstaendig'] ?? 0));
+        $cron           = max(0, (int)($in_vorrat['cron']           ?? 0));
 
         $zeilen = '';
 
@@ -189,9 +192,39 @@ class AdminView
             );
         }
 
+        if ($unvollstaendig > 0) {
+            $zeilen .= self::vorratZeileHtml(
+                $unvollstaendig,
+                'Angebot' . ($unvollstaendig === 1 ? '' : 'e') . ' unvollständig',
+                'Ohne Nadel auf der Karte, ohne Bild, ohne Titel, ohne ausführliche '
+                . 'Beschreibung oder ohne übliche Zeiten. Für den Guide sieht das '
+                . 'fertig aus – er weiß ja, was er anbietet.',
+                'index.php?act=admin_locations&filter=unvollstaendig',
+                Permission::LOCATION_BLOCK
+            );
+        }
+
+        // ZULETZT, WEIL ES KEIN VORGANG IST, SONDERN EIN BEFUND ueber die
+        // Installation: Hier ist nichts abzuarbeiten, hier ist etwas
+        // einzurichten. Er steht trotzdem in dieser Liste - er faellt sonst
+        // nirgends auf, und das ist ja gerade das Problem.
+        if ($cron > 0) {
+            $zeilen .= self::vorratZeileHtml(
+                $cron,
+                $cron === 1 ? 'Konto hängt auf „online"' : 'Konten hängen auf „online"',
+                'Seit über einer Viertelstunde kein Lebenszeichen, trotzdem nicht '
+                . 'offline gesetzt: cron/check_online_status.php läuft nicht. '
+                . 'Solange das so bleibt, steht in der Benutzerliste jedes Konto '
+                . 'als erreichbar.',
+                'index.php?act=list_user',
+                Permission::USER_LIST
+            );
+        }
+
         if ($zeilen === '') {
             return '<p class="adm-vorrat__leer">Nichts offen: keine hängende Führung, '
-                 . 'keine unbeantwortete Anfrage, kein gesperrter Standort.</p>';
+                 . 'keine unbeantwortete Anfrage, kein gesperrter Standort, kein '
+                 . 'unvollständiges Angebot – und der Aufräumjob läuft.</p>';
         }
 
         return '<ul class="adm-vorrat">' . $zeilen . '</ul>';
@@ -362,7 +395,7 @@ class AdminView
     public static function standortZeilenHtml(array $in_zeilen): string
     {
         if ($in_zeilen === []) {
-            return '<tr><td colspan="6" class="adm-empty">Keine Standorte.</td></tr>';
+            return '<tr><td colspan="7" class="adm-empty">Keine Standorte.</td></tr>';
         }
 
         $html = '';
@@ -385,6 +418,7 @@ class AdminView
                   .   '</td>'
                   .   '<td>' . self::guideZelleHtml($zeile) . '</td>'
                   .   '<td>' . self::zustandHtml((string)($zeile['availability'] ?? 'idle')) . '</td>'
+                  .   '<td>' . self::maengelHtml($zeile) . '</td>'
                   .   '<td>' . self::sperrHtml($gesperrt, (string)($zeile['blocked_reason'] ?? ''),
                                                $zeile['blocked_at'] ?? null) . '</td>'
                   .   '<td>' . self::sperrKnopfHtml($id, $gesperrt, $titel) . '</td>'
@@ -456,6 +490,47 @@ class AdminView
              .   '<span class="app-state__dot" aria-hidden="true"></span>'
              .   '<span class="app-state__text">' . $text . '</span>'
              . '</span>';
+    }
+
+    /**
+     * Was an diesem Angebot fehlt.
+     *
+     * DIE ZEILE SAGT, WAS ZU TUN IST - das ist der Unterschied zwischen
+     * "3 Angebote unvollstaendig" und einem Arbeitsvorrat. Wer die Liste
+     * durchgeht, soll nicht jeden Standort einzeln aufmachen muessen, um zu
+     * sehen, ob das Bild oder die Zeiten fehlen.
+     *
+     * DIE MARKEN STEHEN IN FESTER REIHENFOLGE, nach Gewicht: Ohne Nadel ist
+     * der Standort unauffindbar, ohne Bild wird er nicht gebucht - das
+     * wiegt schwerer als ein fehlender Absatz.
+     *
+     * WELCHE FUENF ES SIND, entscheidet diese Klasse nicht: Die Spalten
+     * kommen aus App\Model\Location::maengelColumnsSql(), und dort steht
+     * auch, warum jedes einzelne zaehlt.
+     *
+     * @param array<string,mixed> $in_zeile
+     * @return string HTML
+     */
+    private static function maengelHtml(array $in_zeile): string
+    {
+        $marken = [
+            'fehlt_ort'    => 'keine Nadel',
+            'fehlt_bild'   => 'kein Bild',
+            'fehlt_titel'  => 'kein Titel',
+            'fehlt_text'   => 'kein Text',
+            'fehlt_zeiten' => 'keine Zeiten',
+        ];
+
+        $html = '';
+        foreach ($marken as $spalte => $wort) {
+            if (empty($in_zeile[$spalte])) continue;
+            $html .= '<span class="app-tag app-tag--warn">' . $wort . '</span>';
+        }
+
+        // Ein Strich und kein leeres Feld: In einer dichten Tabelle ist eine
+        // leere Zelle nicht von einer fehlenden zu unterscheiden.
+        return $html !== '' ? '<span class="adm-marken">' . $html . '</span>'
+                            : '<span class="adm-none">vollständig</span>';
     }
 
     /**

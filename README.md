@@ -1543,13 +1543,21 @@ Jede dieser Stellen war ein *„wenn Admin, dann anders"* mitten in einer Seite,
 
 **Zwei Blöcke, und die Reihenfolge ist der Punkt.** Oben steht, was Aufmerksamkeit braucht, darunter, wie groß der Laden ist. Andersherum sähe eine Aufgabe aus wie eine Bestandszahl: „42 Konten" nimmt man zur Kenntnis, „3 hängende Führungen" soll jemanden dazu bringen, etwas zu tun.
 
-**Braucht Aufmerksamkeit** — drei Arbeitsvorräte, und alle drei fielen vorher an keiner Stelle auf:
+**Braucht Aufmerksamkeit** — fünf Arbeitsvorräte, und alle fünf fielen vorher an keiner Stelle auf:
 
 | Vorrat | Was er bedeutet | Wo er sich abarbeiten lässt |
 |---|---|---|
 | **Führungen hängen** | Begonnen und von niemandem beendet. Solange das so bleibt, steht beim Kunden der Startknopf, und die Bewertung wird nicht fällig. Der Guide sieht das in seiner Kopfleiste — aber nur seine eigenen und nur, solange er die Seite offen hat. | `admin_requests&filter=haengend` |
 | **Anfragen ohne Antwort** | Verfallen, ohne dass der Guide zu- oder abgesagt hat. Der Kunde hat gewartet und nichts bekommen; gemerkt hat das bisher nur er. | `admin_requests&filter=unbeantwortet` |
 | **Standorte gesperrt** | Ein Vorgang, den jemand eröffnet hat und den jemand wieder schließen muss — oder bestätigen. | `admin_locations&filter=gesperrt` |
+| **Angebote unvollständig** | Ohne Nadel auf der Karte, ohne Bild, ohne Titel, ohne ausführliche Beschreibung oder ohne übliche Zeiten. Für den Guide sieht das fertig aus — er weiß ja, was er anbietet. | `admin_locations&filter=unvollstaendig` |
+| **Konten hängen auf „online"** | Seit über einer Viertelstunde kein Lebenszeichen, trotzdem nicht offline gesetzt: `cron/check_online_status.php` läuft nicht. | `list_user` |
+
+**Der letzte ist kein Vorgang, sondern ein Befund über die Installation** — hier ist nichts abzuarbeiten, hier ist etwas einzurichten. Er steht deshalb zuletzt, und er steht überhaupt dort, weil er sonst nirgends auffällt: `check_online_status.php` ist die einzige Stelle, die `user_status` je auf `offline` setzt. Läuft der Job nicht, bleibt jedes Konto für immer online. Die **Karte** lügt dabei nicht mit — sie verlangt zusätzlich eine laufende Bereitschaft, und die läuft von selbst ab —, und genau deshalb merkt es niemand. Die **Benutzerliste** zeigt dann die ganze Plattform als erreichbar, mit offenem Anrufknopf; dorthin führt die Zahl.
+
+Gerechnet wird gegen ein **Vielfaches** des Offline-Timeouts (`AdminStats::CRON_FAKTOR`, 20 × 45 s = 15 min) und nicht gegen den Timeout selbst: Der ist so knapp bemessen, dass zwischen zwei Läufen des Jobs ständig Konten darüber liegen. Eine Zahl, die bei laufendem Cronjob dauernd ungleich null ist, wäre kein Vorrat, sondern Rauschen.
+
+**Was „unvollständig" heißt**, steht als eine Bedingung in `Location::unvollstaendigSql()` — fünf Dinge, und jedes einzelne kostet den Guide Kunden: keine Koordinaten (keine Nadel, und die Karte ist der Einstieg), kein Titel (Altbestand vor Migration 011), keine ausführliche Beschreibung (die Standortseite ist die Entscheidungsseite), keine üblichen Zeiten (dann weiß niemand, wann sich eine Anfrage lohnt) und kein Bild. Dauer und Sprachen zählen **nicht** mit: Beide haben eine brauchbare Vorgabe. Was an einem Standort fehlt, steht in **jeder** Zeile der Standortliste und nicht nur im dritten Filter — ein Standort kann gesperrt *und* unvollständig sein.
 
 **Gezeigt wird nur, was offen ist.** Eine Zeile mit einer Null, die jeden Tag dasteht, erzieht dazu, den ganzen Block zu überlesen — und dann fällt die Vier daneben auch nicht mehr auf. Ist nichts offen, steht dort ein Satz, der aufzählt, was geprüft wurde: Erst damit ist die Leere eine Auskunft und nicht bloß ein leerer Kasten. Neben jeder Zahl steht, **warum** sie zählt; ohne das ist sie kein Auftrag, sondern ein Rätsel.
 
