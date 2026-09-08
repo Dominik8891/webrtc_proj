@@ -2193,10 +2193,23 @@ class ChatAttrappe {
         return $s;
     }
     public function lastInsertId() { return 42; }
-    /** Alle abgesetzten Statements, die etwas veraendern. */
+    /**
+     * Alle abgesetzten Statements, die etwas veraendern - AUSSER dem
+     * Versuchszaehler.
+     *
+     * Die Ausnahme ist Absicht und kein Aufweichen der Pruefung. Gefragt ist
+     * hier "wurde eine Nachricht geschrieben, obwohl der Absender nicht
+     * beteiligt ist" - und die Antwort darauf soll nein bleiben. Der Zaehler
+     * in `rate_limit` ist das Gegenteil davon: Er MUSS auch beim
+     * abgewiesenen Aufruf steigen, denn der Aufruf in einen fremden Chat ist
+     * kein Versehen, sondern das Abklopfen fremder Kennungen (Befund N-10,
+     * ChatController::sendMessage). Zaehlte er hier mit, wuerde die Pruefung
+     * genau das verbieten, was sie meint zu schuetzen.
+     */
     public function schreibend(): array {
         $treffer = [];
         foreach ($this->statements as $s) {
+            if (strpos($s->sql, 'rate_limit') !== false) continue;
             if (preg_match('/^\s*(INSERT|UPDATE|DELETE)\s/i', $s->sql)) $treffer[] = $s;
         }
         return $treffer;
@@ -5549,6 +5562,24 @@ unset($_SERVER['HTTP_X_FORWARDED_FOR']);
 if ($alteIp === null) { unset($_SERVER['REMOTE_ADDR']); } else { $_SERVER['REMOTE_ADDR'] = $alteIp; }
 ok('gezaehlt wird REMOTE_ADDR, bei IPv6 das /64');
 
+// --- Ohne Anmeldung faellt die Kontoschranke weg --------------------------
+//
+// Auth::userId() liefert 0, wenn niemand angemeldet ist - und (string)0 ist
+// "0", also ein NICHT LEERER Schluessel. Eine Kontoschranke wuerde damit
+// nicht wegfallen, sondern saemtliche nicht angemeldeten Aufrufer auf EINEN
+// gemeinsamen Zaehler legen: Der erste, der die Grenze erreicht, sperrt alle
+// uebrigen mit.
+check(RateLimit::konto(0) === '', 'die Kennung 0 ergibt einen zaehlbaren Schluessel');
+check(RateLimit::konto(-1) === '', 'eine negative Kennung ergibt einen zaehlbaren Schluessel');
+check(RateLimit::konto(42) === '42', 'eine echte Kennung geht nicht durch');
+
+FakeBremseDb::leeren();
+RateLimit::restsperre('turn_credentials', ['konto' => RateLimit::konto(0), 'ip' => '198.51.100.7']);
+// Nur die IP-Schranke bleibt: Aktion + ein Paar.
+check(count(FakeBremseDb::$ausgefuehrt[0]->params) === 3,
+    'ohne Anmeldung landen alle Aufrufer auf einem gemeinsamen Kontozaehler');
+ok('ohne Anmeldung zaehlt nur die IP, nicht ein Sammelkonto "0"');
+
 // --- Die Wartezeit wird nach oben gerundet --------------------------------
 //
 // "noch 1 Minute" bei 61 Sekunden ist eine Zusage, die nicht gehalten wird.
@@ -5607,7 +5638,7 @@ check(strpos($zweiSrc, "RateLimit::zuruecksetzen('2fa'") !== false,
     'ein richtiger Code raeumt den Zaehler nicht weg');
 // Gezaehlt wird an der UserID aus der Session - der Aufrufer kann sie nicht
 // waehlen, anders als den Benutzernamen im Loginformular.
-check(preg_match('/\$teile\s*=\s*\[\s*\'konto\'\s*=>\s*\(string\)\$userId/', $zweiSrc) === 1,
+check(preg_match('/\$teile\s*=\s*\[\s*\'konto\'\s*=>\s*RateLimit::konto\(\(int\)\$userId\)/', $zweiSrc) === 1,
     'der 2FA-Zaehler haengt nicht an der UserID');
 // Beim Erreichen der Grenze wird die HALBANGEMELDETE SITZUNG verworfen
 // ("Passwort stimmte, zweiter Faktor fehlt noch"). Sie blieb bisher nach
@@ -5658,6 +5689,193 @@ check(strpos($wanderung18, '`schluessel` varchar(190)') !== false,
 check(strpos(file_get_contents($ROOT . '/cron/check_online_status.php'), 'RateLimit::aufraeumen') !== false,
     'abgelaufene Zaehler werden nie aufgeraeumt');
 ok('rate_limit steht in der Wanderung, im Dump und im Aufraeum-Cronjob');
+
+
+// =====================================================================
+fwrite(STDERR, "\nDie Bremse an den sechs weiteren Endpunkten (N-10)\n");
+// =====================================================================
+//
+// Derselbe Baustein, sechs weitere Verbraucher - und der Nachweis, dass es
+// wirklich derselbe ist: keine zweite Zaehlweise, keine Zahl im Code.
+
+$n10 = [
+    'request_create'    => 'class/Controller/RequestController.php',
+    'review_create'     => 'class/Controller/ReviewController.php',
+    'chat_start'        => 'class/Controller/ChatController.php',
+    'chat_message'      => 'class/Controller/ChatController.php',
+    'turn_credentials'  => 'class/Controller/TurnController.php',
+    'email_verify_send' => 'class/Controller/EmailVerificationController.php',
+];
+
+// --- Jede der sechs Aktionen ist eingetragen und vollstaendig -------------
+//
+// Die Vollstaendigkeit je Schranke prueft der Abschnitt darueber fuer ALLE
+// Aktionen mit; hier geht es darum, dass keine der sechs fehlt.
+foreach ($n10 as $aktion => $datei) {
+    check(isset($limits[$aktion]), "keine Bremse fuer '$aktion'");
+}
+ok('alle sechs Endpunkte aus N-10 haben eine Aktion in config/limits.php');
+
+// --- Gezaehlt wird am Konto, nicht an der IP ------------------------------
+//
+// Der Handelnde ist hier angemeldet. Eine IP-Schranke traefe ein Buero oder
+// ein Mobilfunk-NAT, hinter dem viele ehrliche Nutzer sitzen; wer viele
+// Konten will, laeuft zuerst in die Registrierungsbremse. Die beiden
+// Ausnahmen sind die, bei denen ein Aufruf GELD AUSSERHALB DIESES SERVERS
+// kostet - dort interessiert nicht, ueber wie viele Konten er verteilt wurde.
+$mitIp = ['turn_credentials', 'email_verify_send'];
+foreach ($n10 as $aktion => $datei) {
+    $arten = [];
+    foreach ($limits[$aktion] as $e) { $arten = array_merge($arten, $e['teile']); }
+    check(in_array('konto', $arten, true), "$aktion zaehlt nicht am Konto");
+    check(in_array('ip', $arten, true) === in_array($aktion, $mitIp, true),
+        "$aktion zaehlt " . (in_array('ip', $arten, true) ? '' : 'nicht ') . 'je IP');
+}
+ok('je Konto - und je IP nur dort, wo ein Aufruf draussen Geld kostet');
+
+// --- Die Sperre ist nie kuerzer als ihr Fenster ---------------------------
+//
+// Waere sie kuerzer, wuerde SIE zur eigentlichen Taktung: Wer sie abgesessen
+// hat, faengt bei eins an und haette sofort das volle Kontingent des
+// Fensters. Eine Tagesgrenze mit einstuendiger Sperre waere dann keine
+// Tagesgrenze mehr - und neben einer echten Stundengrenze wertlos.
+foreach ($limits as $aktion => $schranken) {
+    foreach ($schranken as $name => $e) {
+        check($e['sperre'] >= $e['fenster'],
+            "$aktion/$name: die Sperre ({$e['sperre']}s) ist kuerzer als ihr Fenster ({$e['fenster']}s)");
+    }
+}
+ok('keine Sperre ist kuerzer als ihr Fenster');
+
+// --- Jeder Endpunkt prueft, zaehlt und hat keine eigene Zahl --------------
+//
+// Der Kern: Es ist derselbe Baustein und keine sechste Nachbildung davon.
+foreach ($n10 as $aktion => $datei) {
+    $quelle = $ohneKommentare(file_get_contents($ROOT . '/' . $datei));
+    check(strpos($quelle, "RateLimit::restsperre('$aktion'") !== false,
+        "$datei prueft die Sperre fuer '$aktion' nicht");
+    check(strpos($quelle, "RateLimit::verbuchen('$aktion'") !== false,
+        "$datei zaehlt '$aktion' nicht");
+    // GEPRUEFT WIRD VOR DEM ZAEHLEN. Andersherum verlaengerte ein Client, der
+    // stur weiterprobiert, seine eigene Sperre endlos - der abgewiesene
+    // Aufruf soll nicht mitzaehlen.
+    check(strpos($quelle, "RateLimit::restsperre('$aktion'") < strpos($quelle, "RateLimit::verbuchen('$aktion'"),
+        "$datei zaehlt '$aktion', bevor es die Sperre prueft");
+    // Der Aufrufer erfaehrt, wie lange er warten muss - ausser beim
+    // TURN-Abruf: Der wird nicht abgewiesen, sondern faellt auf STUN zurueck,
+    // und eine Wartezeit waere dort eine Auskunft ueber etwas, das gar nicht
+    // wartet. Siehe die Pruefung weiter unten.
+    if ($aktion !== 'turn_credentials') {
+        check(strpos($quelle, 'RateLimit::wartehinweis') !== false,
+            "$datei nennt dem Aufrufer die Wartezeit nicht");
+    }
+}
+ok('alle sechs pruefen vor dem Zaehlen und nennen dem Aufrufer die Wartezeit');
+
+// --- Keine Kennung geht ungeprueft in den Schluessel ----------------------
+//
+// (string)Auth::userId() waere die naheliegende Schreibweise und die falsche:
+// Sie macht aus "niemand angemeldet" den Schluessel "0". Alle Aufrufer
+// benutzen deshalb RateLimit::konto(), das daraus einen Leerstring macht -
+// und der laesst die Kontoschranke wegfallen, statt alle auf einen Zaehler zu
+// legen.
+$kontoStellen = 0;
+foreach (array_unique(array_values($n10)) as $datei) {
+    $quelle = $ohneKommentare(file_get_contents($ROOT . '/' . $datei));
+    // EINGEFANGEN STATT VERNEINT: Ein negativer Lookahead hinter \s* meldet
+    // immer einen Treffer - das \s* faellt einfach auf null zurueck, und
+    // dann steht an der Pruefstelle ein Leerzeichen und nicht der gesuchte
+    // Aufruf. Geprueft wird deshalb der eingefangene Ausdruck selbst.
+    preg_match_all("/'konto'\s*=>\s*([^,\]]+)/", $quelle, $treffer);
+    foreach ($treffer[1] as $ausdruck) {
+        $kontoStellen++;
+        check(strpos(trim($ausdruck), 'RateLimit::konto(') === 0,
+            "$datei baut den Kontoschluessel an RateLimit::konto() vorbei: " . trim($ausdruck));
+    }
+}
+// Sonst ginge die Pruefung durch, weil sie nichts gefunden hat.
+check($kontoStellen === 6, "nicht sechs Kontoschluessel gefunden, sondern $kontoStellen");
+ok('jeder der sechs Kontoschluessel geht durch RateLimit::konto()');
+
+// --- Die Grenzen stehen an EINER Stelle, und nur eine Datei liest sie -----
+//
+// Das ist die eigentliche Zusicherung hinter "keine Zahl im Code", und sie
+// laesst sich genau pruefen: config/limits.php wird ausschliesslich von
+// App\Model\RateLimit geladen. Ein Controller, der sie selbst liest, waere
+// der erste Schritt zurueck zu Grenzen, die an mehreren Stellen stehen.
+//
+// Ein Zahlenvergleich waere hier der falsche Weg: Er trifft jede zufaellige
+// Uebereinstimmung mit einer ganz anderen Frist - die 86400 in
+// EmailVerificationController ist die Gueltigkeit des Verifikations-Tokens
+// und hat mit der Tagesgrenze nichts zu tun.
+$leser = [];
+foreach (array_merge(glob($ROOT . '/class/Controller/*.php'),
+                     glob($ROOT . '/class/Model/*.php'),
+                     glob($ROOT . '/class/Helper/*.php')) as $datei) {
+    // Ohne Kommentare: Die Controller nennen die Datei in ihrer Begruendung,
+    // und das sollen sie auch - gelesen wird sie deswegen nicht.
+    if (strpos($ohneKommentare(file_get_contents($datei)), 'limits.php') !== false) {
+        $leser[] = basename($datei);
+    }
+}
+check($leser === ['RateLimit.php'],
+    'config/limits.php wird ausser von RateLimit noch gelesen von: ' . implode(', ', $leser));
+ok('nur App\Model\RateLimit liest config/limits.php');
+
+// --- Der TURN-Abruf weist nicht ab, sondern faellt zurueck ----------------
+//
+// Ein HTTP 429 waere hier der falsche Weg: Der Endpunkt hat fuer den Ausfall
+// des TURN-Dienstes bereits eine brauchbare Antwort - die STUN-Liste mit
+// turnAvailable=false -, und ein Anruf im einfachen Netz gelingt damit
+// weiterhin. Es unterbleibt nur der teure Weg nach draussen. Dieselbe
+// Ueberlegung wie bei Befund F-18, dem dieser Endpunkt seine heutige Form
+// verdankt.
+$turnSrc = $ohneKommentare(file_get_contents($ROOT . '/class/Controller/TurnController.php'));
+check(strpos($turnSrc, '429') === false, 'der gebremste TURN-Abruf antwortet mit einem Fehlercode');
+// Der Abruf nach draussen steht im else-Zweig: gebremst wird Metered gar
+// nicht erst gefragt.
+$gebremst = strpos($turnSrc, "RateLimit::restsperre('turn_credentials'");
+$metered  = strpos($turnSrc, 'fetch_turn_credentials()');
+check($gebremst !== false && $metered !== false && $gebremst < $metered,
+    'der TURN-Dienst wird gefragt, bevor die Bremse geprueft ist');
+check(strpos($turnSrc, "RateLimit::verbuchen('turn_credentials'") < $metered,
+    'der Aufruf nach draussen wird nicht verbucht');
+// Die STUN-Liste haengt in JEDEM Fall dran - auch im gebremsten.
+check(substr_count($turnSrc, 'IceServerConfig::merge') === 1,
+    'die STUN-Liste haengt nicht mehr an genau einer Stelle dran');
+ok('der gebremste TURN-Abruf liefert STUN statt eines Fehlers');
+
+// --- Der Mailversand bremst nur den Weg ueber die Route -------------------
+//
+// Der Aufruf aus dem Registrierungsablauf ist die Folge einer Registrierung,
+// und die ist bereits begrenzt (Aktion 'signup'). Zweimal fuer denselben
+// Vorgang zu zaehlen hiesse, dass ein frisch angelegtes Konto seine erste
+// Mail unter Umstaenden gar nicht bekommt.
+$mailSrc = $ohneKommentare(file_get_contents($ROOT . '/class/Controller/EmailVerificationController.php'));
+check(preg_match('/\$ueberRoute\s*=\s*\(\$user_id === null\)/', $mailSrc) === 1,
+    'die Bremse unterscheidet nicht zwischen Route und Registrierungsablauf');
+check(strpos($mailSrc, 'if ($ueberRoute) {') !== false,
+    'die Bremse greift auch im Registrierungsablauf');
+// Die Bestaetigungsseite sagt "die Mail ist unterwegs" - im gebremsten Fall
+// stimmt das nicht, deshalb ein eigener Hinweis.
+check(strpos($mailSrc, 'outputVerificationHinweis') !== false,
+    'der gebremste Fall zeigt die Bestaetigungsseite und behauptet einen Versand');
+ok('gebremst wird die Route, nicht der Registrierungsablauf');
+
+// --- Die Chatgrenze passt zu dem, was der Client wirklich tut -------------
+//
+// assets/js/ui_chat.js ruft chat_start bei JEDEM Oeffnen eines Chatfensters
+// auf, nicht nur beim Anlegen - es ist ein findOrCreate. Eine enge Grenze
+// wuerde den wuergen, der zwischen seinen Gespraechen wechselt, und nicht
+// den, der die Plattform absucht. Diese Pruefung haelt die Begruendung an
+// den Tatsachen fest: Aendert sich der Client, faellt sie auf.
+$uiChat = file_get_contents($ROOT . '/assets/js/ui_chat.js');
+check(strpos($uiChat, "?act=chat_start") !== false, 'der Client ruft chat_start nicht mehr auf');
+check(strpos($uiChat, 'openChatPopup') < strpos($uiChat, "?act=chat_start"),
+    'chat_start haengt nicht mehr am Oeffnen des Fensters - die Grenze darf enger werden');
+check($limits['chat_start']['konto']['versuche'] >= 30,
+    'die Chatgrenze ist zu eng fuer einen Client, der bei jedem Oeffnen aufruft');
+ok('die Chatgrenze traegt dem findOrCreate bei jedem Oeffnen Rechnung');
 
 
 PdoConnect::$connection = new FakeConnection();

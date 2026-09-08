@@ -56,7 +56,15 @@
  *              Schranke aushebeln, die das Durchprobieren von BENUTZERNAMEN
  *              begrenzt.
  *
- * FENSTER UND SPERRE DUERFEN BELIEBIG ZUEINANDER STEHEN. Wer eine Sperre
+ * DIE SPERRE SOLL MINDESTENS SO LANG SEIN WIE IHR FENSTER. Ist sie kuerzer,
+ * wird SIE zur eigentlichen Taktung: Wer eine Sperre abgesessen hat, faengt
+ * bei eins an (siehe naechster Absatz), bekommt also nach Ablauf der Sperre
+ * sofort das volle Kontingent des Fensters. Eine Tagesgrenze mit einstuendiger
+ * Sperre ist damit keine Tagesgrenze mehr, sondern eine Stundengrenze - und
+ * eine, die neben einer echten Stundengrenze nichts mehr beitraegt. Deshalb
+ * steht in dieser Datei ueberall 'sperre' == 'fenster'.
+ *
+ * FENSTER UND SPERRE DUERFEN TROTZDEM BELIEBIG ZUEINANDER STEHEN. Wer eine Sperre
  * abgesessen hat, faengt bei eins an - der Zaehler wird nicht nur vom Ablauf
  * des Fensters zurueckgesetzt, sondern auch vom Ende der Sperre
  * (App\Model\RateLimit::NEUES_FENSTER). Ohne das haette eine Sperre, die
@@ -179,5 +187,188 @@ return [
      */
     'signup_formular' => [
         'ip' => ['teile' => ['ip'], 'versuche' => 20, 'fenster' => 3600, 'sperre' => 3600, 'erfolg_loescht' => false],
+    ],
+
+    // =====================================================================
+    // BEFUND N-10: die sechs Endpunkte, die ein ANGEMELDETES Konto
+    // unbegrenzt oft aufrufen konnte
+    // =====================================================================
+    //
+    // Bis hierher begrenzte keiner von ihnen, wie oft ein Konto ihn aufruft.
+    // Der Zugang war geregelt - ein Recht in config/routes.php und, wo noetig,
+    // eine Beteiligungspruefung in der WHERE-Klausel -, die HAEUFIGKEIT nicht.
+    //
+    // GEZAEHLT WIRD AM KONTO, nicht an der IP. Der Handelnde ist hier
+    // angemeldet; wer viele Konten haben will, laeuft zuerst in die
+    // Registrierungsbremse ('signup' weiter oben). Eine IP-Schranke wuerde
+    // dagegen ein Buero oder ein Mobilfunk-NAT treffen, hinter dem viele
+    // ehrliche Nutzer sitzen. Die zwei Ausnahmen stehen unten, und beide aus
+    // demselben Grund: Dort kostet ein Aufruf GELD AUSSERHALB DIESES SERVERS.
+    //
+    // 'konto' ist dabei die UserID aus der Sitzung. Der Aufrufer kann sie
+    // nicht waehlen - das ist der Unterschied zum Login, wo der Kontoteil des
+    // Schluessels aus dem Formular kommt.
+    //
+    // GEZAEHLT WIRD JEDER AUFRUF, nicht nur der erfolgreiche - anders als bei
+    // der Registrierung. Dort war der Fehlversuch der Tippfehler eines
+    // Menschen an einem Formular; hier ruft die Anwendung selbst auf, und ein
+    // fehlschlagender Aufruf ist eher das Abklopfen fremder Kennungen als ein
+    // Versehen. Ein vom Zaehler ABGEWIESENER Aufruf zaehlt nicht mit: Sonst
+    // koennte ein Client, der stur weiterprobiert, seine eigene Sperre
+    // endlos verlaengern.
+
+    /**
+     * Eine Fuehrung anfragen (RequestController::create).
+     *
+     * DER BEFUND: Je Standort ist nur EINE laufende Anfrage moeglich - aber es
+     * gibt beliebig viele Standorte. Ein Konto konnte jeden Guide der
+     * Plattform gleichzeitig anfragen, und bei jedem klingelte es.
+     *
+     * ZEHN JE STUNDE. Wer eine Fuehrung sucht, fragt zwei oder drei Guides und
+     * wartet deren Antwort ab - die Antwortfrist ist eine Stunde
+     * (config/requests.php). Zehn laesst Raum fuer Absagen und einen zweiten
+     * Anlauf und ist weit von "jeder Guide der Plattform" entfernt.
+     *
+     * KEINE TAGESGRENZE. Zehn je Stunde sind rund um die Uhr 240 - fuer einen
+     * Menschen unerreichbar viel, fuer den Missbrauch, um den es geht (ein
+     * Klingeln bei allen gleichzeitig), viel zu langsam. Eine zweite Zahl
+     * daneben wuerde nur eine zweite Stelle zum Pflegen schaffen.
+     */
+    'request_create' => [
+        'konto' => ['teile' => ['konto'], 'versuche' => 10, 'fenster' => 3600, 'sperre' => 3600, 'erfolg_loescht' => false],
+    ],
+
+    /**
+     * Eine Fuehrung bewerten (ReviewController::create).
+     *
+     * JE FUEHRUNG IST OHNEHIN NUR EINE BEWERTUNG MOEGLICH - das steht als
+     * eindeutiger Schluessel in der Tabelle (migrations/016) und nicht nur im
+     * Controller. Was hier begrenzt wird, ist deshalb nicht das Bewerten,
+     * sondern das ABKLOPFEN: Die Route nimmt eine beliebige Fuehrungskennung
+     * entgegen und antwortet auf "gibt es nicht", "gehoert dir nicht", "hat
+     * nie stattgefunden" und "schon bewertet" bewusst gleich. Das ist richtig
+     * so - aber ohne Bremse laesst sich der Kennungsraum trotzdem absuchen,
+     * weil der ERFOLGSFALL sich unterscheidet.
+     *
+     * ZEHN JE STUNDE. Bewertet wird nach einer Fuehrung, und eine Fuehrung
+     * dauert. Wer zehn in einer Stunde abgibt, holt Versaeumtes nach - mehr
+     * als zehn tut niemand.
+     */
+    'review_create' => [
+        'konto' => ['teile' => ['konto'], 'versuche' => 10, 'fenster' => 3600, 'sperre' => 3600, 'erfolg_loescht' => false],
+    ],
+
+    /**
+     * Einen Chat oeffnen (ChatController::startChat).
+     *
+     * DER BEFUND: Die Route nimmt eine beliebige Kontokennung entgegen
+     * (Befund N-12) und legt bei Bedarf einen Chat an. Ein Skript konnte damit
+     * jedem Konto der Plattform eine offene Einladung ins Postfach legen.
+     *
+     * SECHZIG JE STUNDE - und damit auffaellig grosszuegig. Der Grund steht im
+     * Client: assets/js/ui_chat.js ruft diese Route bei JEDEM Oeffnen eines
+     * Chatfensters auf, nicht nur beim Anlegen (es ist ein findOrCreate). Wer
+     * zwischen seinen Gespraechen hin und her wechselt, erzeugt echte
+     * Aufrufe, und eine enge Grenze wuerde die normale Bedienung abwuergen,
+     * nicht den Missbrauch.
+     *
+     * SIE IST DESHALB EINE OBERGRENZE GEGEN DIE MASSE und keine feine
+     * Regelung: Sechzig neue Fremde je Stunde sind Spam, aber kein
+     * Rundumschlag ueber die ganze Plattform. Die eigentliche Antwort auf
+     * N-12 ist eine andere - den Chat auf bestehende Beziehungen
+     * einschraenken -, und die gehoert nicht in eine Ratengrenze.
+     */
+    'chat_start' => [
+        'konto' => ['teile' => ['konto'], 'versuche' => 60, 'fenster' => 3600, 'sperre' => 3600, 'erfolg_loescht' => false],
+    ],
+
+    /**
+     * Eine Chatnachricht senden (ChatController::sendMessage).
+     *
+     * ZWEI SCHRANKEN, WEIL ES ZWEI VERSCHIEDENE FRAGEN SIND: Wie schnell darf
+     * jemand schreiben, und wie viel insgesamt.
+     *
+     * ZWANZIG JE MINUTE ist die Frage nach dem Tempo. Zwanzig Nachrichten in
+     * sechzig Sekunden schreibt kein Mensch mehr, der etwas mitteilen will -
+     * das ist die Geschwindigkeit eines Skripts. Die Sperre ist mit einer
+     * Minute bewusst kurz: Das ist ein "langsamer" und kein Ausschluss, und
+     * wer wirklich nur schnell getippt hat, merkt kaum etwas davon.
+     *
+     * FUENFHUNDERT JE STUNDE ist die Frage nach der Menge. Eine lebhafte
+     * zweistuendige Fuehrung kommt auf ein paar hundert Zeilen; fuenfhundert
+     * in EINER Stunde ist mehr, als ein Gespraech hergibt. Diese Schranke
+     * begrenzt den Speicherverbrauch, der sonst je Konto unbegrenzt waere
+     * (Befund N-7).
+     *
+     * BEIDE ZAHLEN SIND GESCHAETZT und nicht gemessen - es gibt noch keinen
+     * Betrieb, an dem sich ablesen liesse, was ein lebhaftes Gespraech
+     * wirklich erzeugt. Sie stehen hier, damit sie sich an einer Stelle
+     * nachziehen lassen, sobald es die Zahlen gibt.
+     */
+    'chat_message' => [
+        'konto_minute' => ['teile' => ['konto'], 'versuche' => 20,  'fenster' => 60,   'sperre' => 60,   'erfolg_loescht' => false],
+        'konto_stunde' => ['teile' => ['konto'], 'versuche' => 500, 'fenster' => 3600, 'sperre' => 3600, 'erfolg_loescht' => false],
+    ],
+
+    /**
+     * TURN-Zugangsdaten holen (TurnController::getTurnCredentials).
+     *
+     * DIE ERSTE DER BEIDEN AUSNAHMEN MIT IP-SCHRANKE. Jeder Aufruf loest einen
+     * ausgehenden HTTPS-Request an Metered aus
+     * (App\Model\MeteredTurnService::fetch_turn_credentials) und verbraucht
+     * ein bezahltes Kontingent. Ein unbegrenzter Endpunkt ist hier nicht nur
+     * Last, sondern ein FREMDFINANZIERTER VERSTAERKER - und das Kontingent
+     * ist am Ende auch dann leer, wenn der Missbrauch von einem einzigen
+     * Konto ausging.
+     *
+     * DREISSIG JE STUNDE UND KONTO. Der Client holt die Liste bei der
+     * anrufenden Seite einmal und behaelt sie (assets/js/rtc.js: nur wenn
+     * noch nicht geladen oder auf die Notfallliste zurueckgefallen), bei der
+     * annehmenden Seite bei jedem Anruf neu. Ein Gespraech kostet also ein bis
+     * zwei Aufrufe; dreissig decken zehn Gespraeche samt Wiedereinstiegen ab.
+     *
+     * HUNDERT JE STUNDE UND IP als zweite Linie, falls jemand die Aufrufe auf
+     * mehrere Konten verteilt. Hoch genug fuer ein Buero, in dem mehrere
+     * Menschen gleichzeitig telefonieren.
+     *
+     * WICHTIG: Das Erreichen dieser Grenze ist KEIN Fehler fuer den Anrufer.
+     * Der Endpunkt hat fuer den Ausfall des TURN-Dienstes bereits einen Weg -
+     * die STUN-Liste mit turnAvailable=false -, und genau den nimmt er auch
+     * hier. Ein Anruf im einfachen Netz gelingt weiterhin; nur der teure Weg
+     * nach draussen unterbleibt. Siehe dort.
+     */
+    'turn_credentials' => [
+        'konto' => ['teile' => ['konto'], 'versuche' => 30,  'fenster' => 3600, 'sperre' => 3600, 'erfolg_loescht' => false],
+        'ip'    => ['teile' => ['ip'],    'versuche' => 100, 'fenster' => 3600, 'sperre' => 3600, 'erfolg_loescht' => false],
+    ],
+
+    /**
+     * Bestaetigungsmail anfordern (EmailVerificationController::sendVerification).
+     *
+     * DIE ZWEITE AUSNAHME MIT IP-SCHRANKE, aus demselben Grund: Jeder Aufruf
+     * verschickt eine E-Mail. Ohne Bremse ist das ein Mailversand-Verstaerker
+     * - und der schadet nicht nur diesem Server, sondern seinem Ruf bei den
+     * Empfaengerservern, was sich nicht durch Abschalten reparieren laesst.
+     *
+     * Der Versand ist im Registrierungsablauf derzeit auskommentiert (kein
+     * eigener SMTP-Server, Befund N-4). DIE ROUTE send_email_verify IST
+     * TROTZDEM ERREICHBAR und verschickt. Die Bremse gehoert deshalb jetzt
+     * hierher und nicht erst, wenn der Versand wieder eingeschaltet wird.
+     *
+     * DREI JE STUNDE deckt den einzigen ehrlichen Fall ab: "die Mail kam
+     * nicht an, nochmal". Wer dreimal in einer Stunde keine bekommen hat,
+     * dem hilft ein vierter Versuch auch nicht - dann liegt es woanders.
+     *
+     * ZEHN JE TAG mit einer Tagessperre daneben, weil drei je Stunde allein
+     * 72 Mails am Tag an dieselbe Adresse erlauben wuerden. Das ist die
+     * Zahl, die beim Empfaenger als Belaestigung ankommt.
+     *
+     * ZWANZIG JE STUNDE UND IP fuer den Fall, dass jemand die Aufrufe ueber
+     * mehrere frisch angelegte Konten verteilt.
+     */
+    'email_verify_send' => [
+        'konto_stunde' => ['teile' => ['konto'], 'versuche' => 3,  'fenster' => 3600,  'sperre' => 3600,  'erfolg_loescht' => false],
+        'konto_tag'    => ['teile' => ['konto'], 'versuche' => 10, 'fenster' => 86400, 'sperre' => 86400, 'erfolg_loescht' => false],
+        'ip'           => ['teile' => ['ip'],    'versuche' => 20, 'fenster' => 3600,  'sperre' => 3600,  'erfolg_loescht' => false],
     ],
 ];

@@ -5,6 +5,7 @@ use App\Model\User;
 use App\Model\Chat;
 use App\Model\ChatMessage;
 use App\Model\PdoConnect;
+use App\Model\RateLimit;
 use App\Helper\Auth;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
@@ -40,6 +41,25 @@ class ChatController
     /**
      * Startet einen Chat mit einem anderen Benutzer (findOrCreate).
      * Gibt Chat-Infos als JSON zurück.
+     *
+     * DIE BREMSE UND WARUM SIE HIER SO WEIT IST (Befund N-10)
+     * ------------------------------------------------------
+     * Die Route nimmt eine beliebige Kontokennung entgegen (das ist Befund
+     * N-12 und eine andere Baustelle) und legt bei Bedarf einen Chat an. Ein
+     * Skript konnte damit jedem Konto der Plattform eine offene Einladung ins
+     * Postfach legen.
+     *
+     * Die Grenze ist trotzdem auffaellig grosszuegig - sechzig je Stunde -,
+     * und zwar wegen des Clients: assets/js/ui_chat.js ruft diese Route bei
+     * JEDEM Oeffnen eines Chatfensters auf, nicht nur beim Anlegen. Es ist ein
+     * findOrCreate, und der Normalfall ist das Find. Eine enge Grenze wuerde
+     * hier den wuergen, der zwischen seinen Gespraechen hin und her wechselt,
+     * und nicht den, der die Plattform absucht.
+     *
+     * SIE IST DESHALB EINE OBERGRENZE GEGEN DIE MASSE und keine Loesung fuer
+     * N-12. Die ist, den Chat auf bestehende Beziehungen einzuschraenken, und
+     * das ist keine Frage der Haeufigkeit.
+     *
      * @return void
      */
     public function startChat(): void
@@ -50,6 +70,16 @@ class ChatController
             echo json_encode(['success' => false, 'error' => 'Invalid user']);
             return;
         }
+
+        $teile = ['konto' => RateLimit::konto($currentUserId)];
+        $rest  = RateLimit::restsperre('chat_start', $teile);
+        if ($rest > 0) {
+            echo json_encode(['success' => false,
+                'error' => 'Zu viele Chats in kurzer Zeit. Bitte '
+                         . RateLimit::wartehinweis($rest) . ' warten.']);
+            return;
+        }
+        RateLimit::verbuchen('chat_start', $teile);
 
         $chat = Chat::findOrCreate($currentUserId, $targetId);
 
@@ -247,6 +277,27 @@ class ChatController
             echo json_encode(['success' => false, 'error' => 'Invalid data']);
             return;
         }
+
+        // --- Die Bremse (Befund N-10) -------------------------------------
+        //
+        // ZWEI SCHRANKEN, ZWEI FRAGEN (config/limits.php): wie schnell jemand
+        // schreiben darf, und wie viel insgesamt. Die erste ist ein
+        // "langsamer" mit einer Minute Sperre, die zweite begrenzt den
+        // Speicherverbrauch, der sonst je Konto unbegrenzt waere (Befund
+        // N-7).
+        //
+        // GEZAEHLT WIRD VOR DER BETEILIGUNGSPRUEFUNG. Der Aufruf in einen
+        // fremden Chat ist kein Versehen, sondern das Abklopfen fremder
+        // Kennungen - er soll mitzaehlen, nicht gratis sein.
+        $teile = ['konto' => RateLimit::konto($currentUserId)];
+        $rest  = RateLimit::restsperre('chat_message', $teile);
+        if ($rest > 0) {
+            echo json_encode(['success' => false,
+                'error' => 'Zu viele Nachrichten in kurzer Zeit. Bitte '
+                         . RateLimit::wartehinweis($rest) . ' warten.']);
+            return;
+        }
+        RateLimit::verbuchen('chat_message', $teile);
 
         $chat = Chat::findById($chatId);
 

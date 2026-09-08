@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Model\Location;
 use App\Model\TourRequest;
 use App\Model\User;
+use App\Model\RateLimit;
 use App\Helper\Auth;
 use App\Helper\Permission;
 use App\Helper\Role;
@@ -70,6 +71,28 @@ class RequestController
         $location_id = (int)($daten['location'] ?? 0);
         $wunsch      = (int)($daten['wish_in'] ?? 0);
         $customer_id = Auth::userId();
+
+        // --- Die Bremse (Befund N-10) -------------------------------------
+        //
+        // JE STANDORT IST NUR EINE LAUFENDE ANFRAGE MOEGLICH - das steht
+        // weiter unten und war die einzige Begrenzung. Sie half nicht: Es
+        // gibt beliebig viele Standorte, und ein Konto konnte deshalb jeden
+        // Guide der Plattform gleichzeitig anfragen. Bei jedem klingelte es.
+        //
+        // Gezaehlt wird VOR der Arbeit und am Konto aus der Sitzung; die
+        // Grenze steht in config/limits.php. Ein abgewiesener Aufruf zaehlt
+        // nicht mit, sonst verlaengerte ein stur weiterprobierender Client
+        // seine eigene Sperre endlos.
+        $teile = ['konto' => RateLimit::konto($customer_id)];
+        $rest  = RateLimit::restsperre('request_create', $teile);
+        if ($rest > 0) {
+            self::json([
+                'success' => false,
+                'error'   => 'Zu viele Anfragen in kurzer Zeit. Bitte '
+                           . RateLimit::wartehinweis($rest) . ' warten.',
+            ]);
+        }
+        RateLimit::verbuchen('request_create', $teile);
 
         if ($location_id < 1) {
             self::json(['success' => false, 'error' => 'Es fehlt der Standort.']);
