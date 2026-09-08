@@ -7,6 +7,12 @@
       ###COUNT###   Zahl der angezeigten Zeilen
       ###ROWS###    Die Zeilen (App\Helper\AdminView::bewertungsZeilenHtml)
 
+    AUSGEBLENDET WIRD NACH DEM GUIDE, nicht nach dem Kunden: Ist SEIN Konto
+    geloescht, steht die Bewertung nirgends mehr - sie zu entfernen aendert
+    nichts. Ist das Konto des KUNDEN geloescht, steht sie weiterhin
+    oeffentlich beim Guide; sie bleibt also sichtbar, und nur der Name
+    daneben wird gekennzeichnet.
+
     HIER UND NICHT MEHR AN DER EINZELNEN BEWERTUNG: Der Entfernen-Knopf klebte
     vorher fuer den Admin an jeder Bewertung auf der Standortseite und auf dem
     Guide-Profil - also mitten in einer Seite, die fuer Kunden gebaut ist, und
@@ -18,7 +24,10 @@
     <div class="app-panel__body">
         <div class="adm-bar">
             <h2 class="adm-panel__title">Bewertungen <span class="adm-count">###COUNT###</span></h2>
-            ###FILTER###
+            <div class="adm-bar__rechts">
+                ###GELOESCHT###
+                ###FILTER###
+            </div>
         </div>
     </div>
     <div class="app-table-wrap">

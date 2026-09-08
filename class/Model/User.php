@@ -745,13 +745,26 @@ class User
 
     /**
      * Gibt alle User-IDs als Array zurück.
+     *
+     * OHNE DIE GELOESCHTEN, und das war hier schon immer so. Der Unterschied
+     * zu den anderen Listen der Verwaltung ist nur, dass sie sich bisher
+     * ueberhaupt nicht einblenden liessen: Ein geloeschtes Konto war
+     * unauffindbar, auch fuer den Admin. Auf die Frage "ist das Konto von
+     * gestern wirklich weg" gab es damit keine Antwort - und das ist genau
+     * die Frage, die nach einer Loeschung gestellt wird.
+     *
+     * @param bool $in_mit_geloeschten Geloeschte Konten mitliefern
      * @return array
      */
-    public function getAll()
+    public function getAll(bool $in_mit_geloeschten = false)
     {
+        // Fester Textbaustein, kein Parameter: In die Abfrage kommt nichts,
+        // was ein Aufrufer beeinflussen koennte.
+        $filter = $in_mit_geloeschten ? '' : ' WHERE ' . self::activeSql('user');
+
         $result = [];
         try {
-            $query = "SELECT id FROM user WHERE deleted = 0;";
+            $query = "SELECT user.id FROM user" . $filter . ";";
             foreach (PdoConnect::$connection->query($query) as $row) {
                 $result[] = $row['id'];
             }
@@ -919,4 +932,14 @@ class User
      * @return string|null
      */
     public function getTheme()          { return $this->theme; }
+
+    /**
+     * Ist DIESES geladene Konto geloescht?
+     *
+     * Der Wert steht in der Zeile, die der Konstruktor ohnehin geladen hat -
+     * anders als bei der statischen isDeleted(), die eine Kennung ohne
+     * Objekt beantwortet und dafuer selbst fragt. Wer das Konto schon in der
+     * Hand hat, soll dafuer keine zweite Abfrage ausloesen.
+     */
+    public function isGeloescht(): bool  { return (int)$this->deleted === 1; }
 }

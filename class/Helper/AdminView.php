@@ -370,6 +370,55 @@ class AdminView
              . '</section>';
     }
 
+    /**
+     * Der Umschalter "Geloeschte Konten einblenden".
+     *
+     * EIN SCHALTER UND KEIN FILTERWERT, und das ist der Punkt: "gesperrt" und
+     * "gehoert einem geloeschten Konto" schliessen sich nicht aus. Waere das
+     * Geloeschte einer der Filterwerte, liesse sich "gesperrte Standorte
+     * geloeschter Konten" gar nicht mehr ansehen - und das ist genau die
+     * Liste, die man nach einer Loeschung durchgeht. Der Schalter steht
+     * deshalb NEBEN dem Filter und laesst ihn stehen.
+     *
+     * DIE VORGABE IST AUS. Was einem geloeschten Konto gehoert, ist ueberall
+     * sonst verschwunden; in der Verwaltung bleibt es auffindbar, aber es
+     * steht nicht im Weg. Wer danach sucht, blendet es ein.
+     *
+     * DERSELBE SCHALTER IN ALLEN DREI LISTEN - Standorte, Bewertungen,
+     * Benutzer. Er steht deshalb hier und nicht dreimal nachgebaut: Drei
+     * Fassungen waeren drei Gelegenheiten, dass eine Liste ihn anders
+     * beschriftet oder den Filter daneben verliert.
+     *
+     * @param string               $in_route      Zielroute
+     * @param array<string,string> $in_parameter  Was erhalten bleibt (z. B. der Filter)
+     * @param bool                 $in_an         Sind sie gerade eingeblendet?
+     * @return string HTML
+     */
+    public static function geloeschtSchalterHtml(string $in_route, array $in_parameter,
+                                                 bool $in_an): string
+    {
+        // Die Adresse traegt die uebrigen Angaben weiter. Ohne das faende
+        // sich der Schalter zwar, aber er wuerfe den Filter daneben weg -
+        // und man saehe statt "gesperrte, auch geloeschte" wieder alles.
+        $teile = [];
+        foreach ($in_parameter as $name => $wert) {
+            $teile[] = rawurlencode((string)$name) . '=' . rawurlencode((string)$wert);
+        }
+        // Ausgeschaltet wird durch WEGLASSEN und nicht durch "geloescht=0":
+        // Die Vorgabe soll die kurze Adresse sein, nicht eine mit einer Null.
+        if (!$in_an) $teile[] = 'geloescht=1';
+
+        $ziel = 'index.php?act=' . rawurlencode($in_route)
+              . ($teile === [] ? '' : '&' . implode('&', $teile));
+
+        return '<a class="adm-toggle' . ($in_an ? ' adm-toggle--an' : '') . '"'
+             . ' href="' . $ziel . '"'
+             . ' aria-pressed="' . ($in_an ? 'true' : 'false') . '">'
+             .   '<span class="adm-toggle__box" aria-hidden="true"></span>'
+             .   'Gelöschte Konten'
+             . '</a>';
+    }
+
     // =================================================================
     // DIE STANDORTLISTE
     // =================================================================
@@ -802,10 +851,10 @@ class AdminView
                           ? '<a href="index.php?act=location&id=' . (int)($zeile['location_id'] ?? 0) . '">'
                             . ViewHelper::esc($titel) . '</a>'
                           : '<span class="adm-none">–</span>')
-                  .     '<span class="adm-sub">Guide: '
-                  .       ViewHelper::esc((string)($zeile['guide_username'] ?? '?')) . '</span>'
-                  .     '<span class="adm-sub">Kunde: '
-                  .       ViewHelper::esc((string)($zeile['customer_username'] ?? '?')) . '</span>'
+                  .     self::kontoZeileHtml('Guide', $zeile['guide_username'] ?? null,
+                                                 !empty($zeile['guide_deleted']))
+                  .     self::kontoZeileHtml('Kunde', $zeile['customer_username'] ?? null,
+                                                 !empty($zeile['customer_deleted']))
                   .   '</td>'
                   .   '<td class="adm-date">' . ViewHelper::esc(self::datum($zeile['created_at'] ?? null)) . '</td>'
                   .   '<td>'
@@ -817,6 +866,39 @@ class AdminView
                   . '</tr>';
         }
         return $html;
+    }
+
+    /**
+     * Eine Namenszeile der Bewertungsliste - mit dem Kennzeichen "geloescht".
+     *
+     * BEIDE SEITEN KOENNEN GELOESCHT SEIN, und es bedeutet Verschiedenes:
+     *
+     *   DER GUIDE. Seine Bewertungen stehen nirgends mehr - seine Standorte
+     *   und sein Profil sind weg. Solche Zeilen blendet die Liste per Vorgabe
+     *   aus; sichtbar sind sie nur mit dem Schalter, und dann sagt die Marke,
+     *   warum sie auf keine Seite mehr verweisen.
+     *
+     *   DER KUNDE. Seine Bewertung steht WEITERHIN oeffentlich beim Guide -
+     *   sie ist eine Auskunft ueber ihn und traegt keinen Namen. Die Zeile
+     *   bleibt deshalb immer sichtbar; gekennzeichnet wird nur der Name
+     *   daneben, denn der gehoert zu einem Konto, das es nicht mehr gibt.
+     *
+     * @param string      $in_rolle Beschriftung ("Guide" oder "Kunde")
+     * @param string|null $in_name
+     * @param bool        $in_geloescht
+     * @return string HTML
+     */
+    private static function kontoZeileHtml(string $in_rolle, $in_name, bool $in_geloescht): string
+    {
+        $name = trim((string)($in_name ?? ''));
+        if ($name === '') $name = '?';
+
+        return '<span class="adm-sub">' . ViewHelper::esc($in_rolle) . ': '
+             . ViewHelper::esc($name)
+             . ($in_geloescht
+                ? ' <span class="app-tag app-tag--danger">Konto gelöscht</span>'
+                : '')
+             . '</span>';
     }
 
     /**

@@ -679,21 +679,38 @@ class Location
      * WAS FEHLT: die Bewertungszahlen. Sie gehoeren zur Auswahl eines
      * Standorts, nicht zu seiner Verwaltung - und sie kosten zwei Joins.
      *
-     * @param string $in_filter 'alle' oder 'gesperrt'
-     * @param int    $in_limit  Obergrenze der Zeilen
+     * @param string $in_filter         'alle', 'gesperrt' oder 'unvollstaendig'
+     * @param int    $in_limit           Obergrenze der Zeilen
+     * @param bool   $in_mit_geloeschten Standorte geloeschter Konten mitliefern
      * @return array
      */
-    public function selectAllForAdmin(string $in_filter = 'alle', int $in_limit = 500)
+    public function selectAllForAdmin(string $in_filter = 'alle', int $in_limit = 500,
+                                      bool $in_mit_geloeschten = false)
     {
         // Wie ueberall in diesem Projekt: Ein Textbaustein in einer Abfrage
-        // wird geprueft und nicht zusammengesetzt. Der Filter kommt aus der
-        // Adresszeile.
+        // wird nachgeschlagen und nicht zusammengesetzt. Der Filter kommt aus
+        // der Adresszeile.
+        //
+        // ZWEI UNABHAENGIGE ANGABEN, und deshalb ist "geloescht" KEIN vierter
+        // Filterwert: "gesperrt" und "gehoert einem geloeschten Konto"
+        // schliessen sich nicht aus. Waere es einer, liesse sich "gesperrte
+        // Standorte geloeschter Konten" gar nicht mehr ansehen - und das ist
+        // genau die Liste, die man nach einer Loeschung durchgeht.
         $wo = [
-            'gesperrt'       => 'WHERE location.blocked = 1',
-            'unvollstaendig' => 'WHERE ' . self::unvollstaendigSql('location'),
-            'alle'           => '',
+            'gesperrt'       => 'location.blocked = 1',
+            'unvollstaendig' => self::unvollstaendigSql('location'),
         ];
-        $where = $wo[$in_filter] ?? '';
+
+        $bedingungen = [];
+        if (isset($wo[$in_filter])) $bedingungen[] = $wo[$in_filter];
+
+        // DIE VORGABE IST OHNE. Was einem geloeschten Konto gehoert, ist
+        // ueberall sonst verschwunden (App\Model\User::activeSql); hier
+        // bleibt es auffindbar, steht aber nicht im Weg. Wer danach sucht,
+        // blendet es ein - und sieht die Zeilen dann gekennzeichnet.
+        if (!$in_mit_geloeschten) $bedingungen[] = User::activeSql('user');
+
+        $where = $bedingungen === [] ? '' : 'WHERE ' . implode(' AND ', $bedingungen);
         // LIMIT vertraegt in MySQL keinen gebundenen Parameter, solange PDO
         // nicht emuliert - deshalb als gepruefte Zahl in den Text.
         $limit = max(1, min(2000, $in_limit));
@@ -703,13 +720,10 @@ class Location
                              location.blocked, location.blocked_reason,
                              location.blocked_at,
                              user.id AS user_id, user.username,
-                             -- HIER BEWUSST OHNE FILTER: Die Verwaltung sieht
-                             -- auch die Standorte eines geloeschten Kontos -
-                             -- sie sind es, die nach einer Loeschung
-                             -- uebrigbleiben. Ueberall sonst sind sie weg
-                             -- (App\Model\User::activeSql); damit die Zeile
-                             -- hier nicht auf eine Seite verweist, die es
-                             -- nicht mehr gibt, kommt das Kennzeichen mit.
+                             -- IMMER MITGELIEFERT, auch wenn die Vorgabe
+                             -- geloeschte Konten ausblendet: Sobald sie
+                             -- eingeblendet sind, muss die Zeile sagen, warum
+                             -- sie auf keine Seite mehr verweist.
                              user.deleted AS user_deleted,
                              COALESCE(NULLIF(guide_profile.display_name, ''), user.username)
                                  AS guide_name,

@@ -1626,9 +1626,19 @@ Für sie gibt es `User::isDeleted($id)` (mit Zwischenspeicher für die Dauer der
 * **Der Chat.** Der Weg über einen Standort fällt schon in `guideIdOf()` weg; der Direktzugang der Verwaltung und das Senden prüfen selbst. **Der Verlauf bleibt lesbar** — er gehört beiden Seiten, und wer mit jemandem geschrieben hat, darf seine eigenen Nachrichten behalten. Was nicht mehr geht, ist etwas hinzuzufügen. Der **Benutzername** verschwindet trotzdem: Er ist die Anmeldekennung, und statt seiner steht `User::NAME_GELOESCHT`.
 * **Die Sitzung.** `Auth::discardOutdatedSession()` verwirft sie. Vorher lief die Sitzung eines gelöschten Kontos weiter, bis sich jemand abmeldete — und solange sie lief, war das Konto angemeldet, erreichbar und konnte schreiben. Das kostet eine Abfrage je angemeldetem Aufruf auf den Primärschlüssel; für Gäste fällt sie nicht an.
 
-### Was übrig bleibt, sieht die Verwaltung
+### Was übrig bleibt, findet die Verwaltung — auf Nachfrage
 
-Die Standortliste des Verwaltungsbereichs filtert **bewusst nicht** — sie ist der eine Ort, an dem die übriggebliebenen Zeilen sichtbar bleiben müssen. Damit eine solche Zeile nicht auf eine Seite verweist, die es nicht mehr gibt, trägt sie die Marke *Konto gelöscht* und keinen Verweis auf das Profil.
+Die Verwaltung ist der eine Ort, an dem die übriggebliebenen Zeilen überhaupt noch sichtbar sein können. **Ungefragt stehen sie trotzdem nicht in der Liste:** Alle drei Listen zeigen per Vorgabe nur lebende Konten, ein Umschalter blendet die gelöschten ein, und dann trägt die Zeile die Marke *Konto gelöscht* und keinen Verweis auf ein Profil, das es nicht mehr gibt.
+
+**Ein Schalter, kein Filterwert**, und das ist der Punkt: *gesperrt* und *gehört einem gelöschten Konto* schließen sich nicht aus. Wäre das Gelöschte einer der Filterwerte, ließe sich „gesperrte Standorte gelöschter Konten" gar nicht mehr ansehen — und das ist genau die Liste, die man nach einer Löschung durchgeht. Der Schalter steht deshalb **neben** dem Filter, und beide erhalten einander: Ein Filterklick wirft den Schalter nicht weg und umgekehrt. Der Zustand steht in der Adresse (`&geloescht=1`), damit sich eine Ansicht weitergeben und mit dem Zurück-Knopf verlassen lässt; ausgeschaltet wird durch Weglassen, nicht durch `geloescht=0`.
+
+| Liste | Wonach ausgeblendet wird | Und warum |
+|---|---|---|
+| **Standorte** | der Eigentümer | Seine Standorte sind überall sonst verschwunden. |
+| **Bewertungen** | der **Guide**, nicht der Kunde | Ist der Guide gelöscht, steht die Bewertung nirgends mehr — sie zu entfernen ändert nichts. Ist der **Kunde** gelöscht, steht sie **weiterhin** öffentlich beim Guide: Sie ist eine Auskunft über *ihn* und trägt keinen Namen. Sie bleibt also sichtbar und moderierbar; gekennzeichnet wird nur der Name daneben. |
+| **Benutzer** | das Konto selbst | Hier war der Mangel umgekehrt: `User::getAll()` filterte gelöschte Konten **fest** heraus — sie waren auch für den Admin unauffindbar, und auf die Frage *„ist das Konto von gestern wirklich weg"* gab es keine Antwort. Eingeblendet trägt die Zeile die Marke und bietet weder Anruf noch Nachricht noch Bearbeiten an: An einem gelöschten Konto gibt es nichts mehr zu tun. |
+
+Die **Anfragenliste** bekommt bewusst keinen Schalter. Ihre Vorräte sind Vorgänge zwischen zwei Konten, und der Weg zum Abarbeiten führt über ein Gespräch mit dem Guide — mit einem gelöschten Konto gibt es keines. Was dort stehen bliebe, wäre eine Aufgabe, die niemand mehr erledigen kann.
 
 > **Offen:** Was beim Löschen mit den Standorten selbst geschehen soll, ist damit nicht entschieden — sie bleiben stehen und sind nur unsichtbar. Die Bilddateien liegen weiter auf der Platte.
 

@@ -7,6 +7,12 @@
       ###COUNT###   Zahl der angezeigten Zeilen
       ###ROWS###    Die Zeilen (App\Helper\AdminView::standortZeilenHtml)
 
+    GELOESCHTE KONTEN SIND PER VORGABE NICHT DABEI. Ihre Standorte bleiben in
+    der Datenbank stehen (User::del_it setzt nur ein Kennzeichen) und sind
+    ueberall sonst verschwunden; hier bleiben sie auffindbar, stehen aber
+    nicht im Weg. Der Schalter blendet sie ein, und dann sagt die Zeile mit
+    einer Marke, warum sie auf keine Seite mehr verweist.
+
     HIER UND NICHT MEHR IN DER STANDORTUEBERSICHT DER KUNDEN: Sperren und
     Freigeben hingen vorher als zwei zusaetzliche Symbolknoepfe in derselben
     Tabelle, die ein Kunde zum Aussuchen benutzt - und dieselbe Tabelle
@@ -22,7 +28,10 @@
     <div class="app-panel__body">
         <div class="adm-bar">
             <h2 class="adm-panel__title">Standorte <span class="adm-count">###COUNT###</span></h2>
-            ###FILTER###
+            <div class="adm-bar__rechts">
+                ###GELOESCHT###
+                ###FILTER###
+            </div>
         </div>
     </div>
     <div class="app-table-wrap">

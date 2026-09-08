@@ -7,7 +7,15 @@
       ###NEW###        Knopf "Neuer Benutzer" - nur mit dem Recht user.manage
       ###EMAIL###      Spaltenkopf "E-Mail" - nur fuer die Verwaltung
       ###ACTION###     Spaltenkopf "Aktionen" - nur fuer die Verwaltung
+      ###GELOESCHT###  Umschalter "Geloeschte Konten" (App\Helper\AdminView)
       ###USER_ROWS###  Die Zeilen aus list_user_row.html
+
+    GELOESCHTE KONTEN SIND PER VORGABE NICHT DABEI - das war hier schon immer
+    so (User::getAll). Neu ist, dass sie sich EINBLENDEN lassen: Vorher war
+    ein geloeschtes Konto auch fuer den Admin unauffindbar, und auf die Frage
+    "ist das Konto von gestern wirklich weg" gab es keine Antwort. Eingeblendet
+    traegt die Zeile die Marke und bietet weder Anruf noch Nachricht noch
+    Bearbeiten an - an einem geloeschten Konto gibt es nichts mehr zu tun.
 
     SIE IST DER EINE WEG DER VERWALTUNG ZU EINEM KONTO, das keinen Standort
     anbietet: Anruf und Chat von hier aus gehen ohne Standortkennung und sind
@@ -26,7 +34,10 @@
                 <h2 class="adm-panel__title">Benutzer</h2>
                 <p class="adm__sub">Anrufen und schreiben lässt sich, wer gerade online ist.</p>
             </div>
-            <div>###NEW###</div>
+            <div class="adm-bar__rechts">
+                ###GELOESCHT###
+                ###NEW###
+            </div>
         </div>
     </div>
     <div class="app-table-wrap">

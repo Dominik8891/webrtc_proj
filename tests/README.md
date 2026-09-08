@@ -417,7 +417,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (338 Prüfungen)
+## Was `server_test.php` prüft (342 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1523,6 +1523,34 @@ schlägt an, wenn man nur ihren Teil des Fixes zurücknimmt:
   und beide sind kein Absturz: Es gibt eine Datenbank (der Aufruf läuft
   durch) oder es gibt keine (`PdoConnect` meldet das selbst und beendet
   geordnet).
+
+### Gelöschte Konten: ausgeblendet, aber auffindbar
+
+* **Ein Schalter, kein Filterwert.** Beide Controller lesen ihn aus der
+  Adresszeile, nur `"1"` ist ja, und die beiden Angaben **erhalten
+  einander**: Der Schalter trägt den Filter weiter, der Filter den Schalter.
+  Ausgeschaltet wird durch **Weglassen** (`geloescht=` kommt in der Adresse
+  gar nicht mehr vor), und der Zustand steht auch in `aria-pressed`, nicht
+  nur in einer Klasse.
+* **Bei den Bewertungen entscheidet der Guide.** Geprüft wird beides: dass
+  `g.deleted = 0` per Vorgabe filtert **und** dass `k.deleted = 0` es
+  ausdrücklich **nicht** tut — die Bewertung eines gelöschten Kunden steht
+  weiterhin öffentlich beim Guide und gehört weiter moderiert. Die Zeile
+  trägt dann genau **eine** Marke, und der Entfernen-Knopf bleibt.
+* **Die Benutzerliste hatte die Gegenrichtung.** Sie zeigte gelöschte Konten
+  nicht ungefragt — sie zeigte sie nie. Geprüft wird, dass `getAll()` sie
+  per Vorgabe ausblendet, dass der Schalter sie einblendet, dass das über
+  **denselben Baustein** (`User::activeSql()`) geschieht und nicht mit einem
+  zweiten Literal, und dass die Zeile das Kennzeichen an allen vier Stellen
+  auswertet: Aktionen, Status, Anruf, Nachricht.
+* **Die Anfragenliste bekommt bewusst keinen** — geprüft wird, dass weder
+  ihr Controller noch ihre Vorlage einen vorsieht, und dass die drei anderen
+  Vorlagen den Platz dafür freihalten.
+
+Dafür musste die Attrappe mitlernen: `FakeStatement` ist jetzt
+`IteratorAggregate`. `User::getAll()` durchläuft das Statement mit `foreach`
+— ohne diese Zusage lief `foreach` über die **öffentlichen Eigenschaften**
+der Attrappe, und `$row` war der SQL-Text.
 
 ## Grenzen
 

@@ -394,3 +394,68 @@
     flex-wrap: wrap;
     gap: var(--app-space-1);
 }
+
+/* Die rechte Seite der Kopfzeile einer Liste: Umschalter und Filter. Sie
+   duerfen umbrechen - auf einem schmalen Geraet stehen sie untereinander
+   statt aus der Zeile zu laufen. */
+.adm-bar__rechts {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+}
+
+/* Der Umschalter "Geloeschte Konten".
+
+   ER SIEHT AUS WIE EIN KONTROLLKAESTCHEN und ist doch ein Verweis: Der
+   Zustand steht in der Adresse, damit sich eine Ansicht weitergeben und mit
+   dem Zurueck-Knopf verlassen laesst. Ein echtes <input type="checkbox">
+   braeuchte dafuer ein Formular oder ein Skript - und ohne Skript taete es
+   nichts.
+
+   Deshalb das Kaestchen als eigene Flaeche: Ein Verweis, der wie ein Verweis
+   aussieht, saehe nach "noch eine Ansicht" aus, nicht nach "eine Angabe
+   dazuschalten". */
+.adm-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    font-size: var(--app-text-sm);
+    color: var(--app-text-muted);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.adm-toggle:hover { color: var(--app-text); }
+
+.adm-toggle__box {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    border: 1px solid var(--app-border-strong);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface);
+}
+
+.adm-toggle--an { color: var(--app-text); }
+
+/* Der Haken. Als gedrehtes L aus zwei Kanten gezeichnet und nicht als
+   Schriftzeichen: Ein Haken aus der Schrift sitzt in jeder Schriftart
+   woanders. */
+.adm-toggle--an .adm-toggle__box {
+    background: var(--app-accent);
+    border-color: var(--app-accent);
+    position: relative;
+}
+
+.adm-toggle--an .adm-toggle__box::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--app-text-on-accent);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}

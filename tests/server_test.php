@@ -168,8 +168,16 @@ ok('nacktes Array und Objektform werden beide unterstuetzt');
 fwrite(STDERR, "\n4) Loeschen nur der ausgelieferten Signale (F-1)\n");
 
 /** Fängt die abgesetzten Statements ab, statt sie auszuführen. */
-class FakeStatement {
+class FakeStatement implements IteratorAggregate {
     public $sql; public $params = [];
+    /**
+     * Ein PDOStatement laesst sich mit foreach durchlaufen - App\Model\User::
+     * getAll() tut genau das. Ohne diese Zusage liefe foreach ueber die
+     * OEFFENTLICHEN EIGENSCHAFTEN der Attrappe, und $row waere der SQL-Text.
+     * Geliefert wird nichts: Was eine Abfrage zurueckgibt, setzen die
+     * einzelnen Faelle ueber self::$rows.
+     */
+    public function getIterator(): Traversable { return new ArrayIterator(self::$rows); }
     /** Zeilen, die das naechste execute() angeblich getroffen hat. */
     public static $affected = 1;
     public function __construct($sql) { $this->sql = $sql; }
@@ -6649,13 +6657,13 @@ ok('die Listen maskieren jede Fremdeingabe und zeigen, was die Verwaltung brauch
 // nicht: Ein verstellter Wert soll keine Fehlerseite ergeben.
 $locModell = stripPhpNoise(file_get_contents($ROOT . '/class/Model/Location.php'));
 $adminAbfrage = methodenRumpf($locModell, 'selectAllForAdmin');
-check(strpos($adminAbfrage, '$wo[$in_filter] ?? ') !== false,
+check(strpos($adminAbfrage, 'isset($wo[$in_filter])') !== false,
     'der Standortfilter wird in die Abfrage zusammengesetzt statt nachgeschlagen');
 check(strpos($adminAbfrage, 'max(1, min(') !== false,
     'die Zeilengrenze geht ungeprueft in die Abfrage');
 $revModell = stripPhpNoise(file_get_contents($ROOT . '/class/Model/TourReview.php'));
 $revAbfrage = methodenRumpf($revModell, 'allForAdmin');
-check(strpos($revAbfrage, '$wo[$in_filter] ?? ') !== false,
+check(strpos($revAbfrage, 'isset($wo[$in_filter])') !== false,
     'der Bewertungsfilter wird in die Abfrage zusammengesetzt statt nachgeschlagen');
 
 // Die oeffentliche Bewertungsliste holt weiterhin keinen Namen - das ist der
@@ -6942,15 +6950,30 @@ check(strpos($fake->statements[0]->sql, 'deleted = 0') !== false,
     'die Profilseite eines geloeschten Kontos geht wieder auf');
 ok('auch die Dateien verschwinden, nicht nur die Seiten');
 
-// --- Die Verwaltung sieht sie weiterhin - und sagt es --------------------
+// --- Die Verwaltung findet sie - aber erst auf Nachfrage -----------------
 //
-// Sie ist der EINE Ort, an dem die uebriggebliebenen Zeilen sichtbar bleiben
-// muessen. Damit die Zeile dort nicht auf eine Seite verweist, die es nicht
-// mehr gibt, kommt das Kennzeichen mit.
+// Sie ist der EINE Ort, an dem die uebriggebliebenen Zeilen ueberhaupt noch
+// sichtbar sein koennen. Ungefragt stehen sie trotzdem nicht in der Liste:
+// Die Vorgabe blendet sie aus, ein Schalter blendet sie ein - und dann sagt
+// die Zeile mit einer Marke, warum sie auf keine Seite mehr verweist.
 $fake->statements = [];
 $L->selectAllForAdmin('alle');
+check(strpos($fake->statements[0]->sql, 'user.deleted = 0') !== false,
+    'die Verwaltung zeigt geloeschte Konten ungefragt in der Liste');
+$fake->statements = [];
+$L->selectAllForAdmin('alle', 500, true);
 check(strpos($fake->statements[0]->sql, 'user.deleted = 0') === false,
-    'die Verwaltung sieht die Standorte eines geloeschten Kontos nicht mehr');
+    'der Schalter blendet die geloeschten Konten nicht ein');
+// Und er wirft den Filter daneben nicht weg: "gesperrt" und "gehoert einem
+// geloeschten Konto" schliessen sich nicht aus.
+$fake->statements = [];
+$L->selectAllForAdmin('gesperrt', 500, true);
+check(strpos($fake->statements[0]->sql, 'location.blocked = 1') !== false,
+    'der Schalter wirft den Filter daneben weg');
+$fake->statements = [];
+$L->selectAllForAdmin('gesperrt');
+check(strpos($fake->statements[0]->sql, 'location.blocked = 1 AND user.deleted = 0') !== false,
+    'Filter und Schalter wirken nicht zusammen');
 check(strpos($fake->statements[0]->sql, 'user.deleted AS user_deleted') !== false,
     'der Verwaltung fehlt das Kennzeichen');
 
@@ -7351,6 +7374,161 @@ check(strpos($ausgabe, 'DURCHGELAUFEN') !== false
    || strpos($ausgabe, 'Interner Serverfehler') !== false,
     "der Startpfad endet unerwartet:\n$ausgabe");
 ok('der Startpfad scheitert nicht mehr an einer Verbindung, die es noch nicht gibt');
+
+// =====================================================================
+fwrite(STDERR, "\nGeloeschte Konten: ausgeblendet, aber auffindbar\n");
+// =====================================================================
+//
+// DER BEFUND: In der Standortliste der Verwaltung standen die Standorte
+// geloeschter Konten ungefragt mitten in der normalen Ansicht. Sie GEHOEREN
+// dorthin - die Verwaltung ist der eine Ort, an dem sie ueberhaupt noch
+// sichtbar sein koennen -, aber nicht ungefragt.
+//
+// DIE REGEL FUER ALLE DREI LISTEN: per Vorgabe ohne, ein Schalter blendet
+// ein, betroffene Zeilen sind gekennzeichnet.
+
+$fake = new FakeConnection();
+PdoConnect::$connection = $fake;
+
+// --- Ein Schalter, kein Filterwert ---------------------------------------
+//
+// "gesperrt" und "gehoert einem geloeschten Konto" schliessen sich nicht aus.
+// Waere das Geloeschte einer der Filterwerte, liesse sich "gesperrte
+// Standorte geloeschter Konten" gar nicht mehr ansehen - und das ist genau
+// die Liste, die man nach einer Loeschung durchgeht.
+$ctrlQuelle = stripPhpNoise(file_get_contents($ROOT . '/class/Controller/AdminController.php'));
+foreach (['showLocations', 'showReviews'] as $methode) {
+    $rumpf = methodenRumpf($ctrlQuelle, $methode);
+    check(strpos($rumpf, "self::schalter(Request::g('geloescht'))") !== false,
+        "$methode liest den Schalter nicht aus der Adresszeile");
+    check(strpos($rumpf, 'geloeschtSchalterHtml') !== false,
+        "$methode zeigt den Schalter nicht an");
+}
+// Nur "1" ist ja - ein verstellter Wert ergibt die Vorgabe und keine
+// Fehlerseite.
+$schalterRumpf = methodenRumpf($ctrlQuelle, 'schalter');
+check(strpos($schalterRumpf, "=== '1'") !== false,
+    'ein beliebiger Wert in der Adresse blendet die geloeschten Konten ein');
+
+// Der Schalter erhaelt den Filter, und der Filter erhaelt den Schalter -
+// sonst faellt man beim ersten Klick auf die Vorgabe zurueck.
+$sessionVorher4 = $_SESSION ?? [];
+$_SESSION = ['auth_scheme' => App\Helper\Auth::SESSION_SCHEME,
+             'user' => ['user_id' => 1, 'username' => 'chef', 'role_id' => Role::ADMIN]];
+
+$schalterAus = App\Helper\AdminView::geloeschtSchalterHtml(
+    'admin_locations', ['filter' => 'gesperrt'], false);
+check(strpos($schalterAus, 'filter=gesperrt') !== false,
+    'der Schalter wirft den Filter daneben weg');
+check(strpos($schalterAus, 'geloescht=1') !== false,
+    'der ausgeschaltete Schalter blendet nicht ein');
+check(strpos($schalterAus, 'aria-pressed="false"') !== false,
+    'der Zustand des Schalters steht nur in einer Klasse');
+
+$schalterAn = App\Helper\AdminView::geloeschtSchalterHtml(
+    'admin_locations', ['filter' => 'gesperrt'], true);
+// AUSGESCHALTET WIRD DURCH WEGLASSEN und nicht durch "geloescht=0": Die
+// Vorgabe soll die kurze Adresse sein.
+check(strpos($schalterAn, 'geloescht=') === false,
+    'der eingeschaltete Schalter fuehrt nicht zurueck in die Vorgabe');
+check(strpos($schalterAn, 'aria-pressed="true"') !== false,
+    'der eingeschaltete Schalter sagt es Vorleseprogrammen nicht');
+$_SESSION = $sessionVorher4;
+ok('ein Schalter neben dem Filter, nicht in ihm - und beide erhalten einander');
+
+// --- Die Bewertungsliste: nach dem GUIDE, nicht nach dem Kunden ----------
+//
+// Ist das Konto des GUIDES geloescht, steht die Bewertung nirgends mehr -
+// seine Standorte und sein Profil sind weg. Sie zu entfernen aendert nichts.
+// Ist das Konto des KUNDEN geloescht, steht sie WEITERHIN oeffentlich beim
+// Guide: Sie ist eine Auskunft ueber ihn und traegt keinen Namen. Sie muss
+// also moderierbar bleiben.
+$fake->statements = [];
+TourReview::allForAdmin('alle');
+check(strpos($fake->statements[0]->sql, 'g.deleted = 0') !== false,
+    'die Bewertungsliste zeigt Bewertungen geloeschter Guides ungefragt');
+check(strpos($fake->statements[0]->sql, 'k.deleted = 0') === false,
+    'die Bewertungsliste blendet aus, was noch oeffentlich steht - '
+    . 'die Bewertung eines geloeschten KUNDEN gehoert weiter moderiert');
+$fake->statements = [];
+TourReview::allForAdmin('schwach', 200, true);
+check(strpos($fake->statements[0]->sql, 'g.deleted = 0') === false,
+    'der Schalter blendet die geloeschten Guides nicht ein');
+check(strpos($fake->statements[0]->sql, 'v.stars <=') !== false,
+    'der Schalter wirft den Filter daneben weg');
+// Beide Kennzeichen kommen immer mit.
+check(strpos($fake->statements[0]->sql, 'g.deleted AS guide_deleted') !== false
+   && strpos($fake->statements[0]->sql, 'k.deleted AS customer_deleted') !== false,
+    'der Bewertungsliste fehlt eines der beiden Kennzeichen');
+
+$bewertungGeloescht = App\Helper\AdminView::bewertungsZeilenHtml([[
+    'id' => 8, 'stars' => 2, 'body' => 'Text', 'created_at' => '2026-02-03 14:12:00',
+    'removed_at' => null, 'location_id' => 5, 'title' => 'Alfama',
+    'guide_username' => 'anna', 'customer_username' => 'kunde1',
+    'guide_deleted' => 0, 'customer_deleted' => 1,
+]]);
+check(substr_count($bewertungGeloescht, 'Konto gelöscht') === 1,
+    'der geloeschte Kunde ist nicht gekennzeichnet - oder der Guide faelschlich mit');
+// Und die Bewertung bleibt entfernbar: Sie steht ja weiterhin oeffentlich.
+check(strpos($bewertungGeloescht, 'adm-review-remove') !== false,
+    'eine Bewertung mit geloeschtem Kunden laesst sich nicht mehr entfernen');
+ok('bei den Bewertungen entscheidet der Guide ueber das Ausblenden, der Kunde ueber die Marke');
+
+// --- Die Benutzerliste: hier fehlte die Gegenrichtung --------------------
+//
+// Sie zeigte geloeschte Konten nicht ungefragt - sie zeigte sie NIE.
+// User::getAll() filterte sie fest heraus, und damit war ein geloeschtes
+// Konto auch fuer den Admin unauffindbar. Auf die Frage "ist das Konto von
+// gestern wirklich weg" gab es keine Antwort.
+$fake->statements = [];
+$u = new User();
+$u->getAll();
+check(strpos($fake->statements[0]->sql, 'user.deleted = 0') !== false,
+    'die Benutzerliste zeigt geloeschte Konten ungefragt');
+$fake->statements = [];
+$u->getAll(true);
+check(strpos($fake->statements[0]->sql, 'deleted') === false,
+    'der Schalter blendet die geloeschten Konten nicht ein');
+// Ueber DENSELBEN Baustein wie ueberall - nicht mit einem eigenen Literal.
+check(strpos(methodenRumpf(stripPhpNoise(file_get_contents($ROOT . '/class/Model/User.php')),
+    'getAll'), 'self::activeSql') !== false,
+    'die Benutzerliste schreibt das Kennzeichen ein zweites Mal aus');
+
+$userCode = stripPhpNoise(file_get_contents($ROOT . '/class/Controller/UserController.php'));
+$listeRumpf2 = methodenRumpf($userCode, 'listUser');
+check(strpos($listeRumpf2, "Request::g('geloescht') === '1'") !== false,
+    'die Benutzerliste liest den Schalter nicht aus der Adresszeile');
+check(strpos($listeRumpf2, 'geloeschtSchalterHtml') !== false,
+    'die Benutzerliste zeigt den Schalter nicht an');
+// AN EINEM GELOESCHTEN KONTO GIBT ES NICHTS MEHR ZU TUN: kein Anruf, keine
+// Nachricht, kein Bearbeiten, kein zweites Loeschen.
+$zeilenRumpf = methodenRumpf($userCode, 'generateUserRows');
+check(strpos($zeilenRumpf, '$tmp_user->isGeloescht()') !== false,
+    'die Zeile fragt das Kennzeichen nicht ab');
+check(substr_count($zeilenRumpf, '$ist_geloescht') >= 4,
+    'die Zeile wertet das Kennzeichen nicht an allen Stellen aus '
+    . '(Aktionen, Status, Anruf, Nachricht)');
+ok('die Benutzerliste blendet geloeschte Konten ein statt sie zu verschweigen');
+
+// --- Die Anfragenliste bekommt bewusst keinen ----------------------------
+//
+// Ihre Vorraete sind Vorgaenge zwischen zwei Konten, und der Weg zum
+// Abarbeiten fuehrt ueber ein Gespraech mit dem Guide - mit einem geloeschten
+// Konto gibt es keines. Was dort stehenbliebe, waere eine Aufgabe, die
+// niemand mehr erledigen kann.
+$anfragenRumpf = methodenRumpf($ctrlQuelle, 'showRequests');
+check(strpos($anfragenRumpf, 'geloeschtSchalterHtml') === false,
+    'die Anfragenliste bekommt einen Schalter, den sie nicht braucht');
+check(strpos(file_get_contents($ROOT . '/assets/html/admin_requests.html'), '###GELOESCHT###') === false,
+    'die Anfragenvorlage haelt einen Platz fuer den Schalter frei');
+// Die drei anderen halten ihn frei - sonst bliebe der Platzhalter im
+// Dokument stehen.
+foreach (['admin_locations', 'admin_reviews', 'list_user'] as $vorlage) {
+    check(strpos(file_get_contents($ROOT . "/assets/html/$vorlage.html"), '###GELOESCHT###') !== false,
+        "der Vorlage $vorlage fehlt der Platz fuer den Schalter");
+}
+ok('drei Listen mit Schalter, eine ohne - und jede Vorlage haelt genau den Platz frei, den sie braucht');
+
 
 
 

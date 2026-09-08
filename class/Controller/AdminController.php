@@ -94,6 +94,11 @@ class AdminController
         $zeilen = TourRequest::allForAdmin($filter, self::ZEILEN_MAX);
 
         $out = ViewHelper::template('assets/html/admin_requests.html');
+        // KEIN SCHALTER FUER GELOESCHTE KONTEN. Die Vorraete dieser Seite sind
+        // Vorgaenge zwischen zwei Konten, und der Weg zum Abarbeiten fuehrt
+        // ueber ein Gespraech mit dem Guide - mit einem geloeschten Konto gibt
+        // es keines. Was hier stehenbliebe, waere eine Aufgabe, die niemand
+        // mehr erledigen kann.
         $out = str_replace('###FILTER###', self::filterHtml('admin_requests', $filter, [
             'haengend'      => 'Hängende Führungen',
             'unbeantwortet' => 'Ohne Antwort',
@@ -124,15 +129,18 @@ class AdminController
      */
     public function showLocations(): void
     {
-        $filter = self::filter(Request::g('filter'), ['alle', 'gesperrt', 'unvollstaendig']);
-        $zeilen = (new Location())->selectAllForAdmin($filter, self::ZEILEN_MAX);
+        $filter    = self::filter(Request::g('filter'), ['alle', 'gesperrt', 'unvollstaendig']);
+        $geloescht = self::schalter(Request::g('geloescht'));
+        $zeilen    = (new Location())->selectAllForAdmin($filter, self::ZEILEN_MAX, $geloescht);
 
         $out = ViewHelper::template('assets/html/admin_locations.html');
         $out = str_replace('###FILTER###', self::filterHtml('admin_locations', $filter, [
             'alle'           => 'Alle',
             'gesperrt'       => 'Gesperrte',
             'unvollstaendig' => 'Unvollständige',
-        ]), $out);
+        ], $geloescht), $out);
+        $out = str_replace('###GELOESCHT###', AdminView::geloeschtSchalterHtml(
+            'admin_locations', ['filter' => $filter], $geloescht), $out);
         $out = str_replace('###COUNT###', (string)count($zeilen), $out);
         $out = str_replace('###ROWS###',  AdminView::standortZeilenHtml($zeilen), $out);
 
@@ -151,8 +159,9 @@ class AdminController
      */
     public function showReviews(): void
     {
-        $filter = self::filter(Request::g('filter'), ['alle', 'sichtbar', 'schwach', 'entfernt']);
-        $zeilen = TourReview::allForAdmin($filter, self::ZEILEN_MAX);
+        $filter    = self::filter(Request::g('filter'), ['alle', 'sichtbar', 'schwach', 'entfernt']);
+        $geloescht = self::schalter(Request::g('geloescht'));
+        $zeilen    = TourReview::allForAdmin($filter, self::ZEILEN_MAX, $geloescht);
 
         $out = ViewHelper::template('assets/html/admin_reviews.html');
         $out = str_replace('###FILTER###', self::filterHtml('admin_reviews', $filter, [
@@ -160,7 +169,9 @@ class AdminController
             'sichtbar' => 'Sichtbar',
             'schwach'  => '1–2 Sterne',
             'entfernt' => 'Entfernt',
-        ]), $out);
+        ], $geloescht), $out);
+        $out = str_replace('###GELOESCHT###', AdminView::geloeschtSchalterHtml(
+            'admin_reviews', ['filter' => $filter], $geloescht), $out);
         $out = str_replace('###COUNT###', (string)count($zeilen), $out);
         $out = str_replace('###ROWS###',  AdminView::bewertungsZeilenHtml($zeilen), $out);
 
@@ -199,17 +210,40 @@ class AdminController
      * @param array<string,string>  $in_auswahl Filterwert => Beschriftung
      * @return string HTML
      */
-    private static function filterHtml(string $in_route, string $in_aktiv, array $in_auswahl): string
+    private static function filterHtml(string $in_route, string $in_aktiv, array $in_auswahl,
+                                       bool $in_geloescht = false): string
     {
+        // DER SCHALTER DANEBEN BLEIBT STEHEN, wenn der Filter wechselt. Ohne
+        // das haette man beim ersten Filterklick wieder die Vorgabe - und
+        // saehe genau die Zeilen nicht mehr, wegen derer man ihn eingeschaltet
+        // hat.
+        $zusatz = $in_geloescht ? '&geloescht=1' : '';
+
         $html = '';
         foreach ($in_auswahl as $wert => $titel) {
             $html .= ($wert === $in_aktiv)
                 ? '<span class="app-switch__item" aria-current="true">'
                   . ViewHelper::esc($titel) . '</span>'
                 : '<a class="app-switch__item" href="index.php?act=' . $in_route
-                  . '&filter=' . rawurlencode($wert) . '">' . ViewHelper::esc($titel) . '</a>';
+                  . '&filter=' . rawurlencode($wert) . $zusatz . '">'
+                  . ViewHelper::esc($titel) . '</a>';
         }
 
         return '<div class="app-switch" role="group" aria-label="Filter">' . $html . '</div>';
+    }
+
+    /**
+     * Ein Ja/Nein aus der Adresszeile.
+     *
+     * NUR "1" IST JA. Alles andere - fehlt, leer, "true", "0", irgendetwas -
+     * ist nein. Dieselbe Haltung wie bei filter(): Ein verstellter Wert in
+     * der Adresse ergibt die Vorgabe und keine Fehlerseite.
+     *
+     * @param mixed $in_wert
+     * @return bool
+     */
+    private static function schalter($in_wert): bool
+    {
+        return is_string($in_wert) && $in_wert === '1';
     }
 }

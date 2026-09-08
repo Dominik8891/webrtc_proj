@@ -576,23 +576,48 @@ class TourReview
      * DIE LETZTEN ZUERST, wie in den oeffentlichen Listen: Eine Auswahl waere
      * eine Meinung, und die Moderation faengt bei dem an, was neu ist.
      *
-     * @param string $in_filter 'alle', 'sichtbar', 'entfernt' oder 'schwach'
-     *                          ('schwach' = ein oder zwei Sterne, sichtbar -
-     *                          die Zeilen, wegen derer sich jemand meldet)
-     * @param int    $in_limit  Obergrenze der Zeilen
+     * @param string $in_filter          'alle', 'sichtbar', 'entfernt' oder
+     *                                    'schwach' ('schwach' = ein oder zwei
+     *                                    Sterne, sichtbar - die Zeilen, wegen
+     *                                    derer sich jemand meldet)
+     * @param int    $in_limit            Obergrenze der Zeilen
+     * @param bool   $in_mit_geloeschten  Bewertungen zu geloeschten GUIDES
+     *                                    mitliefern (siehe unten, warum nur
+     *                                    der Guide zaehlt)
      * @return array<int,array<string,mixed>>
      */
-    public static function allForAdmin(string $in_filter = 'alle', int $in_limit = 200): array
+    public static function allForAdmin(string $in_filter = 'alle', int $in_limit = 200,
+                                       bool $in_mit_geloeschten = false): array
     {
-        // Ein Textbaustein in einer Abfrage wird geprueft und nicht
+        // Ein Textbaustein in einer Abfrage wird nachgeschlagen und nicht
         // zusammengesetzt - der Filter kommt aus der Adresszeile.
         $schwach = (int)self::STARS_MIN + 1;
         $wo = [
-            'sichtbar' => 'WHERE v.' . self::SICHTBAR,
-            'entfernt' => 'WHERE v.removed_at IS NOT NULL',
-            'schwach'  => 'WHERE v.' . self::SICHTBAR . " AND v.stars <= $schwach",
+            'sichtbar' => 'v.' . self::SICHTBAR,
+            'entfernt' => 'v.removed_at IS NOT NULL',
+            'schwach'  => 'v.' . self::SICHTBAR . " AND v.stars <= $schwach",
         ];
-        $where = $wo[$in_filter] ?? '';
+
+        $bedingungen = [];
+        if (isset($wo[$in_filter])) $bedingungen[] = $wo[$in_filter];
+
+        // AUSGEBLENDET WIRD NACH DEM GUIDE, nicht nach dem Kunden - und das
+        // ist keine Willkuer, sondern folgt daraus, was Moderation hier
+        // ueberhaupt bewirkt:
+        //
+        //   Ist das Konto des GUIDES geloescht, sind seine Standorte und sein
+        //   Profil verschwunden (App\Model\User::activeSql). Die Bewertung
+        //   ist damit nirgends mehr zu lesen - sie zu entfernen aendert
+        //   nichts, und sie gehoert nicht in die Arbeitsliste.
+        //
+        //   Ist das Konto des KUNDEN geloescht, steht die Bewertung
+        //   WEITERHIN oeffentlich auf der Standortseite und auf dem Profil
+        //   des Guides: Sie ist eine Auskunft ueber IHN, und sie traegt
+        //   keinen Namen. Sie muss also moderierbar bleiben - und wird
+        //   deshalb nie ausgeblendet, nur gekennzeichnet.
+        if (!$in_mit_geloeschten) $bedingungen[] = User::activeSql('g');
+
+        $where = $bedingungen === [] ? '' : 'WHERE ' . implode(' AND ', $bedingungen);
         // LIMIT vertraegt in MySQL keinen gebundenen Parameter, solange PDO
         // nicht emuliert.
         $limit = max(1, min(1000, $in_limit));
@@ -603,7 +628,15 @@ class TourReview
                              v.location_id, v.guide_user_id, v.customer_user_id,
                              l.title,
                              g.username AS guide_username,
-                             k.username AS customer_username
+                             k.username AS customer_username,
+                             -- BEIDE KENNZEICHEN, immer mitgeliefert: Der
+                             -- Guide, weil seine Zeilen nur eingeblendet
+                             -- sagen muessen, warum sie nirgends mehr stehen;
+                             -- der Kunde, weil seine Bewertung sichtbar
+                             -- bleibt und der Name daneben zu einem Konto
+                             -- gehoert, das es nicht mehr gibt.
+                             g.deleted AS guide_deleted,
+                             k.deleted AS customer_deleted
                         FROM tour_review v
                         LEFT JOIN location l ON l.id = v.location_id
                         LEFT JOIN user     g ON g.id = v.guide_user_id

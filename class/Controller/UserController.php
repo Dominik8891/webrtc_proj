@@ -146,12 +146,25 @@ class UserController
             $new    = '<a href="index.php?act=manage_user" class="btn btn-primary btn-sm">Neuer Benutzer</a>';
         }
 
-        $all_user_ids = $user->getAll();
-        $all_rows = $this->generateUserRows($user, $all_user_ids);
+        // GELOESCHTE KONTEN: derselbe Schalter wie in der Standort- und der
+        // Bewertungsliste (App\Helper\AdminView::geloeschtSchalterHtml), und
+        // hier war der Mangel groesser als dort. Die anderen beiden zeigten
+        // geloeschte Zeilen ungefragt; DIESE Liste zeigte sie ueberhaupt nie -
+        // ein geloeschtes Konto war auch fuer den Admin unauffindbar. Auf die
+        // Frage "ist das Konto von gestern wirklich weg" gab es damit keine
+        // Antwort.
+        //
+        // Nur "1" ist ja; alles andere ist die Vorgabe. Der Wert kommt aus der
+        // Adresszeile.
+        $geloescht    = Request::g('geloescht') === '1';
+        $all_user_ids = $user->getAll($geloescht);
+        $all_rows     = $this->generateUserRows($user, $all_user_ids);
 
         $out = str_replace("###EMAIL###"     , $email    , $table_html  );
         $out = str_replace("###ACTION###"    , $action   , $out         );
         $out = str_replace("###NEW###"       , $new      , $out         );
+        $out = str_replace("###GELOESCHT###" ,
+            AdminView::geloeschtSchalterHtml('list_user', [], $geloescht), $out);
         $out = str_replace("###USER_ROWS###" , $all_rows , $out         );
         ViewHelper::output(AdminView::page($out, 'benutzer'));
     }
@@ -411,6 +424,9 @@ class UserController
 
             $tmp_user      = new User($one_user_id);
             $tmp_user_name = $tmp_user->getUsername();
+            // Das Kennzeichen steht in der Zeile, die der Konstruktor ohnehin
+            // geladen hat - keine zweite Abfrage je Zeile.
+            $ist_geloescht = $tmp_user->isGeloescht();
             $action  = "";
             $email   = "";
             // Nebenaktion, also Symbol statt Text. aria-label und title sind
@@ -430,7 +446,13 @@ class UserController
             // E-Mail-Platzhalter: Wer die Liste ohne Verwaltungsrecht ansah,
             // bekam eine leere Zelle mehr als der Kopf Spalten hatte.
             if (Auth::can(Permission::USER_MANAGE)) {
-                $action = $this->getAction($tmp_user);
+                // AN EINEM GELOESCHTEN KONTO GIBT ES NICHTS MEHR ZU TUN.
+                // Bearbeiten waere ein Formular fuer ein Konto, das nirgends
+                // mehr wirkt, und Loeschen waere ein zweites Mal dasselbe -
+                // die Zelle bleibt deshalb leer, aber sie bleibt.
+                $action = $ist_geloescht
+                        ? '<td><span class="adm-none">–</span></td>'
+                        : $this->getAction($tmp_user);
                 $email  = '<td class="user_table_desktop">'
                         . htmlspecialchars($tmp_user->getEmail()) . '</td>';
             }
@@ -441,8 +463,18 @@ class UserController
             $tmp_status = $tmp_user->getUserStatus($tmp_user->getId());
             $tmp_bereit = User::isAvailable($tmp_user->getId());
 
-            $status   = $this->stateHtml($tmp_status, $tmp_bereit);
-            $call_btn = $this->createCallBtn($tmp_user->getId(), $tmp_status);
+            // EIN GELOESCHTES KONTO IST NICHT ERREICHBAR - weder anrufen
+            // noch anschreiben laesst es sich (App\Controller\
+            // WebRTCController::callRoles und ChatController weisen beides
+            // ab). Die Zeile bietet es deshalb gar nicht erst an; sie zeigt
+            // stattdessen, warum.
+            $status   = $ist_geloescht
+                      ? '<span class="app-tag app-tag--danger">Konto gelöscht</span>'
+                      : $this->stateHtml($tmp_status, $tmp_bereit);
+            $call_btn = $ist_geloescht
+                      ? '<span class="adm-none">–</span>'
+                      : $this->createCallBtn($tmp_user->getId(), $tmp_status);
+            if ($ist_geloescht) $message = '<span class="adm-none">–</span>';
 
             $tmp_row = str_replace("###STATUS###"   , $status                                    , $row_html);
             $tmp_row = str_replace("###CALL###"     , $call_btn                                  , $tmp_row);
