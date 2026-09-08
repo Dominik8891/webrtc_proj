@@ -1,6 +1,8 @@
 <?php
 namespace App\Helper;
 
+use App\Model\GuideProfile;
+
 /**
  * Die Standortseite als HTML - und sonst nichts.
  *
@@ -39,8 +41,9 @@ class LocationView
      * @param array<string,mixed>            $in_ansicht Was der Controller entschieden hat:
      *        'eigen'       bool   Gehoert der Standort dem Aufrufer?
      *        'angemeldet'  bool   Ist ueberhaupt jemand angemeldet?
-     *        'viewer_id'   ?int   Wer darf angerufen werden - null fuer Gast
-     *                             und fuer den Eigentuemer selbst
+     *        'viewer_id'   ?int   Wer darf angerufen und angeschrieben werden -
+     *                             null fuer Gast und fuer den Eigentuemer
+     *                             selbst
      *        'fehler'      string Meldung nach einer abgelehnten Aenderung
      *        'gespeichert' bool   Meldung nach einer erfolgreichen
      *        'grenzen'     array  Obergrenzen fuer das Bearbeitungsformular;
@@ -115,6 +118,9 @@ class LocationView
                                        !empty($in_ansicht['angemeldet']),
                                        $in_ansicht['viewer_id'] ?? null,
                                        $in_ansicht['anfrage'] ?? null),
+            '###ASK###'         => self::frageHtml($in_daten, $eigen,
+                                       !empty($in_ansicht['angemeldet']),
+                                       $in_ansicht['viewer_id'] ?? null),
             '###HOURS###'       => self::zeitenHtml($in_daten, $eigen),
             '###OWNER_TOOLS###' => $eigen
                                        ? self::bearbeitenHtml($in_daten, $cover, $gallery,
@@ -639,6 +645,70 @@ class LocationView
         }
 
         return self::anfrageFormularHtml($in_daten);
+    }
+
+    /**
+     * Der Weg zur RUECKFRAGE: der Knopf, der das Chatfenster mit dem Guide
+     * oeffnet.
+     *
+     * WOZU ER DA IST
+     * --------------
+     * Weil vor einer Fuehrung Fragen entstehen, die kein Formular vorwegnimmt:
+     * "Wo genau treffen wir uns?", "Ginge auch Samstag frueh?", "Ist das mit
+     * einem Kinderwagen machbar?". Bisher gab es dafuer keinen Weg - der Chat
+     * hing an der Benutzerliste, und die sieht nur der Admin. Ein Kunde kam
+     * also gar nicht an seinen Guide heran.
+     *
+     * UND ER IST ZUGLEICH DIE EINSCHRAENKUNG (Befund N-12). Der Knopf traegt
+     * die STANDORTKENNUNG und keine Kontokennung: Wen der Kunde anschreibt,
+     * entscheidet der Server anhand des Standorts
+     * (App\Controller\ChatController::startChat). Damit gibt es keinen
+     * Parameter mehr, mit dem sich ein beliebiges Konto anschreiben liesse.
+     *
+     * WER IHN NICHT BEKOMMT, und warum:
+     *
+     *   Der EIGENTUEMER - sich selbst schreibt niemand an. Was an seinem
+     *   Standort ansteht, sieht er im Zaehler der Kopfleiste.
+     *
+     *   Ein GESPERRTER Standort - von hier aus beginnt nichts mehr, auch kein
+     *   Gespraech. Dieselbe Regel wie im Aktionsbereich darueber, und
+     *   Location::guideIdOf() haelt sie serverseitig noch einmal.
+     *
+     *   Ein GAST - ihm fehlt die Kennung des Guides, weil der Controller sie
+     *   nicht herausgibt, und ein Chat setzt zwei Konten voraus. Er bekommt
+     *   auch keinen zweiten Anmeldehinweis: Der steht bereits im
+     *   Aktionsbereich unmittelbar darueber, und zweimal derselbe Satz
+     *   untereinander liest sich wie ein Fehler.
+     *
+     * DER ANZEIGENAME DES GUIDES HAENGT AM KNOPF, damit das Fenster ihn schon
+     * traegt, bevor die Antwort des Servers da ist. Verbindlich ist der Name
+     * aus der Antwort; dieser hier ist nur die erste Beschriftung.
+     *
+     * @param array<string,mixed> $in_daten
+     * @param bool                $in_eigen
+     * @param bool                $in_angemeldet
+     * @param int|null            $in_ziel_user_id
+     * @return string HTML
+     */
+    public static function frageHtml(array $in_daten, bool $in_eigen,
+                                     bool $in_angemeldet, $in_ziel_user_id = null): string
+    {
+        if ($in_eigen)                        return '';
+        if ((int)$in_daten['blocked'] === 1)  return '';
+        if (!$in_angemeldet)                  return '';
+        if ((int)$in_ziel_user_id < 1)        return '';
+
+        $name = GuideProfile::nameAus($in_daten);
+
+        return '<div class="loc-ask">'
+             .   '<button type="button" class="btn btn-secondary loc-ask__btn start-location-chat-btn"'
+             .     ' data-locationid="' . (int)$in_daten['id'] . '"'
+             .     ' data-guidename="' . self::esc($name) . '">'
+             .     'Frage an den Guide'
+             .   '</button>'
+             .   '<p class="loc-ask__note">Rückfragen zum Ort oder zu möglichen '
+             .   'Zeiten – der Guide antwortet Ihnen im Chat.</p>'
+             . '</div>';
     }
 
     /**

@@ -1,6 +1,7 @@
 <?php
 namespace App\Helper;
 
+use App\Model\Chat;
 use App\Model\GuideRole;
 use App\Model\TourRequest;
 use App\Model\TourReview;
@@ -158,8 +159,10 @@ class ViewHelper
      * Der Weg ins Gespraech fuehrt jetzt ausschliesslich ueber einen Standort
      * auf der Karte.
      *
-     * Ein bestehender Chat geht dadurch nicht verloren: Eine Einladung oeffnet
-     * sich weiterhin von selbst als Fenster (assets/js/ui_chat.js).
+     * Die Chatuebersicht ist trotzdem erreichbar - ueber den
+     * Nachrichtenzaehler in der Leiste daneben (chatBadge). Das ist der
+     * Unterschied zu einem Menueeintrag: Er steht nicht als Angebot da,
+     * sondern faerbt sich, wenn dort etwas wartet.
      *
      * Die Benutzerliste bleibt fuer den Admin stehen - er verwaltet darueber
      * Konten und braucht den Einstieg. Entschieden wird das ueber das Recht
@@ -279,6 +282,64 @@ class ViewHelper
     }
 
     /**
+     * Baut den Nachrichtenzaehler der Kopfleiste.
+     *
+     * WARUM ES IHN GIBT
+     * -----------------
+     * Weil eine Nachricht sonst nicht ankommt. Ein Guide sah bisher nur dann,
+     * dass jemand geschrieben hat, wenn zufaellig gerade ein Chatfenster
+     * offen war - die Fenster baut assets/js/ui_chat.js, und wer die Seite
+     * gewechselt oder den Tab im Hintergrund liegen hatte, erfuhr nichts. Fuer
+     * "ich bekomme Rueckfragen zu meinen Standorten" ist das zu wenig.
+     *
+     * DIESELBE UEBERLEGUNG WIE BEIM ANFRAGENZAEHLER DANEBEN, mit dem er die
+     * Zeile teilt: Was auf jemanden wartet, muss an einer Stelle wieder
+     * auftauchen, die er im Alltag ohnehin ansteuert - und das ist die
+     * Kopfleiste, denn sie steht auf jeder Seite.
+     *
+     * EINE ZAHL, EINE BEDEUTUNG: ungelesene Nachrichten ueber alle nicht
+     * beendeten Chats. Sie zaehlt NACHRICHTEN und nicht Gespraeche - "drei
+     * ungelesene" sagt mehr als "in einem Chat wartet etwas". Beim
+     * Anfragenzaehler sind es drei Zahlen, weil dort drei verschiedene Dinge
+     * warten; hier gibt es nur eines.
+     *
+     * ER FUEHRT AUF DIE CHATUEBERSICHT und nicht in ein Fenster: Ein Klick
+     * soll auch dann etwas zeigen, wenn das Popup gerade nicht offen ist.
+     *
+     * SERVERSEITIG MIT SEINEM STAND AUSGELIEFERT, wie die beiden Elemente
+     * daneben: Wer die Seite ohne Skript oeffnet, sieht trotzdem, dass etwas
+     * ansteht - nur nachgezogen wird die Zahl dann nicht (assets/js/
+     * chat_badge.js holt sie sich aus der Antwort des Heartbeats).
+     *
+     * FUER JEDES ANGEMELDETE KONTO mit dem Recht chat.list, nicht nur fuer
+     * Guides: Der Kunde bekommt die Antwort auf seine Frage, und die soll er
+     * genauso wenig verpassen.
+     *
+     * @param array{unread:int} $zahlen
+     * @return string HTML
+     */
+    private static function chatBadge(array $zahlen): string
+    {
+        $ungelesen = max(0, (int)($zahlen['unread'] ?? 0));
+
+        // Der Titel sagt, WAS wartet - die Zahl allein sagt es nicht. Er wird
+        // im Browser mit derselben Regel neu gebaut (chat_badge.js), damit an
+        // beiden Stellen dasselbe steht.
+        $titel = $ungelesen > 0
+            ? $ungelesen . ' ungelesene Nachricht(en)'
+            : 'Ihre Nachrichten';
+
+        return '<a class="app-chats' . ($ungelesen > 0 ? ' app-chats--on' : '') . '"'
+             . ' id="chats-badge" href="index.php?act=get_all_chats"'
+             . ' data-unread="' . $ungelesen . '"'
+             . ' title="' . htmlspecialchars($titel) . '">'
+             .   '<span class="app-chats__text">Nachrichten</span>'
+             .   '<span class="app-chats__count" id="chats-count"'
+             .     ($ungelesen > 0 ? '' : ' hidden') . '>' . $ungelesen . '</span>'
+             . '</a>';
+    }
+
+    /**
      * Baut den Bereitschaftsschalter der Kopfleiste.
      *
      * WARUM IN DER KOPFLEISTE UND NICHT AUF DER KONTOSEITE
@@ -362,6 +423,9 @@ class ViewHelper
         // Der Anfragenzaehler. Fuer Gaeste leer: Wer nicht angemeldet ist, hat
         // keine Anfragen - weder gestellte noch erhaltene.
         $requests  = "";
+        // Der Nachrichtenzaehler. Aus demselben Grund fuer Gaeste leer: Ein
+        // Chat setzt zwei Konten voraus.
+        $chats     = "";
 
         // Das Farbprofil des ANGEMELDETEN Kontos - fuer Gaeste bleibt es
         // null. Das ist der Unterschied, den das Boot-Skript braucht:
@@ -460,6 +524,21 @@ class ViewHelper
                     . json_encode($zahlen) . ';</script>';
             }
 
+            // DER NACHRICHTENZAEHLER - ebenfalls fuer jedes angemeldete
+            // Konto. Gefragt wird chat.list und nicht location.offer: Der
+            // Kunde bekommt die Antwort auf seine Frage, und die soll er
+            // genauso wenig verpassen wie der Guide die Frage.
+            if (Auth::can(Permission::CHAT_LIST)) {
+                $chatZahlen = Chat::counters(Auth::userId());
+                $chats      = self::chatBadge($chatZahlen);
+
+                // Der Startwert geht mit, aus demselben Grund wie beim
+                // Anfragenzaehler: Sonst muesste das Skript beim Seitenaufbau
+                // erst einmal fragen, was der Server gerade ausgeliefert hat.
+                $user_id_script .= '<script>window.chatCounts = '
+                    . json_encode($chatZahlen) . ';</script>';
+            }
+
             // DIE SKALA DER BEWERTUNG geht mit ins Frontend.
             //
             // WARUM: Das Bewertungsformular baut der Browser
@@ -552,6 +631,7 @@ class ViewHelper
         $out = str_replace("###REGISTER###"            , $sign             , $out);
         $out = str_replace("###AVAILABILITY###"        , $ready            , $out);
         $out = str_replace("###REQUESTS###"            , $requests         , $out);
+        $out = str_replace("###CHATS###"               , $chats            , $out);
         // Das Farbprofil. Zwei Stellen, und beide sind noetig:
         //
         //   ###THEME###      das Attribut am <html>-Element. Angemeldet steht

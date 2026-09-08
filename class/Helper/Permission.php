@@ -316,11 +316,32 @@ class Permission
      */
     public const REVIEW_REMOVE = 'review.remove';
 
-    /** Chat mit einem anderen Nutzer beginnen. */
+    /**
+     * Einen Chat mit dem Guide EINES STANDORTS beginnen.
+     *
+     * Das Recht sagt "darf ueberhaupt schreiben"; WEN jemand anschreibt, sagt
+     * es nicht - das kann keine Rechtetabelle wissen. Es sagt der Standort:
+     * Die Route nimmt eine Standortkennung entgegen und holt sich den Guide
+     * dazu (App\Controller\ChatController::startChat). Vorher nahm sie eine
+     * beliebige Kontokennung - wer die Route kannte, konnte jedem Konto der
+     * Plattform schreiben (Befund N-12).
+     */
     public const CHAT_START = 'chat.start';
-    /** Einladung annehmen oder ablehnen. */
-    public const CHAT_ANSWER = 'chat.answer';
-    /** Eigene Chats und Einladungen auflisten. */
+
+    /**
+     * Einen Chat mit einem BELIEBIGEN Konto beginnen - der Direktzugang.
+     *
+     * NUR DIE VERWALTUNG, und darin liegt der Unterschied zu chat.start: Der
+     * Admin ist der einzige, der die Benutzerliste sieht (user.list), und er
+     * muss auch ein Konto erreichen koennen, das keinen Standort anbietet.
+     *
+     * Ein Guide hat es NICHT. Er bekommt seine Rueckfragen ueber seine
+     * Standorte; von sich aus ein fremdes Konto anzuschreiben ist genau das,
+     * was mit Befund N-12 verschwinden sollte.
+     */
+    public const CHAT_START_DIRECT = 'chat.start_direct';
+
+    /** Eigene Chats auflisten. */
     public const CHAT_LIST = 'chat.list';
     /** Nachrichten eines Chats lesen, an dem man beteiligt ist. */
     public const CHAT_READ = 'chat.read';
@@ -421,7 +442,6 @@ class Permission
             // angefragt und erlebt hat, darf sagen, wie sie war.
             self::REVIEW_CREATE,
             self::CHAT_START,
-            self::CHAT_ANSWER,
             self::CHAT_LIST,
             self::CHAT_READ,
             self::CHAT_WRITE,
@@ -464,7 +484,6 @@ class Permission
             // angefragt und erlebt hat, darf sagen, wie sie war.
             self::REVIEW_CREATE,
             self::CHAT_START,
-            self::CHAT_ANSWER,
             self::CHAT_LIST,
             self::CHAT_READ,
             self::CHAT_WRITE,
@@ -514,7 +533,6 @@ class Permission
             // angefragt und erlebt hat, darf sagen, wie sie war.
             self::REVIEW_CREATE,
             self::CHAT_START,
-            self::CHAT_ANSWER,
             self::CHAT_LIST,
             self::CHAT_READ,
             self::CHAT_WRITE,
@@ -577,7 +595,10 @@ class Permission
             // nicht, sonst waere sie keine Auskunft mehr ueber ihn.
             self::REVIEW_REMOVE,
             self::CHAT_START,
-            self::CHAT_ANSWER,
+            // NUR HIER: der Chat mit einem beliebigen Konto. Er gehoert zur
+            // Benutzerliste, die auch nur der Admin sieht - alle anderen
+            // erreichen ihr Gegenueber ueber einen Standort.
+            self::CHAT_START_DIRECT,
             self::CHAT_LIST,
             self::CHAT_READ,
             self::CHAT_WRITE,

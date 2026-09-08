@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Model\User;
 use App\Model\Chat;
 use App\Model\ChatMessage;
+use App\Model\Location;
 use App\Model\PdoConnect;
 use App\Model\RateLimit;
 use App\Helper\Auth;
@@ -11,7 +12,27 @@ use App\Helper\Request;
 use App\Helper\ViewHelper;
 
 /**
- * Controller für Chat-Funktionen (Starten, Nachrichten, Einladungen, etc.).
+ * Controller für Chat-Funktionen (Starten, Nachrichten, Verlauf).
+ *
+ * WER MIT WEM - DIE ERSTE FRAGE (Befund N-12)
+ * -------------------------------------------
+ * Ein Chat entsteht UEBER EINEN STANDORT: Ein angemeldeter Kunde schreibt den
+ * Guide von dessen Standortseite aus an, und wen er anschreibt, sagt der
+ * Standort. Die frueher freie Wahl des Gegenuebers ist damit weg - startChat()
+ * nimmt keine Kontokennung mehr entgegen, sondern eine Standortkennung, und
+ * holt sich den Guide selbst dazu (App\Model\Location::guideIdOf).
+ *
+ * Vorher war der Chat auf gar keine Beziehung eingeschraenkt: Wer die Route
+ * kannte, konnte jedem Konto der Plattform schreiben; die Kennungen sind
+ * fortlaufend, ein Durchzaehlen genuegte.
+ *
+ * DER ADMIN BEHAELT SEINEN DIREKTZUGANG - startDirectChat(), Recht
+ * chat.start_direct. Er ist der einzige, der die Benutzerliste sieht (Recht
+ * user.list), und er braucht den Weg zu jedem Konto. Das ist eine eigene
+ * Route mit einem eigenen Recht und nicht ein Sonderfall in startChat():
+ * Ueber den Zugang entscheidet index.php anhand der Rechtetabelle, und ein
+ * "wenn Admin, dann anders" mitten im Controller waere eine zweite
+ * Rechteentscheidung an einer Stelle, an der niemand sie sucht.
  *
  * WER DARF WAS - DIE ZWEITE PRÜFUNG
  * ---------------------------------
@@ -20,54 +41,77 @@ use App\Helper\ViewHelper;
  * nicht "dieser Chat gehört diesem Nutzer". Deshalb prüft jede Methode, die
  * eine chat_id aus der Anfrage entgegennimmt, zusätzlich die Beteiligung:
  *
- *   acceptChat()      nur der Gefragte (pending_for)
- *   declineChat()     nur der Gefragte (pending_for)
  *   getMessages()     nur die beiden Teilnehmer
  *   sendMessage()     nur die beiden Teilnehmer
  *   setMessagesSeen() nur die beiden Teilnehmer
  *   showChat()        nur die beiden Teilnehmer
  *
+ * Gefragt wird ueberall dasselbe: Chat::hatTeilnehmer(). Eine viermal
+ * ausgeschriebene Bedingung waere eine Gelegenheit, die fuenfte zu vergessen.
+ *
  * Die übrigen Methoden nehmen gar keine chat_id entgegen: startChat(),
- * getChats(), getChatInvitations() und getAllChats() arbeiten
- * ausschließlich mit der Kennung aus der Sitzung.
+ * startDirectChat(), getChats() und getAllChats() arbeiten ausschließlich mit
+ * der Kennung aus der Sitzung.
  *
  * Die Antwort auf einen unerlaubten Zugriff unterscheidet nirgends zwischen
  * "gibt es nicht" und "geht dich nichts an". Die Chat-IDs sind fortlaufend;
  * eine unterschiedliche Antwort verriete beim Durchzählen, welche Chats es
  * gibt.
+ *
+ * WAS HIER NICHT MEHR STEHT: ANNEHMEN UND ABLEHNEN
+ * -----------------------------------------------
+ * acceptChat() und declineChat() sind mit den Spalten is_active und
+ * pending_for entfallen (Migration 019). Ein Chat war vorher erst eine
+ * Einladung und wurde durch Annehmen zum Gespraech; erst danach gab es ein
+ * Eingabefeld. Die Mechanik stammt aus einer Anwendung, in der jeder jeden
+ * anschreiben konnte - hier gibt es diesen Fremden nicht mehr, und sie
+ * blockierte ausgerechnet den Inhalt, an dem der Guide seine Entscheidung
+ * haette treffen koennen. Die Begruendung im Ganzen steht in
+ * migrations/019_standort_chat.sql.
  */
 class ChatController
 {
     /**
-     * Startet einen Chat mit einem anderen Benutzer (findOrCreate).
+     * Öffnet den Chat mit dem Guide eines Standorts (findOrCreate).
      * Gibt Chat-Infos als JSON zurück.
      *
-     * DIE BREMSE UND WARUM SIE HIER SO WEIT IST (Befund N-10)
-     * ------------------------------------------------------
-     * Die Route nimmt eine beliebige Kontokennung entgegen (das ist Befund
-     * N-12 und eine andere Baustelle) und legt bei Bedarf einen Chat an. Ein
-     * Skript konnte damit jedem Konto der Plattform eine offene Einladung ins
-     * Postfach legen.
+     * DAS GEGENUEBER KOMMT AUS DEM STANDORT und nicht aus der Anfrage. Das ist
+     * die ganze Antwort auf Befund N-12: Es gibt keinen Parameter mehr, mit
+     * dem sich ein beliebiges Konto anschreiben liesse. Wer eine
+     * Standortkennung durchzaehlt, landet bei den Guides oeffentlich
+     * angebotener Standorte - also genau bei denen, die Rueckfragen bekommen
+     * wollen.
      *
-     * Die Grenze ist trotzdem auffaellig grosszuegig - sechzig je Stunde -,
-     * und zwar wegen des Clients: assets/js/ui_chat.js ruft diese Route bei
-     * JEDEM Oeffnen eines Chatfensters auf, nicht nur beim Anlegen. Es ist ein
-     * findOrCreate, und der Normalfall ist das Find. Eine enge Grenze wuerde
-     * hier den wuergen, der zwischen seinen Gespraechen hin und her wechselt,
-     * und nicht den, der die Plattform absucht.
+     * DREI DINGE WERDEN GEPRUEFT, und keines davon kann eine Rechtetabelle
+     * wissen:
+     *   1. Gibt es den Standort, und ist er nicht gesperrt? Beides beantwortet
+     *      Location::guideIdOf() mit null - von einem gesperrten Standort aus
+     *      beginnt nichts, auch kein Gespraech.
+     *   2. Ist der Aufrufer nicht selbst der Guide? Sich selbst schreibt
+     *      niemand an.
+     *   3. Die Bremse (Befund N-10).
      *
-     * SIE IST DESHALB EINE OBERGRENZE GEGEN DIE MASSE und keine Loesung fuer
-     * N-12. Die ist, den Chat auf bestehende Beziehungen einzuschraenken, und
-     * das ist keine Frage der Haeufigkeit.
+     * DIE BREMSE UND WARUM SIE SO WEIT IST
+     * ------------------------------------
+     * Sechzig je Stunde, und das ist auffaellig grosszuegig. Der Grund steht
+     * im Client: assets/js/ui_chat.js ruft diese Route bei JEDEM Oeffnen eines
+     * Chatfensters auf, nicht nur beim Anlegen. Es ist ein findOrCreate, und
+     * der Normalfall ist das Find. Eine enge Grenze wuerde den wuergen, der
+     * zwischen seinen Gespraechen wechselt, und nicht den, der die Plattform
+     * absucht.
+     *
+     * Seit die Beziehung geprueft wird, ist sie auch nur noch das: eine
+     * Obergrenze gegen die Masse. Die eigentliche Antwort auf N-12 steht
+     * darueber.
      *
      * @return void
      */
     public function startChat(): void
     {
         $currentUserId = Auth::userId();
-        $targetId = (int)Request::g('target_id');
-        if (!$currentUserId || !$targetId) {
-            echo json_encode(['success' => false, 'error' => 'Invalid user']);
+        $locationId    = (int)Request::g('location_id');
+        if (!$currentUserId || $locationId < 1) {
+            echo json_encode(['success' => false, 'error' => 'Invalid request']);
             return;
         }
 
@@ -81,73 +125,110 @@ class ChatController
         }
         RateLimit::verbuchen('chat_start', $teile);
 
-        $chat = Chat::findOrCreate($currentUserId, $targetId);
+        // WEN MAN ANSCHREIBEN DARF, SAGT DER STANDORT. Ein gesperrter oder
+        // nicht vorhandener Standort meldet null - beides mit derselben
+        // nichtssagenden Antwort, damit sich ueber diese Route keine
+        // Standortkennungen abklopfen lassen.
+        $guideId = (new Location())->guideIdOf($locationId);
+        if ($guideId === null) {
+            error_log("startChat: Standort #$locationId gibt keinen Guide her");
+            echo json_encode(['success' => false, 'error' => 'Zu diesem Standort ist kein Chat möglich.']);
+            return;
+        }
 
-        if (!$chat) {
+        // Sich selbst schreibt niemand an. Der Guide sieht auf seinem eigenen
+        // Standort ohnehin keinen Knopf (App\Helper\LocationView) - das hier
+        // ist die verbindliche Pruefung dazu.
+        if ($guideId === (int)$currentUserId) {
+            echo json_encode(['success' => false, 'error' => 'Das ist Ihr eigener Standort.']);
+            return;
+        }
+
+        $this->antworteMitChat(Chat::findOrCreate($currentUserId, $guideId, $locationId),
+                               $currentUserId);
+    }
+
+    /**
+     * Öffnet den Chat mit einem beliebigen Konto - der Direktzugang der
+     * Verwaltung.
+     *
+     * NUR MIT DEM RECHT chat.start_direct, und das hat allein der Admin
+     * (App\Helper\Permission). Er ist der einzige, der die Benutzerliste sieht,
+     * und von dort aus fuehrt dieser Weg: Ein Konto, das sich nicht ueber
+     * einen Standort erreichen laesst - ein Zuschauer etwa -, muss fuer die
+     * Verwaltung trotzdem ansprechbar sein.
+     *
+     * Der Chat traegt KEINE Herkunft (location_id bleibt NULL): Er ist ueber
+     * keinen Standort zustande gekommen, und eine erfundene Herkunft waere
+     * schlechter als keine.
+     *
+     * Dieselbe Bremse wie startChat() - es ist derselbe Vorgang, nur mit einer
+     * anderen Quelle fuer das Gegenueber.
+     *
+     * @return void
+     */
+    public function startDirectChat(): void
+    {
+        $currentUserId = Auth::userId();
+        $targetId      = (int)Request::g('target_id');
+        if (!$currentUserId || $targetId < 1) {
+            echo json_encode(['success' => false, 'error' => 'Invalid user']);
+            return;
+        }
+
+        if ($targetId === (int)$currentUserId) {
+            echo json_encode(['success' => false, 'error' => 'Mit sich selbst chattet niemand.']);
+            return;
+        }
+
+        $teile = ['konto' => RateLimit::konto($currentUserId)];
+        $rest  = RateLimit::restsperre('chat_start', $teile);
+        if ($rest > 0) {
+            echo json_encode(['success' => false,
+                'error' => 'Zu viele Chats in kurzer Zeit. Bitte '
+                         . RateLimit::wartehinweis($rest) . ' warten.']);
+            return;
+        }
+        RateLimit::verbuchen('chat_start', $teile);
+
+        $this->antworteMitChat(Chat::findOrCreate($currentUserId, $targetId, null),
+                               $currentUserId);
+    }
+
+    /**
+     * Die gemeinsame Antwort der beiden Einstiege.
+     *
+     * Sie steht hier und nicht zweimal ausgeschrieben: Was ein Chatfenster
+     * zum Aufbau braucht, ist dasselbe, egal ob es ueber einen Standort oder
+     * ueber die Benutzerliste geoeffnet wurde. Zwei Fassungen waeren zwei
+     * Gelegenheiten, ein Feld zu vergessen.
+     *
+     * @param Chat|null $in_chat
+     * @param int       $in_user_id Der Angemeldete - aus SEINER Sicht wird der
+     *                  Partner bestimmt
+     * @return void
+     */
+    private function antworteMitChat(?Chat $in_chat, $in_user_id): void
+    {
+        if (!$in_chat) {
             echo json_encode(['success' => false, 'error' => 'Chat konnte nicht erstellt werden']);
             return;
         }
 
-        $usernames = User::getUsernamesByIds([$chat->getUser1Id(), $chat->getUser2Id()]);
+        $partnerId = $in_chat->partnerVon($in_user_id);
+        $namen     = User::getUsernamesByIds([$partnerId]);
 
-        // Wer ist der Partner?
-        $partnerId = ($currentUserId == $chat->getUser1Id()) ? $chat->getUser2Id() : $chat->getUser1Id();
-        $partnerName = $usernames[$partnerId] ?? ('User '.$partnerId);
-        
         echo json_encode([
             'success' => true,
             'chat' => [
-                'id' => $chat->getId(),
-                'user1_id' => $chat->getUser1Id(),
-                'user2_id' => $chat->getUser2Id(),
-                'is_active' => $chat->isActive(),
-                'last_msg_at' => $chat->getLastMsgAt(),
-                'partner_name' => $partnerName,
-                'pending_for' => $chat->getPendingFor(), 
+                'id'           => $in_chat->getId(),
+                'user1_id'     => $in_chat->getUser1Id(),
+                'user2_id'     => $in_chat->getUser2Id(),
+                'location_id'  => $in_chat->getLocationId(),
+                'last_msg_at'  => $in_chat->getLastMsgAt(),
+                'partner_name' => $namen[$partnerId] ?? ('User ' . $partnerId),
             ]
         ]);
-    }
-
-    /**
-     * Akzeptiert eine Chat-Einladung und setzt Chat auf aktiv.
-     *
-     * Zugang: Recht chat.answer, geprueft in index.php. Zusaetzlich darf nur
-     * annehmen, wer auch gefragt wurde - das kann keine Rechtetabelle wissen.
-     *
-     * Vorher las diese Methode $_SESSION ueberhaupt nicht. Sie baute aus der
-     * uebergebenen ID ein Chat-Objekt ohne jeden Datenbankzugriff und setzte
-     * es aktiv: Ein Aufruf mit einer beliebigen chat_id nahm eine fremde
-     * Einladung an. Der Chat zweier Fremder war damit aktiv, ohne dass der
-     * Gefragte je zugestimmt haette. Da die IDs fortlaufend sind, genuegte
-     * ein Durchzaehlen. ChatController::declineChat() prueft dieselbe
-     * Bedingung seit jeher - Annehmen und Ablehnen sind dieselbe
-     * Entscheidung und pruefen jetzt dasselbe.
-     *
-     * @return void
-     */
-    public function acceptChat(): void
-    {
-        $currentUserId = Auth::userId();
-        $chatId        = (int)Request::g('chat_id');
-        if (!$chatId || !$currentUserId) {
-            echo json_encode(['success' => false, 'error' => 'Invalid chat']);
-            return;
-        }
-
-        $chat = Chat::findById($chatId);
-
-        // Annehmen darf ausschliesslich der, fuer den die Einladung offen
-        // steht. Die Antwort unterscheidet nicht zwischen "gibt es nicht" und
-        // "geht dich nichts an", damit sich ueber diese Route keine fremden
-        // Chat-IDs abklopfen lassen.
-        if (!$chat || $chat->getPendingFor() != $currentUserId) {
-            error_log("acceptChat: Benutzer #$currentUserId darf Chat #$chatId nicht annehmen");
-            echo json_encode(['success' => false, 'error' => 'Nicht erlaubt']);
-            return;
-        }
-
-        $chat->setActive();
-        echo json_encode(['success' => true]);
     }
 
     /**
@@ -164,7 +245,7 @@ class ChatController
         $chats = Chat::getAllForUser($currentUserId);
         $result = [];
         foreach($chats as $chat) {
-            $partnerId = ($chat->getUser1Id() == $currentUserId) ? $chat->getUser2Id() : $chat->getUser1Id();
+            $partnerId = $chat->partnerVon($currentUserId);
             $partner = (new User)->getUserById($partnerId);
             $partnerName = $partner ? $partner['username'] : 'Unbekannt';
 
@@ -175,7 +256,6 @@ class ChatController
                 'id' => $chat->getId(),
                 'user1_id' => $chat->getUser1Id(),
                 'user2_id' => $chat->getUser2Id(),
-                'is_active' => $chat->isActive(),
                 'last_msg_at' => $chat->getLastMsgAt(),
                 'partner_name' => $partnerName,
                 'unseen_count' => $unseenCount
@@ -210,14 +290,14 @@ class ChatController
         }
         $chat = Chat::findById($chatId);
         if (!$chat) {
-            echo json_encode(['success'=>false, 'declined'=>true]);
+            echo json_encode(['success'=>false, 'gone'=>true]);
             return;
         }
 
         // Beteiligung pruefen. Die Antwort unterscheidet nicht zwischen
         // "gibt es nicht" und "geht dich nichts an", damit sich ueber diese
         // Route keine fremden Chat-IDs abklopfen lassen.
-        if ($chat->getUser1Id() != $currentUserId && $chat->getUser2Id() != $currentUserId) {
+        if (!$chat->hatTeilnehmer($currentUserId)) {
             error_log("getMessages: Benutzer #$currentUserId ist nicht an Chat #$chatId beteiligt");
             echo json_encode(['success' => false, 'error' => 'Kein Zugriff']);
             return;
@@ -236,18 +316,7 @@ class ChatController
             ];
         }
 
-        $response = [
-            'success' => true,
-            'messages' => $result,
-            'is_active' => $chat->isActive() ? 1 : 0
-        ];
-
-        if (!$chat->isActive()) {
-            $response['pending_for'] = $chat->getPendingFor();
-            $response['user1_id'] = $chat->getUser1Id();
-            $response['user2_id'] = $chat->getUser2Id();
-        }
-        echo json_encode($response);
+        echo json_encode(['success' => true, 'messages' => $result]);
     }
 
     /**
@@ -265,6 +334,13 @@ class ChatController
      *
      * Es ist dieselbe Pruefung wie in getMessages(): Lesen und Schreiben
      * betreffen denselben Verlauf.
+     *
+     * GESCHRIEBEN WIRD OHNE VORHERIGE ZUSTIMMUNG DES ANDEREN. Das ist seit
+     * Migration 019 so und ist der Punkt: Ein Chat entsteht nur ueber einen
+     * Standort, also zwischen einem Kunden und einem Guide, der sein Angebot
+     * selbst oeffentlich gemacht hat. Die frueher noetige Annahme haette die
+     * erste Nachricht zurueckgehalten - also gerade den Inhalt, an dem der
+     * Guide seine Entscheidung haette treffen koennen.
      *
      * @return void
      */
@@ -304,7 +380,7 @@ class ChatController
         // Beteiligung pruefen. Die Antwort unterscheidet nicht zwischen
         // "gibt es nicht" und "geht dich nichts an", damit sich ueber diese
         // Route keine fremden Chat-IDs abklopfen lassen.
-        if (!$chat || ($chat->getUser1Id() != $currentUserId && $chat->getUser2Id() != $currentUserId)) {
+        if (!$chat || !$chat->hatTeilnehmer($currentUserId)) {
             error_log("sendMessage: Benutzer #$currentUserId ist nicht an Chat #$chatId beteiligt");
             echo json_encode(['success' => false, 'error' => 'Kein Zugriff']);
             return;
@@ -319,42 +395,6 @@ class ChatController
             'sent_at' => $newMsg->getSentAt(),
             'seen' => $newMsg->isSeen()
         ]]);
-    }
-
-    /**
-     * Gibt alle offenen Chat-Einladungen für den aktuellen User zurück.
-     * @return void
-     */
-    public function getChatInvitations(): void 
-    {
-        try 
-        {
-            $invitations = Chat::getInvitations();
-            echo json_encode(['success' => true, 'invitations' => $invitations]);
-        } catch (\Exception $e)
-        {
-            error_log('Fehler: ' . $e->getMessage() . ' beim laden der Chat invitations.');
-            echo json_encode(['success' => false]);
-        }
-    }
-
-    /**
-     * Lehnt eine Chateinladung ab (nur der pending_for-User darf das).
-     * @return void
-     */
-    public function declineChat(): void
-    {
-        $currentUserId = Auth::userId();
-        $chatId = (int)Request::g('chat_id');
-        $chat = Chat::findById($chatId);
-
-        if (!$chat || $chat->getPendingFor() != $currentUserId) {
-            echo json_encode(['success' => false, 'error' => 'Nicht erlaubt']);
-            return;
-        }
-        // Soft-Delete über das Model
-        $success = $chat->delete();
-        echo json_encode(['success' => $success]);
     }
 
     /**
@@ -375,6 +415,10 @@ class ChatController
      *    zurueckzusetzen: Der Empfaenger sah nicht mehr, dass etwas Neues da
      *    war.
      *
+     * SEIT ES DEN ZAEHLER IN DER KOPFLEISTE GIBT, faerbt dieser Aufruf ihn
+     * ab: Was hier auf gesehen gesetzt wird, faellt aus
+     * App\Model\ChatMessage::countUnseenTotal() heraus.
+     *
      * @return void
      */
     public function setMessagesSeen(): void
@@ -393,7 +437,7 @@ class ChatController
 
         // Beteiligung pruefen - dieselbe Bedingung und dieselbe
         // nichtssagende Antwort wie in getMessages().
-        if (!$chat || ($chat->getUser1Id() != $currentUserId && $chat->getUser2Id() != $currentUserId)) {
+        if (!$chat || !$chat->hatTeilnehmer($currentUserId)) {
             error_log("setMessagesSeen: Benutzer #$currentUserId ist nicht an Chat #$chatId beteiligt");
             echo json_encode(['success' => false, 'error' => 'Kein Zugriff']);
             return;
@@ -422,11 +466,13 @@ class ChatController
         $rowsHtml = '';
         foreach ($chats as $chat) {
             // Partner ermitteln
-            $partnerId = ($chat->getUser1Id() == $currentUserId) ? $chat->getUser2Id() : $chat->getUser1Id();
+            $partnerId = $chat->partnerVon($currentUserId);
             $partnerName = (new User($partnerId))->getUsername();
 
-            // Status bestimmen
-            $status = $chat->isActive() ? 'Aktiv' : ($chat->isDeleted() ? 'Beendet' : 'Offen');
+            // ZWEI ZUSTAENDE, NICHT MEHR DREI. "Offen" war die noch nicht
+            // angenommene Einladung; die gibt es seit Migration 019 nicht
+            // mehr. Ein Chat laeuft oder er ist weggeraeumt.
+            $status = $chat->isDeleted() ? 'Beendet' : 'Aktiv';
 
             // Verlauf: eine Nebenaktion, also ein Symbol ohne Rahmen. Der
             // Partnername steht im aria-label - "Verlauf anzeigen" allein
@@ -466,7 +512,7 @@ class ChatController
         }
 
         // Rechteprüfung: ist User Teilnehmer?
-        if ($chat->getUser1Id() != $currentUserId && $chat->getUser2Id() != $currentUserId) {
+        if (!$chat->hatTeilnehmer($currentUserId)) {
             ViewHelper::Output("Kein Zugriff.");
             return;
         }
@@ -475,7 +521,7 @@ class ChatController
         // Nun HTML bauen (assets/html/show_chat.html als Basis)
         $tpl = ViewHelper::template('assets/html/show_chat.html');
         $messagesHtml = '';
-        foreach ($messages as $msg) { 
+        foreach ($messages as $msg) {
             // Eine Nachricht ist eine Zeile im Verlauf und keine eigene Karte:
             // Absender, Text, Zeit. Die Gestaltung steht in
             // assets/css/theme.css unter .app-message.

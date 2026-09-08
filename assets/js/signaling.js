@@ -264,6 +264,13 @@ window.webrtcApp.signaling = {
             // mit, weil ein Konto beide Seiten sein kann.
             const fuehrung = window.webrtcApp.tour;
             if (fuehrung && daten) fuehrung.sync(daten.tour);
+
+            // UND DIE UNGELESENEN NACHRICHTEN. Derselbe Gedanke wie beim
+            // Anfragenzaehler: Ein Guide bekommt Rueckfragen zu seinen
+            // Standorten, und er soll sie auch dann bemerken, wenn kein
+            // Chatfenster offen ist (assets/js/chat_badge.js).
+            const nachrichten = window.webrtcApp.chatBadge;
+            if (nachrichten && daten) nachrichten.sync(daten.chat);
         })
         // Ein ausgefallener Heartbeat aendert nichts: Der naechste Takt kommt,
         // und bis dahin laeuft die Anzeige lokal weiter. Ohne diesen Zweig

@@ -631,6 +631,39 @@
 }
 
 /* ---------------------------------------------------------------------------
+   Die Rueckfrage an den Guide - im Kasten der Handlung
+   ---------------------------------------------------------------------------
+   Sie steht zwischen Anfrageformular und ueblichen Zeiten, abgesetzt durch
+   dieselbe Linie: derselbe Kasten, derselbe Zusammenhang - "bevor Sie sich
+   entscheiden".
+
+   SIE IST DIE ZWEITE HANDLUNG UND SIEHT AUCH SO AUS: btn-secondary, nicht
+   btn-primary. Der uebliche Weg ist die Anfrage darueber; wer zuerst fragen
+   will, soll das koennen, ohne dass beide Knoepfe gleich laut rufen.
+
+   Gebaut von App\Helper\LocationView::frageHtml(); das Fenster oeffnet
+   assets/js/ui_chat.js.
+   --------------------------------------------------------------------------- */
+.loc-ask {
+    padding: var(--app-space-3) var(--app-space-4);
+    border-top: 1px solid var(--app-border);
+}
+
+/* Volle Breite wie der Knopf darueber - eine halbe Spalte breit saehe er aus
+   wie ein Nachtrag. */
+.loc-ask__btn {
+    width: 100%;
+}
+
+/* Der Satz darunter sagt, WOFUER der Knopf gut ist. Ohne ihn wuerde "Frage an
+   den Guide" auch als "hier beginnt die Buchung" gelesen. */
+.loc-ask__note {
+    margin: var(--app-space-2) 0 0;
+    color: var(--app-text-muted);
+    font-size: var(--app-text-sm);
+}
+
+/* ---------------------------------------------------------------------------
    Die ueblichen Zeiten - im Kasten der Handlung
    ---------------------------------------------------------------------------
    Sie stehen zwischen Anfrageformular und Nebendaten, und das ist Absicht:

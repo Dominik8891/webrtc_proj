@@ -404,7 +404,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (304 Prüfungen)
+## Was `server_test.php` prüft (310 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -598,21 +598,48 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
     nicht dagegen an, und der Knopf spränge beim Überfahren auf die
     Bootstrap-Farbe zurück.
 
-24. **Chat: die Beteiligung wird geprüft** — ein Unbeteiligter schreibt nicht
-    in einen fremden Chat, nimmt keine fremde Einladung an und setzt keine
+24. **Chat: nur über einen Standort, und nur unter Beteiligten** — zwei
+    Fragen in einem Abschnitt, weil es zwei Hälften desselben Befundes sind.
+
+    **Wer mit wem** (Befund N-12). `startChat()` nimmt eine **Standortkennung**
+    entgegen und holt sich den Guide selbst dazu; vorher nahm die Route eine
+    beliebige Kontokennung, und wer sie kannte, konnte jedem Konto der
+    Plattform schreiben. Geprüft wird, dass ein Aufruf mit `target_id` nichts
+    mehr bewirkt (kein `INSERT`), dass ein gesperrter Standort kein Gegenüber
+    hergibt — und dass er dabei **wörtlich dieselbe** Antwort gibt wie ein
+    Standort, den es nicht gibt: Auch die Standortkennungen sind fortlaufend.
+    Der Guide schreibt seinen eigenen Standort nicht an.
+
+    Dazu die Rechteseite: `chat_start_direct` ist eine **eigene Route** mit dem
+    Recht `chat.start_direct`, und dieses Recht hat **nur der Admin** — jede
+    andere Rolle wird einzeln geprüft. Hätte ein Guide es, wäre die freie Wahl
+    des Gegenübers zurück. Ein Direktchat trägt `location_id = NULL`: Er ist
+    über keinen Standort zustande gekommen und behauptet es auch nicht. Die
+    Routen `chat_accept`/`chat_decline` und das Recht `chat.answer` gibt es
+    nicht mehr (Migration 019).
+
+    **Wer darf was** (Befund S-1, unverändert in der Sache). Ein Unbeteiligter
+    schreibt nicht in einen fremden Chat, liest ihn nicht und setzt keine
     fremden Nachrichten auf gelesen. Geprüft wird dabei nicht nur die
     Fehlermeldung, sondern dass **gar kein schreibendes Statement** abgesetzt
     wird — eine Meldung nützt nichts, wenn die Nachricht trotzdem in der
     Datenbank landet. Die Ablehnung fällt für „gibt es nicht" und „geht dich
-    nichts an" wörtlich gleich aus: Die Chat-IDs sind fortlaufend, ein
-    Unterschied verriete beim Durchzählen, welche Chats existieren.
-    `setMessagesSeen()` bindet die Kennung aus der **Sitzung**, auch wenn im
-    Formular eine andere steht.
+    nichts an" wörtlich gleich aus. `setMessagesSeen()` bindet die Kennung aus
+    der **Sitzung**, auch wenn im Formular eine andere steht.
 
     Dazu die Regel für alles, was noch dazukommt: Jede Methode des
     `ChatController`, die eine `chat_id` aus der Anfrage entgegennimmt, muss
-    `Auth::userId()` heranziehen und die Beteiligung prüfen. Ohne diese
+    `Auth::userId()` heranziehen und `Chat::hatTeilnehmer()` fragen. Ohne diese
     Prüfung fiele eine später ergänzte Methode still in dieselbe Lücke zurück.
+
+    **Und dass die Nachricht ankommt.** Geschrieben wird ohne vorherige
+    Zustimmung — der Controller wertet keinen Einladungszustand mehr aus, das
+    Model kennt kein `pending_for`, im Chatfenster steht kein Annehmen-Knopf.
+    Der Zähler in der Kopfleiste hängt am Recht `chat.list` (gilt also für
+    beide Seiten), hat seinen Platz im Layout und fährt auf dem **Heartbeat**
+    mit statt in einer eigenen Schleife. Der Weg dorthin ist der Knopf auf der
+    Standortseite: Er trägt die Standortkennung und **keine** Kontokennung, und
+    er fehlt beim Eigentümer, bei einem gesperrten Standort und beim Gast.
 
 25. **Die Adresse in E-Mail-Links kommt aus der Konfiguration** — weder aus
     dem Code (dort stand `https://localhost/rctprojnew/`, die Adresse eines
@@ -1167,6 +1194,11 @@ Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
       `chat_start` bei *jedem* Öffnen eines Chatfensters auf, nicht nur beim
       Anlegen. Die Prüfung hält diese Begründung an den Tatsachen fest: Ändert
       sich der Client, fällt sie auf und die Grenze darf enger werden.
+    * **Sieben Kontoschlüssel, nicht sechs** — der `ChatController` hat seit
+      Migration 019 zwei Einstiege (über den Standort und den Direktzugang der
+      Verwaltung), die beide gegen `chat_start` zählen. Derselbe Vorgang mit
+      zwei Quellen für das Gegenüber, also derselbe Zähler: zweimal im Code,
+      einmal in `config/limits.php`.
 
     Und eine Änderung an einer bestehenden Prüfung: `ChatAttrappe::schreibend()`
     lässt `rate_limit` jetzt aus. Die Prüfung fragt „wurde eine Nachricht

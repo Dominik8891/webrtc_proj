@@ -2162,16 +2162,16 @@ check(preg_match('/thead[^{]*th:first-child\s*\{[^}]*padding-left/', $themeCss) 
 ok('der Abstand haengt an der Marke, nicht an der Stellung der Spalte');
 
 // ---------------------------------------------------------------------
-fwrite(STDERR, "\n24) Chat: die Beteiligung wird geprueft\n");
+fwrite(STDERR, "\n24) Chat: nur ueber einen Standort, und nur unter Beteiligten\n");
 
 /**
  * Attrappe fuer die Chat-Pruefungen.
  *
- * Liefert auf jede Abfrage der Tabelle `chat` dieselbe vorbereitete Zeile
- * und schreibt alles mit, was sonst abgesetzt wird. Damit laesst sich
- * pruefen, was der Controller bei einem unerlaubten Zugriff NICHT tut -
- * und genau darauf kommt es hier an: Eine Fehlermeldung nuetzt nichts,
- * wenn die Nachricht trotzdem in der Datenbank landet.
+ * Liefert auf die Abfrage der Tabelle `chat` und auf die des Standorts je
+ * eine vorbereitete Zeile und schreibt alles mit, was sonst abgesetzt wird.
+ * Damit laesst sich pruefen, was der Controller bei einem unerlaubten Zugriff
+ * NICHT tut - und genau darauf kommt es hier an: Eine Fehlermeldung nuetzt
+ * nichts, wenn die Nachricht trotzdem in der Datenbank landet.
  */
 class ChatAttrappeStatement {
     public $sql; public $params = []; private $zeile;
@@ -2186,8 +2186,12 @@ class ChatAttrappe {
     public $statements = [];
     /** Zeile, die eine Abfrage auf `chat` liefert; false = gibt es nicht. */
     public $chat = false;
+    /** Zeile, die Location::guideIdOf() liefert; false = Standort gibt es nicht. */
+    public $standort = false;
     public function prepare($sql) {
-        $zeile = preg_match('/^\s*SELECT\s.*\sFROM\s+chat\s/i', $sql) ? $this->chat : false;
+        $zeile = false;
+        if (preg_match('/^\s*SELECT\s.*\sFROM\s+chat\s/i', $sql))          $zeile = $this->chat;
+        if (preg_match('/^\s*SELECT\s+user_id,\s*blocked\s+FROM\s+location/i', $sql)) $zeile = $this->standort;
         $s = new ChatAttrappeStatement($sql, $zeile);
         $this->statements[] = $s;
         return $s;
@@ -2220,10 +2224,9 @@ class ChatAttrappe {
 $chatDb = new ChatAttrappe();
 PdoConnect::$connection = $chatDb;
 
-// Ein Chat zwischen 2 und 3. Gefragt ist die 3 - sie hat noch nicht
-// geantwortet. Die 9 hat mit dem Chat nichts zu tun.
-$chatZeile = ['id' => 5, 'user1_id' => 2, 'user2_id' => 3, 'is_active' => 1,
-              'last_msg_at' => null, 'pending_for' => 3, 'deleted' => 0];
+// Ein Chat zwischen 2 und 3. Die 9 hat mit ihm nichts zu tun.
+$chatZeile = ['id' => 5, 'user1_id' => 2, 'user2_id' => 3, 'location_id' => 7,
+              'last_msg_at' => null, 'deleted' => 0];
 
 /** Ruft eine Controller-Methode als Benutzer $wer auf und liest die JSON-Antwort. */
 $alsBenutzer = function ($wer, array $anfrage, string $methode) use ($chatDb) {
@@ -2235,7 +2238,91 @@ $alsBenutzer = function ($wer, array $anfrage, string $methode) use ($chatDb) {
     return json_decode(ob_get_clean(), true);
 };
 
-// --- sendMessage: der Kern des Befundes -----------------------------------
+// --- startChat: das Gegenueber kommt aus dem STANDORT (Befund N-12) -------
+//
+// Vorher nahm die Route eine beliebige Kontokennung entgegen. Wer sie kannte,
+// konnte jedem Konto der Plattform eine Nachricht ins Postfach legen; die
+// Kennungen sind fortlaufend, ein Durchzaehlen genuegte. Jetzt gibt es diesen
+// Parameter nicht mehr.
+$chatDb->chat     = false;                                  // noch kein Chat
+$chatDb->standort = ['user_id' => 3, 'blocked' => 0];       // Standort 7 gehoert der 3
+$antwort = $alsBenutzer(2, ['location_id' => 7], 'startChat');
+check($antwort['success'] === true, 'ein Kunde darf den Guide eines Standorts anschreiben');
+$geschrieben = $chatDb->schreibend();
+check(count($geschrieben) === 1 && preg_match('/INSERT INTO chat\s/i', $geschrieben[0]->sql) === 1,
+    'der Chat wird nicht angelegt');
+check($geschrieben[0]->params === [2, 3, 7],
+    'die Kennungen des Chats stimmen nicht: ' . var_export($geschrieben[0]->params, true));
+ok('das Gegenueber kommt aus dem Standort, nicht aus der Anfrage');
+
+// Die alte Form der Anfrage darf nichts mehr bewirken. Das ist der Kern des
+// Befundes: Ein Skript, das target_id schickt, laeuft ins Leere.
+$antwort = $alsBenutzer(2, ['target_id' => 9], 'startChat');
+check($antwort['success'] === false, 'eine freie Kontokennung startet weiterhin einen Chat');
+check($chatDb->schreibend() === [], 'trotz Fehlermeldung wurde ein Chat angelegt');
+ok('die freie Wahl des Gegenuebers gibt es nicht mehr');
+
+// Ein Standort, den es nicht gibt - dieselbe Antwort wie ein gesperrter,
+// damit sich ueber diese Route keine Standortkennungen abklopfen lassen.
+$chatDb->standort = false;
+$ohneStandort = $alsBenutzer(2, ['location_id' => 999], 'startChat');
+check($ohneStandort['success'] === false, 'ein Standort, den es nicht gibt, oeffnet einen Chat');
+check($chatDb->schreibend() === [], 'trotz Fehlermeldung wurde ein Chat angelegt');
+
+$chatDb->standort = ['user_id' => 3, 'blocked' => 1];       // gesperrt
+$gesperrt = $alsBenutzer(2, ['location_id' => 7], 'startChat');
+check($gesperrt['success'] === false, 'von einem gesperrten Standort aus laesst sich schreiben');
+check($gesperrt === $ohneStandort,
+    '"gesperrt" und "gibt es nicht" sind unterscheidbar - damit liessen sich '
+    . 'die fortlaufenden Standortkennungen abklopfen');
+ok('ein gesperrter Standort gibt kein Gegenueber her - und verraet sich nicht');
+
+// Sich selbst schreibt niemand an.
+$chatDb->standort = ['user_id' => 2, 'blocked' => 0];
+$antwort = $alsBenutzer(2, ['location_id' => 7], 'startChat');
+check($antwort['success'] === false, 'der Guide schreibt seinen eigenen Standort an');
+check($chatDb->schreibend() === [], 'trotz Fehlermeldung wurde ein Chat angelegt');
+ok('der Guide schreibt sich nicht selbst an');
+
+// --- startDirectChat: der Direktzugang der Verwaltung ---------------------
+//
+// Er ist eine EIGENE Route mit einem EIGENEN Recht (chat.start_direct), und
+// nur der Admin hat es. Ueber den Zugang entscheidet index.php; hier wird
+// geprueft, dass es die Route ueberhaupt gibt und dass sie das richtige Recht
+// traegt - ein Direktzugang mit chat.start waere die Luecke von vorher.
+$routen = require $ROOT . '/config/routes.php';
+check(isset($routen['chat_start_direct']), 'die Route chat_start_direct fehlt');
+check($routen['chat_start_direct'][2] === Permission::CHAT_START_DIRECT,
+    'der Direktzugang haengt am falschen Recht');
+check($routen['chat_start'][2] === Permission::CHAT_START,
+    'der Weg ueber den Standort haengt am falschen Recht');
+check(!isset($routen['chat_accept']) && !isset($routen['chat_decline']),
+    'die Routen der Einladung stehen noch in der Tabelle');
+ok('zwei Einstiege, zwei Rechte - und die Einladung ist weg');
+
+// Und das Recht hat wirklich nur der Admin. Ein Guide, der es haette, koennte
+// von sich aus fremde Konten anschreiben - genau das sollte mit N-12 weg.
+check(Permission::has(Role::ADMIN, Permission::CHAT_START_DIRECT),
+    'der Admin hat den Direktzugang nicht');
+foreach ([Role::TRIAL, Role::USER, Role::GUIDE, Permission::GUEST] as $rolle) {
+    check(!Permission::has($rolle, Permission::CHAT_START_DIRECT),
+        "Rolle $rolle hat den Direktzugang - damit ist die freie Wahl zurueck");
+}
+check(!in_array('chat.answer', Permission::allRights(), true),
+    'das Recht der Einladung steht noch in der Rechtetabelle');
+ok('den Direktzugang hat nur die Verwaltung');
+
+$chatDb->chat     = false;
+$chatDb->standort = false;
+$antwort = $alsBenutzer(1, ['target_id' => 9], 'startDirectChat');
+check($antwort['success'] === true, 'der Direktzugang legt keinen Chat an');
+$geschrieben = $chatDb->schreibend();
+check(count($geschrieben) === 1 && $geschrieben[0]->params === [1, 9, null],
+    'ein Direktchat traegt eine erfundene Herkunft: '
+    . var_export($geschrieben[0]->params ?? null, true));
+ok('ein Direktchat gehoert zu keinem Standort und behauptet es auch nicht');
+
+// --- sendMessage: der Kern des Befundes S-1 -------------------------------
 // Vorher wurde nur geprueft, DASS jemand angemeldet ist. Die chat_id ging
 // ungeprueft ins INSERT: Jeder Angemeldete konnte in jeden fremden Chat
 // schreiben.
@@ -2263,32 +2350,21 @@ check(count($geschrieben) > 0 && preg_match('/INSERT INTO chat_message/i', $gesc
 check($geschrieben[0]->params[1] === 2, 'der Absender kommt nicht aus der Sitzung');
 ok('ein Teilnehmer schreibt weiterhin, als er selbst');
 
-// --- acceptChat: annehmen darf nur der Gefragte ---------------------------
-// Vorher las diese Methode $_SESSION gar nicht und setzte den Chat ohne
-// jeden Datenbankzugriff aktiv.
-$antwort = $alsBenutzer(9, ['chat_id' => 5], 'acceptChat');
-check($antwort['success'] === false, 'ein Unbeteiligter nimmt an');
-check($chatDb->schreibend() === [], 'ein Unbeteiligter aktiviert den Chat');
-ok('ein Unbeteiligter nimmt keine fremde Einladung an');
-
-$antwort = $alsBenutzer(2, ['chat_id' => 5], 'acceptChat');
-check($antwort['success'] === false, 'der Fragende nimmt seine eigene Einladung an');
-check($chatDb->schreibend() === [], 'der Fragende aktiviert den Chat selbst');
-ok('wer gefragt hat, beantwortet die Frage nicht selbst');
-
-$antwort = $alsBenutzer(3, ['chat_id' => 5], 'acceptChat');
-check($antwort['success'] === true, 'der Gefragte darf annehmen');
-$geschrieben = $chatDb->schreibend();
-check(count($geschrieben) === 1 && preg_match('/UPDATE chat SET is_active/i', $geschrieben[0]->sql) === 1,
-    'der Chat wird nicht aktiv gesetzt');
-ok('der Gefragte nimmt an - dieselbe Bedingung wie beim Ablehnen');
-
-// Annehmen und Ablehnen sind dieselbe Entscheidung und pruefen dasselbe.
-$antwort = $alsBenutzer(2, ['chat_id' => 5], 'declineChat');
-check($antwort['success'] === false, 'der Fragende lehnt seine eigene Einladung ab');
-$antwort = $alsBenutzer(9, ['chat_id' => 5], 'declineChat');
-check($antwort['success'] === false, 'ein Unbeteiligter lehnt ab');
-ok('Annehmen und Ablehnen haengen an derselben Bedingung');
+// DIE ERSTE NACHRICHT BRAUCHT KEINE ZUSTIMMUNG MEHR. Das ist die Aenderung
+// aus Migration 019: Frueher haette der Empfaenger erst annehmen muessen -
+// und dabei ueber einen blossen Namen entschieden, ohne den Inhalt zu kennen.
+$ohneKommentar = function (string $pfad): string {
+    $code = file_get_contents($pfad);
+    $code = preg_replace('#/\*.*?\*/#s', '', $code);
+    return preg_replace('#//[^\n]*#', '', $code);
+};
+check(strpos($ohneKommentar($ROOT . '/class/Controller/ChatController.php'), 'is_active') === false,
+    'der Controller wertet noch einen Einladungszustand aus');
+check(strpos($ohneKommentar($ROOT . '/class/Model/Chat.php'), 'pending_for') === false,
+    'das Model kennt noch den Gefragten einer Einladung');
+check(strpos($ohneKommentar($ROOT . '/assets/js/ui_chat.js'), 'accept-chat-btn') === false,
+    'im Chatfenster steht noch ein Annehmen-Knopf');
+ok('geschrieben wird ohne vorherige Zustimmung - der Inhalt steht beim Guide');
 
 // --- setMessagesSeen: der Leser steht in der Sitzung ----------------------
 // Vorher kam sender_id aus dem Formular, und es gab keine Pruefung: In einem
@@ -2323,8 +2399,9 @@ ok('Lesen bleibt auf die Teilnehmer beschraenkt');
 $chatCode = file_get_contents($ROOT . '/class/Controller/ChatController.php');
 $chatCode = preg_replace('#/\*.*?\*/#s', '', $chatCode);   // Kommentare weg
 $chatCode = preg_replace('#//[^\n]*#', '', $chatCode);
-preg_match_all('/public function (\w+)\(\).*?(?=\n    public function |\z)/s', $chatCode, $mMethoden, PREG_SET_ORDER);
-check(count($mMethoden) >= 9, 'die Methoden des ChatControllers wurden nicht gefunden');
+preg_match_all('/public function (\w+)\(\).*?(?=\n    public function |\n    private function |\z)/s',
+    $chatCode, $mMethoden, PREG_SET_ORDER);
+check(count($mMethoden) >= 7, 'die Methoden des ChatControllers wurden nicht gefunden');
 $geprueft = 0;
 foreach ($mMethoden as $methode) {
     if (strpos($methode[0], "Request::g('chat_id')") === false) continue;
@@ -2332,11 +2409,52 @@ foreach ($mMethoden as $methode) {
     check(strpos($methode[0], 'Auth::userId()') !== false,
         "ChatController::{$methode[1]}() nimmt eine chat_id entgegen, fragt aber "
         . 'nicht, wer angemeldet ist');
-    check(preg_match('/getUser1Id\(\)|getPendingFor\(\)/', $methode[0]) === 1,
+    check(strpos($methode[0], 'hatTeilnehmer(') !== false,
         "ChatController::{$methode[1]}() prueft die Beteiligung nicht");
 }
-check($geprueft >= 5, "nur $geprueft Methoden mit chat_id gefunden - erwartet werden mindestens 5");
+check($geprueft >= 4, "nur $geprueft Methoden mit chat_id gefunden - erwartet werden mindestens 4");
 ok("alle $geprueft Methoden mit chat_id aus der Anfrage pruefen die Beteiligung");
+
+// --- Der Zaehler in der Kopfleiste ----------------------------------------
+//
+// Ein Guide sah eine Rueckfrage bisher nur dann, wenn zufaellig ein
+// Chatfenster offen war. Der Zaehler steht auf jeder Seite - dieselbe
+// Ueberlegung wie beim Anfragenzaehler daneben.
+$viewSrc = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
+check(strpos($viewSrc, 'chatBadge') !== false, 'es gibt keinen Nachrichtenzaehler');
+check(strpos($viewSrc, 'Permission::CHAT_LIST') !== false,
+    'der Zaehler haengt nicht am Recht chat.list - er gilt fuer beide Seiten');
+check(strpos(file_get_contents($ROOT . '/assets/html/index.html'), '###CHATS###') !== false,
+    'der Zaehler hat keinen Platz in der Kopfleiste');
+
+$heartbeat = file_get_contents($ROOT . '/class/Controller/UserController.php');
+check(preg_match("/'chat'\s*=>\s*Chat::counters/", $heartbeat) === 1,
+    'die Zahl faehrt nicht auf dem Heartbeat mit - dann braeuchte sie eine eigene Schleife');
+check(strpos(file_get_contents($ROOT . '/assets/js/signaling.js'), 'chatBadge') !== false,
+    'der Browser wertet die Zahl aus dem Heartbeat nicht aus');
+ok('eine ungelesene Nachricht ist auf jeder Seite zu sehen');
+
+// Der Weg dorthin: der Knopf auf der Standortseite. Er traegt die
+// STANDORTKENNUNG - das ist derselbe Befund noch einmal, diesmal in der
+// Ansicht.
+$knopf = LocationView::frageHtml(
+    ['id' => 7, 'blocked' => 0, 'user_id' => 3, 'username' => 'guide',
+     'display_name' => 'Mara', 'about' => ''],
+    false, true, 3
+);
+check(strpos($knopf, 'start-location-chat-btn') !== false, 'der Knopf fehlt auf der Standortseite');
+check(strpos($knopf, 'data-locationid="7"') !== false, 'der Knopf traegt die Standortkennung nicht');
+check(strpos($knopf, 'data-userid') === false,
+    'der Knopf traegt eine Kontokennung - damit waere die freie Wahl zurueck');
+
+// Wer ihn NICHT bekommt.
+check(LocationView::frageHtml(['id' => 7, 'blocked' => 0], true,  true, 3)  === '',
+    'der Eigentuemer bekommt einen Knopf, um sich selbst anzuschreiben');
+check(LocationView::frageHtml(['id' => 7, 'blocked' => 1], false, true, 3)  === '',
+    'ein gesperrter Standort bietet ein Gespraech an');
+check(LocationView::frageHtml(['id' => 7, 'blocked' => 0], false, false, null) === '',
+    'ein Gast bekommt einen Knopf, der nichts tun kann');
+ok('der Knopf steht dort, wo ein Kunde einen Guide fragen kann - und sonst nirgends');
 
 // ---------------------------------------------------------------------
 fwrite(STDERR, "\n25) Die Adresse in E-Mail-Links kommt aus der Konfiguration\n");
@@ -5794,8 +5912,15 @@ foreach (array_unique(array_values($n10)) as $datei) {
     }
 }
 // Sonst ginge die Pruefung durch, weil sie nichts gefunden hat.
-check($kontoStellen === 6, "nicht sechs Kontoschluessel gefunden, sondern $kontoStellen");
-ok('jeder der sechs Kontoschluessel geht durch RateLimit::konto()');
+//
+// SIEBEN UND NICHT SECHS: Der ChatController hat zwei Einstiege, die beide
+// gegen 'chat_start' zaehlen - den Weg ueber den Standort und den
+// Direktzugang der Verwaltung (Migration 019). Es ist derselbe Vorgang mit
+// zwei Quellen fuer das Gegenueber, also auch derselbe Zaehler; deshalb steht
+// die Kontoschranke dort zweimal im Code, aber nur einmal in
+// config/limits.php.
+check($kontoStellen === 7, "nicht sieben Kontoschluessel gefunden, sondern $kontoStellen");
+ok('jeder Kontoschluessel geht durch RateLimit::konto()');
 
 // --- Die Grenzen stehen an EINER Stelle, und nur eine Datei liest sie -----
 //
@@ -5870,8 +5995,8 @@ ok('gebremst wird die Route, nicht der Registrierungsablauf');
 // den, der die Plattform absucht. Diese Pruefung haelt die Begruendung an
 // den Tatsachen fest: Aendert sich der Client, faellt sie auf.
 $uiChat = file_get_contents($ROOT . '/assets/js/ui_chat.js');
-check(strpos($uiChat, "?act=chat_start") !== false, 'der Client ruft chat_start nicht mehr auf');
-check(strpos($uiChat, 'openChatPopup') < strpos($uiChat, "?act=chat_start"),
+check(strpos($uiChat, "'?act=' + route") !== false, 'der Client ruft chat_start nicht mehr auf');
+check(strpos($uiChat, 'openChatForLocation') < strpos($uiChat, "'?act=' + route"),
     'chat_start haengt nicht mehr am Oeffnen des Fensters - die Grenze darf enger werden');
 check($limits['chat_start']['konto']['versuche'] >= 30,
     'die Chatgrenze ist zu eng fuer einen Client, der bei jedem Oeffnen aufruft');

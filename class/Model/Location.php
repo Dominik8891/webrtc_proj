@@ -780,6 +780,52 @@ class Location
     }
 
     /**
+     * Nur der Guide eines Standorts - seine Kontokennung.
+     *
+     * WOZU ES DIESE METHODE GIBT
+     * --------------------------
+     * Sie ist die Stelle, an der aus einem Standort ein Gegenueber wird: Wen
+     * ein Kunde anschreiben darf, sagt ab jetzt der Standort und nicht mehr
+     * die Anfrage (App\Controller\ChatController::startChat, Befund N-12).
+     * Vorher nahm die Route eine beliebige Kontokennung entgegen.
+     *
+     * EIN GESPERRTER STANDORT GIBT NICHTS HERAUS - er meldet null wie ein
+     * Standort, den es nicht gibt. Dieselbe Regel wie bei availabilityOf()
+     * daneben und wie im Aktionsbereich der Standortseite: Von einem
+     * gesperrten Standort aus beginnt nichts, auch kein Gespraech. Die Sperre
+     * ist damit an EINER Stelle ausgewertet und nicht beim Aufrufer.
+     *
+     * Bewusst nicht selectOneForPage(): Fuer eine Kennung braucht es weder
+     * fuenf Joins noch Bilder, Sprachen und Zeitraster - und diese Frage
+     * stellt sich bei jedem Oeffnen eines Chatfensters.
+     *
+     * @param int $in_id
+     * @return int|null null, wenn es den Standort nicht gibt oder er gesperrt ist
+     */
+    public function guideIdOf($in_id): ?int
+    {
+        $id = (int)$in_id;
+        if ($id < 1) return null;
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                "SELECT user_id, blocked FROM location WHERE id = :id"
+            );
+            $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $zeile = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$zeile || (int)$zeile['blocked'] === 1) return null;
+
+            $guide = (int)$zeile['user_id'];
+            return $guide > 0 ? $guide : null;
+        } catch (\PDOException $e) {
+            error_log('Fehler beim Lesen des Guides zum Standort: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Zaehlt die Standorte eines Benutzers.
      *
      * Gebraucht von App\Model\GuideRole: Wer die Guide-Rolle zurueckgeben

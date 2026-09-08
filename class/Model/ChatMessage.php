@@ -107,9 +107,12 @@ class ChatMessage
     }
 
     /**
-     * Markiert alle empfangenen Nachrichten eines Chats für einen Nutzer als gelesen.
-     * @param int $chat_id
-     * @param int $user_id
+     * Zaehlt die ungelesenen Nachrichten EINES Chats aus Sicht eines Nutzers.
+     *
+     * "Ungelesen" heisst: nicht von ihm selbst und noch nicht gesehen.
+     *
+     * @param int $chatId
+     * @param int $userId
      * @return int
      */
     public static function countUnseenForUser($chatId, $userId): int
@@ -120,6 +123,51 @@ class ChatMessage
         $stmt->execute([$chatId, $userId]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
         return $row ? (int)$row['cnt'] : 0;
+    }
+
+    /**
+     * Dasselbe ueber ALLE Chats eines Nutzers - die Zahl im Zaehler der
+     * Kopfleiste.
+     *
+     * WOZU: Ein Guide sah bisher nur dann, dass jemand geschrieben hat, wenn
+     * zufaellig ein Chatfenster offen war. Nach einem Seitenwechsel war die
+     * Auskunft weg. Der Zaehler steht auf jeder Seite (App\Helper\ViewHelper)
+     * und beantwortet die Frage dort, wo sie auffaellt.
+     *
+     * EINE ABFRAGE UEBER DEN JOIN und nicht eine je Chat: Sie laeuft bei
+     * JEDEM Heartbeat, also alle zehn Sekunden je angemeldetem Konto. Der
+     * Index `ungelesen` aus Migration 019 beantwortet sie, ohne die Zeilen
+     * nachzulesen.
+     *
+     * BEENDETE CHATS ZAEHLEN NICHT MIT (c.deleted = 0). Ein weggeraeumtes
+     * Gespraech soll den Zaehler nicht dauerhaft faerben; wieder aufgenommen
+     * wird es ohnehin von der naechsten Nachricht (App\Model\Chat).
+     *
+     * @param int $userId
+     * @return int
+     */
+    public static function countUnseenTotal($userId): int
+    {
+        $user_id = (int)$userId;
+        if ($user_id < 1) return 0;
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                "SELECT COUNT(*) AS cnt
+                   FROM chat_message m
+                   JOIN chat c ON c.id = m.chat_id
+                  WHERE c.deleted = 0
+                    AND (c.user1_id = ? OR c.user2_id = ?)
+                    AND m.sender_id != ?
+                    AND m.seen = 0"
+            );
+            $stmt->execute([$user_id, $user_id, $user_id]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            return $row ? (int)$row['cnt'] : 0;
+        } catch (\PDOException $e) {
+            error_log('Fehler in ChatMessage::countUnseenTotal: ' . $e->getMessage());
+            return 0;
+        }
     }
 
     // Getter 

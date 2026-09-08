@@ -3,16 +3,50 @@ namespace App\Model;
 
 /**
  * Model-Klasse für Chat-Sitzungen zwischen zwei Benutzern.
- * Verwaltet Chat-Instanzen, ermöglicht das Erstellen, Finden und Aktivieren von Chats.
+ *
+ * EIN CHAT ENTSTEHT UEBER EINEN STANDORT (Migration 019)
+ * -----------------------------------------------------
+ * Das ist die Regel, die diese Klasse traegt und die den frueheren Befund
+ * N-12 abloest: Vorher nahm die Route chat_start eine beliebige Kontokennung
+ * entgegen - wer sie kannte, konnte jedem Konto der Plattform eine Nachricht
+ * ins Postfach legen. Jetzt sagt der STANDORT, wer das Gegenueber ist: Ein
+ * Kunde schreibt den Guide von dessen Standortseite aus an, und die Kennung
+ * des Guides holt der Server sich selbst aus dem Standort.
+ *
+ * Die Spalte location_id traegt die HERKUNFT und nicht das Thema. Sie
+ * beantwortet die Frage, warum diese beiden Konten miteinander reden duerfen.
+ * NULL heisst "ohne Standort": ein Direktchat des Admins (Recht
+ * chat.start_direct) oder ein Chat aus der Zeit vor Migration 019.
+ *
+ * EIN CHAT JE PAAR, NICHT JE STANDORT. Bietet derselbe Guide drei Standorte
+ * an und fragt derselbe Kunde zu allen dreien, bleibt es EIN Gespraech - sonst
+ * haette der Kunde drei Fenster mit demselben Menschen und muesste raten, in
+ * welchem er zuletzt geschrieben hat.
+ *
+ * WAS HIER NICHT MEHR STEHT: DIE EINLADUNG
+ * ----------------------------------------
+ * setActive(), checkIfActive() und getInvitations() sind mit den Spalten
+ * is_active und pending_for entfallen (Migration 019). Ein Chat war vorher
+ * erst eine Einladung ("X moechte mit Ihnen chatten") und wurde durch
+ * Annehmen zum Gespraech; erst danach gab es ein Eingabefeld.
+ *
+ * Diese Mechanik stammt aus einer Anwendung, in der jeder jeden anschreiben
+ * konnte - dort ist sie der Schutz vor Fremden. Hier gibt es diesen Fremden
+ * nicht mehr: Ein Chat entsteht nur zwischen einem Kunden und dem Guide eines
+ * Standorts, den dieser Guide selbst oeffentlich angeboten hat. Wer Standorte
+ * anbietet, will Rueckfragen bekommen.
+ *
+ * Und sie blockierte ausgerechnet das, was sie schuetzen sollte: Der Guide
+ * entschied ueber einen blossen Namen, ohne zu wissen, worum es geht. Die
+ * Begruendung im Ganzen steht in migrations/019_standort_chat.sql.
  */
 class Chat
 {
     private $id;
     private $user1_id;
     private $user2_id;
-    private $is_active;
+    private $location_id;
     private $last_msg_at;
-    private $pending_for;
     private $deleted;
 
     /**
@@ -24,62 +58,87 @@ class Chat
         $this->id          = $data['id'         ] ?? null;
         $this->user1_id    = $data['user1_id'   ] ?? null;
         $this->user2_id    = $data['user2_id'   ] ?? null;
-        $this->is_active   = $data['is_active'  ] ?? 0;
+        $this->location_id = $data['location_id'] ?? null;
         $this->last_msg_at = $data['last_msg_at'] ?? null;
-        $this->pending_for = $data['pending_for'] ?? null;
         $this->deleted     = $data['deleted'    ] ?? null;
     }
 
     /**
-     * Sucht einen bestehenden Chat zwischen zwei Usern (unabhängig von Reihenfolge).
-     * Falls nicht vorhanden, wird ein neuer angelegt.
+     * Sucht den Chat zweier Konten und legt ihn an, wenn es ihn noch nicht
+     * gibt.
      *
-     * @param int $user1_id
-     * @param int $user2_id
+     * DIESE METHODE ENTSCHEIDET NICHTS. Ob die beiden ueberhaupt miteinander
+     * reden duerfen, ist vorher entschieden - im Controller, der die Kennung
+     * des Gegenuebers aus dem Standort holt statt aus der Anfrage
+     * (App\Controller\ChatController::startChat). Wer hier eine zweite
+     * Pruefung erwartet, sucht sie an der falschen Stelle.
+     *
+     * DIE REIHENFOLGE DER BEIDEN KENNUNGEN wird sortiert abgelegt, damit ein
+     * Chat unabhaengig davon gefunden wird, wer ihn gerade oeffnet.
+     *
+     * EIN BEENDETER CHAT WIRD WIEDERBELEBT statt verdoppelt: Der Verlauf
+     * gehoert den beiden Beteiligten und faengt nicht bei null an, nur weil
+     * einer von ihnen das Fenster einmal weggeraeumt hat.
+     *
+     * DIE HERKUNFT WIRD NICHT UEBERSCHRIEBEN. Sie sagt, wie der Kontakt
+     * ZUSTANDE GEKOMMEN ist; ein spaeterer Standort aendert daran nichts.
+     * Gesetzt wird sie deshalb nur, wenn noch keine da ist - das trifft die
+     * alten Chats aus der Zeit vor Migration 019 und die Direktchats des
+     * Admins, sobald derselbe Kunde spaeter ueber einen Standort schreibt.
+     *
+     * @param int      $user1_id
+     * @param int      $user2_id
+     * @param int|null $location_id Der Standort, ueber den der Kontakt
+     *                 entsteht; null beim Direktchat des Admins
      * @return Chat|null Gibt das Chat-Objekt oder null bei Fehler zurück
      */
-    public static function findOrCreate(int $user1_id, int $user2_id): Chat|null
+    public static function findOrCreate(int $user1_id, int $user2_id, ?int $location_id = null): Chat|null
     {
         $ids = [$user1_id, $user2_id];
         sort($ids);
 
-        // 1. Gibt es schon einen Chat, egal ob deleted oder nicht?
-        $stmt = PdoConnect::$connection->prepare("SELECT * FROM chat WHERE user1_id = ? AND user2_id = ? LIMIT 1");
-        $stmt->execute([$ids[0], $ids[1]]);
-        $chat = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $standort = ($location_id !== null && $location_id > 0) ? $location_id : null;
 
-        if ($chat) {
-            // Falls gelöscht, reaktiviere!
-            if ($chat['deleted']) {
-                $stmt2 = PdoConnect::$connection->prepare("UPDATE chat SET deleted = 0, is_active = 0, pending_for = ? WHERE id = ?");
-                $stmt2->execute([$user2_id, $chat['id']]);
-                $chat['deleted'] = 0;
-                $chat['is_active'] = 0;
-                $chat['pending_for'] = $user2_id;
-            }
-            // Falls nicht aktiv, pending_for aktualisieren
-            if (!$chat['is_active']) {
-                $stmt3 = PdoConnect::$connection->prepare("UPDATE chat SET pending_for = ? WHERE id = ?");
-                $stmt3->execute([$user2_id, $chat['id']]);
-                $chat['pending_for'] = $user2_id;
-            }
-            return new self($chat);
-        }
-
-        // Kein Chat vorhanden: Lege neuen an
         try {
+            // 1. Gibt es schon einen Chat, egal ob deleted oder nicht?
             $stmt = PdoConnect::$connection->prepare(
-                "INSERT INTO chat (user1_id, user2_id, is_active, last_msg_at, pending_for, deleted) VALUES (?, ?, 0, NULL, ?, 0)"
+                "SELECT * FROM chat WHERE user1_id = ? AND user2_id = ? LIMIT 1"
             );
-            $stmt->execute([$ids[0], $ids[1], $user2_id]);
+            $stmt->execute([$ids[0], $ids[1]]);
+            $chat = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            if ($chat) {
+                // Beendet? Dann wieder aufnehmen. Und wenn die Herkunft noch
+                // fehlt, wird sie jetzt nachgetragen - beides in EINEM UPDATE,
+                // damit kein Zwischenzustand entsteht.
+                $neueHerkunft = ($chat['location_id'] ?? null) === null ? $standort : null;
+
+                if ($chat['deleted'] || $neueHerkunft !== null) {
+                    $stmt2 = PdoConnect::$connection->prepare(
+                        "UPDATE chat SET deleted = 0,
+                                location_id = COALESCE(location_id, ?)
+                          WHERE id = ?"
+                    );
+                    $stmt2->execute([$neueHerkunft, $chat['id']]);
+                    $chat['deleted']     = 0;
+                    $chat['location_id'] = $chat['location_id'] ?? $neueHerkunft;
+                }
+                return new self($chat);
+            }
+
+            // Kein Chat vorhanden: Lege neuen an.
+            $stmt = PdoConnect::$connection->prepare(
+                "INSERT INTO chat (user1_id, user2_id, location_id, last_msg_at, deleted)
+                 VALUES (?, ?, ?, NULL, 0)"
+            );
+            $stmt->execute([$ids[0], $ids[1], $standort]);
             $chat_id = PdoConnect::$connection->lastInsertId();
             return new self([
                 "id"          => $chat_id,
                 "user1_id"    => $ids[0],
                 "user2_id"    => $ids[1],
-                "is_active"   => 0,
+                "location_id" => $standort,
                 "last_msg_at" => null,
-                "pending_for" => $user2_id,
                 "deleted"     => 0
             ]);
         } catch (\PDOException $e) {
@@ -90,12 +149,18 @@ class Chat
 
     /**
      * Setzt das Chat-Objekt und den DB-Eintrag auf gelöscht (deleted = 1).
+     *
+     * EIN SOFT-DELETE UND KEINE SPERRE: Der Verlauf bleibt stehen und unter
+     * "Alle Chats" lesbar, und die naechste Nachricht belebt das Gespraech
+     * wieder (findOrCreate). Es ist das Wegraeumen einer erledigten
+     * Unterhaltung, nicht "diese Person nicht mehr".
+     *
      * @return bool
      */
     public function delete(): bool
     {
         try {
-            $stmt = PdoConnect::$connection->prepare("UPDATE chat SET deleted = 1, pending_for = null WHERE id = ?");
+            $stmt = PdoConnect::$connection->prepare("UPDATE chat SET deleted = 1 WHERE id = ?");
             $stmt->execute([$this->id]);
             $this->deleted = 1;
             return true;
@@ -142,66 +207,72 @@ class Chat
     }
 
     /**
-     * Setzt den Chat auf "aktiv" in der Datenbank und im Objekt.
-     * @return bool
+     * Was im Zaehler der Kopfleiste steht.
+     *
+     * WOZU UEBERHAUPT
+     * ---------------
+     * Weil eine Nachricht sonst verlorengeht. Der Guide bekam sie bisher nur
+     * dann zu sehen, wenn zufaellig ein Chatfenster offen war - die Fenster
+     * baut assets/js/ui_chat.js, und wer die Seite gewechselt hat, fing von
+     * vorne an. Genau dieselbe Ueberlegung wie beim Anfragenzaehler
+     * (App\Model\TourRequest::counters): Was auf jemanden wartet, muss an
+     * einer Stelle wieder auftauchen, die er ohnehin ansteuert.
+     *
+     * EINE ZAHL, EINE BEDEUTUNG: ungelesene Nachrichten, ueber alle nicht
+     * beendeten Chats hinweg. Sie zaehlt Nachrichten und keine Gespraeche -
+     * "drei ungelesene" sagt mehr als "in einem Chat wartet etwas".
+     *
+     * SIE FAEHRT AUF DEM HEARTBEAT MIT (App\Controller\UserController) und
+     * bekommt keine eigene Schleife: Der Takt laeuft ohnehin.
+     *
+     * @param int $in_user_id
+     * @return array{unread:int}
      */
-    public function setActive()
+    public static function counters($in_user_id): array
     {
-        try {
-            $stmt = PdoConnect::$connection->prepare("UPDATE chat SET is_active = 1 WHERE id = ?");
-            $stmt->execute([$this->id]);
-            $this->is_active = 1;
-            return true;
-        } catch (\PDOException $e) {
-            error_log('Fehler in Chat::setActive: ' . $e->getMessage());
-            return false;
-        }
-    }
+        $user_id = (int)$in_user_id;
+        if ($user_id < 1) return ['unread' => 0];
 
-    /**
-     * Prüft, ob der Chat in der Datenbank als aktiv markiert ist.
-     * @return bool
-     */
-    public function checkIfActive(): bool
-    {
-        try {
-            $stmt = PdoConnect::$connection->prepare("SELECT id FROM chat WHERE is_active = 1 AND id = ? AND deleted = 0");
-            $stmt->execute([$this->id]);
-            return (bool)$stmt->fetch();
-        } catch (\PDOException $e) {
-            error_log('Fehler in Chat::checkIfActive: ' . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Gibt ausstehende Einladungen zurück.
-     * @return array
-     */
-    public static function getInvitations(): array 
-    {
-        $userId = $_SESSION['user']['user_id'];
-        $stmt = PdoConnect::$connection->prepare(
-            "SELECT * FROM chat WHERE pending_for = ? AND is_active = 0"
-        );
-        $stmt->execute([$userId]);
-        $invitations = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        $result = [];
-        foreach ($invitations as $row) {
-            $partnerId = ($userId == $row['user1_id']) ? $row['user2_id'] : $row['user1_id'];
-            $partnerName = (new User($partnerId))->getUsername() ?: ('User ' . $partnerId);
-            $row['partner_name'] = $partnerName;
-            $result[] = $row;
-        }
-        return $result;
+        return ['unread' => ChatMessage::countUnseenTotal($user_id)];
     }
 
     // Getter-Methoden für die wichtigsten Eigenschaften
     public function getId(): int          { return $this->id;               }
     public function getUser1Id(): int     { return $this->user1_id;         }
     public function getUser2Id(): int     { return $this->user2_id;         }
-    public function isActive(): bool      { return (bool)$this->is_active;  }
     public function isDeleted(): bool     { return (bool)$this->deleted;    }
     public function getLastMsgAt()        { return $this->last_msg_at;      }
-    public function getPendingFor()       { return $this->pending_for;      }
+    /** Der Standort, ueber den der Chat entstanden ist - null heisst "ohne". */
+    public function getLocationId()       { return $this->location_id === null
+                                                    ? null : (int)$this->location_id; }
+
+    /**
+     * Ist dieses Konto an dem Chat beteiligt?
+     *
+     * DIE EINE FASSUNG DIESER FRAGE. Sechs Stellen im ChatController stellen
+     * sie (Befund S-1); stuende sie sechsmal ausgeschrieben da, waere die
+     * siebte die, die beim naechsten Ergaenzen vergessen wird.
+     *
+     * @param int $in_user_id
+     * @return bool
+     */
+    public function hatTeilnehmer($in_user_id): bool
+    {
+        $user_id = (int)$in_user_id;
+        return $user_id > 0
+            && ((int)$this->user1_id === $user_id || (int)$this->user2_id === $user_id);
+    }
+
+    /**
+     * Der jeweils andere - aus Sicht des Angemeldeten.
+     *
+     * @param int $in_user_id
+     * @return int
+     */
+    public function partnerVon($in_user_id): int
+    {
+        return ((int)$this->user1_id === (int)$in_user_id)
+            ? (int)$this->user2_id
+            : (int)$this->user1_id;
+    }
 }

@@ -37,9 +37,25 @@ window.webrtcApp.init = function() {
     }
 
     // ---------- Chat-Popup öffnen über Button ----------
+    //
+    // ZWEI KNOEPFE, ZWEI WEGE, und der Unterschied ist der Punkt:
+    //
+    //   .start-location-chat-btn steht auf der STANDORTSEITE und schickt eine
+    //   Standortkennung. Wen der Kunde damit anschreibt, entscheidet der
+    //   Server anhand des Standorts - das ist der uebliche Weg, und es ist
+    //   zugleich die Einschraenkung auf eine Beziehung (Befund N-12).
+    //
+    //   .start-chat-btn steht in der BENUTZERLISTE, die nur der Admin sieht,
+    //   und schickt eine Kontokennung. Die Route dahinter verlangt das Recht
+    //   chat.start_direct und weist alle anderen ab.
+    $(document).on('click', '.start-location-chat-btn', function () {
+        window.webrtcApp.uiChat.openChatForLocation(
+            $(this).data('locationid'), $(this).data('guidename')
+        );
+    });
+
     $(document).on('click', '.start-chat-btn', function () {
-        const userId = $(this).data('userid');
-        window.webrtcApp.uiChat.openChatPopup(userId);
+        window.webrtcApp.uiChat.openChatWithUser($(this).data('userid'));
     });
 
     // ---------- Starte Polling für Signaling nach Login ----------

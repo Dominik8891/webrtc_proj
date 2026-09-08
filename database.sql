@@ -903,15 +903,30 @@ CREATE TABLE IF NOT EXISTS `chat` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user1_id` int(11) NOT NULL,
   `user2_id` int(11) NOT NULL,
-  `is_active` tinyint(4) DEFAULT 0,
+  -- Der Standort, UEBER DEN der Chat zustande gekommen ist (Migration 019).
+  -- Er ist der Grund, aus dem diese beiden Konten miteinander reden duerfen:
+  -- Ein Kunde schreibt den Guide von dessen Standortseite aus an, und wen er
+  -- anschreibt, sagt der Standort und nicht die Anfrage.
+  --
+  -- EIN CHAT JE PAAR, NICHT JE STANDORT: Fragt derselbe Kunde denselben Guide
+  -- zu einem zweiten Standort, bleibt es ein Gespraech - die Spalte traegt
+  -- dann den Standort des Erstkontakts.
+  --
+  -- NULL heisst "ohne Standort": ein Direktchat des Admins ueber die
+  -- Benutzerliste (Recht chat.start_direct) oder ein Chat aus der Zeit vor
+  -- Migration 019.
+  `location_id` int(11) DEFAULT NULL,
   `last_msg_at` datetime DEFAULT NULL,
-  `pending_for` int(11) DEFAULT NULL,
   `deleted` tinyint(4) DEFAULT 0,
   PRIMARY KEY (`id`),
   KEY `user1_id` (`user1_id`),
   KEY `user2_id` (`user2_id`),
+  KEY `chat_standort` (`location_id`),
   CONSTRAINT `chat_ibfk_1` FOREIGN KEY (`user1_id`) REFERENCES `user` (`id`),
-  CONSTRAINT `chat_ibfk_2` FOREIGN KEY (`user2_id`) REFERENCES `user` (`id`)
+  CONSTRAINT `chat_ibfk_2` FOREIGN KEY (`user2_id`) REFERENCES `user` (`id`),
+  -- SET NULL und nicht CASCADE: Loescht ein Guide seinen Standort,
+  -- verschwindet die Herkunft, aber nicht das Gespraech.
+  CONSTRAINT `chat_ibfk_3` FOREIGN KEY (`location_id`) REFERENCES `location` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- --------------------------------------------------------
@@ -927,6 +942,11 @@ CREATE TABLE IF NOT EXISTS `chat_message` (
   PRIMARY KEY (`id`),
   KEY `chat_id` (`chat_id`),
   KEY `sender_id` (`sender_id`),
+  -- Der Zaehler der Kopfleiste fragt "was ist in diesem Chat nicht von mir
+  -- und noch nicht gesehen" - und er fragt es bei jedem Heartbeat
+  -- (Migration 019). Mit sender_id und seen im Index beantwortet er die
+  -- Frage, ohne die Zeilen nachzulesen.
+  KEY `ungelesen` (`chat_id`, `seen`, `sender_id`),
   CONSTRAINT `chat_message_ibfk_1` FOREIGN KEY (`chat_id`) REFERENCES `chat` (`id`) ON DELETE CASCADE,
   CONSTRAINT `chat_message_ibfk_2` FOREIGN KEY (`sender_id`) REFERENCES `user` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -935,6 +935,18 @@ je IP zusätzlich nur dort, wo ein Aufruf Geld außerhalb dieses Servers kostet
 (TURN-Kontingent, Mailversand). Der gebremste TURN-Abruf liefert die
 STUN-Liste statt eines Fehlers — ein Anruf im einfachen Netz gelingt weiterhin.
 
+**Chat ohne Beziehung** (Befund N-12) — **behoben**. `chat_start` nahm eine
+beliebige Kontokennung entgegen; wer die Route kannte, konnte jedem Konto der
+Plattform schreiben, und die Kennungen sind fortlaufend. Die Route nimmt jetzt
+eine **Standortkennung** und holt sich den Guide selbst dazu
+(`Location::guideIdOf()`): Ein Chat entsteht nur zwischen einem Kunden und dem
+Guide eines Standorts. Der Direktzugang der Verwaltung ist eine eigene Route
+mit einem eigenen Recht (`chat.start_direct`), das nur der Admin hat. Damit ist
+zugleich behoben, dass der Chat für Kunden gar nicht erreichbar war — er hing
+an der Benutzerliste, die nur der Admin sieht. Die Ratengrenze bleibt daneben
+bestehen, ist aber nur noch eine Obergrenze gegen die Masse. Siehe
+`migrations/019_standort_chat.sql`.
+
 **Registrierung**: Die **fehlende Bremse ist behoben** — `signup` begrenzt
 angelegte Konten je IP, `signup_formular` daneben die abgeschickten Formulare,
 damit sich die Grenze nicht durch ungültige Eingaben umgehen lässt (und das

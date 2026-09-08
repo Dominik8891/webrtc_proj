@@ -259,11 +259,23 @@ return [
     ],
 
     /**
-     * Einen Chat oeffnen (ChatController::startChat).
+     * Einen Chat oeffnen - beide Einstiege (ChatController::startChat und
+     * ::startDirectChat).
      *
-     * DER BEFUND: Die Route nimmt eine beliebige Kontokennung entgegen
-     * (Befund N-12) und legt bei Bedarf einen Chat an. Ein Skript konnte damit
-     * jedem Konto der Plattform eine offene Einladung ins Postfach legen.
+     * EINE AKTION FUER BEIDE, weil es derselbe Vorgang ist: einen Chat
+     * anlegen. Sie unterscheiden sich nur in der Quelle fuer das Gegenueber -
+     * der Standort beim Kunden, die Benutzerliste beim Admin. Zwei Zaehler
+     * daneben waeren zwei Namen fuer dieselbe Frage.
+     *
+     * DER BEFUND WAR EIN ANDERER, UND ER IST BEHOBEN: Die Route nahm eine
+     * beliebige Kontokennung entgegen (Befund N-12) - ein Skript konnte damit
+     * jedem Konto der Plattform eine Nachricht ins Postfach legen. Seit
+     * Migration 019 sagt der STANDORT, wer das Gegenueber ist; die freie Wahl
+     * gibt es nicht mehr.
+     *
+     * DIESE GRENZE WAR NIE DIE ANTWORT DARAUF und ist es auch jetzt nicht.
+     * Sie bleibt, was sie war: eine Obergrenze gegen die Masse. Wer wen
+     * anschreiben darf, ist keine Frage der Haeufigkeit.
      *
      * SECHZIG JE STUNDE - und damit auffaellig grosszuegig. Der Grund steht im
      * Client: assets/js/ui_chat.js ruft diese Route bei JEDEM Oeffnen eines
@@ -271,12 +283,6 @@ return [
      * zwischen seinen Gespraechen hin und her wechselt, erzeugt echte
      * Aufrufe, und eine enge Grenze wuerde die normale Bedienung abwuergen,
      * nicht den Missbrauch.
-     *
-     * SIE IST DESHALB EINE OBERGRENZE GEGEN DIE MASSE und keine feine
-     * Regelung: Sechzig neue Fremde je Stunde sind Spam, aber kein
-     * Rundumschlag ueber die ganze Plattform. Die eigentliche Antwort auf
-     * N-12 ist eine andere - den Chat auf bestehende Beziehungen
-     * einschraenken -, und die gehoert nicht in eine Ratengrenze.
      */
     'chat_start' => [
         'konto' => ['teile' => ['konto'], 'versuche' => 60, 'fenster' => 3600, 'sperre' => 3600, 'erfolg_loescht' => false],

@@ -1,6 +1,7 @@
 <?php
 namespace App\Controller;
 
+use App\Model\Chat;
 use App\Model\TourRequest;
 use App\Model\TourReview;
 use App\Model\User;
@@ -281,6 +282,15 @@ class UserController
             //
             // NULL ist der Regelfall und heisst "nichts zu beenden".
             'tour'              => TourRequest::runningForGuide($user_id),
+            // UND DIE UNGELESENEN NACHRICHTEN, aus demselben Grund wie die
+            // Anfragen darueber: Der Zaehler in der Kopfleiste braucht keine
+            // eigene Schleife. Der Takt laeuft ohnehin.
+            //
+            // Ein Guide, der eine Rueckfrage zu seinem Standort bekommt, sah
+            // sie bisher nur, wenn zufaellig ein Chatfenster offen war
+            // (assets/js/ui_chat.js). Diese Zahl ist die Auskunft, die ihn
+            // auf jeder Seite erreicht.
+            'chat'              => Chat::counters($user_id),
         ]);
         exit;
     }

@@ -261,13 +261,35 @@ return [
     'review_remove'         => [ReviewController::class             , 'remove'                  , Permission::REVIEW_REMOVE          , 'json'],
 
     // Chat-Funktionen
+    //
+    // EIN CHAT ENTSTEHT UEBER EINEN STANDORT. Das ist die Antwort auf Befund
+    // N-12: chat_start nimmt eine STANDORTKENNUNG entgegen und holt sich den
+    // Guide selbst dazu (App\Model\Location::guideIdOf). Vorher nahm die
+    // Route eine beliebige Kontokennung - wer sie kannte, konnte jedem Konto
+    // der Plattform schreiben, und die Kennungen sind fortlaufend.
+    //
+    // Damit ist der Chat zugleich ERREICHBAR geworden: Er hing vorher an der
+    // Benutzerliste, die nur der Admin sieht - ein Kunde hatte gar keinen Weg
+    // zu seinem Guide.
+    //
+    // ZWEI EINSTIEGE, ZWEI RECHTE, und der Unterschied ist der Punkt:
+    // chat.start hat jedes angemeldete Konto, chat.start_direct nur der
+    // Admin. Der Direktzugang gehoert zur Benutzerliste und ist deshalb eine
+    // eigene Route: Ueber den Zugang entscheidet index.php anhand der
+    // Rechtetabelle, und ein "wenn Admin, dann anders" mitten im Controller
+    // waere eine zweite Rechteentscheidung an einer Stelle, an der niemand
+    // sie sucht.
+    //
+    // ENTFALLEN SIND chat_accept und chat_decline. Ein Chat war vorher erst
+    // eine Einladung, die der Angeschriebene annehmen musste, bevor der
+    // andere ueberhaupt schreiben durfte - der Guide entschied also ueber
+    // einen blossen Namen. Die Begruendung im Ganzen steht in
+    // migrations/019_standort_chat.sql.
     'chat_start'            => [ChatController::class               , 'startChat'               , Permission::CHAT_START             , 'json'],
-    'chat_accept'           => [ChatController::class               , 'acceptChat'              , Permission::CHAT_ANSWER            , 'json'],
+    'chat_start_direct'     => [ChatController::class               , 'startDirectChat'         , Permission::CHAT_START_DIRECT      , 'json'],
     'chat_get_chats'        => [ChatController::class               , 'getChats'                , Permission::CHAT_LIST              , 'json'],
     'chat_get_messages'     => [ChatController::class               , 'getMessages'             , Permission::CHAT_READ              , 'json'],
     'chat_send_message'     => [ChatController::class               , 'sendMessage'             , Permission::CHAT_WRITE             , 'json'],
-    'chat_get_invitations'  => [ChatController::class               , 'getChatInvitations'      , Permission::CHAT_LIST              , 'json'],
-    'chat_decline'          => [ChatController::class               , 'declineChat'             , Permission::CHAT_ANSWER            , 'json'],
     'chat_set_seen'         => [ChatController::class               , 'setMessagesSeen'         , Permission::CHAT_READ              , 'json'],
     'get_all_chats'         => [ChatController::class               , 'getAllChats'             , Permission::CHAT_LIST              , 'html'],
     'show_chat'             => [ChatController::class               , 'showChat'                , Permission::CHAT_READ              , 'html'],

@@ -55,13 +55,17 @@ mariadb -u <user> -p <datenbank> < migrations/014_verfuegbarkeitszeiten.sql
 mariadb -u <user> -p <datenbank> < migrations/015_guide_profil.sql
 mariadb -u <user> -p <datenbank> < migrations/016_bewertungen.sql
 mariadb -u <user> -p <datenbank> < migrations/017_fuehrung_beenden.sql
+mariadb -u <user> -p <datenbank> < migrations/018_bremse.sql
+mariadb -u <user> -p <datenbank> < migrations/019_standort_chat.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)), `017` ergänzt `tour_request.closed_at`: Der Guide **beendet die Führung ausdrücklich**, statt dass das Auflegen sie abschließt (siehe [Auflegen ist nicht beenden](#auflegen-ist-nicht-beenden)). Alle sind idempotent und löschen nichts.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)), `017` ergänzt `tour_request.closed_at`: Der Guide **beendet die Führung ausdrücklich**, statt dass das Auflegen sie abschließt (siehe [Auflegen ist nicht beenden](#auflegen-ist-nicht-beenden)), `018` legt die Tabelle `rate_limit` an — die **serverseitigen Versuchszähler**, die vorher in der Session des Aufrufers lagen, `019` gibt dem Chat seine **Herkunft** (`chat.location_id`) und nimmt ihm die **Einladung** (siehe [Der Chat](#-der-chat-über-einen-standort)). Alle sind idempotent.
 
 **Nach `011` braucht die Anwendung ein Ablageverzeichnis für Bilder**, sonst lässt sich kein Bild hochladen; alles andere läuft unverändert weiter. Siehe [Bilder](#bilder-ablage-formate-größen).
 
 **Nach `013` beginnt die Aufzeichnung bei null.** Vergangene Führungen sind nirgends festgehalten und lassen sich nicht nachtragen — es gab dafür keinen Datensatz, und genau deshalb gibt es die Tabelle.
+
+**`019` löscht als einzige etwas** — die Spalten `chat.is_active` und `chat.pending_for`. Jede vorhandene Zeile wird dadurch zu einem gewöhnlichen Chat: Eine Einladung, die noch offen war, ist ab dann ein offenes Gespräch, und der Angeschriebene sieht sie im Zähler der Kopfleiste statt in einem Fenster mit zwei Knöpfen. Nachrichten gehen keine verloren.
 
 **Nach `017` gilt keine bestehende Führung als offen.** Alle vorhandenen Zeilen bekommen `closed_at = NULL`; was schon auf `done` steht, bleibt beendet und bleibt bewertbar. Ein Nachtragen des Abschlusszeitpunkts gäbe es nicht — er wurde nie erfasst, und ein erfundener wäre schlechter als keiner.
 
@@ -1434,6 +1438,78 @@ Wie bei `tour_request` und aus demselben Grund: Eine abgegebene Bewertung bleibt
 
 ---
 
+## 💬 Der Chat: über einen Standort
+
+### Das Problem
+
+Zwei Befunde, die derselbe Satz löst.
+
+**Der Chat war für Kunden nicht erreichbar.** Ein Chat ließ sich ausschließlich über die **Benutzerliste** beginnen — und die sieht nur der Admin (Recht `user.list`). Ein Kunde hatte damit gar keinen Weg zu seinem Guide, obwohl genau dort die Fragen entstehen, die vor einer Führung zu klären sind: Wo genau ist der Treffpunkt? Ginge auch Samstag früh? Ist das mit einem Kinderwagen machbar?
+
+**Und er war auf keine Beziehung eingeschränkt.** Die Route `chat_start` nahm eine **beliebige Kontokennung** entgegen. Wer die Route kannte, konnte jedem Konto der Plattform eine Nachricht ins Postfach legen; die Kennungen sind fortlaufend, ein Durchzählen genügte. Die Ratengrenze aus `config/limits.php` dagegen war eine Obergrenze gegen die Masse und keine Antwort auf die Frage, **wer wen überhaupt** anschreiben darf.
+
+### Die Regel
+
+**Ein Chat entsteht über einen Standort.** Der Kunde schreibt den Guide von dessen Standortseite aus an; wen er anschreibt, sagt der **Standort** und nicht die Anfrage. `startChat()` nimmt eine Standortkennung entgegen und holt sich den Guide selbst dazu (`Location::guideIdOf()`).
+
+Damit ist beides zugleich gelöst: Der Chat ist von der Standortseite aus erreichbar, und es gibt keinen Parameter mehr, mit dem sich ein beliebiges Konto anschreiben ließe. Wer Standortkennungen durchzählt, landet bei den Guides öffentlich angebotener Standorte — also genau bei denen, die Rückfragen bekommen wollen.
+
+Drei Dinge prüft der Server, und keines davon kann eine Rechtetabelle wissen:
+
+| | |
+|---|---|
+| Gibt es den Standort, und ist er **nicht gesperrt**? | Beides meldet `guideIdOf()` mit `null`, und die Antwort lautet in beiden Fällen **wörtlich gleich** — auch Standortkennungen sind fortlaufend. |
+| Ist der Aufrufer **nicht selbst der Guide**? | Sich selbst schreibt niemand an. |
+| Die **Bremse** | Unverändert 60 je Stunde: `ui_chat.js` ruft die Route bei jedem Öffnen eines Fensters auf, es ist ein `findOrCreate`. |
+
+### Der Direktzugang bleibt beim Admin
+
+Er ist der einzige, der die Benutzerliste sieht, und er muss auch ein Konto erreichen können, das keinen Standort anbietet — einen Zuschauer etwa. Dafür gibt es eine **eigene Route** (`chat_start_direct`) mit einem **eigenen Recht** (`chat.start_direct`), und dieses Recht hat nur er. Ein Guide hat es nicht: Von sich aus ein fremdes Konto anzuschreiben ist genau das, was verschwinden sollte.
+
+Eine eigene Route und kein Sonderfall im Controller: Über den Zugang entscheidet `index.php` anhand der Rechtetabelle, und ein „wenn Admin, dann anders" mitten im Controller wäre eine zweite Rechteentscheidung an einer Stelle, an der niemand sie sucht.
+
+### Ein Chat je Paar, nicht je Standort
+
+Bietet derselbe Guide drei Standorte an und fragt derselbe Kunde zu allen dreien, bleibt es **ein Gespräch**. Die Spalte `chat.location_id` trägt dann den Standort des Erstkontakts — sie ist die **Herkunft**, nicht das Thema, und beantwortet die Frage, warum diese beiden Konten miteinander reden dürfen.
+
+`NULL` heißt „ohne Standort": ein Direktchat des Admins oder ein Chat aus der Zeit vor Migration `019`. Die bleiben lesbar — eine Nachricht, die jemand geschrieben hat, wird nicht dadurch ungeschehen, dass die Regel sich ändert. Der Fremdschlüssel ist `ON DELETE SET NULL`: Löscht ein Guide seinen Standort, verschwindet die Herkunft, aber nicht das Gespräch.
+
+### Annehmen und Ablehnen entfallen
+
+Ein Chat war vorher erst eine **Einladung**: Der Angeschriebene bekam ein Fenster mit „X möchte mit Ihnen chatten" und zwei Knöpfen, und erst nach dem Annehmen gab es überhaupt ein Eingabefeld. Vier Gründe, warum das hier weg ist:
+
+1. **Sie schützte vor Fremden** — und genau diesen Fremden gibt es nicht mehr. Ein Chat entsteht nur zwischen einem Kunden und dem Guide eines Standorts, den dieser Guide selbst öffentlich angeboten hat. Wer Standorte anbietet, will Rückfragen bekommen.
+2. **Sie blockierte, was sie schützen sollte.** Der Kunde konnte erst schreiben, *nachdem* der Guide angenommen hatte — der Guide entschied also über einen bloßen Namen, ohne zu wissen, worum es geht. Eine Frage mit Inhalt („Geht Samstag 14 Uhr?") lässt sich beurteilen, ein Name allein nicht.
+3. **Sie war keine Sperre.** `Chat::findOrCreate()` belebte einen abgelehnten Chat beim nächsten Aufruf wieder. „Ablehnen" kostete den anderen einen Klick und sonst nichts. Eine echte Sperre gehört auf die Ebene „dieser Kunde nicht mehr" und nicht auf die erste Nachricht.
+4. **Sie war die einzige Stelle, die so arbeitet.** Eine [Anfrage](#-die-anfrage-statt-des-anrufs) trägt einen Wunschzeitpunkt, wenn der Guide über sie entscheidet. Die Chateinladung war dasselbe Gespräch ohne den Inhalt.
+
+Mit den Spalten `is_active` und `pending_for` sind entfallen: die Routen `chat_accept` und `chat_decline`, das Recht `chat.answer`, die Methoden `Chat::setActive()`, `::checkIfActive()` und `::getInvitations()` sowie das Einladungs-Polling im Browser.
+
+`chat.deleted` **bleibt** — das ist etwas anderes: „beendet/weggeräumt" gegenüber „noch nicht angenommen". Der Verlauf einer beendeten Unterhaltung steht weiterhin unter „Alle Chats".
+
+### Dass eine Nachricht da ist, sieht man in der Kopfleiste
+
+Ein Guide sah eine Rückfrage bisher nur dann, wenn zufällig gerade ein Chatfenster offen war — die Fenster baut `ui_chat.js`, und wer die Seite gewechselt oder den Tab im Hintergrund liegen hatte, erfuhr nichts.
+
+Der **Nachrichtenzähler** steht deshalb dort, wo auch der [Anfragenzähler](#wo-der-guide-die-anfragen-sieht) steht: in der Kopfleiste, auf jeder Seite. Er sagt dasselbe wie jener, nur über etwas anderes — „hier wartet etwas auf dich" — und führt auf die Chatübersicht.
+
+* **Eine Zahl, keine drei.** Beim Anfragenzähler sind es drei, weil dort drei verschiedene Dinge warten. Hier wartet nur eines: ungelesene Nachrichten, über alle nicht beendeten Chats hinweg. Gezählt werden **Nachrichten** und keine Gespräche — „drei ungelesene" sagt mehr als „in einem Chat wartet etwas".
+* **Für beide Seiten.** Er hängt am Recht `chat.list` und nicht an `location.offer`: Der Kunde bekommt die Antwort auf seine Frage, und die soll er genauso wenig verpassen wie der Guide die Frage.
+* **Er fährt auf dem Heartbeat mit** (`UserController::heartbeat`), wie der Anfragenzähler und die Bereitschaft. Eine eigene Schleife daneben wäre derselbe Weg noch einmal.
+* **Serverseitig mit seinem Stand ausgeliefert.** Wer die Seite ohne Skript öffnet, sieht trotzdem, dass etwas ansteht — nur nachgezogen wird die Zahl dann nicht.
+
+Migration `019` legt dafür den Index `chat_message.ungelesen (chat_id, seen, sender_id)` an: Die Zählung läuft ab jetzt bei **jedem** Heartbeat, also alle zehn Sekunden je angemeldetem Konto, und nicht mehr nur beim Öffnen der Chatliste.
+
+### Wo der Knopf steht
+
+Auf der Standortseite, im Kasten der Handlung — **unter** dem Anfrageformular und über den üblichen Zeiten, abgesetzt durch dieselbe Linie. Der übliche Weg ist die Anfrage; wer vorher etwas wissen will, findet es an der zweiten Stelle, aber an derselben Stelle, an der er sich ohnehin entscheidet. Er ist deshalb `btn-secondary` und nicht `btn-primary`.
+
+Er steht dort **unabhängig davon**, was darüber steht: ob noch gar nichts läuft, ob eine Anfrage offen ist oder ob der Guide zugesagt hat. Eine Rückfrage ist in allen drei Fällen sinnvoll, in den letzten beiden sogar am ehesten.
+
+Wer ihn nicht bekommt: der **Eigentümer** (sich selbst schreibt niemand an), ein **gesperrter** Standort (von dort beginnt nichts, auch kein Gespräch) und der **Gast** (ihm fehlt die Kennung des Guides, und der Anmeldehinweis steht bereits unmittelbar darüber — zweimal derselbe Satz untereinander liest sich wie ein Fehler).
+
+---
+
 ## 🔐 Berechtigungen
 
 ### Rollen
@@ -1461,7 +1537,7 @@ Jeder Eintrag in `config/routes.php` hat vier Pflichtangaben:
 
 `index.php` prüft **die gesamte Tabelle** bei jedem Aufruf. Fehlt bei einer Route das Recht oder ist es unbekannt, antwortet die Anwendung gar nicht mehr, bis der Eintrag stimmt — eine Route ohne definiertes Recht ist ein Konfigurationsfehler, kein offener Zugang. Erst danach wird das Recht des Aufrufers geprüft: Seiten leiten zur Anmeldung, Schnittstellen antworten mit 401 bzw. 403 als JSON.
 
-Was eine Rechtetabelle nicht wissen kann, prüfen weiterhin die Controller **und die Datenbankabfrage**: Standorte ändern und löschen tragen `AND user_id = :user_id` in der WHERE-Klausel, Chatnachrichten setzen die Beteiligung am Chat voraus.
+Was eine Rechtetabelle nicht wissen kann, prüfen weiterhin die Controller **und die Datenbankabfrage**: Standorte ändern und löschen tragen `AND user_id = :user_id` in der WHERE-Klausel, Chatnachrichten setzen die Beteiligung am Chat voraus (`Chat::hatTeilnehmer()`), und **wen** jemand anschreiben darf, sagt der Standort und nicht die Anfrage (siehe [Der Chat](#-der-chat-über-einen-standort)).
 
 ### Moderation
 

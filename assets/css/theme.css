@@ -1174,18 +1174,24 @@ a:hover {
 }
 
 /* ---------------------------------------------------------------------------
-   Der Anfragenzaehler der Kopfleiste
+   Die beiden Zaehler der Kopfleiste: Anfragen und Nachrichten
    ---------------------------------------------------------------------------
-   Er steht neben dem Bereitschaftsschalter und sieht aus wie er - beides sind
-   Auskuenfte ueber den eigenen Stand, keine Seitenaktionen. Was ihn
-   unterscheidet, ist die Zahl: Sie traegt den Akzent und nicht die
+   Sie stehen neben dem Bereitschaftsschalter und sehen aus wie er - alle drei
+   sind Auskuenfte ueber den eigenen Stand, keine Seitenaktionen. Was die
+   Zaehler unterscheidet, ist die Zahl: Sie traegt den Akzent und nicht die
    Live-Farbe, denn Gruen heisst in dieser Anwendung "ein Guide ist gerade
-   erreichbar" - eine wartende Anfrage ist etwas anderes.
+   erreichbar" - etwas Wartendes ist etwas anderes.
 
-   Gebaut von App\Helper\ViewHelper::requestsBadge(), nachgezogen von
-   assets/js/requests.js.
+   ZWEI ZAEHLER, EINE GESTALT, und deshalb steht jede Regel hier nur einmal:
+   Sie sagen dasselbe ("hier wartet etwas auf dich") ueber zwei verschiedene
+   Dinge. Zwei getrennte Bloecke waeren zwei Gelegenheiten, sie
+   auseinanderlaufen zu lassen.
+
+   Gebaut von App\Helper\ViewHelper::requestsBadge() und ::chatBadge(),
+   nachgezogen von assets/js/requests.js und assets/js/chat_badge.js.
    --------------------------------------------------------------------------- */
-.app-requests {
+.app-requests,
+.app-chats {
     display: inline-flex;
     align-items: center;
     gap: var(--app-space-2);
@@ -1203,7 +1209,8 @@ a:hover {
                 color var(--app-transition);
 }
 
-.app-requests:hover {
+.app-requests:hover,
+.app-chats:hover {
     border-color: var(--app-text-faint);
     color: var(--app-text);
     text-decoration: none;
@@ -1212,13 +1219,15 @@ a:hover {
 /* Steht etwas an, traegt der Zaehler den Akzent - und zwar dauerhaft, nicht
    blinkend: Eine Anfrage ist kein Alarm, sie soll nur nicht uebersehen
    werden. */
-.app-requests--on {
+.app-requests--on,
+.app-chats--on {
     background: var(--app-accent-soft);
     border-color: transparent;
     color: var(--app-accent-strong);
 }
 
-.app-requests__count {
+.app-requests__count,
+.app-chats__count {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1235,9 +1244,11 @@ a:hover {
 
 @media (max-width: 700px) {
     /* Auf schmalen Geraeten bleibt die Zahl, das Wort geht. Sie ist die
-       Auskunft; "Anfragen" erklaert nur, wovon. */
-    .app-requests { padding: 3px var(--app-space-2); }
-    .app-requests__text { display: none; }
+       Auskunft; "Anfragen" bzw. "Nachrichten" erklaert nur, wovon. */
+    .app-requests,
+    .app-chats { padding: 3px var(--app-space-2); }
+    .app-requests__text,
+    .app-chats__text { display: none; }
 }
 
 /* ---------------------------------------------------------------------------
@@ -1609,12 +1620,6 @@ a:hover {
     background: var(--app-bg);
 }
 
-/* Solange eine Anfrage offen ist, gibt es keine Nachrichten - dann steht dort
-   auch keine leere Flaeche. Die Klasse setzt uiChat.setTabUiByActiveState(). */
-.chat-pop--pending .chat-pop__body { display: none; }
-
-.chat-pop--pending .chat-pop__foot { border-top: 0; }
-
 /* Datumstrenner zwischen zwei Tagen. Eine Linie mit dem Tag in der Mitte -
    er steht einmal dort, wo der Tag wechselt, und nicht an jeder Nachricht. */
 .chat-daysep {
@@ -1722,21 +1727,11 @@ a:hover {
     fill: currentColor;
 }
 
-.chat-pop__ask {
-    padding: var(--app-space-4);
-    text-align: center;
-    font-size: var(--app-text-sm);
-    color: var(--app-text-muted);
-}
-
-.chat-pop__ask strong { color: var(--app-text); }
-
-.chat-pop__ask-actions {
-    display: flex;
-    gap: var(--app-space-2);
-    justify-content: center;
-    margin-top: var(--app-space-3);
-}
+/* Entfallen sind .chat-pop__ask und .chat-pop--pending. Sie gestalteten die
+   EINLADUNG - "X moechte mit Ihnen chatten" mit zwei Knoepfen anstelle des
+   Eingabefelds, und den Verlauf, den es bis zum Annehmen nicht gab. Die
+   Einladung ist mit Migration 019 weggefallen: Ein Chat entsteht nur noch
+   ueber einen Standort, und wer ein Fenster offen hat, kann schreiben. */
 
 /* ===========================================================================
    DIE KARTE AM RAND

@@ -6,12 +6,17 @@ window.webrtcApp = window.webrtcApp || {};
  * ChatManager: zentrale Verwaltung aller Chat-Instanzen und deren Status.
  * Jeder Chat wird als Eintrag im Objekt "chats" gespeichert.
  * Key ist die Chat-ID, Value ist ein Objekt mit Status und Infos zum Chat.
+ *
+ * WAS HIER NICHT MEHR STEHT: setActive() und isActive(). Sie trugen den
+ * Zustand der Einladung - "angenommen oder noch offen" -, und danach richtete
+ * sich, ob es ueberhaupt ein Eingabefeld gab. Die Einladung ist mit Migration
+ * 019 entfallen: Ein Chat entsteht nur noch zwischen einem Kunden und dem
+ * Guide eines Standorts, und wer ein Fenster offen hat, kann schreiben.
  */
 window.webrtcApp.chatManager = {
     /**
      * Speichert alle aktiven Chats als Mapping von chatId -> Chat-Objekt.
      * Jedes Chat-Objekt enthält:
-     * - isActive: Ob der Chat aktiv ist (angenommen/gestartet)
      * - teilnehmer: Array der User-IDs, die an diesem Chat beteiligt sind
      * - lastMsgId: ID der letzten Nachricht (für Benachrichtigung/Synchronisierung)
      */
@@ -25,21 +30,9 @@ window.webrtcApp.chatManager = {
     createChat(chatId, teilnehmer) {
         if (!this.chats[chatId]) {
             this.chats[chatId] = {
-                isActive: false,           // Standardmäßig noch nicht aktiv
                 teilnehmer: teilnehmer || [], // Teilnehmer-IDs als Array
                 lastMsgId: 0               // Letzte Nachrichten-ID (für Benachrichtigungen)
             };
-        }
-    },
-
-    /**
-     * Setzt den Aktiv-Status eines Chats (z.B. nach Annahme der Einladung).
-     * @param {string|number} chatId   Die Chat-ID
-     * @param {boolean} isActive       Soll der Chat als aktiv markiert werden?
-     */
-    setActive(chatId, isActive) {
-        if (this.chats[chatId]) {
-            this.chats[chatId].isActive = !!isActive;
         }
     },
 
@@ -61,15 +54,6 @@ window.webrtcApp.chatManager = {
      */
     getTeilnehmer(chatId) {
         return this.chats[chatId] ? this.chats[chatId].teilnehmer : [];
-    },
-
-    /**
-     * Gibt zurück, ob ein Chat aktiv ist.
-     * @param {string|number} chatId   Die Chat-ID
-     * @returns {boolean}              true, wenn aktiv, sonst false
-     */
-    isActive(chatId) {
-        return !!(this.chats[chatId] && this.chats[chatId].isActive);
     },
 
     /**
@@ -103,7 +87,7 @@ window.webrtcApp.chatManager = {
     },
 
     /**
-     * Entfernt einen Chat aus dem Manager (z.B. nach Löschen oder Ablehnen).
+     * Entfernt einen Chat aus dem Manager (z.B. beim Schliessen des Fensters).
      * @param {string|number} chatId   Die Chat-ID
      */
     removeChat(chatId) {
