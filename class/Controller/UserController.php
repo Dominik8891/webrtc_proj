@@ -7,6 +7,7 @@ use App\Model\TourReview;
 use App\Model\User;
 use App\Helper\AdminView;
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Helper\Permission;
 use App\Helper\Request;
 use \App\Helper\ViewHelper;
@@ -60,10 +61,15 @@ class UserController
         $tmp_user = new User(intval($user_id));
         $role     = SystemController::generateHtmlOptions($tmp_user->getAllUsertypesAsArray(), $tmp_user->getRoleId());
 
-        $user_info  = " neu anlegen";
+        $user_titel = I18n::t('verwaltung.benutzer.formular.anlegen');
 
         if ($user_id !== null && $send === null) {
-            $user_info  = $tmp_user->getId() . " (" . htmlspecialchars($tmp_user->getUsername()) . ") bearbeiten ";
+            // KENNUNG UND NAME STEHEN MITTEN IN DER UEBERSCHRIFT - deshalb
+            // der ganze Satz aus dem Katalog und beide als Platzhalter.
+            $user_titel = I18n::t('verwaltung.benutzer.formular.bearbeiten', [
+                'id'   => $tmp_user->getId(),
+                'name' => $tmp_user->getUsername(),
+            ]);
         }
         elseif ($send !== null) {
             $sel_user   = new User(Request::g('id'));
@@ -110,7 +116,7 @@ class UserController
         $out = str_replace("###USERNAME###" , htmlspecialchars($tmp_user->getUsername()) , $out);
         $out = str_replace("###EMAIL###"    , htmlspecialchars($tmp_user->getEmail())    , $out);
         $out = str_replace("###PASSWORD###" , ""                                          , $out);
-        $out = str_replace("###USER_INFO###", $user_info                                  , $out);
+        $out = str_replace("###USER_TITLE###", ViewHelper::esc($user_titel)              , $out);
 
         // Auch das Formular steht im Rahmen des Bereichs - mit dem Reiter
         // "Benutzer", denn dorthin gehoert es und dorthin fuehrt "Abbrechen".
@@ -139,11 +145,18 @@ class UserController
         $email  = "";
         $new    = "";
         if (Auth::can(Permission::USER_MANAGE)) {
-            $action = '<th>Aktionen</th>';
-            $email  = '<th class="user_table_desktop">E-Mail</th>';
+            // DIESE BEIDEN SPALTENKOEPFE stehen in DERSELBEN Kopfzeile wie
+            // die aus der Vorlage - sie kommen nur deshalb von hier, weil
+            // sie an einem Recht haengen. Beim Umzug der Vorlagentexte sind
+            // sie deshalb mitgegangen: eine halb uebersetzte Kopfzeile waere
+            // schlimmer als beides.
+            $action = '<th>' . ViewHelper::esc(I18n::t('verwaltung.benutzer.spalte.aktionen')) . '</th>';
+            $email  = '<th class="user_table_desktop">'
+                    . ViewHelper::esc(I18n::t('verwaltung.benutzer.spalte.email')) . '</th>';
             // Der Akzent, nicht die Live-Farbe: Gruen bedeutet in dieser
             // Anwendung "ein Guide ist gerade erreichbar" (assets/css/theme.css).
-            $new    = '<a href="index.php?act=manage_user" class="btn btn-primary btn-sm">Neuer Benutzer</a>';
+            $new    = '<a href="index.php?act=manage_user" class="btn btn-primary btn-sm">'
+                    . ViewHelper::esc(I18n::t('verwaltung.benutzer.neu')) . '</a>';
         }
 
         // GELOESCHTE KONTEN: derselbe Schalter wie in der Standort- und der

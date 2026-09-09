@@ -2,8 +2,12 @@
     Passwort aendern (angemeldet). Gefuellt von App\Controller\PasswordController.
 
     Platzhalter:
-      ###USERNAME###       Name des angemeldeten Benutzers (nur Anzeige;
-                           geaendert wird immer das Konto aus der Sitzung)
+      ###ANGEMELDET###     Der ganze Satz "Angemeldet als <Name>" - der Name
+                           steht MITTEN darin und ist hervorgehoben, also
+                           kein Fall fuer einen Marker. Gebaut in
+                           App\Controller\PasswordController ueber
+                           ViewHelper::tHtml(). Nur Anzeige; geaendert wird
+                           immer das Konto aus der Sitzung
       ###PW_CHANGE_MSG###  Meldung; leer, wenn es keine gibt.
 -->
 <div class="app-auth">
@@ -11,32 +15,32 @@
         <div class="app-panel">
             <div class="app-panel__body">
                 <div class="app-auth__head">
-                    <h1 class="app-auth__title">Passwort ändern</h1>
+                    <h1 class="app-auth__title">{{t:passwort.aendern.titel}}</h1>
                     <!--
                         Der Name steht hier zur Auskunft, nicht zur Auswahl:
                         Geaendert wird immer das angemeldete Konto. Frueher
                         stand er in einem versteckten Feld und entschied,
                         WESSEN Passwort geprueft wurde.
                     -->
-                    <p class="app-auth__sub">Angemeldet als <strong>###USERNAME###</strong></p>
+                    <p class="app-auth__sub">###ANGEMELDET###</p>
                 </div>
 
                 <form action="index.php?act=change_pw" method="post" autocomplete="off">
                     <div class="app-field">
-                        <label for="pw-old" class="form-label">Altes Passwort</label>
+                        <label for="pw-old" class="form-label">{{t:passwort.aendern.alt}}</label>
                         <input type="password" id="pw-old" name="pw-old" class="form-control" required>
                     </div>
                     <div class="app-field">
-                        <label for="pwd1" class="form-label">Neues Passwort</label>
+                        <label for="pwd1" class="form-label">{{t:passwort.neu.feld}}</label>
                         <input type="password" id="pwd1" name="pwd1" class="form-control" required>
                     </div>
                     <div class="app-field">
-                        <label for="pwd2" class="form-label">Neues Passwort wiederholen</label>
+                        <label for="pwd2" class="form-label">{{t:passwort.neu.feld_wdh}}</label>
                         <input type="password" id="pwd2" name="pwd2" class="form-control" required>
                     </div>
                     <div class="app-actions">
-                        <button type="submit" class="btn btn-primary">Passwort ändern</button>
-                        <a href="index.php?act=settings" class="btn btn-secondary">Abbrechen</a>
+                        <button type="submit" class="btn btn-primary">{{t:passwort.aendern.knopf}}</button>
+                        <a href="index.php?act=settings" class="btn btn-secondary">{{t:passwort.aendern.abbrechen}}</a>
                     </div>
                 </form>
 

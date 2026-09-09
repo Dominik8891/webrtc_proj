@@ -31,15 +31,16 @@
  * ---------------------------------
  * Die Sprachwahl selbst; alles, was ZUSAMMENGESETZT wird (Monatsnamen,
  * Wochentage, Tagesabschnitte, Zustandswoerter, Dauern, relative
- * Zeitangaben, die beiden E-Mails) - und seit der Stufe der PHP-Texte die
- * Saetze der SEITEN, soweit PHP sie erzeugt: Standortseite, Guide-Profil,
- * Bewertungsblock, Verwaltungsbereich, Kopfleiste, dazu die Meldungen der
- * Controller und die des Bildspeichers.
+ * Zeitangaben, die beiden E-Mails); die Saetze der SEITEN, soweit PHP sie
+ * erzeugt (Standortseite, Guide-Profil, Bewertungsblock,
+ * Verwaltungsbereich, Kopfleiste, die Meldungen der Controller und des
+ * Bildspeichers) - und seit der Stufe der Vorlagen jeder Text aus
+ * assets/html, geholt ueber den Marker {{t:schluessel}}.
  *
- * NOCH NICHT hier stehen die Vorlagen unter assets/html und die Meldungen
- * des Browsers unter assets/js. Sie ziehen in den naechsten Stufen nach;
- * dass dabei nichts Neues dazukommt, haelt der Test fest, der neue nackte
- * deutsche Literale meldet (tests/i18n_scan.php).
+ * NOCH NICHT hier stehen die Meldungen des Browsers unter assets/js. Sie
+ * ziehen in der naechsten Stufe nach; dass dabei nichts Neues dazukommt,
+ * haelt der Test fest, der neue nackte deutsche Literale meldet
+ * (tests/i18n_scan.php).
  *
  * WAS AUSDRUECKLICH NICHT HIERHER GEHOERT: Logmeldungen und die Texte
  * geworfener Ausnahmen. Sie richten sich an den Betreiber und nicht an den
@@ -765,4 +766,413 @@ return [
         'one'   => 'noch {n} Stunde',
         'other' => 'noch {n} Stunden',
     ],
+    // =================================================================
+    // DIE VORLAGEN
+    //
+    // Ab hier stehen die Texte aus assets/html - die Stufe nach den Texten,
+    // die PHP selbst erzeugt. Geholt werden sie mit dem Marker
+    // {{t:schluessel}}, den App\Helper\ViewHelper::template() beim LADEN der
+    // Datei aufloest.
+    //
+    // WAS NICHT ALS MARKER GEHT: ein Satz mit einem Platzhalter oder einer
+    // Hervorhebung mittendrin. Der Marker nimmt keine Werte entgegen - das
+    // ist Absicht, denn sonst waere er ein zweites Bauverfahren neben den
+    // ###RAUTEN###. Solche Saetze stehen deshalb hier UND werden in PHP
+    // gebaut (ViewHelper::tHtml); der Aufrufer steht jeweils im Kommentar
+    // der Vorlage.
+    // =================================================================
+
+    // -----------------------------------------------------------------
+    // DIE FUSSZEILE (assets/html/index.html)
+    //
+    // Der Name der Anwendung steht dort weiterhin als Text: Ein Produktname
+    // wird nicht uebersetzt.
+    // -----------------------------------------------------------------
+    'fuss.rechtliches' => 'Rechtliches',
+    'fuss.impressum'   => 'Impressum',
+    'fuss.datenschutz' => 'Datenschutz',
+    'fuss.kontakt'     => 'Kontakt',
+
+    // -----------------------------------------------------------------
+    // DER UMSCHALTER KARTE / LISTE / ANFRAGEN
+    //
+    // EIN Bauteil auf drei Seiten (Startseite, Standortliste,
+    // Anfragenseite) - deshalb EIN Satz Schluessel. Drei Fassungen
+    // desselben Wortes waeren drei Gelegenheiten, es verschieden zu
+    // uebersetzen.
+    // -----------------------------------------------------------------
+    'ansicht.label'    => 'Ansicht',
+    'ansicht.karte'    => 'Karte',
+    'ansicht.liste'    => 'Liste',
+    'ansicht.anfragen' => 'Anfragen',
+
+    // Die Spalten der Standorttabelle. Sie steht auf der Standortliste und
+    // noch einmal auf der Kontoseite (dort ohne die Spalte "Guide") - auch
+    // hier: ein Bauteil, ein Satz Schluessel.
+    'tabelle.spalte.status'        => 'Status',
+    'tabelle.spalte.guide'         => 'Guide',
+    'tabelle.spalte.bewertung'     => 'Bewertung',
+    'tabelle.spalte.land'          => 'Land',
+    'tabelle.spalte.stadt'         => 'Stadt',
+    'tabelle.spalte.beschreibung'  => 'Beschreibung',
+    'tabelle.spalte.aktionen'      => 'Aktionen',
+
+    // Das Kreuz an jedem Dialog. Es steht in vier Vorlagen und meint
+    // ueberall dasselbe.
+    'allgemein.schliessen' => 'Schließen',
+
+    // -----------------------------------------------------------------
+    // ANMELDEN UND REGISTRIEREN
+    // -----------------------------------------------------------------
+    'anmelden.titel'        => 'Anmelden',
+    'anmelden.untertitel'   => 'Weiter zu Ihren Führungen.',
+    'anmelden.benutzername' => 'Benutzername',
+    'anmelden.passwort'     => 'Passwort',
+    'anmelden.knopf'        => 'Anmelden',
+    'anmelden.kein_konto'   => 'Noch kein Konto?',
+    'anmelden.registrieren' => 'Jetzt registrieren',
+
+    'registrierung.titel'        => 'Konto anlegen',
+    'registrierung.untertitel'   => 'Danach können Sie Führungen buchen – und selbst welche anbieten.',
+    'registrierung.benutzername' => 'Benutzername',
+    'registrierung.email'        => 'E-Mail-Adresse',
+    'registrierung.passwort'     => 'Passwort',
+    'registrierung.passwort_wdh' => 'Passwort wiederholen',
+    'registrierung.knopf'        => 'Konto anlegen',
+    'registrierung.schon_dabei'  => 'Schon registriert?',
+    'registrierung.anmelden'     => 'Anmelden',
+
+    // -----------------------------------------------------------------
+    // DAS PASSWORT
+    // -----------------------------------------------------------------
+    'passwort.vergessen.titel'   => 'Passwort vergessen',
+    'passwort.vergessen.text'    => 'Wir schicken Ihnen einen Link an die hinterlegte Adresse.',
+    'passwort.vergessen.email'   => 'E-Mail-Adresse',
+    'passwort.vergessen.knopf'   => 'Link anfordern',
+    'passwort.vergessen.zurueck' => 'Zurück zur Anmeldung',
+
+    'passwort.neu.titel'    => 'Neues Passwort setzen',
+    'passwort.neu.feld'     => 'Neues Passwort',
+    'passwort.neu.feld_wdh' => 'Neues Passwort wiederholen',
+    'passwort.neu.knopf'    => 'Passwort ändern',
+
+    'passwort.aendern.titel'      => 'Passwort ändern',
+    // Der Name steht MITTEN im Satz und ist hervorgehoben - gebaut wird die
+    // Zeile deshalb in App\Controller\PasswordController::angemeldetHtml().
+    'passwort.aendern.angemeldet' => 'Angemeldet als {name}',
+    'passwort.aendern.alt'        => 'Altes Passwort',
+    'passwort.aendern.knopf'      => 'Passwort ändern',
+    'passwort.aendern.abbrechen'  => 'Abbrechen',
+
+    // -----------------------------------------------------------------
+    // DIE STARTSEITE
+    // -----------------------------------------------------------------
+    'startseite.titel'       => 'Wohin möchten Sie heute?',
+    'startseite.untertitel'  => 'Wählen Sie einen Ort auf der Karte. Ein Guide vor Ort nimmt Sie mit – live, und Sie sagen, wohin.',
+    'startseite.erklaerung'  => 'Wie funktioniert das?',
+    'startseite.karte_label' => 'Karte der angebotenen Standorte',
+    'startseite.laden'       => 'Standorte werden geladen …',
+
+    'startseite.legende.live'  => 'Guide jetzt verfügbar',
+    'startseite.legende.busy'  => 'Guide im Gespräch',
+    'startseite.legende.idle'  => 'Standort ohne Guide',
+    'startseite.legende.eigen' => 'Ihr Standort',
+
+    'startseite.gast.eyebrow'  => 'Live geführt statt vorbeigescrollt',
+    'startseite.gast.titel'    => 'Jemand geht für Sie los.',
+    'startseite.gast.text'     => 'Wie eine Straßenansicht – nur in echt und in diesem Moment. Ein Mensch vor Ort überträgt sein Bild, Sie sagen ihm, wo es langgeht. Melden Sie sich an, um zu sehen, wer gerade unterwegs ist.',
+    'startseite.gast.konto'    => 'Konto anlegen',
+    'startseite.gast.anmelden' => 'Anmelden',
+    'startseite.gast.fuss'     => 'Sie sind selbst irgendwo, das andere sehen wollen? Nach der Anmeldung können Sie Ihren Standort anbieten und Führungen geben.',
+
+    'startseite.leer.eyebrow' => 'Noch nichts auf der Karte',
+    'startseite.leer.titel'   => 'Hier ist noch niemand unterwegs.',
+    'startseite.leer.text'    => 'Es sind bislang keine Standorte eingetragen. So funktioniert es, sobald jemand einen anbietet – und Sie können der Erste sein.',
+    'startseite.leer.guide'   => 'Guide werden',
+    'startseite.leer.liste'   => 'Zur Listenansicht',
+    'startseite.leer.fuss'    => 'Als Guide tragen Sie einen Ort ein, an dem Sie sich auskennen. Wenn Sie online sind, erscheint er hervorgehoben auf dieser Karte – und Sie werden angerufen.',
+
+    'startseite.fehler.eyebrow' => 'Karte nicht geladen',
+    'startseite.fehler.titel'   => 'Die Standorte sind gerade nicht abrufbar.',
+    'startseite.fehler.text'    => 'Der Server hat nicht geantwortet. Das liegt meist an der Verbindung und ist nach einem erneuten Versuch behoben.',
+    'startseite.fehler.knopf'   => 'Erneut versuchen',
+
+    'startseite.schritt1.titel' => 'Ort wählen',
+    'startseite.schritt1.text'  => 'Auf der Karte sehen Sie, wo gerade ein Guide bereitsteht.',
+    'startseite.schritt2.titel' => 'Anrufen',
+    'startseite.schritt2.text'  => 'Ein Klick auf die Nadel startet das Gespräch. Ton und Bild kommen direkt von unterwegs.',
+    'startseite.schritt3.titel' => 'Führen',
+    'startseite.schritt3.text'  => 'Mit den Pfeiltasten geben Sie die Richtung vor. Der Guide hört und sieht Ihren Wunsch und geht dorthin.',
+
+    // -----------------------------------------------------------------
+    // DIE STANDORTLISTE
+    // -----------------------------------------------------------------
+    'standortliste.titel'      => 'Alle Standorte',
+    'standortliste.untertitel' => 'Dieselben Standorte wie auf der Karte, hier zum Durchsuchen und Sortieren.',
+
+    // -----------------------------------------------------------------
+    // STANDORT ANBIETEN UND BEARBEITEN
+    //
+    // Beide Formulare benutzen dieselben Feldbeschriftungen: Es sind
+    // dieselben Felder, geprueft von derselben Methode.
+    // -----------------------------------------------------------------
+    'standort.anbieten.titel'      => 'Standort anbieten',
+    'standort.anbieten.untertitel' => 'Der Ort, an dem Sie führen. Er erscheint auf der Karte – hervorgehoben, sobald Sie online sind.',
+
+    'standort.formular.land'              => 'Land',
+    'standort.formular.land_waehlen'      => 'Land wählen …',
+    'standort.formular.stadt'             => 'Stadt',
+    'standort.formular.stadt_waehlen'     => 'Stadt wählen …',
+    'standort.formular.titel'             => 'Titel',
+    'standort.formular.titel_platzhalter' => 'Worum geht es bei dieser Führung?',
+    'standort.formular.kurz'              => 'Kurzbeschreibung',
+    'standort.formular.kurz_platzhalter'  => 'Eine Zeile – sie steht auf der Karte und in der Liste',
+    'standort.formular.kurz_hinweis'      => 'Diese Zeile sehen andere im Kartenfenster und in der Standortliste. Der ausführliche Text steht auf der Standortseite.',
+    'standort.formular.lang'              => 'Ausführliche Beschreibung',
+    'standort.formular.lang_platzhalter'  => 'Was zeigen Sie? Wo treffen wir uns? Was sollte man wissen?',
+    'standort.formular.lang_hinweis'      => 'Kann auch später ergänzt werden – auf der Standortseite.',
+    'standort.formular.dauer'             => 'Typische Dauer (Minuten)',
+    'standort.formular.dauer_platzhalter' => 'z. B. 45',
+    'standort.formular.dauer_hinweis'     => 'Leer lassen, wenn es keine übliche Dauer gibt.',
+    'standort.formular.sprachen'          => 'Sprachen, in denen Sie führen',
+    'standort.formular.punkt'             => 'Punkt auf der Karte',
+    'standort.formular.aktueller_ort'     => 'Aktuellen Standort verwenden',
+    'standort.formular.breitengrad'       => 'Breitengrad',
+    'standort.formular.laengengrad'       => 'Längengrad',
+    'standort.formular.osm'               => 'Ort laut OpenStreetMap',
+    'standort.formular.speichern'         => 'Standort speichern',
+    'standort.formular.abbrechen'         => 'Abbrechen',
+
+    'standort.bearbeiten.titel'          => 'Ihr Standort',
+    'standort.bearbeiten.umschalten'     => 'Bearbeiten',
+    'standort.bearbeiten.kurz_hinweis'   => 'Diese Zeile sehen andere im Kartenfenster und in der Standortliste. Der ausführliche Text steht nur hier.',
+    'standort.bearbeiten.zeiten_frage'   => 'Wann sind Sie üblicherweise unterwegs?',
+    'standort.bearbeiten.zeiten_hinweis' => 'Grobe Orientierung für Kunden – keine feste Zusage. Anfragen zu anderen Zeiten bleiben möglich.',
+    'standort.bearbeiten.zone'           => 'Zeitzone des Ortes',
+    'standort.bearbeiten.zone_hinweis'   => 'Ihre Zeiten gelten am Ort der Führung. Kunden in anderen Zeitzonen sehen beides. Vorbelegt ist die Zone, die sich aus Land und Koordinaten ergibt.',
+    'standort.bearbeiten.speichern'      => 'Speichern',
+    'standort.bearbeiten.abbrechen'      => 'Abbrechen',
+    'standort.bearbeiten.titelbild'      => 'Titelbild',
+    'standort.bearbeiten.galerie'        => 'Bilder vom Ort',
+    // ZWEI ZAHLEN IN EINEM SATZ - deshalb kein Marker, sondern gebaut in
+    // App\Helper\LocationView::bearbeitenHtml().
+    'standort.bearbeiten.zahl'           => 'Bis zu {max} Bilder insgesamt, Titelbild mitgezählt – derzeit {bisher}.',
+    'standort.bearbeiten.hinzufuegen'    => 'Bild hinzufügen',
+
+    'standort.zurueck'              => 'Zurück zur Übersicht',
+    'standort.treffpunkt'           => 'Treffpunkt',
+    'standort.lightbox.vorheriges'  => 'Vorheriges Bild',
+    'standort.lightbox.naechstes'   => 'Nächstes Bild',
+
+    // -----------------------------------------------------------------
+    // DIE ANFRAGENSEITE
+    // -----------------------------------------------------------------
+    'anfrage.seite.titel'          => 'Anfragen',
+    'anfrage.seite.untertitel'     => 'Was an Ihre Standorte gerichtet ist – und was Sie selbst angefragt haben.',
+    'anfrage.seite.eingehend'      => 'An meine Standorte',
+    'anfrage.seite.eingehend_leer' => 'Hier ist gerade nichts offen. Sobald jemand eine Führung an einem Ihrer Standorte anfragt, steht sie hier – und der Zähler in der Kopfleiste sagt es Ihnen.',
+    'anfrage.seite.ausgehend'      => 'Meine Anfragen',
+    'anfrage.seite.ausgehend_leer' => 'Sie haben noch keine Führung angefragt. Suchen Sie sich auf der Karte einen Ort aus – auf seiner Seite fragen Sie die Führung mit Ihrem Wunschzeitpunkt an.',
+    'anfrage.seite.fehler'         => 'Die Anfragen konnten nicht geladen werden. Das liegt meist an der Verbindung.',
+
+    // -----------------------------------------------------------------
+    // DIE GUIDE-FRAGE
+    //
+    // Die beiden Absaetze tragen eine Hervorhebung MITTEN im Satz und
+    // stehen deshalb nicht als Marker in der Vorlage - gebaut werden sie in
+    // App\Controller\GuideController. Der Absatz zu den Kosten dagegen hat
+    // seine Hervorhebung am ANFANG; dort genuegen zwei Marker nebeneinander.
+    // -----------------------------------------------------------------
+    'guide.rolle.frage'                 => 'Möchten Sie Guide werden?',
+    'guide.rolle.was_guide.titel'       => 'Was ein Guide macht',
+    'guide.rolle.was_guide.text'        => 'Als {rolle} bieten Sie Standorte an: Orte, an denen Sie sich auskennen und an denen Sie unterwegs sein können. Bucht jemand eine Führung, sind Sie mit Kamera und Ton vor Ort - und {regie}. Er sagt Ihnen über ein Steuerkreuz, wohin Sie gehen und wohin Sie schauen sollen. Sie entscheiden dabei jederzeit selbst, ob Sie einem Befehl folgen, und können die Steuerung im laufenden Call sperren.',
+    'guide.rolle.was_guide.regie'       => 'die Regie hat der Zuschauer',
+    'guide.rolle.was_zuschauer.titel'   => 'Was ein Zuschauer macht',
+    'guide.rolle.was_zuschauer.text'    => 'Als {rolle} suchen Sie sich einen Standort auf der Karte aus und lassen sich von einem Guide vor Ort herumführen. Dafür brauchen Sie nichts anzubieten und Ihre eigene Position spielt keine Rolle.',
+    'guide.rolle.kosten.titel'          => 'Hinweis zu späteren Kosten:',
+    'guide.rolle.kosten.text'           => 'Führungen sind derzeit kostenlos. Sie werden künftig kostenpflichtig - Zuschauer zahlen für eine Führung, Guides erhalten dafür eine Vergütung. Bevor das in Kraft tritt, legen wir Ihnen die dann geltenden Bedingungen erneut zur Zustimmung vor. Ohne Ihre Zustimmung entstehen weder Kosten noch Ansprüche.',
+
+    // -----------------------------------------------------------------
+    // DIE KONTOSEITE
+    // -----------------------------------------------------------------
+    'konto.titel'      => 'Mein Konto',
+    'konto.untertitel' => 'Anmeldedaten, Sicherheit und die eigenen Standorte.',
+
+    'konto.angaben.titel'                => 'Angaben',
+    'konto.angaben.benutzername'         => 'Benutzername',
+    'konto.angaben.benutzername_hinweis' => 'Nur für die Anmeldung. Kunden sehen Ihren Anzeigenamen aus dem Guide-Profil.',
+    'konto.angaben.email'                => 'E-Mail-Adresse',
+    'konto.angaben.zweifaktor'           => 'Zwei-Faktor-Anmeldung',
+    'konto.angaben.guide_rolle'          => 'Guide-Rolle',
+    'konto.passwort_aendern'             => 'Passwort ändern',
+
+    'konto.farbprofil.titel'   => 'Farbprofil',
+    'konto.farbprofil.hinweis' => 'Gilt für dieses Konto und ist beim nächsten Anmelden wieder da. Die Farben der Kartennadeln bleiben in jedem Profil gleich.',
+
+    'konto.standorte.titel'    => 'Meine Standorte',
+    'konto.standorte.anbieten' => 'Standort anbieten',
+
+    // Der Platzhalter, der fuer ein geloeschtes Konto stehenbleibt
+    // (App\Model\User::nameGeloescht).
+    'konto.geloescht' => 'Gelöschtes Konto',
+
+    // -----------------------------------------------------------------
+    // DIE FARBPROFILE
+    //
+    // Sie standen als 'name' und 'text' in App\Helper\Theme::PROFILE - zwei
+    // deutsche Saetze in einer Konstanten, die sonst nur Farbwerte fuehrt.
+    // Der Schluessel hier ist derselbe wie dort; die Vorschaufarben bleiben
+    // im Code, denn sie sind Kopien aus assets/css/theme.css.
+    // -----------------------------------------------------------------
+    'farbprofil.indigo.name'     => 'Indigo',
+    'farbprofil.indigo.text'     => 'Die Vorgabe. Kühles Grau mit indigoblauem Akzent.',
+    'farbprofil.himmelblau.name' => 'Himmelblau',
+    'farbprofil.himmelblau.text' => 'Hell und freundlich, mit leicht blauer Grundfläche.',
+    'farbprofil.dunkel.name'     => 'Dunkel',
+    'farbprofil.dunkel.text'     => 'Dunkle Flächen für Abende und dunkle Räume.',
+    'farbprofil.neutral.name'    => 'Neutral',
+    'farbprofil.neutral.text'    => 'Sehr zurückhaltend, ohne farbigen Akzent.',
+
+    // -----------------------------------------------------------------
+    // DER HINWEIS AUF DIE UNBESTAETIGTE ADRESSE (App\Helper\MailGate)
+    // -----------------------------------------------------------------
+    'mailhinweis.gesperrt'        => 'Bitte bestätige zuerst deine E-Mail-Adresse. Danach steht diese Funktion wieder zur Verfügung.',
+    'mailhinweis.streifen.titel'  => 'E-Mail-Adresse noch nicht bestätigt.',
+    'mailhinweis.streifen.text'   => 'Anfragen, Chat und das Hochladen von Bildern sind bis dahin gesperrt.',
+    'mailhinweis.streifen.knopf'  => 'Bestätigungsmail senden',
+
+    // -----------------------------------------------------------------
+    // DIE VERWALTUNG - Vorlagen und die Stuecke, die daneben stehen
+    //
+    // Spaltenkoepfe und Filterleisten stehen teils in der Vorlage, teils im
+    // Controller (weil sie an einem Recht haengen). Beide sind hier
+    // mitgezogen: eine halb uebersetzte Kopfzeile waere schlimmer als beides.
+    // -----------------------------------------------------------------
+    'verwaltung.uebersicht.vorrat'  => 'Braucht Aufmerksamkeit',
+    'verwaltung.uebersicht.bestand' => 'Bestand',
+
+    'verwaltung.benutzer.titel'      => 'Benutzer',
+    'verwaltung.benutzer.untertitel' => 'Anrufen und schreiben lässt sich, wer gerade online ist.',
+    'verwaltung.benutzer.neu'        => 'Neuer Benutzer',
+    'verwaltung.benutzer.spalte.status'       => 'Status',
+    'verwaltung.benutzer.spalte.anrufen'      => 'Anrufen',
+    'verwaltung.benutzer.spalte.benutzername' => 'Benutzername',
+    'verwaltung.benutzer.spalte.nachricht'    => 'Nachricht',
+    'verwaltung.benutzer.spalte.email'        => 'E-Mail',
+    'verwaltung.benutzer.spalte.aktionen'     => 'Aktionen',
+
+    // Kennung und Name stehen MITTEN in der Ueberschrift - gebaut wird sie
+    // in App\Controller\UserController.
+    'verwaltung.benutzer.formular.anlegen'      => 'Benutzer neu anlegen',
+    'verwaltung.benutzer.formular.bearbeiten'   => 'Benutzer {id} ({name}) bearbeiten',
+    'verwaltung.benutzer.formular.rolle'        => 'Rolle',
+    'verwaltung.benutzer.formular.benutzername' => 'Benutzername',
+    'verwaltung.benutzer.formular.email'        => 'E-Mail-Adresse',
+    'verwaltung.benutzer.formular.passwort'     => 'Passwort',
+    'verwaltung.benutzer.formular.speichern'    => 'Speichern',
+    'verwaltung.benutzer.formular.abbrechen'    => 'Abbrechen',
+
+    'verwaltung.standorte.titel'           => 'Standorte',
+    'verwaltung.standorte.spalte.standort' => 'Standort',
+    'verwaltung.standorte.spalte.guide'    => 'Guide',
+    'verwaltung.standorte.spalte.zustand'  => 'Zustand',
+    'verwaltung.standorte.spalte.fehlt'    => 'Fehlt',
+    'verwaltung.standorte.spalte.sperre'   => 'Sperre',
+    'verwaltung.standorte.spalte.aktion'   => 'Aktion',
+
+    'verwaltung.anfragen.titel'           => 'Anfragen',
+    'verwaltung.anfragen.spalte.zustand'  => 'Zustand',
+    'verwaltung.anfragen.spalte.fuehrung' => 'Führung',
+    'verwaltung.anfragen.spalte.guide'    => 'Guide',
+    'verwaltung.anfragen.spalte.kunde'    => 'Kunde',
+    'verwaltung.anfragen.spalte.aktion'   => 'Aktion',
+
+    'verwaltung.bewertungen.titel'            => 'Bewertungen',
+    'verwaltung.bewertungen.spalte.sterne'    => 'Sterne',
+    'verwaltung.bewertungen.spalte.text'      => 'Text',
+    'verwaltung.bewertungen.spalte.fuehrung'  => 'Führung',
+    'verwaltung.bewertungen.spalte.abgegeben' => 'Abgegeben',
+    'verwaltung.bewertungen.spalte.aktion'    => 'Aktion',
+
+    'verwaltung.filter.label'          => 'Filter',
+    'verwaltung.filter.alle'           => 'Alle',
+    'verwaltung.filter.haengend'       => 'Hängende Führungen',
+    'verwaltung.filter.unbeantwortet'  => 'Ohne Antwort',
+    'verwaltung.filter.offen'          => 'Offen',
+    'verwaltung.filter.gesperrt'       => 'Gesperrte',
+    'verwaltung.filter.unvollstaendig' => 'Unvollständige',
+    'verwaltung.filter.sichtbar'       => 'Sichtbar',
+    'verwaltung.filter.schwach'        => '1–2 Sterne',
+    'verwaltung.filter.entfernt'       => 'Entfernt',
+
+    // -----------------------------------------------------------------
+    // DIE CHATS
+    // -----------------------------------------------------------------
+    'chat.titel'           => 'Chats',
+    'chat.untertitel'      => 'Unterhaltungen aus vergangenen und laufenden Führungen.',
+    'chat.spalte.status'   => 'Status',
+    'chat.spalte.partner'  => 'Partner',
+    'chat.spalte.letzte'   => 'Letzte Nachricht',
+    'chat.spalte.verlauf'  => 'Verlauf',
+    'chat.verlauf.titel'   => 'Verlauf',
+    'chat.verlauf.zurueck' => 'Zurück zu allen Chats',
+
+    // -----------------------------------------------------------------
+    // DAS GESPRAECH
+    //
+    // Die Steuerung traegt ihre Beschriftung im aria-label und im title -
+    // gesteuert wird ueber Tasten und Tonsignale, nicht ueber Sprache, aber
+    // ein Vorleseprogramm liest sonst "Schaltflaeche" und sonst nichts.
+    // -----------------------------------------------------------------
+    'gespraech.kein_video'       => 'Kein Videobild',
+    'gespraech.kamera_aus'       => 'Kamera aus',
+    'gespraech.auflegen'         => 'Auflegen',
+    'gespraech.zweck.titel'      => 'Anruf der Administration',
+    'gespraech.zweck.text'       => 'Keine Führung – es wird nicht gesteuert.',
+    'gespraech.sperre.hinweis'   => 'Steuerung gesperrt – der Guide hat sie angehalten.',
+    'gespraech.blick'            => 'Blick',
+    'gespraech.blick_oben'       => 'Blick nach oben',
+    'gespraech.blick_unten'      => 'Blick nach unten',
+    'gespraech.vorwaerts'        => 'Vorwärts',
+    'gespraech.links'            => 'Nach links',
+    'gespraech.rechts'           => 'Nach rechts',
+    'gespraech.rueckwaerts'      => 'Rückwärts',
+    'gespraech.sperren'          => 'Steuerung sperren',
+    'gespraech.mikrofon'         => 'Mikrofon',
+    'gespraech.mikrofon_schalter'=> 'Mikrofon an/aus',
+    'gespraech.kamera'           => 'Kamera',
+    'gespraech.kamera_schalter'  => 'Kamera an/aus',
+    'gespraech.geraete'          => 'Geräte',
+    'gespraech.chat'             => 'Chat',
+    'gespraech.ungelesen'        => 'Ungelesene Nachrichten',
+    'gespraech.chat_schliessen'  => 'Chat schließen',
+    'gespraech.nachricht'        => 'Nachricht',
+    'gespraech.senden'           => 'Senden',
+
+    'gespraech.anruf.eingehend'  => 'Eingehender Anruf',
+    'gespraech.anruf.zweck_text' => 'Das ist keine Führung – es wird nicht gesteuert. Ton und Bild laufen in beide Richtungen.',
+    'gespraech.anruf.video'      => 'Video senden',
+    'gespraech.anruf.ton'        => 'Ton senden',
+    'gespraech.anruf.annehmen'   => 'Annehmen',
+    'gespraech.anruf.ablehnen'   => 'Ablehnen',
+
+    // -----------------------------------------------------------------
+    // DIE ERGEBNISSEITEN
+    // -----------------------------------------------------------------
+    'ergebnis.mail_bestaetigt.titel' => 'E-Mail-Adresse bestätigt',
+    'ergebnis.mail_bestaetigt.text'  => 'Sie können sich jetzt anmelden.',
+    'ergebnis.mail_bestaetigt.knopf' => 'Zur Anmeldung',
+
+    'ergebnis.mail_fehler.titel'        => 'Link ungültig oder abgelaufen',
+    'ergebnis.mail_fehler.text'         => 'Der Bestätigungslink lässt sich nicht mehr einlösen. Bestätigungslinks haben eine begrenzte Gültigkeit.',
+    'ergebnis.mail_fehler.registrieren' => 'Erneut registrieren',
+    'ergebnis.mail_fehler.anmelden'     => 'Zur Anmeldung',
+
+    'ergebnis.mail_verschickt.titel' => 'Bestätigungsmail verschickt',
+    'ergebnis.mail_verschickt.text'  => 'Bitte klicken Sie auf den Link in der E-Mail. Der Link ist 24 Stunden gültig; sehen Sie auch im Spam-Ordner nach.',
+    'ergebnis.mail_verschickt.knopf' => 'Zur Startseite',
+
+    'ergebnis.registriert.titel' => 'Registrierung erfolgreich',
+    'ergebnis.registriert.text'  => 'Ihr Konto wurde angelegt. Wir haben Ihnen eine E-Mail zur Bestätigung Ihrer Adresse geschickt — bitte sehen Sie auch im Spam-Ordner nach. Anmelden können Sie sich sofort.',
+    'ergebnis.registriert.knopf' => 'Zur Anmeldung',
 ];

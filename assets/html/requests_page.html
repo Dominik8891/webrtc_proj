@@ -43,26 +43,23 @@
 
     <div class="app-toolbar">
         <div>
-            <h1 class="app-page-head__title">Anfragen</h1>
+            <h1 class="app-page-head__title">{{t:anfrage.seite.titel}}</h1>
             <p class="app-page-head__sub">
-                Was an Ihre Standorte gerichtet ist – und was Sie selbst angefragt haben.
+                {{t:anfrage.seite.untertitel}}
             </p>
         </div>
-        <div class="app-switch" role="group" aria-label="Ansicht">
-            <a class="app-switch__item" href="index.php?act=home">Karte</a>
-            <a class="app-switch__item" href="index.php?act=show_locations_page">Liste</a>
-            <span class="app-switch__item" aria-current="true">Anfragen</span>
+        <div class="app-switch" role="group" aria-label="{{t:ansicht.label}}">
+            <a class="app-switch__item" href="index.php?act=home">{{t:ansicht.karte}}</a>
+            <a class="app-switch__item" href="index.php?act=show_locations_page">{{t:ansicht.liste}}</a>
+            <span class="app-switch__item" aria-current="true">{{t:ansicht.anfragen}}</span>
         </div>
     </div>
 
     <!-- Eingehend: an die eigenen Standorte gerichtet. -->
     <section class="app-panel req-block" aria-labelledby="req-in-title">
         <div class="app-panel__body">
-            <h2 class="req-block__title" id="req-in-title">An meine Standorte</h2>
-            <p class="req-block__hint" id="req-in-empty" hidden>
-                Hier ist gerade nichts offen. Sobald jemand eine Führung an einem Ihrer
-                Standorte anfragt, steht sie hier – und der Zähler in der Kopfleiste sagt es Ihnen.
-            </p>
+            <h2 class="req-block__title" id="req-in-title">{{t:anfrage.seite.eingehend}}</h2>
+            <p class="req-block__hint" id="req-in-empty" hidden>{{t:anfrage.seite.eingehend_leer}}</p>
             <ul class="req-list" id="req-incoming"></ul>
         </div>
     </section>
@@ -70,18 +67,13 @@
     <!-- Ausgehend: selbst gestellt. -->
     <section class="app-panel req-block" aria-labelledby="req-out-title">
         <div class="app-panel__body">
-            <h2 class="req-block__title" id="req-out-title">Meine Anfragen</h2>
-            <p class="req-block__hint" id="req-out-empty" hidden>
-                Sie haben noch keine Führung angefragt. Suchen Sie sich auf der Karte einen
-                Ort aus – auf seiner Seite fragen Sie die Führung mit Ihrem Wunschzeitpunkt an.
-            </p>
+            <h2 class="req-block__title" id="req-out-title">{{t:anfrage.seite.ausgehend}}</h2>
+            <p class="req-block__hint" id="req-out-empty" hidden>{{t:anfrage.seite.ausgehend_leer}}</p>
             <ul class="req-list" id="req-outgoing"></ul>
         </div>
     </section>
 
-    <p class="req-page__foot" id="req-error" hidden>
-        Die Anfragen konnten nicht geladen werden. Das liegt meist an der Verbindung.
-    </p>
+    <p class="req-page__foot" id="req-error" hidden>{{t:anfrage.seite.fehler}}</p>
 </div>
 
 <!-- WORAN DAS SKRIPT DIESE SEITE ERKENNT.

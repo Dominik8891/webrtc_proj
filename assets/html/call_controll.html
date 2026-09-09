@@ -27,7 +27,7 @@
   <div class="call-invite">
 
     <div class="call-invite__head">
-      <p class="call-invite__eyebrow">Eingehender Anruf</p>
+      <p class="call-invite__eyebrow">{{t:gespraech.anruf.eingehend}}</p>
       <h2 class="call-invite__name" id="calling_user"></h2>
     </div>
 
@@ -37,16 +37,15 @@
     <div id="call-invite-purpose" class="call-purpose call-purpose--invite" role="status">
       <span class="call-purpose__icon" aria-hidden="true"></span>
       <span class="call-purpose__text">
-        <strong class="call-purpose__title">Anruf der Administration</strong>
-        Das ist keine Führung – es wird nicht gesteuert. Ton und Bild laufen in
-        beide Richtungen.
+        <strong class="call-purpose__title">{{t:gespraech.zweck.titel}}</strong>
+        {{t:gespraech.anruf.zweck_text}}
       </span>
     </div>
 
     <div class="app-field">
       <div class="form-check">
         <input class="form-check-input" type="checkbox" id="media-video-checkbox" checked>
-        <label class="form-check-label" for="media-video-checkbox">Video senden</label>
+        <label class="form-check-label" for="media-video-checkbox">{{t:gespraech.anruf.video}}</label>
       </div>
       <select id="camera-select" class="form-select form-select-sm" style="margin-top: var(--app-space-2);"></select>
     </div>
@@ -54,14 +53,14 @@
     <div class="app-field">
       <div class="form-check">
         <input class="form-check-input" type="checkbox" id="media-audio-checkbox" checked>
-        <label class="form-check-label" for="media-audio-checkbox">Ton senden</label>
+        <label class="form-check-label" for="media-audio-checkbox">{{t:gespraech.anruf.ton}}</label>
       </div>
       <select id="mic-select" class="form-select form-select-sm" style="margin-top: var(--app-space-2);"></select>
     </div>
 
     <div class="app-actions app-actions--stretch">
-      <button id="media-accept-btn" type="button" class="btn btn-success">Annehmen</button>
-      <button id="media-decline-btn" type="button" class="btn btn-secondary">Ablehnen</button>
+      <button id="media-accept-btn" type="button" class="btn btn-success">{{t:gespraech.anruf.annehmen}}</button>
+      <button id="media-decline-btn" type="button" class="btn btn-secondary">{{t:gespraech.anruf.ablehnen}}</button>
     </div>
   </div>
 </div>

@@ -29,10 +29,17 @@ namespace App\Helper;
  * (App\Helper\AdminView), die Kopfleiste (App\Helper\ViewHelper), der
  * Bildspeicher (App\Helper\ImageStore) und die Meldungen der Controller.
  *
- * NOCH DEUTSCH sind die Vorlagen unter assets/html und die Meldungen des
- * Browsers unter assets/js; sie ziehen in den naechsten Stufen nach. Dass
- * dabei nichts Neues dazukommt, haelt die Ratsche fest
- * (tests/i18n_scan.php).
+ * Seitdem sind auch die VORLAGEN unter assets/html umgezogen - jeder Satz
+ * dort steht als {{t:schluessel}} und wird beim Laden der Datei aufgeloest
+ * (siehe marker() weiter unten). Was der Marker NICHT kann, ist ein Satz mit
+ * einem Wert oder einer Hervorhebung mittendrin: Er nimmt keine Werte
+ * entgegen. Solche Saetze stehen im Katalog und werden in PHP gebaut
+ * (App\Helper\ViewHelper::tHtml); die Vorlage nennt im Kommentar den
+ * Aufrufer.
+ *
+ * NOCH DEUTSCH sind die Meldungen des Browsers unter assets/js; sie ziehen
+ * in der naechsten Stufe nach. Dass dabei nichts Neues dazukommt, haelt die
+ * Ratsche fest (tests/i18n_scan.php).
  *
  * NICHT UMGEZOGEN WERDEN Logmeldungen und die Texte geworfener Ausnahmen:
  * Sie werden geloggt und nie angezeigt, richten sich also an den Betreiber

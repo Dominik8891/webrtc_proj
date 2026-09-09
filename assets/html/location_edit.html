@@ -38,10 +38,14 @@
       ###E_COVER###          das gewaehlte Titelbild - oder der Hinweis, dass
                              noch keines gewaehlt ist
       ###E_IMAGES###         die Beispielbilder als Kacheln
-      ###E_IMAGECOUNT###     wie viele Bilder es insgesamt schon gibt
-                             (Titelbild UND Beispielbilder - die Obergrenze
-                             gilt fuer die Summe)
-      ###E_MAXIMAGES###      Obergrenze aus config/uploads.php
+      ###E_IMAGECOUNT###     der fertige Satz "Bis zu N Bilder insgesamt,
+                             Titelbild mitgezaehlt - derzeit M". Er traegt
+                             ZWEI Zahlen und kann deshalb kein {{t:...}} sein:
+                             Ein Marker nimmt keine Werte entgegen. Gebaut
+                             wird er in App\Helper\LocationView aus
+                             standort.bearbeiten.zahl.
+      ###E_MAXIMAGES###      Obergrenze aus config/uploads.php - fuer das
+                             Attribut am Formular, nicht fuer den Satz
       ###E_TITLE_MAX###      Zeichengrenzen, damit im Formular dieselben
       ###E_SHORT_MAX###      Zahlen stehen wie in der Pruefung des Servers -
       ###E_LONG_MAX###       sie kommen aus den Konstanten des Controllers
@@ -54,9 +58,9 @@
 -->
 <section class="app-panel loc-edit" id="loc-edit" style="margin-top: var(--app-space-4);">
     <div class="app-panel__head">
-        <h2 class="app-page-head__title">Ihr Standort</h2>
+        <h2 class="app-page-head__title">{{t:standort.bearbeiten.titel}}</h2>
         <button type="button" class="btn btn-secondary btn-sm" id="loc-edit-toggle"
-                aria-expanded="false" aria-controls="loc-edit-body">Bearbeiten</button>
+                aria-expanded="false" aria-controls="loc-edit-body">{{t:standort.bearbeiten.umschalten}}</button>
     </div>
 
     <div class="app-panel__body" id="loc-edit-body" hidden>
@@ -65,40 +69,39 @@
             <input type="hidden" name="id" value="###E_LOCATION_ID###">
 
             <div class="app-field">
-                <label for="edit-title" class="form-label">Titel</label>
+                <label for="edit-title" class="form-label">{{t:standort.formular.titel}}</label>
                 <input type="text" id="edit-title" name="title" class="form-control"
                        maxlength="###E_TITLE_MAX###" required
-                       placeholder="Worum geht es bei dieser Führung?"
+                       placeholder="{{t:standort.formular.titel_platzhalter}}"
                        value="###E_TITLE###">
             </div>
 
             <div class="app-field">
-                <label for="edit-short" class="form-label">Kurzbeschreibung</label>
+                <label for="edit-short" class="form-label">{{t:standort.formular.kurz}}</label>
                 <input type="text" id="edit-short" name="description" class="form-control"
                        maxlength="###E_SHORT_MAX###" required
-                       placeholder="Eine Zeile – sie steht auf der Karte und in der Liste"
+                       placeholder="{{t:standort.formular.kurz_platzhalter}}"
                        value="###E_SHORT###">
-                <p class="loc-hint">Diese Zeile sehen andere im Kartenfenster
-                   und in der Standortliste. Der ausführliche Text steht nur hier.</p>
+                <p class="loc-hint">{{t:standort.bearbeiten.kurz_hinweis}}</p>
             </div>
 
             <div class="app-field">
-                <label for="edit-long" class="form-label">Ausführliche Beschreibung</label>
+                <label for="edit-long" class="form-label">{{t:standort.formular.lang}}</label>
                 <textarea id="edit-long" name="description_long" class="form-control" rows="8"
                           maxlength="###E_LONG_MAX###"
-                          placeholder="Was zeigen Sie? Wo treffen wir uns? Was sollte man wissen?">###E_LONG###</textarea>
+                          placeholder="{{t:standort.formular.lang_platzhalter}}">###E_LONG###</textarea>
             </div>
 
             <div class="app-field">
-                <label for="edit-duration" class="form-label">Typische Dauer (Minuten)</label>
+                <label for="edit-duration" class="form-label">{{t:standort.formular.dauer}}</label>
                 <input type="number" id="edit-duration" name="duration" class="form-control"
                        min="###E_DURATION_MIN###" max="###E_DURATION_MAX###" step="5"
-                       placeholder="z. B. 45" value="###E_DURATION###">
-                <p class="loc-hint">Leer lassen, wenn es keine übliche Dauer gibt.</p>
+                       placeholder="{{t:standort.formular.dauer_platzhalter}}" value="###E_DURATION###">
+                <p class="loc-hint">{{t:standort.formular.dauer_hinweis}}</p>
             </div>
 
             <fieldset class="app-field">
-                <legend class="form-label">Sprachen, in denen Sie führen</legend>
+                <legend class="form-label">{{t:standort.formular.sprachen}}</legend>
                 <div class="loc-choices">
                     ###E_LANGUAGES###
                 </div>
@@ -118,26 +121,20 @@
                 genauso, es dauert nur laenger.
             -->
             <fieldset class="app-field">
-                <legend class="form-label">Wann sind Sie üblicherweise unterwegs?</legend>
-                <p class="loc-hint">
-                    Grobe Orientierung für Kunden – keine feste Zusage. Anfragen zu anderen
-                    Zeiten bleiben möglich.
-                </p>
+                <legend class="form-label">{{t:standort.bearbeiten.zeiten_frage}}</legend>
+                <p class="loc-hint">{{t:standort.bearbeiten.zeiten_hinweis}}</p>
                 ###E_SLOTS###
             </fieldset>
 
             <div class="app-field">
-                <label for="edit-timezone" class="form-label">Zeitzone des Ortes</label>
+                <label for="edit-timezone" class="form-label">{{t:standort.bearbeiten.zone}}</label>
                 ###E_TIMEZONE###
-                <p class="loc-hint">
-                    Ihre Zeiten gelten am Ort der Führung. Kunden in anderen Zeitzonen sehen
-                    beides. Vorbelegt ist die Zone, die sich aus Land und Koordinaten ergibt.
-                </p>
+                <p class="loc-hint">{{t:standort.bearbeiten.zone_hinweis}}</p>
             </div>
 
             <div class="app-actions">
-                <button type="submit" class="btn btn-primary">Speichern</button>
-                <button type="button" class="btn btn-secondary" id="loc-edit-cancel">Abbrechen</button>
+                <button type="submit" class="btn btn-primary">{{t:standort.bearbeiten.speichern}}</button>
+                <button type="button" class="btn btn-secondary" id="loc-edit-cancel">{{t:standort.bearbeiten.abbrechen}}</button>
             </div>
         </form>
 
@@ -162,18 +159,15 @@
              keine zweite Pruefung und keine Frage, gegen welche Obergrenze
              welcher Upload zaehlt: Die Obergrenze gilt fuer die SUMME. -->
 
-        <h3 class="app-page-head__title app-text-sm">Titelbild</h3>
+        <h3 class="app-page-head__title app-text-sm">{{t:standort.bearbeiten.titelbild}}</h3>
         <div id="loc-cover-slot">
             ###E_COVER###
         </div>
 
         <h3 class="app-page-head__title app-text-sm" style="margin-top: var(--app-space-5);">
-            Bilder vom Ort
+            {{t:standort.bearbeiten.galerie}}
         </h3>
-        <p class="loc-hint" id="loc-image-count">
-            Bis zu ###E_MAXIMAGES### Bilder insgesamt, Titelbild mitgezählt –
-            derzeit ###E_IMAGECOUNT###.
-        </p>
+        <p class="loc-hint" id="loc-image-count">###E_IMAGECOUNT###</p>
 
         <ul class="loc-edit__images" id="loc-image-list">
             ###E_IMAGES###
@@ -184,7 +178,7 @@
                  laesst sich nicht gestalten, und der Knopf daneben soll
                  aussehen wie jeder andere Knopf der Anwendung. -->
             <input type="file" id="loc-image-input" accept="image/jpeg,image/png,image/webp" hidden>
-            <button type="button" class="btn btn-secondary" id="loc-image-add">Bild hinzufügen</button>
+            <button type="button" class="btn btn-secondary" id="loc-image-add">{{t:standort.bearbeiten.hinzufuegen}}</button>
         </div>
 
     </div>

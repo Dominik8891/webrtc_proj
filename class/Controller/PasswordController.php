@@ -199,11 +199,33 @@ class PasswordController
      *
      * @return void
      */
+    /**
+     * Die Zeile "Angemeldet als <Name>" der Passwortseite.
+     *
+     * DER NAME STEHT MITTEN IM SATZ und ist hervorgehoben - deshalb kommt
+     * der GANZE Satz aus dem Katalog und das Markup als Platzhalter hinein
+     * (ViewHelper::tHtml). In der Vorlage ginge das nicht: Ein Marker
+     * {{t:...}} nimmt keine Werte entgegen, und den Satz an der
+     * Hervorhebung zu zerschneiden schriebe die deutsche Wortstellung fest.
+     *
+     * Maskiert wird hier und nicht beim Aufrufer: Zwei der drei Stellen
+     * setzten den Namen vorher ungeprueft ein.
+     *
+     * @param string $in_username Name aus der Sitzung
+     * @return string HTML
+     */
+    private static function angemeldetHtml(string $in_username): string
+    {
+        return ViewHelper::tHtml('passwort.aendern.angemeldet', [
+            'name' => '<strong>' . ViewHelper::esc($in_username) . '</strong>',
+        ]);
+    }
+
     public function showChangePwForm()
     {
         $username = Auth::username();
         $html = ViewHelper::template('assets/html/change_pw.html');
-        $html = str_replace('###USERNAME###', htmlspecialchars($username), $html);
+        $html = str_replace('###ANGEMELDET###', self::angemeldetHtml($username), $html);
         $html = str_replace('###PW_CHANGE_MSG###', '', $html);
         ViewHelper::output($html);
     }
@@ -274,7 +296,7 @@ class PasswordController
             error_log("Fehlgeschlagene Passwortaenderung fuer UserID {$userId} von IP "
                 . "{$_SERVER['REMOTE_ADDR']} um " . date('c'));
             $html = ViewHelper::template('assets/html/change_pw.html');
-            $html = str_replace('###USERNAME###', $username, $html);
+            $html = str_replace('###ANGEMELDET###', self::angemeldetHtml($username), $html);
             $html = str_replace('###PW_CHANGE_MSG###', $msg, $html);
             ViewHelper::output($html);
             return;
@@ -283,7 +305,7 @@ class PasswordController
         if ($pwd1 !== $pwd2 || strlen($pwd1) < 8) {
             $msg = "Die Passwörter stimmen nicht überein oder sind zu kurz.";
             $html = ViewHelper::template('assets/html/change_pw.html');
-            $html = str_replace('###USERNAME###', $username, $html);
+            $html = str_replace('###ANGEMELDET###', self::angemeldetHtml($username), $html);
             $html = str_replace('###PW_CHANGE_MSG###', $msg, $html);
             ViewHelper::output($html);
             return;

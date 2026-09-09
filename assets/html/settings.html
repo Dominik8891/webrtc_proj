@@ -33,8 +33,8 @@
 <div class="app-page">
     <div class="app-toolbar">
         <div>
-            <h1 class="app-page-head__title">Mein Konto</h1>
-            <p class="app-page-head__sub">Anmeldedaten, Sicherheit und die eigenen Standorte.</p>
+            <h1 class="app-page-head__title">{{t:konto.titel}}</h1>
+            <p class="app-page-head__sub">{{t:konto.untertitel}}</p>
         </div>
     </div>
 
@@ -45,7 +45,7 @@
 
     <div class="app-panel">
         <div class="app-panel__head">
-            <h2 class="app-page-head__title">Angaben</h2>
+            <h2 class="app-page-head__title">{{t:konto.angaben.titel}}</h2>
         </div>
         <div class="app-panel__body">
             <dl class="app-details">
@@ -55,30 +55,29 @@
                      hierhin geschrieben: Sonst sucht jemand nach einer
                      Moeglichkeit, ihn zu aendern, weil er ihn fuer seinen
                      oeffentlichen Namen haelt. -->
-                <dt>Benutzername</dt>
+                <dt>{{t:konto.angaben.benutzername}}</dt>
                 <dd>
                     ###USERNAME###
-                    <span class="app-hint">Nur für die Anmeldung. Kunden sehen
-                    Ihren Anzeigenamen aus dem Guide-Profil.</span>
+                    <span class="app-hint">{{t:konto.angaben.benutzername_hinweis}}</span>
                 </dd>
 
-                <dt>E-Mail-Adresse</dt>
+                <dt>{{t:konto.angaben.email}}</dt>
                 <dd>###EMAIL###</dd>
 
-                <dt>Zwei-Faktor-Anmeldung</dt>
+                <dt>{{t:konto.angaben.zweifaktor}}</dt>
                 <dd>###TWOFASTATUS### ###TWOFABTN###</dd>
 
                 <!-- Die Guide-Entscheidung ist umkehrbar und gehoert deshalb
                      hierher. Der erklaerende Text steht nicht in dieser Zeile,
                      sondern auf der Dialogseite - an genau einer Stelle. -->
-                <dt>Guide-Rolle</dt>
+                <dt>{{t:konto.angaben.guide_rolle}}</dt>
                 <dd>###GUIDESTATUS### ###GUIDEBTN###</dd>
 
                 ###MAILCONFIRM###
             </dl>
 
             <div class="app-actions">
-                <a href='index.php?act=change_pw_page' class="btn btn-secondary">Passwort ändern</a>
+                <a href='index.php?act=change_pw_page' class="btn btn-secondary">{{t:konto.passwort_aendern}}</a>
             </div>
         </div>
     </div>
@@ -94,12 +93,11 @@
          eine Einstellung, die man trifft. -->
     <div class="app-panel" style="margin-top: var(--app-space-4);">
         <div class="app-panel__head">
-            <h2 class="app-page-head__title">Farbprofil</h2>
+            <h2 class="app-page-head__title">{{t:konto.farbprofil.titel}}</h2>
         </div>
         <div class="app-panel__body">
             <p class="app-page-head__sub" style="margin-top:0;">
-                Gilt für dieses Konto und ist beim nächsten Anmelden wieder da.
-                Die Farben der Kartennadeln bleiben in jedem Profil gleich.
+                {{t:konto.farbprofil.hinweis}}
             </p>
             <div class="app-swatches" id="theme-choices">
                 ###THEMES###
@@ -153,11 +151,11 @@
         leere Tabelle statt gar nichts.
     -->
     <details class="app-disclosure" id="myLocationsSection">
-        <summary class="app-disclosure__summary">Meine Standorte</summary>
+        <summary class="app-disclosure__summary">{{t:konto.standorte.titel}}</summary>
         <div class="app-panel" style="margin-top: var(--app-space-4);">
             <div class="app-panel__head">
-                <h2 class="app-page-head__title">Meine Standorte</h2>
-                <a href="index.php?act=set_location_page" class="btn btn-primary btn-sm">Standort anbieten</a>
+                <h2 class="app-page-head__title">{{t:konto.standorte.titel}}</h2>
+                <a href="index.php?act=set_location_page" class="btn btn-primary btn-sm">{{t:konto.standorte.anbieten}}</a>
             </div>
             <div class="app-table-wrap">
                 <!-- Eigene Spalten, eigene id: Diese Tabelle hat eine Spalte weniger
@@ -168,16 +166,16 @@
                     <thead>
                         <tr>
                             <th>#</th>
-                            <th>Status</th>
+                            <th>{{t:tabelle.spalte.status}}</th>
                             <!-- Auch hier: Der Guide sieht, was seine Kunden sehen -
                                  samt der Regel, dass unterhalb der Schwelle kein
                                  Durchschnitt dasteht, sondern die Zahl seiner
                                  Fuehrungen. -->
-                            <th>Bewertung</th>
-                            <th>Land</th>
-                            <th>Stadt</th>
-                            <th>Beschreibung</th>
-                            <th>Aktionen</th>
+                            <th>{{t:tabelle.spalte.bewertung}}</th>
+                            <th>{{t:tabelle.spalte.land}}</th>
+                            <th>{{t:tabelle.spalte.stadt}}</th>
+                            <th>{{t:tabelle.spalte.beschreibung}}</th>
+                            <th>{{t:tabelle.spalte.aktionen}}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -201,7 +199,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <div id="modalLocationInfo" class="fw-semibold"></div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{t:allgemein.schliessen}}"></button>
       </div>
       <div class="modal-body" style="height: 400px;">
         <div id="modalMap" style="height:100%; width:100%;"></div>

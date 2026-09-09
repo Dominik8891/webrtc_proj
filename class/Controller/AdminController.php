@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Helper\AdminView;
+use App\Helper\I18n;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 use App\Model\AdminStats;
@@ -100,10 +101,10 @@ class AdminController
         // es keines. Was hier stehenbliebe, waere eine Aufgabe, die niemand
         // mehr erledigen kann.
         $out = str_replace('###FILTER###', self::filterHtml('admin_requests', $filter, [
-            'haengend'      => 'Hängende Führungen',
-            'unbeantwortet' => 'Ohne Antwort',
-            'offen'         => 'Offen',
-            'alle'          => 'Alle',
+            'haengend'      => 'verwaltung.filter.haengend',
+            'unbeantwortet' => 'verwaltung.filter.unbeantwortet',
+            'offen'         => 'verwaltung.filter.offen',
+            'alle'          => 'verwaltung.filter.alle',
         ]), $out);
         $out = str_replace('###COUNT###', (string)count($zeilen), $out);
         $out = str_replace('###ROWS###',  AdminView::anfrageZeilenHtml($zeilen), $out);
@@ -135,9 +136,9 @@ class AdminController
 
         $out = ViewHelper::template('assets/html/admin_locations.html');
         $out = str_replace('###FILTER###', self::filterHtml('admin_locations', $filter, [
-            'alle'           => 'Alle',
-            'gesperrt'       => 'Gesperrte',
-            'unvollstaendig' => 'Unvollständige',
+            'alle'           => 'verwaltung.filter.alle',
+            'gesperrt'       => 'verwaltung.filter.gesperrt',
+            'unvollstaendig' => 'verwaltung.filter.unvollstaendig',
         ], $geloescht), $out);
         $out = str_replace('###GELOESCHT###', AdminView::geloeschtSchalterHtml(
             'admin_locations', ['filter' => $filter], $geloescht), $out);
@@ -165,10 +166,10 @@ class AdminController
 
         $out = ViewHelper::template('assets/html/admin_reviews.html');
         $out = str_replace('###FILTER###', self::filterHtml('admin_reviews', $filter, [
-            'alle'     => 'Alle',
-            'sichtbar' => 'Sichtbar',
-            'schwach'  => '1–2 Sterne',
-            'entfernt' => 'Entfernt',
+            'alle'     => 'verwaltung.filter.alle',
+            'sichtbar' => 'verwaltung.filter.sichtbar',
+            'schwach'  => 'verwaltung.filter.schwach',
+            'entfernt' => 'verwaltung.filter.entfernt',
         ], $geloescht), $out);
         $out = str_replace('###GELOESCHT###', AdminView::geloeschtSchalterHtml(
             'admin_reviews', ['filter' => $filter], $geloescht), $out);
@@ -207,7 +208,7 @@ class AdminController
      *
      * @param string                $in_route   Zielroute
      * @param string                $in_aktiv   Aktueller Filter
-     * @param array<string,string>  $in_auswahl Filterwert => Beschriftung
+     * @param array<string,string>  $in_auswahl Filterwert => Katalogschluessel
      * @return string HTML
      */
     private static function filterHtml(string $in_route, string $in_aktiv, array $in_auswahl,
@@ -219,17 +220,22 @@ class AdminController
         // hat.
         $zusatz = $in_geloescht ? '&geloescht=1' : '';
 
+        // Die Auswahl traegt SCHLUESSEL und keine Beschriftungen: Der WERT
+        // steht in der Adresse und ist Technik, der Text haengt an der
+        // Sprache dieser Anfrage. Die Filterleiste steht in derselben Zeile
+        // wie die Ueberschrift aus der Vorlage - eine halb uebersetzte Leiste
+        // waere schlimmer als beides.
         $html = '';
-        foreach ($in_auswahl as $wert => $titel) {
+        foreach ($in_auswahl as $wert => $schluessel) {
+            $titel = ViewHelper::esc(I18n::t($schluessel));
             $html .= ($wert === $in_aktiv)
-                ? '<span class="app-switch__item" aria-current="true">'
-                  . ViewHelper::esc($titel) . '</span>'
+                ? '<span class="app-switch__item" aria-current="true">' . $titel . '</span>'
                 : '<a class="app-switch__item" href="index.php?act=' . $in_route
-                  . '&filter=' . rawurlencode($wert) . $zusatz . '">'
-                  . ViewHelper::esc($titel) . '</a>';
+                  . '&filter=' . rawurlencode($wert) . $zusatz . '">' . $titel . '</a>';
         }
 
-        return '<div class="app-switch" role="group" aria-label="Filter">' . $html . '</div>';
+        return '<div class="app-switch" role="group" aria-label="'
+             . ViewHelper::esc(I18n::t('verwaltung.filter.label')) . '">' . $html . '</div>';
     }
 
     /**

@@ -27,9 +27,9 @@
 
     <div class="home-bar">
         <div>
-            <h1 class="home-bar__title">Wohin möchten Sie heute?</h1>
+            <h1 class="home-bar__title">{{t:startseite.titel}}</h1>
             <p class="home-bar__sub">
-                Wählen Sie einen Ort auf der Karte. Ein Guide vor Ort nimmt Sie mit – live, und Sie sagen, wohin.
+                {{t:startseite.untertitel}}
             </p>
         </div>
 
@@ -51,41 +51,41 @@
 
             <!-- Nur fuer Gaeste: Die Karte zeigt das Angebot, dieser Verweis
                  erklaert es. Sichtbar gemacht von home_map.js. -->
-            <a href="#" class="home-bar__explain" id="home-explain" hidden>Wie funktioniert das?</a>
+            <a href="#" class="home-bar__explain" id="home-explain" hidden>{{t:startseite.erklaerung}}</a>
 
             <!-- Trennt die Auskunft links von der Bedienung rechts. -->
             <span class="home-bar__rule" aria-hidden="true"></span>
 
             <!-- Die Tabellenansicht bleibt gleichrangig erreichbar. -->
-            <div class="app-switch" role="group" aria-label="Ansicht">
-                <span class="app-switch__item" aria-current="true">Karte</span>
-                <a class="app-switch__item" id="home-to-table" href="index.php?act=show_locations_page">Liste</a>
+            <div class="app-switch" role="group" aria-label="{{t:ansicht.label}}">
+                <span class="app-switch__item" aria-current="true">{{t:ansicht.karte}}</span>
+                <a class="app-switch__item" id="home-to-table" href="index.php?act=show_locations_page">{{t:ansicht.liste}}</a>
             </div>
         </div>
     </div>
 
     <div class="home-map-shell">
-        <div id="home-map" class="home-map" role="application" aria-label="Karte der angebotenen Standorte"></div>
+        <div id="home-map" class="home-map" role="application" aria-label="{{t:startseite.karte_label}}"></div>
 
-        <div class="home-loading" id="home-loading" hidden>Standorte werden geladen …</div>
+        <div class="home-loading" id="home-loading" hidden>{{t:startseite.laden}}</div>
 
         <div class="home-legend" id="home-legend" hidden>
             <div class="home-legend__row">
                 <span class="home-legend__key home-legend__key--live"></span>
-                <span>Guide jetzt verfügbar</span>
+                <span>{{t:startseite.legende.live}}</span>
             </div>
             <div class="home-legend__row">
                 <span class="home-legend__key home-legend__key--busy"></span>
-                <span>Guide im Gespräch</span>
+                <span>{{t:startseite.legende.busy}}</span>
             </div>
             <div class="home-legend__row">
                 <span class="home-legend__key home-legend__key--idle"></span>
-                <span>Standort ohne Guide</span>
+                <span>{{t:startseite.legende.idle}}</span>
             </div>
             <!-- Nur vorhanden, wenn der Angemeldete selbst Standorte anbietet. -->
             <div class="home-legend__row" data-legend="mine" hidden>
                 <span class="home-legend__key home-legend__key--mine"></span>
-                <span>Ihr Standort</span>
+                <span>{{t:startseite.legende.eigen}}</span>
             </div>
         </div>
 
@@ -100,37 +100,27 @@
                      wurde. Steht sie, weil es nichts zu zeigen gibt, waere ein
                      Schliessknopf eine Luege: dahinter ist nichts. -->
                 <button type="button" class="home-state__close" id="home-state-close"
-                        aria-label="Schließen" hidden>&times;</button>
+                        aria-label="{{t:allgemein.schliessen}}" hidden>&times;</button>
 
                 <!-- Zustand: nicht angemeldet -->
                 <div data-state="guest" hidden>
-                    <p class="home-state__eyebrow">Live geführt statt vorbeigescrollt</p>
-                    <h2 class="home-state__title">Jemand geht für Sie los.</h2>
-                    <p class="home-state__lead">
-                        Wie eine Straßenansicht – nur in echt und in diesem Moment. Ein Mensch vor Ort
-                        überträgt sein Bild, Sie sagen ihm, wo es langgeht. Melden Sie sich an, um zu
-                        sehen, wer gerade unterwegs ist.
-                    </p>
+                    <p class="home-state__eyebrow">{{t:startseite.gast.eyebrow}}</p>
+                    <h2 class="home-state__title">{{t:startseite.gast.titel}}</h2>
+                    <p class="home-state__lead">{{t:startseite.gast.text}}</p>
                 </div>
 
                 <!-- Zustand: angemeldet, aber es gibt keinen einzigen Standort -->
                 <div data-state="empty" hidden>
-                    <p class="home-state__eyebrow">Noch nichts auf der Karte</p>
-                    <h2 class="home-state__title">Hier ist noch niemand unterwegs.</h2>
-                    <p class="home-state__lead">
-                        Es sind bislang keine Standorte eingetragen. So funktioniert es, sobald
-                        jemand einen anbietet – und Sie können der Erste sein.
-                    </p>
+                    <p class="home-state__eyebrow">{{t:startseite.leer.eyebrow}}</p>
+                    <h2 class="home-state__title">{{t:startseite.leer.titel}}</h2>
+                    <p class="home-state__lead">{{t:startseite.leer.text}}</p>
                 </div>
 
                 <!-- Zustand: die Standorte konnten nicht geladen werden -->
                 <div data-state="error" hidden>
-                    <p class="home-state__eyebrow">Karte nicht geladen</p>
-                    <h2 class="home-state__title">Die Standorte sind gerade nicht abrufbar.</h2>
-                    <p class="home-state__lead">
-                        Der Server hat nicht geantwortet. Das liegt meist an der Verbindung und ist
-                        nach einem erneuten Versuch behoben.
-                    </p>
+                    <p class="home-state__eyebrow">{{t:startseite.fehler.eyebrow}}</p>
+                    <h2 class="home-state__title">{{t:startseite.fehler.titel}}</h2>
+                    <p class="home-state__lead">{{t:startseite.fehler.text}}</p>
                 </div>
 
                 <!-- Die drei Schritte einer Führung. Für alle Zustände gleich,
@@ -138,47 +128,41 @@
                 <ol class="home-steps" id="home-steps">
                     <li>
                         <span>
-                            <span class="home-steps__title">Ort wählen</span>
-                            <span class="home-steps__text">Auf der Karte sehen Sie, wo gerade ein Guide bereitsteht.</span>
+                            <span class="home-steps__title">{{t:startseite.schritt1.titel}}</span>
+                            <span class="home-steps__text">{{t:startseite.schritt1.text}}</span>
                         </span>
                     </li>
                     <li>
                         <span>
-                            <span class="home-steps__title">Anrufen</span>
-                            <span class="home-steps__text">Ein Klick auf die Nadel startet das Gespräch. Ton und Bild kommen direkt von unterwegs.</span>
+                            <span class="home-steps__title">{{t:startseite.schritt2.titel}}</span>
+                            <span class="home-steps__text">{{t:startseite.schritt2.text}}</span>
                         </span>
                     </li>
                     <li>
                         <span>
-                            <span class="home-steps__title">Führen</span>
-                            <span class="home-steps__text">Mit den Pfeiltasten geben Sie die Richtung vor. Der Guide hört und sieht Ihren Wunsch und geht dorthin.</span>
+                            <span class="home-steps__title">{{t:startseite.schritt3.titel}}</span>
+                            <span class="home-steps__text">{{t:startseite.schritt3.text}}</span>
                         </span>
                     </li>
                 </ol>
 
                 <div class="home-state__actions" data-state="guest" hidden>
-                    <a class="btn btn-primary" href="index.php?act=signup_page">Konto anlegen</a>
-                    <a class="btn btn-secondary" href="index.php?act=login_page">Anmelden</a>
+                    <a class="btn btn-primary" href="index.php?act=signup_page">{{t:startseite.gast.konto}}</a>
+                    <a class="btn btn-secondary" href="index.php?act=login_page">{{t:startseite.gast.anmelden}}</a>
                 </div>
 
                 <div class="home-state__actions" data-state="empty" hidden>
-                    <a class="btn btn-primary" id="home-become-guide" href="index.php?act=guide_role_page">Guide werden</a>
-                    <a class="btn btn-secondary" href="index.php?act=show_locations_page">Zur Listenansicht</a>
+                    <a class="btn btn-primary" id="home-become-guide" href="index.php?act=guide_role_page">{{t:startseite.leer.guide}}</a>
+                    <a class="btn btn-secondary" href="index.php?act=show_locations_page">{{t:startseite.leer.liste}}</a>
                 </div>
 
                 <div class="home-state__actions" data-state="error" hidden>
-                    <button type="button" class="btn btn-primary" id="home-retry">Erneut versuchen</button>
+                    <button type="button" class="btn btn-primary" id="home-retry">{{t:startseite.fehler.knopf}}</button>
                 </div>
 
-                <p class="home-state__foot" data-state="guest" hidden>
-                    Sie sind selbst irgendwo, das andere sehen wollen? Nach der Anmeldung können Sie
-                    Ihren Standort anbieten und Führungen geben.
-                </p>
+                <p class="home-state__foot" data-state="guest" hidden>{{t:startseite.gast.fuss}}</p>
 
-                <p class="home-state__foot" data-state="empty" hidden>
-                    Als Guide tragen Sie einen Ort ein, an dem Sie sich auskennen. Wenn Sie online
-                    sind, erscheint er hervorgehoben auf dieser Karte – und Sie werden angerufen.
-                </p>
+                <p class="home-state__foot" data-state="empty" hidden>{{t:startseite.leer.fuss}}</p>
             </div>
         </div>
     </div>

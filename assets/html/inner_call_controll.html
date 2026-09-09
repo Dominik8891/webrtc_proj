@@ -67,7 +67,7 @@
              aus dem Stummwerden der Empfangsspur. -->
         <div id="remote-video-placeholder" class="call-novideo" style="display:none;">
             <div class="call-novideo__mark" aria-hidden="true">&#128249;</div>
-            <p class="call-novideo__text">Kein Videobild</p>
+            <p class="call-novideo__text">{{t:gespraech.kein_video}}</p>
         </div>
 
         <!-- Das eigene Bild.
@@ -82,7 +82,7 @@
              Bild die Buehne. Gesetzt von media.updateLocalPreview(). -->
         <div id="local-video-placeholder" class="call-self-off" style="display:none;">
             <div class="call-self-off__mark" aria-hidden="true">&#128247;</div>
-            <p class="call-self-off__text">Kamera aus</p>
+            <p class="call-self-off__text">{{t:gespraech.kamera_aus}}</p>
         </div>
 
         <!-- GUIDE: grosse Richtungsanzeige.
@@ -105,7 +105,7 @@
                  getrennt. Gesetzt von rtc.setConnectionStatus(). -->
             <span id="connection-status" class="connection-status" style="display:none;"></span>
         </div>
-        <button id="end-call-btn" type="button" class="btn btn-danger call-hangup">Auflegen</button>
+        <button id="end-call-btn" type="button" class="btn btn-danger call-hangup">{{t:gespraech.auflegen}}</button>
     </div>
 
     <!-- NUR IM ANRUF DER ADMINISTRATION (Rolle "peer"): Was das hier ist.
@@ -125,8 +125,8 @@
     <div id="call-purpose" class="call-purpose" role="status">
         <span class="call-purpose__icon" aria-hidden="true"></span>
         <span class="call-purpose__text">
-            <strong class="call-purpose__title">Anruf der Administration</strong>
-            Keine Führung – es wird nicht gesteuert.
+            <strong class="call-purpose__title">{{t:gespraech.zweck.titel}}</strong>
+            {{t:gespraech.zweck.text}}
         </span>
     </div>
 
@@ -134,7 +134,7 @@
          Gesetzt von control.updateLockUi(). -->
     <div id="control-lock-notice" class="control-lock-notice" style="display:none;" role="status">
         <span class="control-lock-notice__icon" aria-hidden="true"></span>
-        <span class="control-lock-notice__text">Steuerung gesperrt – der Guide hat sie angehalten.</span>
+        <span class="control-lock-notice__text">{{t:gespraech.sperre.hinweis}}</span>
     </div>
 
     <!-- ZUSCHAUER: die Steuerung. Liegt ueber dem Bild, nicht daneben -
@@ -147,15 +147,15 @@
          Fehlgriff bedeutet hier, dass jemand vor Ort losgeht. -->
     <div id="control-pad" class="call-pad">
         <div class="look-controls">
-            <span class="look-controls__caption" aria-hidden="true">Blick</span>
-            <button id="btn-look-up"   type="button" class="call-arrow call-look" aria-label="Blick nach oben"  title="Blick nach oben">&uArr;</button>
-            <button id="btn-look-down" type="button" class="call-arrow call-look" aria-label="Blick nach unten" title="Blick nach unten">&dArr;</button>
+            <span class="look-controls__caption" aria-hidden="true">{{t:gespraech.blick}}</span>
+            <button id="btn-look-up"   type="button" class="call-arrow call-look" aria-label="{{t:gespraech.blick_oben}}"  title="{{t:gespraech.blick_oben}}">&uArr;</button>
+            <button id="btn-look-down" type="button" class="call-arrow call-look" aria-label="{{t:gespraech.blick_unten}}" title="{{t:gespraech.blick_unten}}">&dArr;</button>
         </div>
         <div class="arrow-controls">
-            <button id="btn-forward"  type="button" class="call-arrow call-arrow--up"    aria-label="Vorwärts">&uarr;</button>
-            <button id="btn-left"     type="button" class="call-arrow call-arrow--left"  aria-label="Nach links">&larr;</button>
-            <button id="btn-right"    type="button" class="call-arrow call-arrow--right" aria-label="Nach rechts">&rarr;</button>
-            <button id="btn-backward" type="button" class="call-arrow call-arrow--down"  aria-label="Rückwärts">&darr;</button>
+            <button id="btn-forward"  type="button" class="call-arrow call-arrow--up"    aria-label="{{t:gespraech.vorwaerts}}">&uarr;</button>
+            <button id="btn-left"     type="button" class="call-arrow call-arrow--left"  aria-label="{{t:gespraech.links}}">&larr;</button>
+            <button id="btn-right"    type="button" class="call-arrow call-arrow--right" aria-label="{{t:gespraech.rechts}}">&rarr;</button>
+            <button id="btn-backward" type="button" class="call-arrow call-arrow--down"  aria-label="{{t:gespraech.rueckwaerts}}">&darr;</button>
         </div>
     </div>
 
@@ -163,7 +163,7 @@
          Liegt im Videobild statt im Kopfbereich, weil der Guide das Geraet
          in der Hand haelt und der Daumen unten liegt. -->
     <div id="control-lock-bar" class="control-lock-bar" style="display:none;">
-        <button id="control-lock-btn" type="button" class="btn btn-warning fw-bold control-lock-btn">Steuerung sperren</button>
+        <button id="control-lock-btn" type="button" class="btn btn-warning fw-bold control-lock-btn">{{t:gespraech.sperren}}</button>
     </div>
 
     <!-- Bedienleiste unten.
@@ -173,17 +173,17 @@
          nichts, und ein Knopf, der nichts tut, ist schlimmer als keiner.
          Der Chat bleibt in jeder Rolle. -->
     <div class="call-bar">
-        <button id="switch-mic-btn" type="button" class="call-btn" title="Mikrofon an/aus">
-            <img id="mic-icon" src="assets/img/mic.png" alt="Mikrofon">
+        <button id="switch-mic-btn" type="button" class="call-btn" title="{{t:gespraech.mikrofon_schalter}}">
+            <img id="mic-icon" src="assets/img/mic.png" alt="{{t:gespraech.mikrofon}}">
         </button>
-        <button id="switch-cam-btn" type="button" class="call-btn" title="Kamera an/aus">
-            <img id="cam-icon" src="assets/img/camera.png" alt="Kamera">
+        <button id="switch-cam-btn" type="button" class="call-btn" title="{{t:gespraech.kamera_schalter}}">
+            <img id="cam-icon" src="assets/img/camera.png" alt="{{t:gespraech.kamera}}">
         </button>
-        <button id="call-devices-btn" type="button" class="call-btn call-btn--text" aria-expanded="false">Geräte</button>
+        <button id="call-devices-btn" type="button" class="call-btn call-btn--text" aria-expanded="false">{{t:gespraech.geraete}}</button>
         <!-- Der Zaehler steht am Chatknopf und nicht im Chat: Wer ihn sehen
              soll, hat den Chat gerade ZU. Gesetzt von chat.renderUnread(). -->
-        <button id="chat-toggle-btn" type="button" class="call-btn call-btn--text" aria-expanded="false">Chat<span
-            id="chat-unread" class="call-btn__badge" role="status" aria-label="Ungelesene Nachrichten" hidden>0</span></button>
+        <button id="chat-toggle-btn" type="button" class="call-btn call-btn--text" aria-expanded="false">{{t:gespraech.chat}}<span
+            id="chat-unread" class="call-btn__badge" role="status" aria-label="{{t:gespraech.ungelesen}}" hidden>0</span></button>
     </div>
 
     <!-- GEMEINSAM: Geraeteauswahl. Aufklappbar statt dauerhaft sichtbar.
@@ -191,11 +191,11 @@
          keine Neuaushandlung (assets/js/media.js). -->
     <div id="call-devices" class="call-sheet" hidden>
         <div class="call-sheet__row">
-            <label for="camera-select-in-call" class="call-sheet__label">Kamera</label>
+            <label for="camera-select-in-call" class="call-sheet__label">{{t:gespraech.kamera}}</label>
             <select id="camera-select-in-call" class="form-select form-select-sm"></select>
         </div>
         <div class="call-sheet__row">
-            <label for="mic-select-in-call" class="call-sheet__label">Mikrofon</label>
+            <label for="mic-select-in-call" class="call-sheet__label">{{t:gespraech.mikrofon}}</label>
             <select id="mic-select-in-call" class="form-select form-select-sm"></select>
         </div>
     </div>
@@ -205,15 +205,15 @@
     <div id="chat-overlay" class="call-chat-overlay" hidden>
         <div id="chat-panel" class="call-chat">
             <div class="call-chat__head">
-                <span>Chat</span>
-                <button id="chat-close" type="button" class="call-chat__close" aria-label="Chat schließen">&times;</button>
+                <span>{{t:gespraech.chat}}</span>
+                <button id="chat-close" type="button" class="call-chat__close" aria-label="{{t:gespraech.chat_schliessen}}">&times;</button>
             </div>
             <div id="chat-area" class="call-chat__body">
                 <div id="chat-log"></div>
             </div>
             <div class="call-chat__foot">
-                <input id="chat-input" class="form-control" placeholder="Nachricht" autocomplete="off">
-                <button id="chat-send-btn" type="button" class="btn btn-primary">Senden</button>
+                <input id="chat-input" class="form-control" placeholder="{{t:gespraech.nachricht}}" autocomplete="off">
+                <button id="chat-send-btn" type="button" class="btn btn-primary">{{t:gespraech.senden}}</button>
             </div>
         </div>
     </div>

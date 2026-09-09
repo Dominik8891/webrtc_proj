@@ -625,4 +625,359 @@ return [
         'one'   => 'another {n} hour',
         'other' => 'another {n} hours',
     ],
+    // =================================================================
+    // THE TEMPLATES
+    //
+    // The stage after the texts PHP produces itself. They are fetched with
+    // the {{t:key}} marker, resolved when the file is loaded. A sentence
+    // with a value or an emphasis inside it cannot be a marker - those are
+    // built in PHP with ViewHelper::tHtml(); the template comment names the
+    // caller.
+    // =================================================================
+
+    'fuss.rechtliches' => 'Legal',
+    'fuss.impressum'   => 'Imprint',
+    'fuss.datenschutz' => 'Privacy',
+    'fuss.kontakt'     => 'Contact',
+
+    'ansicht.label'    => 'View',
+    'ansicht.karte'    => 'Map',
+    'ansicht.liste'    => 'List',
+    'ansicht.anfragen' => 'Requests',
+
+    'tabelle.spalte.status'        => 'Status',
+    'tabelle.spalte.guide'         => 'Guide',
+    'tabelle.spalte.bewertung'     => 'Rating',
+    'tabelle.spalte.land'          => 'Country',
+    'tabelle.spalte.stadt'         => 'City',
+    'tabelle.spalte.beschreibung'  => 'Description',
+    'tabelle.spalte.aktionen'      => 'Actions',
+
+    'allgemein.schliessen' => 'Close',
+
+    // -----------------------------------------------------------------
+    // SIGNING IN AND SIGNING UP
+    // -----------------------------------------------------------------
+    'anmelden.titel'        => 'Sign in',
+    'anmelden.untertitel'   => 'On to your tours.',
+    'anmelden.benutzername' => 'User name',
+    'anmelden.passwort'     => 'Password',
+    'anmelden.knopf'        => 'Sign in',
+    'anmelden.kein_konto'   => 'No account yet?',
+    'anmelden.registrieren' => 'Sign up now',
+
+    'registrierung.titel'        => 'Create an account',
+    'registrierung.untertitel'   => 'After that you can book tours – and offer some yourself.',
+    'registrierung.benutzername' => 'User name',
+    'registrierung.email'        => 'Email address',
+    'registrierung.passwort'     => 'Password',
+    'registrierung.passwort_wdh' => 'Repeat password',
+    'registrierung.knopf'        => 'Create an account',
+    'registrierung.schon_dabei'  => 'Already signed up?',
+    'registrierung.anmelden'     => 'Sign in',
+
+    // -----------------------------------------------------------------
+    // THE PASSWORD
+    // -----------------------------------------------------------------
+    'passwort.vergessen.titel'   => 'Forgot your password',
+    'passwort.vergessen.text'    => 'We will send you a link to the address on file.',
+    'passwort.vergessen.email'   => 'Email address',
+    'passwort.vergessen.knopf'   => 'Request a link',
+    'passwort.vergessen.zurueck' => 'Back to signing in',
+
+    'passwort.neu.titel'    => 'Set a new password',
+    'passwort.neu.feld'     => 'New password',
+    'passwort.neu.feld_wdh' => 'Repeat new password',
+    'passwort.neu.knopf'    => 'Change password',
+
+    'passwort.aendern.titel'      => 'Change password',
+    'passwort.aendern.angemeldet' => 'Signed in as {name}',
+    'passwort.aendern.alt'        => 'Old password',
+    'passwort.aendern.knopf'      => 'Change password',
+    'passwort.aendern.abbrechen'  => 'Cancel',
+
+    // -----------------------------------------------------------------
+    // THE HOME PAGE
+    // -----------------------------------------------------------------
+    'startseite.titel'       => 'Where would you like to go today?',
+    'startseite.untertitel'  => 'Pick a place on the map. A guide on site takes you along – live, and you say where to.',
+    'startseite.erklaerung'  => 'How does this work?',
+    'startseite.karte_label' => 'Map of the locations on offer',
+    'startseite.laden'       => 'Loading locations …',
+
+    'startseite.legende.live'  => 'Guide available now',
+    'startseite.legende.busy'  => 'Guide in a call',
+    'startseite.legende.idle'  => 'Location without a guide',
+    'startseite.legende.eigen' => 'Your location',
+
+    'startseite.gast.eyebrow'  => 'Guided live instead of scrolled past',
+    'startseite.gast.titel'    => 'Somebody sets off for you.',
+    'startseite.gast.text'     => 'Like a street view – only real and happening now. A person on site sends their picture, you tell them where to go. Sign in to see who is out and about right now.',
+    'startseite.gast.konto'    => 'Create an account',
+    'startseite.gast.anmelden' => 'Sign in',
+    'startseite.gast.fuss'     => 'Are you somewhere others would like to see? Once signed in you can offer your location and give tours yourself.',
+
+    'startseite.leer.eyebrow' => 'Nothing on the map yet',
+    'startseite.leer.titel'   => 'Nobody is out and about here yet.',
+    'startseite.leer.text'    => 'No locations have been entered so far. This is how it works as soon as somebody offers one – and you could be the first.',
+    'startseite.leer.guide'   => 'Become a guide',
+    'startseite.leer.liste'   => 'To the list view',
+    'startseite.leer.fuss'    => 'As a guide you enter a place you know your way around. When you are online it appears highlighted on this map – and people call you.',
+
+    'startseite.fehler.eyebrow' => 'Map not loaded',
+    'startseite.fehler.titel'   => 'The locations cannot be reached right now.',
+    'startseite.fehler.text'    => 'The server did not answer. That is usually down to the connection and is fixed by trying again.',
+    'startseite.fehler.knopf'   => 'Try again',
+
+    'startseite.schritt1.titel' => 'Pick a place',
+    'startseite.schritt1.text'  => 'On the map you can see where a guide is standing by right now.',
+    'startseite.schritt2.titel' => 'Call',
+    'startseite.schritt2.text'  => 'One click on the pin starts the call. Sound and picture come straight from the street.',
+    'startseite.schritt3.titel' => 'Guide them',
+    'startseite.schritt3.text'  => 'The arrow keys set the direction. The guide hears and sees what you want and goes there.',
+
+    // -----------------------------------------------------------------
+    // THE LOCATION LIST
+    // -----------------------------------------------------------------
+    'standortliste.titel'      => 'All locations',
+    'standortliste.untertitel' => 'The same locations as on the map, here to search and sort.',
+
+    // -----------------------------------------------------------------
+    // OFFERING AND EDITING A LOCATION
+    // -----------------------------------------------------------------
+    'standort.anbieten.titel'      => 'Offer a location',
+    'standort.anbieten.untertitel' => 'The place where you guide. It appears on the map – highlighted as soon as you are online.',
+
+    'standort.formular.land'              => 'Country',
+    'standort.formular.land_waehlen'      => 'Choose a country …',
+    'standort.formular.stadt'             => 'City',
+    'standort.formular.stadt_waehlen'     => 'Choose a city …',
+    'standort.formular.titel'             => 'Title',
+    'standort.formular.titel_platzhalter' => 'What is this tour about?',
+    'standort.formular.kurz'              => 'Short description',
+    'standort.formular.kurz_platzhalter'  => 'One line – it appears on the map and in the list',
+    'standort.formular.kurz_hinweis'      => 'Others see this line in the map window and in the location list. The detailed text appears on the location page.',
+    'standort.formular.lang'              => 'Detailed description',
+    'standort.formular.lang_platzhalter'  => 'What do you show? Where do we meet? What should people know?',
+    'standort.formular.lang_hinweis'      => 'Can be added later as well – on the location page.',
+    'standort.formular.dauer'             => 'Typical duration (minutes)',
+    'standort.formular.dauer_platzhalter' => 'e.g. 45',
+    'standort.formular.dauer_hinweis'     => 'Leave empty if there is no usual duration.',
+    'standort.formular.sprachen'          => 'Languages you guide in',
+    'standort.formular.punkt'             => 'Point on the map',
+    'standort.formular.aktueller_ort'     => 'Use my current position',
+    'standort.formular.breitengrad'       => 'Latitude',
+    'standort.formular.laengengrad'       => 'Longitude',
+    'standort.formular.osm'               => 'Place according to OpenStreetMap',
+    'standort.formular.speichern'         => 'Save location',
+    'standort.formular.abbrechen'         => 'Cancel',
+
+    'standort.bearbeiten.titel'          => 'Your location',
+    'standort.bearbeiten.umschalten'     => 'Edit',
+    'standort.bearbeiten.kurz_hinweis'   => 'Others see this line in the map window and in the location list. The detailed text appears only here.',
+    'standort.bearbeiten.zeiten_frage'   => 'When are you usually out and about?',
+    'standort.bearbeiten.zeiten_hinweis' => 'A rough orientation for customers – not a firm commitment. Requests for other times remain possible.',
+    'standort.bearbeiten.zone'           => 'Time zone of the place',
+    'standort.bearbeiten.zone_hinweis'   => 'Your times apply where the tour takes place. Customers in other time zones see both. Preset is the zone that follows from country and coordinates.',
+    'standort.bearbeiten.speichern'      => 'Save',
+    'standort.bearbeiten.abbrechen'      => 'Cancel',
+    'standort.bearbeiten.titelbild'      => 'Cover picture',
+    'standort.bearbeiten.galerie'        => 'Pictures of the place',
+    'standort.bearbeiten.zahl'           => 'Up to {max} pictures in total, cover picture included – currently {bisher}.',
+    'standort.bearbeiten.hinzufuegen'    => 'Add a picture',
+
+    'standort.zurueck'             => 'Back to the overview',
+    'standort.treffpunkt'          => 'Meeting point',
+    'standort.lightbox.vorheriges'  => 'Previous picture',
+    'standort.lightbox.naechstes'   => 'Next picture',
+
+    // -----------------------------------------------------------------
+    // THE REQUESTS PAGE
+    // -----------------------------------------------------------------
+    'anfrage.seite.titel'          => 'Requests',
+    'anfrage.seite.untertitel'     => 'What is addressed to your locations – and what you asked for yourself.',
+    'anfrage.seite.eingehend'      => 'To my locations',
+    'anfrage.seite.eingehend_leer' => 'Nothing is open right now. As soon as somebody requests a tour at one of your locations it appears here – and the counter in the header tells you.',
+    'anfrage.seite.ausgehend'      => 'My requests',
+    'anfrage.seite.ausgehend_leer' => 'You have not requested a tour yet. Pick a place on the map – on its page you request the tour with your preferred time.',
+    'anfrage.seite.fehler'         => 'The requests could not be loaded. That is usually down to the connection.',
+
+    // -----------------------------------------------------------------
+    // THE GUIDE QUESTION
+    // -----------------------------------------------------------------
+    'guide.rolle.frage'                 => 'Would you like to become a guide?',
+    'guide.rolle.was_guide.titel'       => 'What a guide does',
+    'guide.rolle.was_guide.text'        => 'As a {rolle} you offer locations: places you know your way around and where you can be out and about. When somebody books a tour you are on site with camera and sound - and {regie}. They tell you through a direction pad where to walk and where to look. You always decide for yourself whether to follow an instruction, and you can lock the controls during a call.',
+    'guide.rolle.was_guide.regie'       => 'the viewer directs',
+    'guide.rolle.was_zuschauer.titel'   => 'What a viewer does',
+    'guide.rolle.was_zuschauer.text'    => 'As a {rolle} you pick a location on the map and let a guide on site show you around. You do not have to offer anything, and your own position does not matter.',
+    'guide.rolle.kosten.titel'          => 'A note about later costs:',
+    'guide.rolle.kosten.text'           => 'Tours are free at the moment. They will become chargeable - viewers pay for a tour, guides are paid for giving one. Before that takes effect we will put the terms that then apply to you for approval again. Without your approval neither costs nor claims arise.',
+
+    // -----------------------------------------------------------------
+    // THE ACCOUNT PAGE
+    // -----------------------------------------------------------------
+    'konto.titel'      => 'My account',
+    'konto.untertitel' => 'Sign-in details, security and your own locations.',
+
+    'konto.angaben.titel'                => 'Details',
+    'konto.angaben.benutzername'         => 'User name',
+    'konto.angaben.benutzername_hinweis' => 'For signing in only. Customers see the display name from your guide profile.',
+    'konto.angaben.email'                => 'Email address',
+    'konto.angaben.zweifaktor'           => 'Two-factor sign-in',
+    'konto.angaben.guide_rolle'          => 'Guide role',
+    'konto.passwort_aendern'             => 'Change password',
+
+    'konto.farbprofil.titel'   => 'Colour scheme',
+    'konto.farbprofil.hinweis' => 'Applies to this account and will still be set the next time you sign in. The colours of the map pins stay the same in every scheme.',
+
+    'konto.standorte.titel'    => 'My locations',
+    'konto.standorte.anbieten' => 'Offer a location',
+
+    'konto.geloescht' => 'Deleted account',
+
+    // -----------------------------------------------------------------
+    // THE COLOUR SCHEMES
+    // -----------------------------------------------------------------
+    'farbprofil.indigo.name'     => 'Indigo',
+    'farbprofil.indigo.text'     => 'The default. Cool grey with an indigo accent.',
+    'farbprofil.himmelblau.name' => 'Sky blue',
+    'farbprofil.himmelblau.text' => 'Light and friendly, on a faintly blue ground.',
+    'farbprofil.dunkel.name'     => 'Dark',
+    'farbprofil.dunkel.text'     => 'Dark surfaces for evenings and dark rooms.',
+    'farbprofil.neutral.name'    => 'Neutral',
+    'farbprofil.neutral.text'    => 'Very restrained, without a coloured accent.',
+
+    // -----------------------------------------------------------------
+    // THE NOTE ABOUT THE UNCONFIRMED ADDRESS
+    // -----------------------------------------------------------------
+    'mailhinweis.gesperrt'        => 'Please confirm your email address first. After that this function is available again.',
+    'mailhinweis.streifen.titel'  => 'Email address not confirmed yet.',
+    'mailhinweis.streifen.text'   => 'Requests, chat and uploading pictures are blocked until then.',
+    'mailhinweis.streifen.knopf'  => 'Send confirmation email',
+
+    // -----------------------------------------------------------------
+    // THE ADMINISTRATION
+    // -----------------------------------------------------------------
+    'verwaltung.uebersicht.vorrat'  => 'Needs attention',
+    'verwaltung.uebersicht.bestand' => 'Inventory',
+
+    'verwaltung.benutzer.titel'      => 'Users',
+    'verwaltung.benutzer.untertitel' => 'You can call and write to whoever is online right now.',
+    'verwaltung.benutzer.neu'        => 'New user',
+    'verwaltung.benutzer.spalte.status'       => 'Status',
+    'verwaltung.benutzer.spalte.anrufen'      => 'Call',
+    'verwaltung.benutzer.spalte.benutzername' => 'User name',
+    'verwaltung.benutzer.spalte.nachricht'    => 'Message',
+    'verwaltung.benutzer.spalte.email'        => 'Email',
+    'verwaltung.benutzer.spalte.aktionen'     => 'Actions',
+
+    'verwaltung.benutzer.formular.anlegen'      => 'Create a new user',
+    'verwaltung.benutzer.formular.bearbeiten'   => 'Edit user {id} ({name})',
+    'verwaltung.benutzer.formular.rolle'        => 'Role',
+    'verwaltung.benutzer.formular.benutzername' => 'User name',
+    'verwaltung.benutzer.formular.email'        => 'Email address',
+    'verwaltung.benutzer.formular.passwort'     => 'Password',
+    'verwaltung.benutzer.formular.speichern'    => 'Save',
+    'verwaltung.benutzer.formular.abbrechen'    => 'Cancel',
+
+    'verwaltung.standorte.titel'           => 'Locations',
+    'verwaltung.standorte.spalte.standort' => 'Location',
+    'verwaltung.standorte.spalte.guide'    => 'Guide',
+    'verwaltung.standorte.spalte.zustand'  => 'State',
+    'verwaltung.standorte.spalte.fehlt'    => 'Missing',
+    'verwaltung.standorte.spalte.sperre'   => 'Block',
+    'verwaltung.standorte.spalte.aktion'   => 'Action',
+
+    'verwaltung.anfragen.titel'           => 'Requests',
+    'verwaltung.anfragen.spalte.zustand'  => 'State',
+    'verwaltung.anfragen.spalte.fuehrung' => 'Tour',
+    'verwaltung.anfragen.spalte.guide'    => 'Guide',
+    'verwaltung.anfragen.spalte.kunde'    => 'Customer',
+    'verwaltung.anfragen.spalte.aktion'   => 'Action',
+
+    'verwaltung.bewertungen.titel'            => 'Ratings',
+    'verwaltung.bewertungen.spalte.sterne'    => 'Stars',
+    'verwaltung.bewertungen.spalte.text'      => 'Text',
+    'verwaltung.bewertungen.spalte.fuehrung'  => 'Tour',
+    'verwaltung.bewertungen.spalte.abgegeben' => 'Given',
+    'verwaltung.bewertungen.spalte.aktion'    => 'Action',
+
+    'verwaltung.filter.label'          => 'Filter',
+    'verwaltung.filter.alle'           => 'All',
+    'verwaltung.filter.haengend'       => 'Stuck tours',
+    'verwaltung.filter.unbeantwortet'  => 'Without an answer',
+    'verwaltung.filter.offen'          => 'Open',
+    'verwaltung.filter.gesperrt'       => 'Blocked',
+    'verwaltung.filter.unvollstaendig' => 'Incomplete',
+    'verwaltung.filter.sichtbar'       => 'Visible',
+    'verwaltung.filter.schwach'        => '1–2 stars',
+    'verwaltung.filter.entfernt'       => 'Removed',
+
+    // -----------------------------------------------------------------
+    // THE CHATS
+    // -----------------------------------------------------------------
+    'chat.titel'           => 'Chats',
+    'chat.untertitel'      => 'Conversations from past and running tours.',
+    'chat.spalte.status'   => 'Status',
+    'chat.spalte.partner'  => 'Partner',
+    'chat.spalte.letzte'   => 'Last message',
+    'chat.spalte.verlauf'  => 'History',
+    'chat.verlauf.titel'   => 'History',
+    'chat.verlauf.zurueck' => 'Back to all chats',
+
+    // -----------------------------------------------------------------
+    // THE CALL
+    // -----------------------------------------------------------------
+    'gespraech.kein_video'       => 'No video picture',
+    'gespraech.kamera_aus'       => 'Camera off',
+    'gespraech.auflegen'         => 'Hang up',
+    'gespraech.zweck.titel'      => 'Call from the administration',
+    'gespraech.zweck.text'       => 'Not a tour – nothing is being directed.',
+    'gespraech.sperre.hinweis'   => 'Controls locked – the guide has paused them.',
+    'gespraech.blick'            => 'Look',
+    'gespraech.blick_oben'       => 'Look up',
+    'gespraech.blick_unten'      => 'Look down',
+    'gespraech.vorwaerts'        => 'Forward',
+    'gespraech.links'            => 'Turn left',
+    'gespraech.rechts'           => 'Turn right',
+    'gespraech.rueckwaerts'      => 'Backward',
+    'gespraech.sperren'          => 'Lock the controls',
+    'gespraech.mikrofon'         => 'Microphone',
+    'gespraech.mikrofon_schalter'=> 'Microphone on/off',
+    'gespraech.kamera'           => 'Camera',
+    'gespraech.kamera_schalter'  => 'Camera on/off',
+    'gespraech.geraete'          => 'Devices',
+    'gespraech.chat'             => 'Chat',
+    'gespraech.ungelesen'        => 'Unread messages',
+    'gespraech.chat_schliessen'  => 'Close the chat',
+    'gespraech.nachricht'        => 'Message',
+    'gespraech.senden'           => 'Send',
+
+    'gespraech.anruf.eingehend'  => 'Incoming call',
+    'gespraech.anruf.zweck_text' => 'This is not a tour – nothing is being directed. Sound and picture run both ways.',
+    'gespraech.anruf.video'      => 'Send video',
+    'gespraech.anruf.ton'        => 'Send sound',
+    'gespraech.anruf.annehmen'   => 'Accept',
+    'gespraech.anruf.ablehnen'   => 'Decline',
+
+    // -----------------------------------------------------------------
+    // THE RESULT PAGES
+    // -----------------------------------------------------------------
+    'ergebnis.mail_bestaetigt.titel' => 'Email address confirmed',
+    'ergebnis.mail_bestaetigt.text'  => 'You can sign in now.',
+    'ergebnis.mail_bestaetigt.knopf' => 'To signing in',
+
+    'ergebnis.mail_fehler.titel'        => 'Link invalid or expired',
+    'ergebnis.mail_fehler.text'         => 'The confirmation link cannot be redeemed any more. Confirmation links are valid for a limited time.',
+    'ergebnis.mail_fehler.registrieren' => 'Sign up again',
+    'ergebnis.mail_fehler.anmelden'     => 'To signing in',
+
+    'ergebnis.mail_verschickt.titel' => 'Confirmation email sent',
+    'ergebnis.mail_verschickt.text'  => 'Please click the link in the email. The link is valid for 24 hours; do check your spam folder as well.',
+    'ergebnis.mail_verschickt.knopf' => 'To the home page',
+
+    'ergebnis.registriert.titel' => 'Sign-up successful',
+    'ergebnis.registriert.text'  => 'Your account has been created. We have sent you an email to confirm your address — do check your spam folder as well. You can sign in straight away.',
+    'ergebnis.registriert.knopf' => 'To signing in',
 ];

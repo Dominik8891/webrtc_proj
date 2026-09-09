@@ -2666,8 +2666,18 @@ check(strpos($anzeigen, "Request::g('username')") === false,
     'der angezeigte Name kommt weiterhin aus der Adresse');
 check(strpos($anzeigen, 'Auth::username()') !== false,
     'der angezeigte Name kommt nicht ueber den zentralen Helfer aus der Sitzung');
-check(strpos($anzeigen, 'htmlspecialchars') !== false,
+// MASKIERT WIRD JETZT IN angemeldetHtml(). Der Satz "Angemeldet als <Name>"
+// traegt den Namen mitten drin und ist hervorgehoben; er kommt seit dem Umzug
+// der Vorlagentexte aus dem Katalog und wird in einer eigenen Methode gebaut -
+// dort steht auch die Maskierung, und zwar fuer alle drei Aufrufer statt wie
+// vorher nur fuer einen.
+check(strpos($anzeigen, 'angemeldetHtml') !== false,
+    'der angezeigte Name geht nicht mehr ueber die eine Stelle');
+$angemeldet = methodenRumpf($pwCode, 'angemeldetHtml');
+check(strpos($angemeldet, 'ViewHelper::esc') !== false,
     'der angezeigte Name wird nicht maskiert');
+check(substr_count($pwCode, "str_replace('###ANGEMELDET###', self::angemeldetHtml") === 3,
+    'nicht jede Fassung des Formulars baut die Zeile ueber dieselbe Stelle');
 $_SESSION = ['user' => ['user_id' => 7, 'username' => 'anna', 'role_id' => Role::USER]];
 check(Auth::username() === 'anna', 'Auth::username() liefert den Namen aus der Sitzung');
 $_SESSION = [];
@@ -5697,7 +5707,16 @@ check(strpos($tabelleJs, '-1') !== false, 'unbewertete Standorte mischen sich un
 foreach ([['assets/html/locations_table.html', 8], ['assets/html/settings.html', 7]] as $paar) {
     [$datei, $erwartet] = $paar;
     $kopf = file_get_contents($ROOT . '/' . $datei);
-    check(strpos($kopf, '<th>Bewertung</th>') !== false, "$datei hat keine Bewertungsspalte");
+    // Seit dem Umzug der Vorlagentexte steht dort der MARKER und nicht mehr
+    // das Wort. Geprueft wird deshalb beides: dass die Spalte da ist - und
+    // dass ihr Schluessel im Katalog auch einen Text hat. Ein Marker ohne
+    // Eintrag zeigte den Schluessel als Spaltenkopf an.
+    check(strpos($kopf, '<th>{{t:tabelle.spalte.bewertung}}</th>') !== false,
+        "$datei hat keine Bewertungsspalte");
+}
+foreach (['de', 'en'] as $sprache) {
+    check(I18n::tIn($sprache, 'tabelle.spalte.bewertung') !== 'tabelle.spalte.bewertung',
+        "der Spaltenkopf fehlt in lang/$sprache.php");
 }
 ok('die Bewertung steht dort, wo zwischen Standorten gewaehlt wird');
 
@@ -7223,8 +7242,17 @@ ok('geloescht heisst: kein Anruf, keine neue Nachricht, keine laufende Sitzung')
 // Der Benutzername ist die Anmeldekennung. Er gehoert nicht zu einem Konto,
 // das es nicht mehr gibt - stehen bleibt ein Platzhalter, damit ein
 // Chatverlauf nicht namenlos wird.
-check(User::NAME_GELOESCHT !== '' && stripos(User::NAME_GELOESCHT, 'gelösch') !== false,
-    'der Platzhalter sagt nicht, was er meint');
+// Seit dem Umzug der Vorlagentexte ist der Platzhalter eine METHODE und keine
+// Konstante mehr: Er wird gelesen und gehoert damit in den Sprachkatalog - und
+// eine Konstante kann I18n::t() nicht aufrufen. Geprueft werden beide
+// Sprachen; eine Uebersetzung, die etwas anderes sagt, ist derselbe Fehler.
+check(mb_stripos(I18n::tIn('de', 'konto.geloescht'), 'gelösch') !== false,
+    'der deutsche Platzhalter sagt nicht, was er meint');
+check(mb_stripos(I18n::tIn('en', 'konto.geloescht'), 'delet') !== false,
+    'der englische Platzhalter sagt nicht, was er meint');
+I18n::setzen('de');
+check(User::nameGeloescht() === I18n::t('konto.geloescht'),
+    'die Methode holt den Platzhalter nicht aus dem Katalog');
 $fake->statements = [];
 User::getUsernamesByIds([4, 5]);
 check(strpos($fake->statements[0]->sql, 'deleted') !== false,
@@ -9234,6 +9262,132 @@ check(strpos(I18n::t('anfrage.fehler.zu_viele',
         ['warten' => RateLimit::wartehinweis(120)]), 'noch 2 Minuten') !== false,
     'die Wartezeit kommt im Satz nicht an');
 ok('die Wartezeit einer Bremse folgt der Sprache - als Satzteil im Satz');
+
+I18n::zuruecksetzen();
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDie Vorlagen holen ihren Text ueber den Marker\n");
+
+// WOZU DIESER ABSCHNITT
+// ---------------------
+// Die Stufe davor hat die Texte umgezogen, die PHP selbst erzeugt. Diese
+// hier zieht die VORLAGEN nach: Jeder Satz in assets/html steht als
+// {{t:schluessel}} da und kommt aus lang/*.php.
+//
+// GEPRUEFT WIRD AN DER GELADENEN VORLAGE. ViewHelper::template() loest die
+// Marker beim Laden auf - was danach noch als {{t: dasteht, hat keinen
+// Eintrag im Katalog und stuende als Schluessel auf der Seite.
+
+$vorlagen = glob($ROOT . '/assets/html/*.html');
+check(count($vorlagen) > 20, 'es wurden kaum Vorlagen gefunden');
+
+foreach (['de', 'en'] as $sprache) {
+    I18n::zuruecksetzen();
+    I18n::setzen($sprache);
+    foreach ($vorlagen as $datei) {
+        $html = ViewHelper::template($datei);
+        $name = basename($datei);
+        // Ein Marker, der die Aufloesung ueberlebt hat, ist ein Schluessel
+        // ohne Text - im Betrieb steht er dann sichtbar auf der Seite.
+        check(strpos($html, '{{t:') === false,
+            "$name ($sprache) traegt einen Marker ohne Eintrag im Katalog");
+        // Und kein Schluessel als Ausgabe: t() gibt bei einem Fehlgriff den
+        // Schluessel zurueck, und der sieht in einer Vorlage aus wie Text.
+        check(preg_match('/>\s*[a-z]+\.[a-z_.]+\s*</', $html) !== 1,
+            "$name ($sprache) zeigt einen Schluessel statt eines Textes");
+    }
+}
+ok('jede Vorlage loest ihre Marker in beiden Sprachen auf');
+
+// --- Und die Vorlagen tragen keinen nackten Satz mehr --------------------
+//
+// Das ist die eigentliche Zusage dieser Stufe. Geprueft wird mit demselben
+// Werkzeug, das auch die Ratsche benutzt (tests/i18n_scan.php): Es kennt
+// Kommentare, Skriptbloecke und die sichtbaren Attribute.
+require_once $ROOT . '/tests/i18n_scan.php';
+$nackt = [];
+foreach ($vorlagen as $datei) {
+    foreach (i18n_texteHtml((string)file_get_contents($datei)) as $text) {
+        $eine = trim((string)preg_replace('/\s+/u', ' ', $text));
+        if ($eine === '' || !i18n_istDeutsch($eine)) continue;
+        $nackt[] = basename($datei) . ': ' . $eine;
+    }
+}
+check($nackt === [], 'in den Vorlagen steht wieder deutscher Text: '
+    . implode(' | ', array_slice($nackt, 0, 5)));
+ok('keine Vorlage traegt mehr einen deutschen Satz');
+
+// --- Was der Marker NICHT kann, steht in PHP ------------------------------
+//
+// Ein Marker nimmt keine Werte entgegen - das ist Absicht, sonst waere er ein
+// zweites Bauverfahren neben den ###RAUTEN###. Saetze mit einem Wert oder
+// einer Hervorhebung MITTEN drin gehen deshalb den Weg aus der Stufe davor:
+// ganzer Satz im Katalog, Markup als Platzhalter (ViewHelper::tHtml).
+$mitPlatzhalter = [
+    'passwort.aendern.angemeldet'              => ['{name}'],
+    'standort.bearbeiten.zahl'                 => ['{max}', '{bisher}'],
+    'verwaltung.benutzer.formular.bearbeiten'  => ['{id}', '{name}'],
+    'guide.rolle.was_guide.text'               => ['{rolle}', '{regie}'],
+    'guide.rolle.was_zuschauer.text'           => ['{rolle}'],
+];
+foreach ($mitPlatzhalter as $schluessel => $platzhalter) {
+    foreach (['de', 'en'] as $sprache) {
+        $text = I18n::tIn($sprache, $schluessel);
+        check($text !== $schluessel, "$schluessel fehlt in lang/$sprache.php");
+        foreach ($platzhalter as $ph) {
+            check(strpos($text, $ph) !== false,
+                "$schluessel ($sprache) hat $ph verloren - der Satz wird wieder zerlegt");
+        }
+    }
+}
+// Sie duerfen NICHT als Marker in einer Vorlage stehen: Dort blieben die
+// Platzhalter als "{name}" sichtbar stehen.
+foreach (array_keys($mitPlatzhalter) as $schluessel) {
+    foreach ($vorlagen as $datei) {
+        check(strpos((string)file_get_contents($datei), '{{t:' . $schluessel . '}}') === false,
+            basename($datei) . " holt $schluessel als Marker - die Werte fehlen dort");
+    }
+}
+ok('Saetze mit Werten stehen im Katalog und werden in PHP gebaut');
+
+// --- Die Farbprofile: Text im Katalog, Farben im Code ---------------------
+//
+// In Theme::PROFILE standen Name und Beschreibung neben den Farbwerten -
+// zwei deutsche Saetze in einer Konstanten. Die Farben bleiben dort (sie sind
+// Kopien aus theme.css und werden gegen sie geprueft), der Text zieht um.
+$themeCode = file_get_contents($ROOT . '/class/Helper/Theme.php');
+check(strpos($themeCode, "'name'") === false && strpos($themeCode, "'text'") === false,
+    'Theme::PROFILE fuehrt wieder Beschriftungen neben den Farbwerten');
+foreach (array_keys(Theme::PROFILE) as $schluessel) {
+    foreach (['de', 'en'] as $sprache) {
+        foreach (['name', 'text'] as $teil) {
+            $k = 'farbprofil.' . $schluessel . '.' . $teil;
+            check(I18n::tIn($sprache, $k) !== $k, "$k fehlt in lang/$sprache.php");
+        }
+    }
+    // Und jedes Profil hat weiterhin sein Muster - die drei Farben, die
+    // gegen theme.css geprueft werden.
+    check(count(Theme::PROFILE[$schluessel]['muster']) === 3,
+        "dem Profil $schluessel fehlt sein Farbmuster");
+}
+ok('die Farbprofile tragen ihren Namen im Katalog und ihre Farben im Code');
+
+// --- Der Hinweis im Anruf der Administration ------------------------------
+//
+// Er muss die Administration BENENNEN und sagen, dass nicht gesteuert wird -
+// nur eines von beidem beantwortet die Frage nicht, um die es geht. Die
+// Pruefung stand in tests/client_test.js am Markup; seit dem Umzug steht dort
+// der Marker, und der Wortlaut steht hier.
+foreach ([['de', 'administration', 'gesteuert'], ['en', 'administration', 'directed']] as $fall) {
+    [$sprache, $wer, $was] = $fall;
+    check(mb_stripos(I18n::tIn($sprache, 'gespraech.zweck.titel'), $wer) !== false,
+        "der Hinweis nennt die Administration nicht ($sprache)");
+    foreach (['gespraech.zweck.text', 'gespraech.anruf.zweck_text'] as $schluessel) {
+        check(mb_stripos(I18n::tIn($sprache, $schluessel), $was) !== false,
+            "$schluessel sagt nicht, dass nicht gesteuert wird ($sprache)");
+    }
+}
+ok('der Hinweis nennt die Administration und die fehlende Steuerung - in beiden Sprachen');
 
 I18n::zuruecksetzen();
 

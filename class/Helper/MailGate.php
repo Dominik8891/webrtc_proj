@@ -151,8 +151,7 @@ class MailGate
      */
     public static function hinweis(): string
     {
-        return 'Bitte bestätige zuerst deine E-Mail-Adresse. '
-             . 'Danach steht diese Funktion wieder zur Verfügung.';
+        return I18n::t('mailhinweis.gesperrt');
     }
 
     /**
@@ -182,12 +181,15 @@ class MailGate
         $bestaetigt = $in_bestaetigt ?? User::isEmailVerified(Auth::userId());
         if ($bestaetigt) return '';
 
+        // Drei Stuecke, drei Schluessel: Die Hervorhebung steht als eigener
+        // Satz AM ANFANG und nicht mitten im Text - deshalb genuegen hier
+        // drei nebeneinanderstehende Texte und kein tHtml().
         return '
                 <div class="alert alert-warning app-mailhint" role="status">
-                    <strong>E-Mail-Adresse noch nicht bestätigt.</strong>
-                    Anfragen, Chat und das Hochladen von Bildern sind bis dahin gesperrt.
+                    <strong>' . ViewHelper::esc(I18n::t('mailhinweis.streifen.titel')) . '</strong>
+                    ' . ViewHelper::esc(I18n::t('mailhinweis.streifen.text')) . '
                     <a href="index.php?act=send_email_verify" class="btn btn-outline-primary btn-sm">
-                        Bestätigungsmail senden
+                        ' . ViewHelper::esc(I18n::t('mailhinweis.streifen.knopf')) . '
                     </a>
                 </div>
                 ';

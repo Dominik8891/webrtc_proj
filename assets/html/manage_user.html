@@ -4,7 +4,10 @@
     App\Helper\AdminView::page().
 
     Platzhalter:
-      ###USER_INFO###  "anlegen" oder der bearbeitete Name
+      ###USER_TITLE### Die ganze Ueberschrift - "Benutzer neu anlegen" oder
+                       "Benutzer 7 (anna) bearbeiten". Sie traegt Kennung und
+                       Name MITTEN im Satz und ist deshalb kein Marker:
+                       gebaut in App\Controller\UserController
       ###ID###         Benutzer-ID (leer beim Anlegen)
       ###ROLE###       <option>-Liste der Rollen
       ###USERNAME###, ###EMAIL###, ###PASSWORD###
@@ -16,31 +19,31 @@
 -->
 <section class="app-panel adm-panel adm-form">
     <div class="app-panel__body">
-        <h2 class="adm-panel__title">Benutzer ###USER_INFO###</h2>
+        <h2 class="adm-panel__title">###USER_TITLE###</h2>
 
         <form action="index.php?act=manage_user" method="post" enctype="multipart/form-data" autocomplete="off">
             <input type="hidden" name="id" value="###ID###">
             <div class="app-field">
-                <label for="role" class="form-label">Rolle</label>
+                <label for="role" class="form-label">{{t:verwaltung.benutzer.formular.rolle}}</label>
                 <select id="role" name="role" class="form-select">###ROLE###</select>
             </div>
             <div class="app-field">
-                <label for="username" class="form-label">Benutzername</label>
+                <label for="username" class="form-label">{{t:verwaltung.benutzer.formular.benutzername}}</label>
                 <input type="text" id="username" name="username" class="form-control" value="###USERNAME###" autocomplete="off">
             </div>
             <div class="app-field">
-                <label for="email" class="form-label">E-Mail-Adresse</label>
+                <label for="email" class="form-label">{{t:verwaltung.benutzer.formular.email}}</label>
                 <input type="email" id="email" name="email" class="form-control" value="###EMAIL###" autocomplete="off">
             </div>
             <div class="app-field">
-                <label for="pwd" class="form-label">Passwort</label>
+                <label for="pwd" class="form-label">{{t:verwaltung.benutzer.formular.passwort}}</label>
                 <!-- Leer lassen heisst "nicht aendern" - der Controller
                      schreibt nur, was ausgefuellt ist. -->
                 <input type="text" id="pwd" name="pwd" class="form-control" value="###PASSWORD###" autocomplete="off">
             </div>
             <div class="app-actions">
-                <button type="submit" name="send" class="btn btn-primary">Speichern</button>
-                <a href="index.php?act=list_user" class="btn btn-secondary">Abbrechen</a>
+                <button type="submit" name="send" class="btn btn-primary">{{t:verwaltung.benutzer.formular.speichern}}</button>
+                <a href="index.php?act=list_user" class="btn btn-secondary">{{t:verwaltung.benutzer.formular.abbrechen}}</a>
             </div>
         </form>
     </div>

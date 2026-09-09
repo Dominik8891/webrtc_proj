@@ -12,28 +12,28 @@
         <div class="app-panel">
             <div class="app-panel__body">
                 <div class="app-auth__head">
-                    <h1 class="app-auth__title">Anmelden</h1>
-                    <p class="app-auth__sub">Weiter zu Ihren Führungen.</p>
+                    <h1 class="app-auth__title">{{t:anmelden.titel}}</h1>
+                    <p class="app-auth__sub">{{t:anmelden.untertitel}}</p>
                 </div>
 
                 <form action="index.php?act=login" method="post" autocomplete="off">
                     <div class="app-field">
-                        <label for="login-username" class="form-label">Benutzername</label>
+                        <label for="login-username" class="form-label">{{t:anmelden.benutzername}}</label>
                         <input type="text" id="login-username" name="username" class="form-control" required autofocus>
                     </div>
                     <div class="app-field">
-                        <label for="login-password" class="form-label">Passwort</label>
+                        <label for="login-password" class="form-label">{{t:anmelden.passwort}}</label>
                         <input type="password" id="login-password" name="pwd" class="form-control" required>
                     </div>
                     <div class="app-actions app-actions--stretch">
-                        <button type="submit" class="btn btn-primary">Anmelden</button>
+                        <button type="submit" class="btn btn-primary">{{t:anmelden.knopf}}</button>
                     </div>
                 </form>
 
                 <div class="app-form-error">###LOGIN_ERROR###</div>
 
                 <p class="app-auth__foot">
-                    Noch kein Konto? <a href="index.php?act=signup_page">Jetzt registrieren</a>
+                    {{t:anmelden.kein_konto}} <a href="index.php?act=signup_page">{{t:anmelden.registrieren}}</a>
                 </p>
             </div>
         </div>

@@ -688,7 +688,7 @@ class User
         // deleted kommt mit: Der Benutzername eines geloeschten Kontos wird
         // nicht mehr herausgegeben - er ist die Anmeldekennung und gehoert zu
         // einem Konto, das es nicht mehr gibt. Stehen bleibt ein Platzhalter,
-        // damit ein Chatverlauf nicht namenlos wird (siehe NAME_GELOESCHT).
+        // damit ein Chatverlauf nicht namenlos wird (siehe nameGeloescht()).
         $stmt = PdoConnect::$connection->prepare(
             "SELECT id, username, deleted FROM user WHERE id IN ($in)"
         );
@@ -696,7 +696,7 @@ class User
         $usernames = [];
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $usernames[$row['id']] = ((int)$row['deleted'] === 1)
-                ? self::NAME_GELOESCHT
+                ? self::nameGeloescht()
                 : $row['username'];
         }
         return $usernames;
@@ -1055,8 +1055,19 @@ class User
      * vorher ein Name stand. Was dort NICHT mehr stehen darf, ist der
      * Benutzername: Er ist die Anmeldekennung und gehoert zu einem Konto,
      * das es nicht mehr gibt.
+     *
+     * EINE METHODE UND KEINE KONSTANTE MEHR. Der Platzhalter steht in einer
+     * Chatliste und wird gelesen - er ist Oberflaeche und gehoert damit in
+     * den Sprachkatalog. Eine Konstante kann I18n::t() nicht aufrufen: Der
+     * Text haengt an der Sprache DIESER Anfrage und steht nicht schon beim
+     * Laden der Klasse fest.
+     *
+     * @return string
      */
-    public const NAME_GELOESCHT = 'Gelöschtes Konto';
+    public static function nameGeloescht(): string
+    {
+        return \App\Helper\I18n::t('konto.geloescht');
+    }
 
     /**
      * Gibt alle User-IDs als Array zurück.

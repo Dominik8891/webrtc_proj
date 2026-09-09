@@ -213,13 +213,19 @@ class SettingsController
                          . htmlspecialchars($farbe) . '"></span>';
             }
 
+            // NAME UND BESCHREIBUNG KOMMEN AUS DEM KATALOG und nicht mehr
+            // aus Theme::PROFILE: Dort standen zwei deutsche Saetze in einer
+            // Konstanten, die sonst nur Farbwerte fuehrt. Der Schluessel des
+            // Profils ist die Kennung, unter der beide im Katalog stehen.
             $html .= '<label class="app-swatch" for="' . $id . '">'
                    .   '<input type="radio" name="theme" id="' . $id . '"'
                    .          ' value="' . htmlspecialchars($schluessel) . '"' . $an . '>'
                    .   '<span class="app-swatch__preview" aria-hidden="true">' . $muster . '</span>'
                    .   '<span class="app-swatch__text">'
-                   .     '<span class="app-swatch__name">' . htmlspecialchars($profil['name']) . '</span>'
-                   .     '<span class="app-swatch__desc">' . htmlspecialchars($profil['text']) . '</span>'
+                   .     '<span class="app-swatch__name">'
+                   .       ViewHelper::esc(I18n::t('farbprofil.' . $schluessel . '.name')) . '</span>'
+                   .     '<span class="app-swatch__desc">'
+                   .       ViewHelper::esc(I18n::t('farbprofil.' . $schluessel . '.text')) . '</span>'
                    .   '</span>'
                    . '</label>';
         }

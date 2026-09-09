@@ -489,11 +489,11 @@ class ChatController
             $partnerId = $chat->partnerVon($currentUserId);
             // UEBER getUsernamesByIds() und nicht ueber "new User": Nur dort
             // steht die Regel, dass der Benutzername eines geloeschten Kontos
-            // nicht mehr herausgegeben wird (User::NAME_GELOESCHT). Ein
+            // nicht mehr herausgegeben wird (User::nameGeloescht()). Ein
             // zweiter Weg zum selben Namen waere ein zweiter Ort, an dem sie
             // fehlen kann.
             $namen       = User::getUsernamesByIds([$partnerId]);
-            $partnerName = $namen[$partnerId] ?? User::NAME_GELOESCHT;
+            $partnerName = $namen[$partnerId] ?? User::nameGeloescht();
 
             // ZWEI ZUSTAENDE, NICHT MEHR DREI. "Offen" war die noch nicht
             // angenommene Einladung; die gibt es seit Migration 019 nicht

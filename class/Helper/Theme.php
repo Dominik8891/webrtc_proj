@@ -54,33 +54,25 @@ class Theme
     /**
      * Die Profile in der Reihenfolge, in der sie auf der Kontoseite stehen.
      *
-     * schluessel => [ Name, Beschreibung, Vorschaufarben ]
+     * schluessel => [ 'muster' => Vorschaufarben ]
+     *
+     * HIER STANDEN NAME UND BESCHREIBUNG DANEBEN - und damit zwei Saetze
+     * deutscher Oberflaeche in einer Konstanten, die sonst nur Farbwerte
+     * fuehrt. Beim Umzug der Seitentexte sind sie in den Sprachkatalog
+     * gewandert (farbprofil.<schluessel>.name und .text); der Schluessel
+     * hier ist die Kennung, unter der sie dort stehen. Eine Konstante kann
+     * I18n::t() nicht aufrufen - der Text haengt an der Sprache DIESER
+     * Anfrage, die Liste nicht.
      *
      * Die Vorschaufarben sind NUR fuer das kleine Muster neben dem Namen da.
      * Sie sind Kopien aus assets/css/theme.css; die Wahrheit steht dort. Ein
      * Test vergleicht beide, damit die Muster nicht anfangen zu luegen.
      */
     public const PROFILE = [
-        'indigo' => [
-            'name'  => 'Indigo',
-            'text'  => 'Die Vorgabe. Kühles Grau mit indigoblauem Akzent.',
-            'muster' => ['#e9edf3', '#ffffff', '#4a54d6'],
-        ],
-        'himmelblau' => [
-            'name'  => 'Himmelblau',
-            'text'  => 'Hell und freundlich, mit leicht blauer Grundfläche.',
-            'muster' => ['#e2eef8', '#ffffff', '#0f6fc4'],
-        ],
-        'dunkel' => [
-            'name'  => 'Dunkel',
-            'text'  => 'Dunkle Flächen für Abende und dunkle Räume.',
-            'muster' => ['#0d1116', '#1e242d', '#7f89ff'],
-        ],
-        'neutral' => [
-            'name'  => 'Neutral',
-            'text'  => 'Sehr zurückhaltend, ohne farbigen Akzent.',
-            'muster' => ['#e9ebee', '#ffffff', '#38424e'],
-        ],
+        'indigo'     => ['muster' => ['#e9edf3', '#ffffff', '#4a54d6']],
+        'himmelblau' => ['muster' => ['#e2eef8', '#ffffff', '#0f6fc4']],
+        'dunkel'     => ['muster' => ['#0d1116', '#1e242d', '#7f89ff']],
+        'neutral'    => ['muster' => ['#e9ebee', '#ffffff', '#38424e']],
     ];
 
     /** Der Schluessel, unter dem der Browser die Wahl merkt. */

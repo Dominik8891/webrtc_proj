@@ -16,12 +16,12 @@
 <div class="app-page">
     <div class="app-toolbar">
         <div>
-            <h1 class="app-page-head__title">Alle Standorte</h1>
-            <p class="app-page-head__sub">Dieselben Standorte wie auf der Karte, hier zum Durchsuchen und Sortieren.</p>
+            <h1 class="app-page-head__title">{{t:standortliste.titel}}</h1>
+            <p class="app-page-head__sub">{{t:standortliste.untertitel}}</p>
         </div>
-        <div class="app-switch" role="group" aria-label="Ansicht">
-            <a class="app-switch__item" href="index.php?act=home">Karte</a>
-            <span class="app-switch__item" aria-current="true">Liste</span>
+        <div class="app-switch" role="group" aria-label="{{t:ansicht.label}}">
+            <a class="app-switch__item" href="index.php?act=home">{{t:ansicht.karte}}</a>
+            <span class="app-switch__item" aria-current="true">{{t:ansicht.liste}}</span>
         </div>
     </div>
 
@@ -31,13 +31,13 @@
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Status</th>
-                        <th>Guide</th>
-                        <th>Bewertung</th>
-                        <th>Land</th>
-                        <th>Stadt</th>
-                        <th>Beschreibung</th>
-                        <th>Aktionen</th>
+                        <th>{{t:tabelle.spalte.status}}</th>
+                        <th>{{t:tabelle.spalte.guide}}</th>
+                        <th>{{t:tabelle.spalte.bewertung}}</th>
+                        <th>{{t:tabelle.spalte.land}}</th>
+                        <th>{{t:tabelle.spalte.stadt}}</th>
+                        <th>{{t:tabelle.spalte.beschreibung}}</th>
+                        <th>{{t:tabelle.spalte.aktionen}}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -60,7 +60,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <div id="modalLocationInfo" class="fw-semibold"></div>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{t:allgemein.schliessen}}"></button>
       </div>
       <div class="modal-body" style="height: 400px;">
         <div id="modalMap" style="height:100%; width:100%;"></div>

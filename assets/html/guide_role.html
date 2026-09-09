@@ -1,14 +1,23 @@
 <!--
     Die Guide-Frage. Gefüllt von App\Controller\GuideController.
 
-    Der erklärende Text steht bewusst hier und nicht im Controller: Er ist der
-    Inhalt, dem jemand zustimmt. Ändert er sich in der Sache - etwa weil
-    Führungen kostenpflichtig werden -, wird zusammen mit ihm
-    App\Model\GuideRole::TERMS_VERSION hochgezählt. Alle bisherigen
+    Der erklärende Text ist der Inhalt, dem jemand zustimmt. Ändert er sich in
+    der Sache - etwa weil Führungen kostenpflichtig werden -, wird zusammen mit
+    ihm App\Model\GuideRole::TERMS_VERSION hochgezählt. Alle bisherigen
     Zustimmungen gelten dann als überholt und der Dialog erscheint erneut.
+
+    ER STEHT SEIT DEM UMZUG DER SEITENTEXTE IM SPRACHKATALOG (guide.rolle.*)
+    und nicht mehr als Absatz in dieser Datei. Der Grund sind die beiden
+    Hervorhebungen MITTEN im Satz ("Als <strong>Guide</strong> bieten Sie
+    ..."): Ein Marker {{t:...}} nimmt keine Werte entgegen, und den Satz an
+    der Hervorhebung zu zerschneiden hiesse, die deutsche Wortstellung
+    festzuschreiben. Gebaut werden die beiden Absätze deshalb in
+    App\Controller\GuideController über ViewHelper::tHtml().
 
     Platzhalter:
       ###GUIDE_STATUS###   Statuszeile: Guide oder Zuschauer
+      ###GUIDE_ROLE_TEXT###   Was ein Guide macht - mit Hervorhebungen
+      ###GUIDE_VIEWER_TEXT### Was ein Zuschauer macht - ebenso
       ###GUIDE_ACTIONS###  Knöpfe, je nach Zustand des Kontos
       ###GUIDE_LATER###    "Später entscheiden" - nur bei offener Frage
       ###GUIDE_HINT###     Zusatzhinweis unter den Knöpfen
@@ -19,37 +28,22 @@
             <div class="app-panel__body">
 
                 <div class="app-auth__head">
-                    <h1 class="app-auth__title">Möchten Sie Guide werden?</h1>
+                    <h1 class="app-auth__title">{{t:guide.rolle.frage}}</h1>
                 </div>
 
                 <p>###GUIDE_STATUS###</p>
 
-                <h3>Was ein Guide macht</h3>
-                <p>
-                    Als <strong>Guide</strong> bieten Sie Standorte an: Orte, an denen Sie
-                    sich auskennen und an denen Sie unterwegs sein können. Bucht jemand
-                    eine Führung, sind Sie mit Kamera und Ton vor Ort - und
-                    <strong>die Regie hat der Zuschauer</strong>. Er sagt Ihnen über ein
-                    Steuerkreuz, wohin Sie gehen und wohin Sie schauen sollen. Sie
-                    entscheiden dabei jederzeit selbst, ob Sie einem Befehl folgen, und
-                    können die Steuerung im laufenden Call sperren.
-                </p>
+                <h3>{{t:guide.rolle.was_guide.titel}}</h3>
+                <p>###GUIDE_ROLE_TEXT###</p>
 
-                <h3>Was ein Zuschauer macht</h3>
-                <p>
-                    Als <strong>Zuschauer</strong> suchen Sie sich einen Standort auf der
-                    Karte aus und lassen sich von einem Guide vor Ort herumführen. Dafür
-                    brauchen Sie nichts anzubieten und Ihre eigene Position spielt keine
-                    Rolle.
-                </p>
+                <h3>{{t:guide.rolle.was_zuschauer.titel}}</h3>
+                <p>###GUIDE_VIEWER_TEXT###</p>
 
+                <!-- Die Hervorhebung steht hier AM ANFANG und nicht mitten im
+                     Satz - deshalb genuegen zwei Marker nebeneinander, und der
+                     Absatz muss nicht in den Controller. -->
                 <div class="alert alert-info" role="alert">
-                    <strong>Hinweis zu späteren Kosten:</strong> Führungen sind derzeit
-                    kostenlos. Sie werden künftig kostenpflichtig - Zuschauer zahlen für
-                    eine Führung, Guides erhalten dafür eine Vergütung. Bevor das in
-                    Kraft tritt, legen wir Ihnen die dann geltenden Bedingungen erneut
-                    zur Zustimmung vor. Ohne Ihre Zustimmung entstehen weder Kosten noch
-                    Ansprüche.
+                    <strong>{{t:guide.rolle.kosten.titel}}</strong> {{t:guide.rolle.kosten.text}}
                 </div>
 
                 <div class="app-actions app-actions--center">

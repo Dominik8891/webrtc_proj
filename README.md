@@ -2403,8 +2403,65 @@ Datenbank fehlt, und darf von keiner weiteren Klasse abhängen. Ein Startpfad,
 der `PdoConnect` lädt und `I18n` nicht, endete sonst mit einem Fatal Error
 statt mit einer Meldung.
 
-**Noch nicht umgezogen** sind die Vorlagen unter `assets/html` und die
-Meldungen des Browsers unter `assets/js`.
+**Weiter geht es** mit den Vorlagen unter `assets/html` — siehe unten.
+
+### Die Vorlagen
+
+**Die Stufe nach den PHP-Texten.** Jeder Satz in `assets/html` steht jetzt als
+Marker da und kommt aus dem Katalog — 178 Fundstellen, alle 32 Vorlagen:
+
+```html
+<h1 class="app-auth__title">{{t:anmelden.titel}}</h1>
+<label for="login-password" class="form-label">{{t:anmelden.passwort}}</label>
+<div id="home-map" role="application" aria-label="{{t:startseite.karte_label}}"></div>
+```
+
+Aufgelöst wird beim **Laden der Datei** (`ViewHelper::template()`) — also bevor
+ein Controller Fremdeingabe einsetzt. Auch Attribute, die ein Nutzer zu sehen
+bekommt, gehen den Weg: `placeholder`, `title`, `alt`, `aria-label`.
+
+**Was der Marker nicht kann.** Er nimmt **keine Werte** entgegen — das ist
+Absicht, sonst wäre er ein zweites Bauverfahren neben den `###RAUTEN###`. Ein
+Satz mit einem Wert oder einer Hervorhebung *mittendrin* geht deshalb den Weg
+aus der Stufe davor: ganzer Satz im Katalog, Markup als Platzhalter,
+zusammengesetzt in PHP mit `ViewHelper::tHtml()`. Fünf Stellen sind so
+umgezogen:
+
+| Was | Von | Nach |
+|---|---|---|
+| „Angemeldet als **Name**" | `change_pw.html` | `PasswordController::angemeldetHtml()` |
+| „Bis zu **8** Bilder insgesamt … derzeit **3**." | `location_edit.html` | `LocationView::bearbeitenHtml()` |
+| „Benutzer **7** (**anna**) bearbeiten" | `manage_user.html` | `UserController` |
+| „Als **Guide** bieten Sie Standorte an … und **die Regie hat der Zuschauer**." | `guide_role.html` | `GuideController` |
+| „Als **Zuschauer** suchen Sie sich …" | `guide_role.html` | `GuideController` |
+
+Steht die Hervorhebung dagegen **am Anfang** — „**Hinweis zu späteren
+Kosten:** Führungen sind derzeit kostenlos …" —, genügen zwei Marker
+nebeneinander; der Satz wird dabei nicht zerschnitten.
+
+**Ein Bauteil, ein Satz Schlüssel.** Der Umschalter Karte/Liste/Anfragen steht
+auf drei Seiten, die Standorttabelle auf zweien. Sie bekommen `ansicht.*` und
+`tabelle.spalte.*` — drei Fassungen desselben Wortes wären drei Gelegenheiten,
+es verschieden zu übersetzen.
+
+**Mitgezogen aus dem PHP-Bestand**, weil es sonst halb übersetzte Zeilen gäbe:
+
+* **`Theme::PROFILE`** führte Name und Beschreibung *neben* den Farbwerten —
+  zwei deutsche Sätze in einer Konstanten. Der Text steht jetzt unter
+  `farbprofil.*`; die Vorschaufarben bleiben im Code, denn sie sind Kopien aus
+  `theme.css` und werden gegen sie geprüft.
+* **`MailGate`** — der Hinweisstreifen und die Sperrmeldung.
+* **`User::NAME_GELOESCHT`** wurde `User::nameGeloescht()`: Der Platzhalter
+  wird gelesen, gehört also in den Katalog — und eine Konstante kann
+  `I18n::t()` nicht aufrufen.
+* **Spaltenköpfe und Filterleisten der Verwaltung**, die aus `UserController`
+  und `AdminController` in *dieselbe* Kopfzeile beziehungsweise Leiste
+  eingesetzt werden wie die Marker aus der Vorlage.
+
+**Nicht übersetzt** bleibt der Name der Anwendung in Kopf- und Fußzeile: Ein
+Produktname ist keine Vokabel.
+
+**Noch nicht umgezogen** sind die Meldungen des Browsers unter `assets/js`.
 
 ### Die Ratsche gegen neue deutsche Literale
 

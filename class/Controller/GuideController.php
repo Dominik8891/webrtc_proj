@@ -96,6 +96,21 @@ class GuideController
 
         $hint = self::hintFor($role, $terms_open);
 
+        // DIE BEIDEN ERKLAERENDEN ABSAETZE. Sie standen bis zum Umzug der
+        // Seitentexte in der Vorlage - dort geht es nicht mehr: Beide tragen
+        // eine Hervorhebung MITTEN im Satz, und ein Marker {{t:...}} nimmt
+        // keine Werte entgegen. Zerschnitten waeren es Satzteile, und die
+        // naechste Sprache bekaeme die deutsche Wortstellung aufgezwungen.
+        $out = str_replace('###GUIDE_ROLE_TEXT###',
+            ViewHelper::tHtml('guide.rolle.was_guide.text', [
+                'rolle' => '<strong>' . ViewHelper::esc(I18n::t('guide.rolle.wort_guide')) . '</strong>',
+                'regie' => '<strong>' . ViewHelper::esc(I18n::t('guide.rolle.was_guide.regie')) . '</strong>',
+            ]), $out);
+        $out = str_replace('###GUIDE_VIEWER_TEXT###',
+            ViewHelper::tHtml('guide.rolle.was_zuschauer.text', [
+                'rolle' => '<strong>' . ViewHelper::esc(I18n::t('guide.rolle.wort_zuschauer')) . '</strong>',
+            ]), $out);
+
         $out = str_replace('###GUIDE_STATUS###',  $status,  $out);
         $out = str_replace('###GUIDE_ACTIONS###', $actions, $out);
         $out = str_replace('###GUIDE_LATER###',   $later,   $out);
@@ -229,6 +244,12 @@ class GuideController
         $out = ViewHelper::template('assets/html/guide_role.html');
 
         $box = '<div class="alert alert-warning">' . htmlspecialchars($msg) . '</div>';
+
+        // Auf der Fehlerseite steht die Erklaerung nicht - hier zaehlt die
+        // Meldung. Gefuellt werden die beiden Platzhalter trotzdem: Ein
+        // ungefuellter stuende als ###...### im Dokument.
+        $out = str_replace('###GUIDE_ROLE_TEXT###',   '', $out);
+        $out = str_replace('###GUIDE_VIEWER_TEXT###', '', $out);
 
         $out = str_replace('###GUIDE_STATUS###',  $box, $out);
         $out = str_replace('###GUIDE_ACTIONS###', '<a href="index.php?act=settings" '

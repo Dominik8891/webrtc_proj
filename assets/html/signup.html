@@ -9,38 +9,38 @@
         <div class="app-panel">
             <div class="app-panel__body">
                 <div class="app-auth__head">
-                    <h1 class="app-auth__title">Konto anlegen</h1>
+                    <h1 class="app-auth__title">{{t:registrierung.titel}}</h1>
                     <p class="app-auth__sub">
-                        Danach können Sie Führungen buchen – und selbst welche anbieten.
+                        {{t:registrierung.untertitel}}
                     </p>
                 </div>
 
                 <form action="index.php?act=signup" method="post" autocomplete="off">
                     <div class="app-field">
-                        <label for="signup-username" class="form-label">Benutzername</label>
+                        <label for="signup-username" class="form-label">{{t:registrierung.benutzername}}</label>
                         <input type="text" id="signup-username" name="username" class="form-control" required>
                     </div>
                     <div class="app-field">
-                        <label for="signup-email" class="form-label">E-Mail-Adresse</label>
+                        <label for="signup-email" class="form-label">{{t:registrierung.email}}</label>
                         <input type="email" id="signup-email" name="email" class="form-control" required>
                     </div>
                     <div class="app-field">
-                        <label for="signup-pwd" class="form-label">Passwort</label>
+                        <label for="signup-pwd" class="form-label">{{t:registrierung.passwort}}</label>
                         <input type="password" id="signup-pwd" name="pwd" class="form-control" required>
                     </div>
                     <div class="app-field">
-                        <label for="signup-pwd2" class="form-label">Passwort wiederholen</label>
+                        <label for="signup-pwd2" class="form-label">{{t:registrierung.passwort_wdh}}</label>
                         <input type="password" id="signup-pwd2" name="pwd_scnd" class="form-control" required>
                     </div>
                     <div class="app-actions app-actions--stretch">
-                        <button type="submit" class="btn btn-primary">Konto anlegen</button>
+                        <button type="submit" class="btn btn-primary">{{t:registrierung.knopf}}</button>
                     </div>
                 </form>
 
                 <div class="app-form-error">###ERROR###</div>
 
                 <p class="app-auth__foot">
-                    Schon registriert? <a href="index.php?act=login_page">Anmelden</a>
+                    {{t:registrierung.schon_dabei}} <a href="index.php?act=login_page">{{t:registrierung.anmelden}}</a>
                 </p>
             </div>
         </div>

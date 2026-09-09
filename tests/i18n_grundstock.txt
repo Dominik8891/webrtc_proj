@@ -8,184 +8,6 @@
 # der Zweck dieser Datei. Wer einen Text in lang/ umzieht, darf sie
 # neu schreiben; wer einen neuen deutschen Satz in den Code
 # schreibt, sieht im Diff eine Zeile MEHR.
-assets/html/admin_locations.html	Standort
-assets/html/admin_locations.html	Standorte
-assets/html/admin_requests.html	Anfragen
-assets/html/admin_requests.html	Führung
-assets/html/admin_reviews.html	Bewertungen
-assets/html/admin_reviews.html	Führung
-assets/html/call_controll.html	Anruf der Administration
-assets/html/call_controll.html	Das ist keine Führung – es wird nicht gesteuert. Ton und Bild laufen in beide Richtungen.
-assets/html/change_pw.html	Abbrechen
-assets/html/change_pw.html	Altes Passwort
-assets/html/change_pw.html	Angemeldet als
-assets/html/change_pw.html	Neues Passwort
-assets/html/change_pw.html	Neues Passwort wiederholen
-assets/html/change_pw.html	Passwort ändern
-assets/html/email_verified.html	E-Mail-Adresse bestätigt
-assets/html/email_verified.html	Sie können sich jetzt anmelden.
-assets/html/email_verified.html	Zur Anmeldung
-assets/html/email_verified_error.html	Der Bestätigungslink lässt sich nicht mehr einlösen. Bestätigungslinks haben eine begrenzte Gültigkeit.
-assets/html/email_verified_error.html	Link ungültig oder abgelaufen
-assets/html/email_verified_error.html	Zur Anmeldung
-assets/html/forgot_pw.html	Passwort vergessen
-assets/html/forgot_pw.html	Wir schicken Ihnen einen Link an die hinterlegte Adresse.
-assets/html/forgot_pw.html	Zurück zur Anmeldung
-assets/html/guide_role.html	. Er sagt Ihnen über ein Steuerkreuz, wohin Sie gehen und wohin Sie schauen sollen. Sie entscheiden dabei jederzeit selbst, ob Sie einem Befehl folgen, und können die Steuerung im laufenden Call sperren.
-assets/html/guide_role.html	Als
-assets/html/guide_role.html	Führungen sind derzeit kostenlos. Sie werden künftig kostenpflichtig - Zuschauer zahlen für eine Führung, Guides erhalten dafür eine Vergütung. Bevor das in Kraft tritt, legen wir Ihnen die dann geltenden Bedingungen erneut zur Zustimmung vor. Ohne Ihre Zustimmung entstehen weder Kosten noch Ansprüche.
-assets/html/guide_role.html	Hinweis zu späteren Kosten:
-assets/html/guide_role.html	Möchten Sie Guide werden?
-assets/html/guide_role.html	Was ein Guide macht
-assets/html/guide_role.html	Was ein Zuschauer macht
-assets/html/guide_role.html	bieten Sie Standorte an: Orte, an denen Sie sich auskennen und an denen Sie unterwegs sein können. Bucht jemand eine Führung, sind Sie mit Kamera und Ton vor Ort - und
-assets/html/guide_role.html	die Regie hat der Zuschauer
-assets/html/guide_role.html	suchen Sie sich einen Standort auf der Karte aus und lassen sich von einem Guide vor Ort herumführen. Dafür brauchen Sie nichts anzubieten und Ihre eigene Position spielt keine Rolle.
-assets/html/home.html	Als Guide tragen Sie einen Ort ein, an dem Sie sich auskennen. Wenn Sie online sind, erscheint er hervorgehoben auf dieser Karte – und Sie werden angerufen.
-assets/html/home.html	Anmelden
-assets/html/home.html	Auf der Karte sehen Sie, wo gerade ein Guide bereitsteht.
-assets/html/home.html	Der Server hat nicht geantwortet. Das liegt meist an der Verbindung und ist nach einem erneuten Versuch behoben.
-assets/html/home.html	Die Standorte sind gerade nicht abrufbar.
-assets/html/home.html	Ein Klick auf die Nadel startet das Gespräch. Ton und Bild kommen direkt von unterwegs.
-assets/html/home.html	Es sind bislang keine Standorte eingetragen. So funktioniert es, sobald jemand einen anbietet – und Sie können der Erste sein.
-assets/html/home.html	Führen
-assets/html/home.html	Guide im Gespräch
-assets/html/home.html	Guide jetzt verfügbar
-assets/html/home.html	Guide werden
-assets/html/home.html	Hier ist noch niemand unterwegs.
-assets/html/home.html	Ihr Standort
-assets/html/home.html	Jemand geht für Sie los.
-assets/html/home.html	Karte der angebotenen Standorte
-assets/html/home.html	Karte nicht geladen
-assets/html/home.html	Konto anlegen
-assets/html/home.html	Live geführt statt vorbeigescrollt
-assets/html/home.html	Mit den Pfeiltasten geben Sie die Richtung vor. Der Guide hört und sieht Ihren Wunsch und geht dorthin.
-assets/html/home.html	Noch nichts auf der Karte
-assets/html/home.html	Ort wählen
-assets/html/home.html	Schließen
-assets/html/home.html	Sie sind selbst irgendwo, das andere sehen wollen? Nach der Anmeldung können Sie Ihren Standort anbieten und Führungen geben.
-assets/html/home.html	Standort ohne Guide
-assets/html/home.html	Standorte werden geladen …
-assets/html/home.html	Wie eine Straßenansicht – nur in echt und in diesem Moment. Ein Mensch vor Ort überträgt sein Bild, Sie sagen ihm, wo es langgeht. Melden Sie sich an, um zu sehen, wer gerade unterwegs ist.
-assets/html/home.html	Wie funktioniert das?
-assets/html/home.html	Wohin möchten Sie heute?
-assets/html/home.html	Wählen Sie einen Ort auf der Karte. Ein Guide vor Ort nimmt Sie mit – live, und Sie sagen, wohin.
-assets/html/home.html	Zur Listenansicht
-assets/html/inner_call_controll.html	Anruf der Administration
-assets/html/inner_call_controll.html	Blick nach oben
-assets/html/inner_call_controll.html	Blick nach unten
-assets/html/inner_call_controll.html	Chat schließen
-assets/html/inner_call_controll.html	Geräte
-assets/html/inner_call_controll.html	Kamera an/aus
-assets/html/inner_call_controll.html	Kamera aus
-assets/html/inner_call_controll.html	Keine Führung – es wird nicht gesteuert.
-assets/html/inner_call_controll.html	Mikrofon an/aus
-assets/html/inner_call_controll.html	Nach links
-assets/html/inner_call_controll.html	Nach rechts
-assets/html/inner_call_controll.html	Nachricht
-assets/html/inner_call_controll.html	Rückwärts
-assets/html/inner_call_controll.html	Steuerung gesperrt – der Guide hat sie angehalten.
-assets/html/inner_call_controll.html	Steuerung sperren
-assets/html/inner_call_controll.html	Ungelesene Nachrichten
-assets/html/inner_call_controll.html	Vorwärts
-assets/html/list_chat.html	Letzte Nachricht
-assets/html/list_chat.html	Unterhaltungen aus vergangenen und laufenden Führungen.
-assets/html/list_user.html	Anrufen und schreiben lässt sich, wer gerade online ist.
-assets/html/list_user.html	Benutzer
-assets/html/list_user.html	Benutzername
-assets/html/list_user.html	Nachricht
-assets/html/location_edit.html	Abbrechen
-assets/html/location_edit.html	Ausführliche Beschreibung
-assets/html/location_edit.html	Bearbeiten
-assets/html/location_edit.html	Bild hinzufügen
-assets/html/location_edit.html	Bilder vom Ort
-assets/html/location_edit.html	Bis zu ###E_MAXIMAGES### Bilder insgesamt, Titelbild mitgezählt – derzeit ###E_IMAGECOUNT###.
-assets/html/location_edit.html	Diese Zeile sehen andere im Kartenfenster und in der Standortliste. Der ausführliche Text steht nur hier.
-assets/html/location_edit.html	Eine Zeile – sie steht auf der Karte und in der Liste
-assets/html/location_edit.html	Grobe Orientierung für Kunden – keine feste Zusage. Anfragen zu anderen Zeiten bleiben möglich.
-assets/html/location_edit.html	Ihr Standort
-assets/html/location_edit.html	Ihre Zeiten gelten am Ort der Führung. Kunden in anderen Zeitzonen sehen beides. Vorbelegt ist die Zone, die sich aus Land und Koordinaten ergibt.
-assets/html/location_edit.html	Leer lassen, wenn es keine übliche Dauer gibt.
-assets/html/location_edit.html	Speichern
-assets/html/location_edit.html	Sprachen, in denen Sie führen
-assets/html/location_edit.html	Typische Dauer (Minuten)
-assets/html/location_edit.html	Wann sind Sie üblicherweise unterwegs?
-assets/html/location_edit.html	Worum geht es bei dieser Führung?
-assets/html/location_edit.html	Zeitzone des Ortes
-assets/html/location_page.html	Nächstes Bild
-assets/html/location_page.html	Schließen
-assets/html/location_page.html	Zurück zur Übersicht
-assets/html/locations_table.html	Alle Standorte
-assets/html/locations_table.html	Beschreibung
-assets/html/locations_table.html	Bewertung
-assets/html/locations_table.html	Dieselben Standorte wie auf der Karte, hier zum Durchsuchen und Sortieren.
-assets/html/locations_table.html	Schließen
-assets/html/login.html	Anmelden
-assets/html/login.html	Benutzername
-assets/html/login.html	Jetzt registrieren
-assets/html/login.html	Noch kein Konto?
-assets/html/login.html	Passwort
-assets/html/login.html	Weiter zu Ihren Führungen.
-assets/html/manage_user.html	Abbrechen
-assets/html/manage_user.html	Benutzer ###USER_INFO###
-assets/html/manage_user.html	Benutzername
-assets/html/manage_user.html	Passwort
-assets/html/manage_user.html	Speichern
-assets/html/requests_page.html	An meine Standorte
-assets/html/requests_page.html	Anfragen
-assets/html/requests_page.html	Die Anfragen konnten nicht geladen werden. Das liegt meist an der Verbindung.
-assets/html/requests_page.html	Hier ist gerade nichts offen. Sobald jemand eine Führung an einem Ihrer Standorte anfragt, steht sie hier – und der Zähler in der Kopfleiste sagt es Ihnen.
-assets/html/requests_page.html	Meine Anfragen
-assets/html/requests_page.html	Sie haben noch keine Führung angefragt. Suchen Sie sich auf der Karte einen Ort aus – auf seiner Seite fragen Sie die Führung mit Ihrem Wunschzeitpunkt an.
-assets/html/requests_page.html	Was an Ihre Standorte gerichtet ist – und was Sie selbst angefragt haben.
-assets/html/reset_pw.html	Neues Passwort
-assets/html/reset_pw.html	Neues Passwort setzen
-assets/html/reset_pw.html	Neues Passwort wiederholen
-assets/html/reset_pw.html	Passwort ändern
-assets/html/set_location.html	Abbrechen
-assets/html/set_location.html	Aktuellen Standort verwenden
-assets/html/set_location.html	Ausführliche Beschreibung
-assets/html/set_location.html	Der Ort, an dem Sie führen. Er erscheint auf der Karte – hervorgehoben, sobald Sie online sind.
-assets/html/set_location.html	Diese Zeile sehen andere im Kartenfenster und in der Standortliste. Der ausführliche Text steht auf der Standortseite.
-assets/html/set_location.html	Eine Zeile – sie steht auf der Karte und in der Liste
-assets/html/set_location.html	Kann auch später ergänzt werden – auf der Standortseite.
-assets/html/set_location.html	Land wählen...
-assets/html/set_location.html	Leer lassen, wenn es keine übliche Dauer gibt.
-assets/html/set_location.html	Längengrad
-assets/html/set_location.html	Punkt auf der Karte
-assets/html/set_location.html	Sprachen, in denen Sie führen
-assets/html/set_location.html	Stadt wählen...
-assets/html/set_location.html	Standort anbieten
-assets/html/set_location.html	Standort speichern
-assets/html/set_location.html	Typische Dauer (Minuten)
-assets/html/set_location.html	Worum geht es bei dieser Führung?
-assets/html/settings.html	Angaben
-assets/html/settings.html	Anmeldedaten, Sicherheit und die eigenen Standorte.
-assets/html/settings.html	Benutzername
-assets/html/settings.html	Beschreibung
-assets/html/settings.html	Bewertung
-assets/html/settings.html	Gilt für dieses Konto und ist beim nächsten Anmelden wieder da. Die Farben der Kartennadeln bleiben in jedem Profil gleich.
-assets/html/settings.html	Mein Konto
-assets/html/settings.html	Meine Standorte
-assets/html/settings.html	Nur für die Anmeldung. Kunden sehen Ihren Anzeigenamen aus dem Guide-Profil.
-assets/html/settings.html	Passwort ändern
-assets/html/settings.html	Schließen
-assets/html/settings.html	Standort anbieten
-assets/html/settings.html	Zwei-Faktor-Anmeldung
-assets/html/show_chat.html	Zurück zu allen Chats
-assets/html/signup.html	Anmelden
-assets/html/signup.html	Benutzername
-assets/html/signup.html	Danach können Sie Führungen buchen – und selbst welche anbieten.
-assets/html/signup.html	Konto anlegen
-assets/html/signup.html	Passwort
-assets/html/signup.html	Passwort wiederholen
-assets/html/signup.html	Schon registriert?
-assets/html/signup_complete.html	Ihr Konto wurde angelegt. Wir haben Ihnen eine E-Mail zur Bestätigung Ihrer Adresse geschickt — bitte sehen Sie auch im Spam-Ordner nach. Anmelden können Sie sich sofort.
-assets/html/signup_complete.html	Registrierung erfolgreich
-assets/html/signup_complete.html	Zur Anmeldung
-assets/html/verify_sent.html	Bestätigungsmail verschickt
-assets/html/verify_sent.html	Bitte klicken Sie auf den Link in der E-Mail. Der Link ist 24 Stunden gültig; sehen Sie auch im Spam-Ordner nach.
-assets/html/verify_sent.html	Zur Startseite
 assets/js/admin.js	Bewertung entfernen?
 assets/js/admin.js	Das hat nicht geklappt.
 assets/js/admin.js	Die Bewertung verschwindet von der Standortseite und vom Profil des
@@ -521,10 +343,6 @@ assets/js/ui.js	Sind Sie sicher?
 assets/js/ui_chat.js	<div class="chat-pop chat-popup-tab${minimized ? ' minimized attention' : ''}" id="${tabId}" data-partner-id="${this.esc(partnerId)}" data-partner-name="${nameEsc}"> <div class="chat-pop__head chat-tab-header"> <span class="chat-pop__avatar" aria-hidden="true">${this.initials(partnerName)}</span> <span class="chat-pop__who"> <span class="chat-pop__title">${nameEsc}</span> <span class="chat-pop__sub">Chat</span> </span> <button class="chat-pop__close close-chat-tab" title="Schließen" aria-label="Chat schließen">&times;</button> </div> <div class="chat-popup-content" style="display:none;"> <div class="chat-pop__body chat-popup-messages"></div> <div class="chat-pop__foot"> <div class="chat-pop__compose chat-popup-actions"> <input type="text" class="form-control chat-popup-input" placeholder="Nachricht"> <button class="chat-pop__send chat-popup-send" type="button" title="Senden" aria-label="Senden"> <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 21.4 23 12 2.6 2.6l-.1 7.3L17 12 2.5 14.1z"/></svg> </button> </div> </div> </div> </div>
 assets/js/ui_chat.js	Der Chat konnte nicht gestartet werden.
 assets/js/ui_chat.js	Dieser Chat existiert nicht mehr.
-class/Controller/AdminController.php	Alle
-class/Controller/AdminController.php	Hängende Führungen
-class/Controller/AdminController.php	Ohne Antwort
-class/Controller/AdminController.php	Unvollständige
 class/Controller/AdminController.php	alle
 class/Controller/AdminController.php	anfragen
 class/Controller/AdminController.php	bewertungen
@@ -601,8 +419,6 @@ class/Controller/TwoFactorController.php	konto
 class/Controller/TwoFactorController.php	warten und dann neu anmelden.
 class/Controller/UserController.php	" class="app-iconbtn app-iconbtn--edit" aria-label="Benutzer
 class/Controller/UserController.php	'); return false;" class="app-iconbtn app-iconbtn--delete app-iconbtn--danger" aria-label="Benutzer
-class/Controller/UserController.php	) bearbeiten
-class/Controller/UserController.php	<a href="index.php?act=manage_user" class="btn btn-primary btn-sm">Neuer Benutzer</a>
 class/Controller/UserController.php	<span class="app-tag app-tag--danger">Konto gelöscht</span>
 class/Controller/UserController.php	<span class="app-tag app-tag--ready" title="Hat sich auf bereit gestellt">Bereit</span>
 class/Controller/UserController.php	Im Gespräch
@@ -662,9 +478,6 @@ class/Helper/LocationView.php	bis
 class/Helper/LocationView.php	fehler
 class/Helper/LocationView.php	gespeichert
 class/Helper/LocationView.php	von
-class/Helper/MailGate.php	<div class="alert alert-warning app-mailhint" role="status"> <strong>E-Mail-Adresse noch nicht bestätigt.</strong> Anfragen, Chat und das Hochladen von Bildern sind bis dahin gesperrt. <a href="index.php?act=send_email_verify" class="btn btn-outline-primary btn-sm"> Bestätigungsmail senden </a> </div>
-class/Helper/MailGate.php	Bitte bestätige zuerst deine E-Mail-Adresse.
-class/Helper/MailGate.php	Danach steht diese Funktion wieder zur Verfügung.
 class/Helper/Permission.php	': Antwortart muss 'html' oder 'json' sein.
 class/Helper/Permission.php	': erwartet werden vier Angaben
 class/Helper/Permission.php	': keine Controller-Klasse.
@@ -677,10 +490,6 @@ class/Helper/Theme.php	, konto); } else { var lokal = localStorage.getItem(
 class/Helper/Theme.php	; var konto =
 class/Helper/Theme.php	; var wahl = null; try { if (konto && erlaubt.indexOf(konto) !== -1) { // Angemeldet: Das Konto gewinnt und schreibt den lokalen Wert um. wahl = konto; localStorage.setItem(
 class/Helper/Theme.php	<script> /* Setzt das Farbprofil, bevor die Seite gezeichnet wird. Siehe App\Helper\Theme::bootScript() - dort steht, warum das hier inline steht. */ (function () { var erlaubt =
-class/Helper/Theme.php	Die Vorgabe. Kühles Grau mit indigoblauem Akzent.
-class/Helper/Theme.php	Dunkle Flächen für Abende und dunkle Räume.
-class/Helper/Theme.php	Hell und freundlich, mit leicht blauer Grundfläche.
-class/Helper/Theme.php	Sehr zurückhaltend, ohne farbigen Akzent.
 class/Helper/ViewHelper.php	sprache
 class/Model/AdminStats.php	bewertungen
 class/Model/AdminStats.php	standorte
@@ -705,7 +514,6 @@ class/Model/TourRequest.php	alle
 class/Model/TourReview.php	alle
 class/Model/User.php	Benutzer mit ID
 class/Model/User.php	Fehler beim Laden des Benutzers.
-class/Model/User.php	Gelöschtes Konto
 class/Model/User.php	User::create() auf einem Konto, das es schon gibt (#
 class/Model/User.php	nicht gefunden.
 class/Model/WebRTCHandler.php	Fehler beim Laden des RTC Signals.

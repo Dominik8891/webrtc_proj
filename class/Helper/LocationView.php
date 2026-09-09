@@ -1141,7 +1141,15 @@ class LocationView
             '###E_TIMEZONE###'    => self::zonenauswahlHtml(self::zoneVon($in_daten)),
             '###E_COVER###'       => self::titelbildVerwaltungHtml($in_cover),
             '###E_IMAGES###'      => self::bildverwaltungHtml($in_gallery),
-            '###E_IMAGECOUNT###'  => (string)(count($in_gallery) + ($in_cover === null ? 0 : 1)),
+            // DER GANZE SATZ und nicht mehr nur die Zahl: Er traegt ZWEI
+            // Zahlen ("Bis zu 8 Bilder insgesamt ... derzeit 3"), und ein
+            // Marker {{t:...}} in der Vorlage nimmt keine Werte entgegen.
+            // Zerlegt in "Bis zu" + Zahl + "Bilder insgesamt" waere er in
+            // keiner zweiten Sprache mehr zusammenzusetzen.
+            '###E_IMAGECOUNT###'  => self::esc(I18n::t('standort.bearbeiten.zahl', [
+                                         'max'  => (int)($in_grenzen['max_images'] ?? 0),
+                                         'bisher' => count($in_gallery) + ($in_cover === null ? 0 : 1),
+                                     ])),
             '###E_MAXIMAGES###'   => (string)(int)($in_grenzen['max_images']   ?? 0),
             '###E_TITLE_MAX###'   => (string)(int)($in_grenzen['titel_max']    ?? 0),
             '###E_SHORT_MAX###'   => (string)(int)($in_grenzen['kurz_max']     ?? 0),

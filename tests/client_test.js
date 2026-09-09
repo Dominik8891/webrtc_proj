@@ -2229,14 +2229,21 @@ function ackLastMove(status = 'executed', reason) {
         // Der Text selbst: Er muss die Administration benennen UND sagen,
         // dass nicht gesteuert wird. Nur eines von beidem beantwortet die
         // Frage nicht, um die es geht.
+        //
+        // SEIT DEM UMZUG DER VORLAGENTEXTE steht in den beiden Dateien der
+        // MARKER und nicht mehr der Satz. Geprueft wird hier deshalb, dass
+        // beide Stuecke ueberhaupt da sind - der WORTLAUT steht im Katalog
+        // und wird in tests/server_test.php geprueft, wo lang/*.php ohnehin
+        // geladen wird. Zwei Pruefungen desselben Satzes in zwei Sprachen
+        // waeren eine zu viel.
         const fsA = require('fs'), pathA = require('path');
         const lies = (...teile) => fsA.readFileSync(pathA.join(__dirname, '..', ...teile), 'utf8');
         [['assets', 'html', 'call_controll.html'], ['assets', 'html', 'inner_call_controll.html']]
             .forEach(datei => {
                 const markup = lies(...datei);
-                assert.ok(/Anruf der Administration/.test(markup),
+                assert.ok(/\{\{t:gespraech\.zweck\.titel\}\}/.test(markup),
                     datei.join('/') + ': der Hinweis nennt die Administration nicht');
-                assert.ok(/nicht gesteuert/.test(markup),
+                assert.ok(/\{\{t:gespraech\.(zweck|anruf)\.[a-z_]*text\}\}/.test(markup),
                     datei.join('/') + ': der Hinweis sagt nicht, dass nicht gesteuert wird');
             });
         assert.ok(lies('assets', 'html', 'call_controll.html').includes('id="call-invite-purpose"'),

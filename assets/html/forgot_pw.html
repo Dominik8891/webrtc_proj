@@ -9,26 +9,26 @@
         <div class="app-panel">
             <div class="app-panel__body">
                 <div class="app-auth__head">
-                    <h1 class="app-auth__title">Passwort vergessen</h1>
+                    <h1 class="app-auth__title">{{t:passwort.vergessen.titel}}</h1>
                     <p class="app-auth__sub">
-                        Wir schicken Ihnen einen Link an die hinterlegte Adresse.
+                        {{t:passwort.vergessen.text}}
                     </p>
                 </div>
 
                 <form action="index.php?act=forgot_pw" method="post" autocomplete="off">
                     <div class="app-field">
-                        <label for="email" class="form-label">E-Mail-Adresse</label>
+                        <label for="email" class="form-label">{{t:passwort.vergessen.email}}</label>
                         <input type="email" id="email" name="email" class="form-control" required autofocus>
                     </div>
                     <div class="app-actions app-actions--stretch">
-                        <button type="submit" class="btn btn-primary">Link anfordern</button>
+                        <button type="submit" class="btn btn-primary">{{t:passwort.vergessen.knopf}}</button>
                     </div>
                 </form>
 
                 <div class="app-form-error">###PW_FORGOT_MSG###</div>
 
                 <p class="app-auth__foot">
-                    <a href="index.php?act=login_page">Zurück zur Anmeldung</a>
+                    <a href="index.php?act=login_page">{{t:passwort.vergessen.zurueck}}</a>
                 </p>
             </div>
         </div>
