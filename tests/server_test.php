@@ -2789,16 +2789,21 @@ check(strpos($gefuellt, 'value="90"') !== false, 'die Dauer fehlt');
 check(strpos($gefuellt, 'data-vorher-land="7"') !== false, 'das Land fehlt');
 check(strpos($gefuellt, 'data-vorher-stadt="Berlin"') !== false, 'die Stadt fehlt');
 
-// SECHS Platzhalter bleiben - alle sechs sind keine EINGABEN, sondern
-// Angaben des Servers, und fuelleFormular() setzt nur Eingaben ein:
+// SIEBEN Platzhalter bleiben - keiner davon ist eine EINGABE, sondern alle
+// sind Angaben des Servers, und fuelleFormular() setzt nur Eingaben ein:
 //
-//   die Sprachauswahl (eine Reihe von Kaestchen aus App\Helper\Languages)
-//   und die fuenf Grenzen der Felder, die aus den Konstanten des Controllers
-//   kommen - denselben, gegen die pruefeInhalt() prueft.
+//   die Sprachauswahl (eine Reihe von Kaestchen aus App\Helper\Languages),
+//   die fuenf Grenzen der Felder, die aus den Konstanten des Controllers
+//   kommen - denselben, gegen die pruefeInhalt() prueft -,
+//   und die Rueckmeldung ueber dem Formular (###NOTICE###): der fertige Satz
+//   des Servers zu einer abgelehnten Eingabe. Er kam frueher als Nummer in
+//   der Adresse zurueck (success=<n>), und assets/js/main.js machte daraus
+//   einen zweiten, eigenen Text.
 //
-// Alle sechs setzt setLocationPage() ein.
+// Alle sieben setzt setLocationPage() ein.
 $erwarteteReste = ['###LANGUAGES###', '###TITLE_MAX###', '###SHORT_MAX###',
-                   '###LONG_MAX###', '###DURATION_MIN###', '###DURATION_MAX###'];
+                   '###LONG_MAX###', '###DURATION_MIN###', '###DURATION_MAX###',
+                   '###NOTICE###'];
 preg_match_all('/###[A-Z_]+###/', $gefuellt, $rest);
 sort($rest[0]);
 $erwartetSortiert = $erwarteteReste;
@@ -4666,13 +4671,18 @@ ok('kein Objekt vergibt denselben Methodennamen zweimal');
 // gebaut wird - vom Server beim ersten Aufruf, vom Skript nach jedem Takt.
 // Laufen die beiden auseinander, aendert sich die Beschriftung beim ersten
 // Nachziehen vor den Augen des Kunden.
+//
+// GEPRUEFT WIRD JETZT DER SCHLUESSEL UND NICHT DAS WORT. Seit beide Seiten
+// den Text aus dem Katalog holen, kann er gar nicht mehr auseinanderlaufen -
+// das ist der staerkere Nachweis. Ein Vergleich auf das deutsche Wort waere
+// ausserdem in jeder anderen Sprache falsch.
 $formularServer = LocationView::anfrageFormularHtml($standort);
 $formularSkript = file_get_contents($ROOT . '/assets/js/location_page.js');
 
-check(strpos($formularServer, '>Wunschzeitpunkt</label>') !== false,
-    'das serverseitige Formular beschriftet das Feld anders');
-check(strpos($formularSkript, '>Wunschzeitpunkt</label>') !== false,
-    'das Skript beschriftet das Feld anders');
+check(strpos($formularServer, '>' . I18n::t('standort.anfrage.wunschzeit') . '</label>') !== false,
+    'das serverseitige Formular beschriftet das Feld nicht aus dem Katalog');
+check(strpos($formularSkript, "'standort.anfrage.wunschzeit'") !== false,
+    'das Skript beschriftet das Feld nicht aus demselben Katalogschluessel');
 check(strpos($formularServer, 'Anderer Zeitpunkt') === false
       && strpos($formularSkript, 'Anderer Zeitpunkt') === false,
     'die alte Beschriftung steht noch irgendwo');
@@ -4680,8 +4690,13 @@ check(strpos($formularServer, 'Anderer Zeitpunkt') === false
 // Die Vorgabeknoepfe heissen NICHT genauso: Ein Vorleseprogramm nennt sonst
 // die Gruppe und das Feld darunter mit demselben Wort, und es waere nicht
 // mehr erkennbar, wovon gerade die Rede ist.
-check(strpos($formularServer, 'aria-label="Vorgaben für den Wunschzeitpunkt"') !== false,
+check(I18n::t('standort.anfrage.vorgaben') !== I18n::t('standort.anfrage.wunschzeit'),
     'die Gruppe der Vorgaben traegt denselben Namen wie das Feld');
+check(strpos($formularServer,
+        'aria-label="' . ViewHelper::esc(I18n::t('standort.anfrage.vorgaben')) . '"') !== false,
+    'die Gruppe der Vorgaben ist nicht beschriftet');
+check(strpos($formularSkript, "'standort.anfrage.vorgaben'") !== false,
+    'das Skript beschriftet die Gruppe der Vorgaben nicht aus dem Katalog');
 ok('Feld und Vorgaben heissen ueberall gleich - und nicht gleich wie einander');
 
 // ---------------------------------------------------------------------
@@ -5650,7 +5665,10 @@ check(strpos($tourJs, 'data-locationid') !== false,
 // wieder auftaucht.
 check(strpos($requestsJs2, 'tour-finish') !== false,
     'auf der Anfragenseite laesst sich nichts beenden');
-check(strpos($requestsJs2, 'Wieder einsteigen') !== false,
+// Gesucht wird der SCHLUESSEL und nicht das deutsche Wort: Die Beschriftung
+// kommt aus dem Katalog, und zwar aus demselben Eintrag wie auf der
+// Standortseite.
+check(strpos($requestsJs2, "'standort.anfrage.einsteigen'") !== false,
     'auf der Anfragenseite fehlt der Wiedereinstieg');
 // Beide Karten teilen sich EINE Flaeche - zwei Fassungen liefen auseinander.
 check(strpos(file_get_contents($ROOT . '/assets/css/theme.css'), '.app-ask {') !== false,
@@ -9392,6 +9410,119 @@ ok('der Hinweis nennt die Administration und die fehlende Steuerung - in beiden 
 I18n::zuruecksetzen();
 
 // ---------------------------------------------------------------------
+fwrite(STDERR, "\nDer Browser holt seinen Text aus demselben Katalog\n");
+
+// WOZU DIESER ABSCHNITT
+// ---------------------
+// Die Stufe davor hat die Vorlagen umgezogen, diese zieht assets/js nach.
+// Die Ratsche darunter meldet zwar jeden NEUEN deutschen Satz, aber sie sagt
+// nichts darueber, ob eine Meldung nun wirklich aus dem Katalog kommt oder
+// nur unauffaellig verschwunden ist. Was hier steht, sind die Stellen, an
+// denen ein Rueckfall besonders leicht passiert.
+
+// --- DER DOPPELBEFUND: eine Pruefung, zwei Meldungen ----------------------
+//
+// Das Standortformular gibt es zweimal - zum ANLEGEN und zum BEARBEITEN -,
+// und beide gehen durch dieselbe pruefeInhalt(). Beim Bearbeiten reiste
+// deren Klartext in der Adresse mit (fehler=<Text>); beim Anlegen nur eine
+// Nummer (success=<n>), und assets/js/main.js fuehrte dazu einen ZWEITEN,
+// eigenen Satz. Dieselbe abgelehnte Eingabe bekam damit je nach Weg eine
+// andere Auskunft, und nur eine der beiden stand im Sprachkatalog.
+// OHNE KOMMENTARE gesucht: In den Kommentaren STEHT "success=<n>", und das
+// soll es auch - dort ist beschrieben, was hier nicht mehr passieren darf.
+$locQuelle = stripPhpNoise(file_get_contents($ROOT . '/class/Controller/LocationController.php'));
+$mainJs    = file_get_contents($ROOT . '/assets/js/main.js');
+
+check(strpos($locQuelle, 'success=') === false,
+    'der Controller schickt weiterhin eine Nummer statt des Satzes');
+foreach (['setLocation', 'updateLocation'] as $methode) {
+    check(strpos(methodenRumpf($locQuelle, $methode), 'fehler=') !== false,
+        "$methode() leitet ohne den fertigen Satz weiter");
+}
+check(strpos($mainJs, "'success', '") === false,
+    'assets/js/main.js uebersetzt weiterhin Nummern des Standortformulars');
+check(strpos($mainJs, "'Nicht gespeichert") === false,
+    'die zweite Fassung der Pruefmeldungen steht noch in main.js');
+
+// Und das Formular zeigt sie auch an - serverseitig, also auch ohne Skript.
+check(strpos(file_get_contents($ROOT . '/assets/html/set_location.html'), '###NOTICE###') !== false,
+    'das Anlegeformular hat keinen Platz fuer die Meldung');
+check(strpos(methodenRumpf($locQuelle, 'setLocationPage'), '###NOTICE###') !== false,
+    'setLocationPage() setzt die Meldung nicht ein');
+ok('eine Pruefung, ein Satz - auf beiden Wegen durch das Standortformular');
+
+// --- Die Sprachbloecke der beiden Bibliotheken ---------------------------
+//
+// DataTables und select2 sprechen ab Werk englisch. Ihre Ersatztexte standen
+// als deutsche Liste im Code und blieben deutsch, waehrend die Seite um sie
+// herum die Sprache wechselte.
+$tabelleJsI18n = file_get_contents($ROOT . '/assets/js/locations_table.js');
+$mapJsI18n     = file_get_contents($ROOT . '/assets/js/map.js');
+
+foreach (['tabelle.suchen', 'tabelle.laenge', 'tabelle.info', 'tabelle.info_leer',
+          'tabelle.info_gefiltert', 'tabelle.nichts_gefunden', 'tabelle.erste',
+          'tabelle.letzte', 'tabelle.weiter', 'tabelle.zurueck',
+          'tabelle.sort_auf', 'tabelle.sort_ab'] as $schluessel) {
+    check(strpos($tabelleJsI18n, "'" . $schluessel . "'") !== false,
+        "der DataTables-Block holt $schluessel nicht aus dem Katalog");
+}
+foreach (['stadtsuche.zu_kurz', 'stadtsuche.keine_stadt', 'stadtsuche.land_zuerst',
+          'stadtsuche.nicht_erreichbar'] as $schluessel) {
+    check(strpos($mapJsI18n, "'" . $schluessel . "'") !== false,
+        "der select2-Block holt $schluessel nicht aus dem Katalog");
+}
+
+// DIE MARKEN VON DataTables SIND KEINE PLATZHALTER DIESER ANWENDUNG: Sie
+// muessen den Katalog UNVERAENDERT verlassen, sonst findet die Bibliothek
+// nichts mehr zum Einsetzen vor.
+foreach (['de', 'en'] as $sprache) {
+    check(strpos(I18n::tIn($sprache, 'tabelle.laenge'), '_MENU_') !== false,
+        "tabelle.laenge verliert _MENU_ ($sprache)");
+    foreach (['_START_', '_END_', '_TOTAL_'] as $marke) {
+        check(strpos(I18n::tIn($sprache, 'tabelle.info'), $marke) !== false,
+            "tabelle.info verliert $marke ($sprache)");
+    }
+    check(strpos(I18n::tIn($sprache, 'tabelle.info_gefiltert'), '_MAX_') !== false,
+        "tabelle.info_gefiltert verliert _MAX_ ($sprache)");
+}
+ok('DataTables und select2 sprechen die Sprache der Seite - samt ihrer eigenen Marken');
+
+// --- Kein Satz wird mehr aus Stuecken zusammengesetzt --------------------
+//
+// Die Faelle, in denen der Code die deutsche Wortstellung festschrieb: das
+// Geraet im Satz ("der Zugriff auf " + geraet), der Ablehnungsgrund hinter
+// einem Gedankenstrich, das Wort vor der Anzahl. Jeder davon ist jetzt EIN
+// Katalogeintrag je Fall.
+foreach (['gespraech.medien.abgelehnt_kamera', 'gespraech.medien.abgelehnt_mikro',
+          'gespraech.medien.fehlt_kamera',     'gespraech.medien.fehlt_mikro',
+          'gespraech.medien.belegt_kamera',    'gespraech.medien.belegt_mikro',
+          'gespraech.medien.fehler_kamera',    'gespraech.medien.fehler_mikro'] as $schluessel) {
+    foreach (['de', 'en'] as $sprache) {
+        check(trim(I18n::tIn($sprache, $schluessel)) !== '',
+            "$schluessel fehlt in $sprache");
+    }
+}
+foreach (['unstable', 'locked', 'duplicate', 'no_role', 'invalid', 'unbekannt'] as $grund) {
+    foreach (['de', 'en'] as $sprache) {
+        $text = I18n::tIn($sprache, 'gespraech.abgelehnt.' . $grund);
+        check(trim($text) !== '' && $text !== 'gespraech.abgelehnt.' . $grund,
+            "der Ablehnungsgrund $grund fehlt in $sprache");
+    }
+}
+// Gesucht wird im CODE und nicht im Kommentar: Dort steht beschrieben, was
+// hier nicht mehr passieren darf, und das soll auch so bleiben.
+$rtcJs     = file_get_contents($ROOT . '/assets/js/rtc.js');
+$controlJs = file_get_contents($ROOT . '/assets/js/control.js');
+check(strpos($rtcJs, "'die Kamera'") === false && strpos($rtcJs, "'das Mikrofon'") === false,
+    'rtc.js setzt den Geraetenamen weiterhin in den Satz ein');
+check(strpos($controlJs, "'Steuerbefehl abgelehnt") === false
+      && strpos($controlJs, 'REJECT_TEXTS') === false,
+    'control.js klebt den Ablehnungsgrund weiterhin an einen Satzanfang');
+ok('kein Satz wird mehr aus Stuecken gebaut - je Fall ein Eintrag');
+
+I18n::zuruecksetzen();
+
+// ---------------------------------------------------------------------
 fwrite(STDERR, "\nKeine neuen deutschen Literale im Code\n");
 
 // DER WICHTIGSTE POSTEN DES SPRACHFUNDAMENTS.
@@ -9432,7 +9563,15 @@ check($neu === [], count($neu) . ' neue deutsche Literale - siehe oben');
 // Die Gegenprobe: Der Sucher findet ueberhaupt etwas. Ein kaputter Sucher
 // faende nichts, und dieser Test waere dann fuer immer gruen - die
 // gefaehrlichste Art, in der ein Test verschwinden kann.
-check(count($befund) > 500, 'der Sucher findet nur ' . count($befund)
+//
+// DIE ZAHL SINKT MIT JEDER STUFE DES UMZUGS. Sie stand auf 500, als noch
+// jeder Satz der Vorlagen und des Browsers deutsch im Code stand; mit dem
+// Umzug von assets/js sind es rund zweihundert. Was uebrig bleibt, sind
+// Logmeldungen, Ausnahmen und technische Schluessel - die ziehen nie um, und
+// darum bleibt hier auch kuenftig etwas zu finden. Die Grenze ist deshalb
+// grosszuegig gesetzt: Sie soll einen KAPUTTEN Sucher melden (der faende
+// nichts oder fast nichts) und nicht den naechsten Fortschritt.
+check(count($befund) > 100, 'der Sucher findet nur ' . count($befund)
     . ' Stellen - er ist vermutlich kaputt');
 // Und er findet einen frisch hingeschriebenen Satz. Geprueft an der
 // Erkennung selbst, denn eine Datei anzulegen waere ein Seiteneffekt.

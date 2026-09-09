@@ -465,7 +465,8 @@ window.webrtcApp.homeMap = {
         const art = this.pinKind(item);
         const marker = L.marker([item.lat, item.lon], {
             icon: this.icon(art),
-            title: [item.city, item.country].filter(Boolean).join(', ') || 'Standort',
+            title: [item.city, item.country].filter(Boolean).join(', ')
+                   || window.webrtcApp.t('standort.titel.ohne_ort'),
             riseOnHover: true,
             // Verfuegbare Guides liegen ueber den ruhenden, damit sie an
             // dichten Stellen nicht verdeckt werden.
@@ -539,7 +540,8 @@ window.webrtcApp.homeMap = {
         // und der Ortsname allein tut das nicht. Standorte aus der Zeit vor
         // migrations/011 haben keinen - dann tritt der Ort an seine Stelle,
         // so wie es vorher war.
-        const titel = this.esc(item.title || item.city || 'Standort');
+        const titel = this.esc(item.title || item.city
+                                || window.webrtcApp.t('standort.titel.ohne_ort'));
         const ort   = this.esc([item.city, item.country].filter(Boolean).join(', '));
         const desc  = this.esc(item.description);
 
@@ -586,16 +588,23 @@ window.webrtcApp.homeMap = {
      * @returns {string} HTML
      */
     popupTag(item) {
+        // Dieselben Schluessel wie auf der Standortseite
+        // (App\Helper\LocationView): Es ist derselbe Zustand desselben
+        // Standorts, einmal in der Nadel und einmal auf der Seite dahinter.
         if (item.mine) {
-            return '<span class="app-tag app-tag--accent">Ihr Standort</span>';
+            return '<span class="app-tag app-tag--accent">'
+                 + this.esc(window.webrtcApp.t('standort.zustand.eigen')) + '</span>';
         }
         if (item.status === 'live') {
-            return '<span class="app-tag app-tag--live"><span class="app-dot"></span>Jetzt verfügbar</span>';
+            return '<span class="app-tag app-tag--live"><span class="app-dot"></span>'
+                 + this.esc(window.webrtcApp.t('standort.zustand.live')) + '</span>';
         }
         if (item.status === 'busy') {
-            return '<span class="app-tag app-tag--warn"><span class="app-dot"></span>Im Gespräch</span>';
+            return '<span class="app-tag app-tag--warn"><span class="app-dot"></span>'
+                 + this.esc(window.webrtcApp.t('standort.zustand.busy')) + '</span>';
         }
-        return '<span class="app-tag">Kein Guide vor Ort</span>';
+        return '<span class="app-tag">'
+             + this.esc(window.webrtcApp.t('standort.zustand.idle')) + '</span>';
     },
 
     /**
@@ -619,17 +628,27 @@ window.webrtcApp.homeMap = {
         const ziel = 'index.php?act=location&id=' + encodeURIComponent(item.id);
 
         if (item.mine) {
+            // GANZE SAETZE. Vorher wurde "Gesperrt" mit dem Grund und dem
+            // Nachsatz zusammengeklebt - drei Bruchstuecke, deren Reihenfolge
+            // und Satzzeichen im Code standen. Jetzt gibt es je einen Satz
+            // mit und ohne Grund.
             const gesperrt = item.blocked
-                ? `<p class="home-popup__note home-popup__note--danger">Gesperrt${item.blockedReason ? ': ' + this.esc(item.blockedReason) : ''}. Der Standort ist für andere nicht sichtbar.</p>`
+                ? '<p class="home-popup__note home-popup__note--danger">'
+                  + this.esc(item.blockedReason
+                      ? window.webrtcApp.t('startseite.karte.gesperrt_grund',
+                                           { grund: item.blockedReason })
+                      : window.webrtcApp.t('startseite.karte.gesperrt'))
+                  + '</p>'
                 : '';
-            const sichtbar = item.status === 'live'
-                ? 'Sie sind bereit – für andere ist dieser Standort gerade hervorgehoben.'
-                : 'Solange Sie nicht bereit sind, wird dieser Standort gedämpft angezeigt.';
+            const sichtbar = this.esc(window.webrtcApp.t(item.status === 'live'
+                ? 'startseite.karte.eigen_bereit'
+                : 'startseite.karte.eigen_nicht_bereit'));
+            const knopf = this.esc(window.webrtcApp.t('startseite.karte.eigen_knopf'));
             return `
                 ${gesperrt}
                 <p class="home-popup__note">${sichtbar}</p>
                 <div class="home-popup__action">
-                    <a class="btn btn-secondary" href="${ziel}">Standort ansehen und bearbeiten</a>
+                    <a class="btn btn-secondary" href="${ziel}">${knopf}</a>
                 </div>`;
         }
 
@@ -638,17 +657,23 @@ window.webrtcApp.homeMap = {
         // man morgen wieder.
         let hinweis = '';
         if (item.status === 'busy') {
-            hinweis = 'Der Guide ist gerade in einer anderen Führung.';
+            hinweis = window.webrtcApp.t('startseite.karte.busy');
         } else if (item.blocked) {
-            hinweis = 'Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.';
+            // Derselbe Satz wie auf der Standortseite - dort steht er ueber
+            // demselben Standort (App\Helper\LocationView).
+            hinweis = window.webrtcApp.t('standort.sperre.fremd');
         } else if (item.status !== 'live') {
-            hinweis = 'Gerade ist niemand vor Ort. Der Standort bleibt buchbar, sobald der Guide bereit ist.';
+            hinweis = window.webrtcApp.t('startseite.karte.idle');
         }
+
+        const knopf = this.esc(window.webrtcApp.t(item.status === 'live'
+            ? 'startseite.karte.knopf_live'
+            : 'startseite.karte.knopf'));
 
         return `
             <div class="home-popup__action">
                 <a class="btn ${item.status === 'live' ? 'btn-success' : 'btn-secondary'}" href="${ziel}">
-                    ${item.status === 'live' ? 'Führung ansehen' : 'Standort ansehen'}
+                    ${knopf}
                 </a>
             </div>
             ${hinweis ? `<p class="home-popup__note">${this.esc(hinweis)}</p>` : ''}`;
@@ -663,10 +688,12 @@ window.webrtcApp.homeMap = {
         const box = document.getElementById('home-counts');
         if (!box) return;
 
+        // plural() und nicht ein Vergleich auf 1: Welche Formen eine Sprache
+        // hat, entscheidet der Katalog und nicht diese Zeile.
         box.querySelector('#home-count-live [data-count-text]').textContent =
-            live === 1 ? '1 Guide verfügbar' : `${live} Guides verfügbar`;
+            window.webrtcApp.plural('startseite.karte.guides', live);
         box.querySelector('#home-count-idle [data-count-text]').textContent =
-            alle === 1 ? '1 Standort' : `${alle} Standorte`;
+            window.webrtcApp.plural('startseite.karte.standorte', alle);
         box.removeAttribute('hidden');
     },
 

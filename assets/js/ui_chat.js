@@ -98,7 +98,7 @@ window.webrtcApp.uiChat = {
         .then(data => {
             if (!data || !data.success) {
                 window.webrtcApp.notify.error(
-                    (data && data.error) || 'Der Chat konnte nicht gestartet werden.'
+                    (data && data.error) || window.webrtcApp.t('chat.fehler.start')
                 );
                 return;
             }
@@ -131,7 +131,7 @@ window.webrtcApp.uiChat = {
             $tab.find('.chat-popup-input').focus();
         })
         .catch(() => {
-            window.webrtcApp.notify.error('Der Chat konnte nicht gestartet werden.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('chat.fehler.start'));
         });
     },
 
@@ -152,6 +152,15 @@ window.webrtcApp.uiChat = {
         // sichtbar war immer nur eines von beidem. Die Einladung ist mit
         // Migration 019 entfallen: Wer ein Fenster offen hat, kann schreiben.
         const nameEsc = this.esc(partnerName);
+        // Die Beschriftungen kommen aus dem Katalog, das Markup bleibt hier:
+        // In lang/ steht kein HTML (siehe lang/de.php, Regel 5). Es sind
+        // dieselben Schluessel wie in der Call-Ansicht - derselbe Chat, nur
+        // in einem anderen Fenster.
+        const wortChat     = this.esc(window.webrtcApp.t('gespraech.chat'));
+        const wortZu       = this.esc(window.webrtcApp.t('allgemein.schliessen'));
+        const wortChatZu   = this.esc(window.webrtcApp.t('gespraech.chat_schliessen'));
+        const wortNachricht= this.esc(window.webrtcApp.t('gespraech.nachricht'));
+        const wortSenden   = this.esc(window.webrtcApp.t('gespraech.senden'));
         return $(`
                 <div class="chat-pop chat-popup-tab${minimized ? ' minimized attention' : ''}"
                      id="${tabId}" data-partner-id="${this.esc(partnerId)}" data-partner-name="${nameEsc}">
@@ -159,16 +168,16 @@ window.webrtcApp.uiChat = {
                         <span class="chat-pop__avatar" aria-hidden="true">${this.initials(partnerName)}</span>
                         <span class="chat-pop__who">
                             <span class="chat-pop__title">${nameEsc}</span>
-                            <span class="chat-pop__sub">Chat</span>
+                            <span class="chat-pop__sub">${wortChat}</span>
                         </span>
-                        <button class="chat-pop__close close-chat-tab" title="Schließen" aria-label="Chat schließen">&times;</button>
+                        <button class="chat-pop__close close-chat-tab" title="${wortZu}" aria-label="${wortChatZu}">&times;</button>
                     </div>
                     <div class="chat-popup-content" style="display:none;">
                         <div class="chat-pop__body chat-popup-messages"></div>
                         <div class="chat-pop__foot">
                             <div class="chat-pop__compose chat-popup-actions">
-                                <input type="text" class="form-control chat-popup-input" placeholder="Nachricht">
-                                <button class="chat-pop__send chat-popup-send" type="button" title="Senden" aria-label="Senden">
+                                <input type="text" class="form-control chat-popup-input" placeholder="${wortNachricht}">
+                                <button class="chat-pop__send chat-popup-send" type="button" title="${wortSenden}" aria-label="${wortSenden}">
                                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 21.4 23 12 2.6 2.6l-.1 7.3L17 12 2.5 14.1z"/></svg>
                                 </button>
                             </div>
@@ -596,7 +605,7 @@ setInterval(function () {
                     $tab.find('.chat-popup-messages').html(
                         '<div class="alert alert-danger" role="alert">'
                         + window.webrtcApp.uiChat.esc(
-                              data.error ? data.error : 'Dieser Chat existiert nicht mehr.'
+                              data.error ? data.error : window.webrtcApp.t('chat.fehler.weg')
                           )
                         + '</div>'
                     );

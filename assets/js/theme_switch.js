@@ -87,15 +87,15 @@ window.webrtcApp.themeSwitch = {
             .done((antwort) => {
                 if (antwort && antwort.success) {
                     bestaetigt = gewaehlt;
-                    window.webrtcApp.notify.success('Farbprofil gespeichert.');
+                    window.webrtcApp.notify.success(window.webrtcApp.t('konto.farbprofil.gespeichert'));
                     return;
                 }
                 this.revert(bereich, bestaetigt,
-                    (antwort && antwort.error) || 'Farbprofil konnte nicht gespeichert werden.');
+                    (antwort && antwort.error) || window.webrtcApp.t('konto.farbprofil.fehler'));
             })
             .fail(() => {
                 this.revert(bereich, bestaetigt,
-                    'Farbprofil konnte nicht gespeichert werden. Bitte später erneut versuchen.');
+                    window.webrtcApp.t('konto.farbprofil.fehler_netz'));
             });
         });
     },

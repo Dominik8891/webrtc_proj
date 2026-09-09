@@ -110,7 +110,7 @@ window.webrtcApp.notify = {
         const zu = document.createElement('button');
         zu.type = 'button';
         zu.className = 'app-toast__close';
-        zu.setAttribute('aria-label', 'Hinweis schließen');
+        zu.setAttribute('aria-label', window.webrtcApp.t('dialog.hinweis_schliessen'));
         zu.textContent = '×';
 
         el.appendChild(inhalt);
@@ -234,10 +234,10 @@ window.webrtcApp.notify = {
         const o = (typeof opt === 'string') ? { text: opt } : (opt || {});
         return new Promise(resolve => {
             const { dialog, actions } = this.buildDialog({
-                title: o.title || 'Hinweis',
+                title: o.title || window.webrtcApp.t('dialog.hinweis'),
                 text: o.text
             });
-            const ok = this.button(o.okText || 'Verstanden', 'btn-primary');
+            const ok = this.button(o.okText || window.webrtcApp.t('dialog.verstanden'), 'btn-primary');
             ok.addEventListener('click', () => dialog.close());
             actions.appendChild(ok);
             this.openDialog(dialog, () => resolve(), undefined);
@@ -255,14 +255,14 @@ window.webrtcApp.notify = {
         const o = (typeof opt === 'string') ? { text: opt } : (opt || {});
         return new Promise(resolve => {
             const { dialog, actions } = this.buildDialog({
-                title: o.title || 'Sind Sie sicher?',
+                title: o.title || window.webrtcApp.t('dialog.sicher'),
                 text: o.text,
                 danger: !!o.danger
             });
 
-            const abbrechen = this.button(o.cancelText || 'Abbrechen', 'btn-secondary');
+            const abbrechen = this.button(o.cancelText || window.webrtcApp.t('dialog.abbrechen'), 'btn-secondary');
             const bestaetigen = this.button(
-                o.confirmText || 'Ja',
+                o.confirmText || window.webrtcApp.t('dialog.ja'),
                 o.danger ? 'btn-danger' : 'btn-primary'
             );
 
@@ -293,7 +293,7 @@ window.webrtcApp.notify = {
         const o = opt || {};
         return new Promise(resolve => {
             const { dialog, body, actions } = this.buildDialog({
-                title: o.title || 'Eingabe',
+                title: o.title || window.webrtcApp.t('dialog.eingabe'),
                 text: o.text
             });
 
@@ -329,14 +329,14 @@ window.webrtcApp.notify = {
 
             body.appendChild(wrap);
 
-            const abbrechen = this.button(o.cancelText || 'Abbrechen', 'btn-secondary');
-            const senden    = this.button(o.confirmText || 'Speichern', 'btn-primary');
+            const abbrechen = this.button(o.cancelText || window.webrtcApp.t('dialog.abbrechen'), 'btn-secondary');
+            const senden    = this.button(o.confirmText || window.webrtcApp.t('dialog.speichern'), 'btn-primary');
 
             const absenden = () => {
                 const wert = feld.value.trim();
                 if (o.required && wert === '') {
                     // Nicht schliessen, sondern sagen, was fehlt.
-                    hinweis.textContent = o.requiredText || 'Bitte etwas eintragen.';
+                    hinweis.textContent = o.requiredText || window.webrtcApp.t('dialog.pflicht');
                     hinweis.hidden = false;
                     feld.focus();
                     return;

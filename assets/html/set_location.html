@@ -13,6 +13,13 @@
     dem Ruecksprung vor einem leeren Feld und musste alles noch einmal
     tippen.
 
+      ###NOTICE###       die Ablehnung des Servers als fertiger Kasten, oder
+                         nichts (App\Helper\ViewHelper::hinweisHtml). Der
+                         Text kommt aus der Adresse (?fehler=) und damit von
+                         derselben Pruefung, die auch das Bearbeiten auf der
+                         Standortseite beantwortet - frueher stand hier eine
+                         Nummer, und assets/js/main.js baute daraus einen
+                         zweiten, eigenen Satz.
       ###TITLE###        der eingetippte Titel
       ###DESCRIPTION###  die eingetippte Kurzbeschreibung
       ###LONGTEXT###     die ausfuehrliche Beschreibung
@@ -61,6 +68,11 @@
 
     <div class="app-panel">
         <div class="app-panel__body">
+
+            <!-- Die Antwort des Servers auf einen abgelehnten Versuch.
+                 Sie steht hier und nicht als Hinweis im Browser: Sie muss
+                 auch dann ankommen, wenn kein Skript laeuft. -->
+            ###NOTICE###
 
             <!-- Bereich für Fehlermeldungen der Länder-/Städteauswahl.
                  Wird von assets/js/map.js befüllt (zeigeHinweis) und bleibt

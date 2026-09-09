@@ -124,7 +124,8 @@ window.webrtcApp.locationPage = {
 
         window.webrtcApp.mapTiles.add(this.map);
 
-        L.marker([this.daten.lat, this.daten.lon], { title: this.daten.place || 'Treffpunkt' })
+        L.marker([this.daten.lat, this.daten.lon],
+                 { title: this.daten.place || window.webrtcApp.t('standort.treffpunkt') })
             .addTo(this.map);
     },
 
@@ -267,7 +268,7 @@ window.webrtcApp.locationPage = {
             if (!userId) return;
 
             if (typeof window.webrtcApp?.rtc?.startCall !== 'function') {
-                window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
+                window.webrtcApp.notify.error(window.webrtcApp.t('gespraech.kein_anruf_hier'));
                 return;
             }
             window.webrtcApp.rtc.startCall(userId, locationId);
@@ -351,13 +352,19 @@ window.webrtcApp.locationPage = {
      * @returns {string} HTML
      */
     stateTagHtml(zustand) {
+        // Die Woerter kommen aus demselben Katalogeintrag wie beim Server
+        // und im Kartenfenster - drei Bauorte fuer die Marke, aber nur noch
+        // ein Ort fuer ihren Text.
         if (zustand === 'live') {
-            return '<span class="app-tag app-tag--live"><span class="app-dot"></span>Jetzt verfügbar</span>';
+            return '<span class="app-tag app-tag--live"><span class="app-dot"></span>'
+                 + this.esc(window.webrtcApp.t('standort.zustand.live')) + '</span>';
         }
         if (zustand === 'busy') {
-            return '<span class="app-tag app-tag--warn"><span class="app-dot"></span>Im Gespräch</span>';
+            return '<span class="app-tag app-tag--warn"><span class="app-dot"></span>'
+                 + this.esc(window.webrtcApp.t('standort.zustand.busy')) + '</span>';
         }
-        return '<span class="app-tag">Kein Guide vor Ort</span>';
+        return '<span class="app-tag">'
+             + this.esc(window.webrtcApp.t('standort.zustand.idle')) + '</span>';
     },
 
     // -----------------------------------------------------------------
@@ -532,7 +539,7 @@ window.webrtcApp.locationPage = {
         const sekunden = this.wunschSekunden();
         if (sekunden === null) {
             window.webrtcApp.notify.error(
-                'Bitte einen Wunschzeitpunkt wählen – "Jetzt sofort" ist auch einer.'
+                window.webrtcApp.t('standort.anfrage.zeit_fehlt')
             );
             return;
         }
@@ -549,7 +556,7 @@ window.webrtcApp.locationPage = {
             this.busy = false;
             if (!antwort || !antwort.success) {
                 window.webrtcApp.notify.error(
-                    (antwort && antwort.error) || 'Die Anfrage konnte nicht gestellt werden.'
+                    (antwort && antwort.error) || window.webrtcApp.t('standort.anfrage.fehler')
                 );
                 // Auch im Fehlerfall kann eine Anfrage mitkommen: "es laeuft
                 // schon eine" ist eine Absage MIT Zustand.
@@ -558,12 +565,12 @@ window.webrtcApp.locationPage = {
             }
             this.applyRequest(antwort.request || null);
             window.webrtcApp.notify.success(
-                'Anfrage gestellt. Der Guide antwortet – Sie sehen es hier und am Zähler oben.'
+                window.webrtcApp.t('standort.anfrage.gestellt')
             );
         })
         .catch(() => {
             this.busy = false;
-            window.webrtcApp.notify.error('Keine Verbindung. Bitte erneut versuchen.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('allgemein.keine_verbindung'));
         });
     },
 
@@ -581,9 +588,9 @@ window.webrtcApp.locationPage = {
         if (!nummer || this.busy) return;
 
         window.webrtcApp.notify.confirm({
-            title: 'Anfrage zurückziehen?',
-            text: 'Der Guide sieht dann, dass die Führung nicht stattfindet.',
-            confirmText: 'Zurückziehen'
+            title: window.webrtcApp.t('standort.anfrage.zurueck_frage'),
+            text: window.webrtcApp.t('standort.anfrage.zurueck_text'),
+            confirmText: window.webrtcApp.t('standort.anfrage.zurueck_knopf')
         }).then(ja => {
             if (!ja) return;
             this.busy = true;
@@ -599,7 +606,7 @@ window.webrtcApp.locationPage = {
                 this.busy = false;
                 if (!antwort || !antwort.success) {
                     window.webrtcApp.notify.error(
-                        (antwort && antwort.error) || 'Das hat nicht geklappt.'
+                        (antwort && antwort.error) || window.webrtcApp.t('allgemein.nicht_geklappt')
                     );
                     this.loadState();
                     return;
@@ -610,11 +617,11 @@ window.webrtcApp.locationPage = {
                 // steht in der naechsten Zeile.
                 this.daten.request = null;
                 this.renderAktion();
-                window.webrtcApp.notify.info('Anfrage zurückgezogen.');
+                window.webrtcApp.notify.info(window.webrtcApp.t('standort.anfrage.zurueckgezogen'));
             })
             .catch(() => {
                 this.busy = false;
-                window.webrtcApp.notify.error('Keine Verbindung. Bitte erneut versuchen.');
+                window.webrtcApp.notify.error(window.webrtcApp.t('allgemein.keine_verbindung'));
             });
         });
     },
@@ -644,7 +651,7 @@ window.webrtcApp.locationPage = {
 
         if (verschwunden) {
             window.webrtcApp.notify.info(
-                'Ihre Anfrage ist nicht mehr offen. Was daraus geworden ist, steht unter "Anfragen".'
+                window.webrtcApp.t('standort.anfrage.nicht_mehr_offen')
             );
         }
     },
@@ -701,17 +708,20 @@ window.webrtcApp.locationPage = {
      * @returns {string} HTML
      */
     anfrageFormularHtml() {
+        // ALLE TEXTE DIESES BLOCKS STEHEN SCHON IM KATALOG: Denselben Block
+        // baut der Server (App\Helper\LocationView) fuer die erste
+        // Auslieferung der Seite, und hier wird er nachgezogen. Zwei
+        // Bauorte, ein Text.
         const live = this.daten.availability === 'live';
-        const hinweis = live
-            ? 'Der Guide ist gerade bereit – „jetzt sofort“ hat gute Aussichten.'
-            : 'Gerade ist niemand vor Ort. Das ist kein Hindernis: Fragen Sie für '
-            + 'später an, und der Guide sagt zu oder ab.';
+        const hinweis = window.webrtcApp.t(live
+            ? 'standort.anfrage.hinweis_bereit'
+            : 'standort.anfrage.hinweis_offline');
 
         const vorgaben = [
-            [0,     'Jetzt sofort'],
-            [3600,  'In 1 Stunde'],
-            [10800, 'In 3 Stunden'],
-            [86400, 'Morgen um diese Zeit']
+            [0,     window.webrtcApp.t('standort.anfrage.jetzt')],
+            [3600,  window.webrtcApp.t('standort.anfrage.in_1h')],
+            [10800, window.webrtcApp.t('standort.anfrage.in_3h')],
+            [86400, window.webrtcApp.t('standort.anfrage.morgen')]
         ];
 
         const knoepfe = vorgaben.map(([sek, text], i) =>
@@ -723,16 +733,19 @@ window.webrtcApp.locationPage = {
 
         return '<div class="loc-req" id="loc-request">'
              +   '<p class="loc__note">' + this.esc(hinweis) + '</p>'
-             +   '<div class="loc-req__presets" role="group" aria-label="Vorgaben für den Wunschzeitpunkt">'
+             +   '<div class="loc-req__presets" role="group" aria-label="'
+             +     this.esc(window.webrtcApp.t('standort.anfrage.vorgaben')) + '">'
              +     knoepfe
              +   '</div>'
              +   '<div class="loc-req__custom">'
-             +     '<label class="loc-req__label" for="loc-req-wish">Wunschzeitpunkt</label>'
+             +     '<label class="loc-req__label" for="loc-req-wish">'
+             +       this.esc(window.webrtcApp.t('standort.anfrage.wunschzeit')) + '</label>'
              +     '<input type="datetime-local" id="loc-req-wish" class="form-control loc-req__field">'
              +   '</div>'
              +   '<p class="loc-req__hint" id="loc-req-hint" hidden></p>'
              +   '<button type="button" class="btn btn-success loc-req-submit"'
-             +     ' data-locationid="' + (parseInt(this.daten.id, 10) || 0) + '">Führung anfragen</button>'
+             +     ' data-locationid="' + (parseInt(this.daten.id, 10) || 0) + '">'
+             +     this.esc(window.webrtcApp.t('standort.anfrage.absenden')) + '</button>'
              + '</div>';
     },
 
@@ -749,30 +762,34 @@ window.webrtcApp.locationPage = {
 
         if (anfrage.status === 'open') {
             return '<div class="loc-req loc-req--state" id="loc-request">'
-                 +   '<span class="app-tag app-tag--warn">Anfrage offen</span>'
-                 +   '<p class="loc__note">Ihre Anfrage für <strong>' + this.esc(wann)
-                 +     '</strong> ist beim Guide. Sobald er antwortet, sehen Sie es hier '
-                 +     'und am Zähler in der Kopfleiste.</p>'
+                 +   '<span class="app-tag app-tag--warn">'
+                 +     this.esc(window.webrtcApp.t('standort.anfrage.offen_marke')) + '</span>'
+                 +   '<p class="loc__note">'
+                 +     window.webrtcApp.tHtml('standort.anfrage.offen_text',
+                           { wann: '<strong>' + this.esc(wann) + '</strong>' })
+                 +   '</p>'
                  +   '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
-                 +     ' data-id="' + id + '">Anfrage zurückziehen</button>'
+                 +     ' data-id="' + id + '">'
+                 +     this.esc(window.webrtcApp.t('standort.anfrage.zurueckziehen')) + '</button>'
                  + '</div>';
         }
 
         const text = anrufbar
-            ? 'Der Guide hat zugesagt. Sie können jetzt starten – er wird angerufen.'
-            : 'Der Guide hat für ' + wann + ' zugesagt. Kurz vorher lässt sich die '
-            + 'Führung von hier aus starten.';
+            ? window.webrtcApp.t('standort.anfrage.startbereit')
+            : window.webrtcApp.t('standort.anfrage.zugesagt', { wann: wann });
 
         return '<div class="loc-req loc-req--state" id="loc-request">'
-             +   '<span class="app-tag app-tag--live"><span class="app-dot"></span>Angenommen</span>'
+             +   '<span class="app-tag app-tag--live"><span class="app-dot"></span>'
+             +     this.esc(window.webrtcApp.t('standort.anfrage.marke_angenommen')) + '</span>'
              +   '<p class="loc__note">' + this.esc(text) + '</p>'
              +   '<button type="button" class="btn ' + (anrufbar ? 'btn-success' : 'btn-secondary')
              +     ' loc-call-btn"' + (anrufbar ? '' : ' disabled aria-disabled="true"')
              +     (anrufbar ? ' data-userid="' + (parseInt(this.daten.userId, 10) || 0) + '"'
                              + ' data-locationid="' + (parseInt(this.daten.id, 10) || 0) + '"' : '')
-             +     '>Führung starten</button>'
+             +     '>' + this.esc(window.webrtcApp.t('standort.anfrage.starten')) + '</button>'
              +   '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
-             +     ' data-id="' + id + '">Absagen</button>'
+             +     ' data-id="' + id + '">'
+             +     this.esc(window.webrtcApp.t('standort.anfrage.absagen')) + '</button>'
              + '</div>';
     },
 
@@ -816,17 +833,18 @@ window.webrtcApp.locationPage = {
 
         // 1. Die Ortszeit - nur wenn sie sich von der des Kunden unterscheidet.
         if (this.zonenversatz(wunsch, zeiten.timezone) !== this.eigenerVersatz(wunsch)) {
-            saetze.push('Das ist <strong>' + this.esc(teile.wochentag + ', ' + teile.stunde
-                      + ':' + teile.minute) + '</strong> Ortszeit am Treffpunkt.');
+            saetze.push(window.webrtcApp.tHtml('standort.anfrage.ortszeit', {
+                zeit: '<strong>' + this.esc(teile.wochentag + ', ' + teile.stunde
+                      + ':' + teile.minute) + '</strong>'
+            }));
         }
 
         // 2. Der Hinweis ausserhalb der ueblichen Zeiten. Ohne Angaben des
         //    Guides gibt es nichts anzumerken - aus fehlender Auskunft folgt
         //    kein Vorwurf.
         if (zeiten.slots && !this.imRaster(zeiten, teile)) {
-            saetze.push('Das liegt außerhalb der üblichen Zeiten ('
-                      + this.esc(zeiten.text) + '). Anfragen können Sie trotzdem – '
-                      + 'der Guide entscheidet.');
+            saetze.push(window.webrtcApp.tHtml('standort.anfrage.ausserhalb',
+                { zeiten: this.esc(zeiten.text) }));
         }
 
         feld.innerHTML = saetze.join(' ');
@@ -1175,7 +1193,8 @@ window.webrtcApp.locationPage = {
 
         bereich.hidden = !auf;
         knopf.setAttribute('aria-expanded', auf ? 'true' : 'false');
-        knopf.textContent = auf ? 'Schließen' : 'Bearbeiten';
+        knopf.textContent = window.webrtcApp.t(auf
+            ? 'allgemein.schliessen' : 'standort.bearbeiten.umschalten');
     },
 
     // -----------------------------------------------------------------
@@ -1239,13 +1258,14 @@ window.webrtcApp.locationPage = {
             .then(antwort => {
                 if (!antwort || !antwort.success) {
                     window.webrtcApp.notify.error(
-                        (antwort && antwort.error) || 'Das Titelbild konnte nicht gesetzt werden.');
+                        (antwort && antwort.error)
+                        || window.webrtcApp.t('standort.bild.titelbild_nicht_gesetzt'));
                     return;
                 }
                 window.location.reload();
             })
             .catch(() => window.webrtcApp.notify.error(
-                'Das Titelbild konnte nicht gesetzt werden.'));
+                window.webrtcApp.t('standort.bild.titelbild_nicht_gesetzt')));
     },
 
     /**
@@ -1271,13 +1291,14 @@ window.webrtcApp.locationPage = {
             .then(antwort => {
                 if (!antwort || !antwort.success) {
                     window.webrtcApp.notify.error(
-                        (antwort && antwort.error) || 'Das Titelbild konnte nicht geändert werden.');
+                        (antwort && antwort.error)
+                        || window.webrtcApp.t('standort.bild.titelbild_fehler'));
                     return;
                 }
                 window.location.reload();
             })
             .catch(() => window.webrtcApp.notify.error(
-                'Das Titelbild konnte nicht geändert werden.'));
+                window.webrtcApp.t('standort.bild.titelbild_fehler')));
     },
 
     /**
@@ -1298,11 +1319,11 @@ window.webrtcApp.locationPage = {
         const grenzen = (this.daten && this.daten.upload) || {};
 
         if (grenzen.accept && datei.type && grenzen.accept.split(',').indexOf(datei.type) === -1) {
-            return 'Dieses Bildformat wird nicht angenommen (JPEG, PNG oder WebP).';
+            return window.webrtcApp.t('standort.bild.format');
         }
         if (grenzen.maxBytes && datei.size > grenzen.maxBytes) {
-            return 'Die Datei ist zu groß – erlaubt sind '
-                 + Math.round(grenzen.maxBytes / 1048576) + ' MB.';
+            return window.webrtcApp.t('standort.bild.zu_gross_mb',
+                { n: Math.round(grenzen.maxBytes / 1048576) });
         }
         return '';
     },
@@ -1329,7 +1350,8 @@ window.webrtcApp.locationPage = {
             .then(antwort => {
                 if (!antwort || !antwort.success) {
                     window.webrtcApp.notify.error(
-                        (antwort && antwort.error) || 'Das Bild konnte nicht gespeichert werden.');
+                        (antwort && antwort.error)
+                        || window.webrtcApp.t('standort.bild.nicht_gespeichert'));
                     return;
                 }
                 // Wurde das Bild zum TITELBILD - weil der Standort noch
@@ -1341,9 +1363,10 @@ window.webrtcApp.locationPage = {
                     return;
                 }
                 this.appendImage(antwort.image);
-                window.webrtcApp.notify.success('Bild hinzugefügt.');
+                window.webrtcApp.notify.success(window.webrtcApp.t('standort.bild.hinzugefuegt'));
             })
-            .catch(() => window.webrtcApp.notify.error('Das Bild konnte nicht gespeichert werden.'))
+            .catch(() => window.webrtcApp.notify.error(
+                window.webrtcApp.t('standort.bild.nicht_gespeichert')))
             .then(() => {
                 if (knopf) knopf.disabled = false;
                 this.updateImageHint();
@@ -1369,17 +1392,29 @@ window.webrtcApp.locationPage = {
         const li = document.createElement('li');
         li.className = 'loc-edit__image';
         li.setAttribute('data-imageid', String(bild.id));
+        // DIESELBEN SCHLUESSEL WIE BEIM SERVER (App\Helper\LocationView baut
+        // dieselbe Kachel beim ersten Aufbau der Seite). Die Nummer ist ein
+        // Platzhalter im Satz - "Bild 3 löschen" heisst in einer anderen
+        // Sprache nicht "Bild 3" plus " löschen".
+        const t  = (k) => this.esc(window.webrtcApp.t(k));
+        const tn = (k) => this.esc(window.webrtcApp.t(k, { nr: nr }));
+
         li.innerHTML =
-              '<img src="' + this.esc(bild.thumb) + '" alt="Bild ' + nr + '">'
+              '<img src="' + this.esc(bild.thumb) + '" alt="'
+            +   tn('standort.bearbeiten.bild_alt') + '">'
             + '<div class="loc-edit__imageActions">'
             +   '<button type="button" class="app-iconbtn app-iconbtn--cover loc-img-cover"'
-            +   ' aria-label="Bild ' + nr + ' als Titelbild verwenden" title="Als Titelbild"></button>'
+            +   ' aria-label="' + tn('standort.bearbeiten.bild_titelbild') + '"'
+            +   ' title="' + t('standort.bearbeiten.kurz_titelbild') + '"></button>'
             +   '<button type="button" class="app-iconbtn app-iconbtn--up loc-img-up"'
-            +   ' aria-label="Bild ' + nr + ' nach vorne" title="Nach vorne"></button>'
+            +   ' aria-label="' + tn('standort.bearbeiten.bild_vor') + '"'
+            +   ' title="' + t('standort.bearbeiten.kurz_vor') + '"></button>'
             +   '<button type="button" class="app-iconbtn app-iconbtn--down loc-img-down"'
-            +   ' aria-label="Bild ' + nr + ' nach hinten" title="Nach hinten"></button>'
+            +   ' aria-label="' + tn('standort.bearbeiten.bild_zurueck') + '"'
+            +   ' title="' + t('standort.bearbeiten.kurz_zurueck') + '"></button>'
             +   '<button type="button" class="app-iconbtn app-iconbtn--delete app-iconbtn--danger loc-img-del"'
-            +   ' aria-label="Bild ' + nr + ' löschen" title="Löschen"></button>'
+            +   ' aria-label="' + tn('standort.bearbeiten.bild_loeschen') + '"'
+            +   ' title="' + t('standort.bearbeiten.kurz_loeschen') + '"></button>'
             + '</div>';
         liste.appendChild(li);
     },
@@ -1394,9 +1429,9 @@ window.webrtcApp.locationPage = {
         if (!id) return;
 
         window.webrtcApp.notify.confirm({
-            title: 'Bild löschen?',
-            text: 'Das Bild verschwindet von der Standortseite. Das lässt sich nicht rückgängig machen.',
-            confirmText: 'Löschen',
+            title: window.webrtcApp.t('standort.bild.loeschen_frage'),
+            text: window.webrtcApp.t('standort.bild.loeschen_text'),
+            confirmText: window.webrtcApp.t('allgemein.loeschen'),
             danger: true
         }).then(ja => {
             if (!ja) return;
@@ -1407,7 +1442,8 @@ window.webrtcApp.locationPage = {
                 .then(antwort => {
                     if (!antwort || !antwort.success) {
                         window.webrtcApp.notify.error(
-                            (antwort && antwort.error) || 'Das Bild konnte nicht gelöscht werden.');
+                            (antwort && antwort.error)
+                            || window.webrtcApp.t('standort.bild.nicht_geloescht'));
                         return;
                     }
                     kachel.remove();
@@ -1416,11 +1452,14 @@ window.webrtcApp.locationPage = {
                     const liste = document.getElementById('loc-image-list');
                     if (liste && liste.querySelectorAll('.loc-edit__image').length === 0) {
                         liste.innerHTML =
-                            '<p class="loc__empty" data-empty>Noch keine Beispielbilder hochgeladen.</p>';
+                            '<p class="loc__empty" data-empty>'
+                            + this.esc(window.webrtcApp.t('standort.bearbeiten.keine_bilder'))
+                            + '</p>';
                     }
                     this.updateImageHint();
                 })
-                .catch(() => window.webrtcApp.notify.error('Das Bild konnte nicht gelöscht werden.'));
+                .catch(() => window.webrtcApp.notify.error(
+                    window.webrtcApp.t('standort.bild.nicht_geloescht')));
         });
     },
 
@@ -1488,10 +1527,11 @@ window.webrtcApp.locationPage = {
             .then(antwort => {
                 if (antwort && antwort.success) return;
                 window.webrtcApp.notify.error(
-                    (antwort && antwort.error) || 'Die Reihenfolge konnte nicht gespeichert werden.');
+                    (antwort && antwort.error)
+                    || window.webrtcApp.t('standort.bild.reihenfolge_fehler'));
             })
             .catch(() => window.webrtcApp.notify.error(
-                'Die Reihenfolge konnte nicht gespeichert werden.'));
+                window.webrtcApp.t('standort.bild.reihenfolge_fehler')));
     },
 
     /**
@@ -1519,8 +1559,8 @@ window.webrtcApp.locationPage = {
 
         if (text) {
             text.textContent = frei === 0
-                ? 'Die Obergrenze von ' + grenze + ' Bildern ist erreicht (Titelbild mitgezählt).'
-                : 'Noch ' + frei + ' von ' + grenze + ' Bildern möglich, Titelbild mitgezählt.';
+                ? window.webrtcApp.t('standort.bild.grenze_erreicht', { n: grenze })
+                : window.webrtcApp.plural('standort.bild.noch_moeglich', frei, { grenze: grenze });
         }
         if (knopf) knopf.disabled = (frei === 0);
     }

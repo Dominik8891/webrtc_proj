@@ -37,9 +37,15 @@ namespace App\Helper;
  * (App\Helper\ViewHelper::tHtml); die Vorlage nennt im Kommentar den
  * Aufrufer.
  *
- * NOCH DEUTSCH sind die Meldungen des Browsers unter assets/js; sie ziehen
- * in der naechsten Stufe nach. Dass dabei nichts Neues dazukommt, haelt die
- * Ratsche fest (tests/i18n_scan.php).
+ * Und seitdem sind auch DIE MELDUNGEN DES BROWSERS umgezogen (assets/js):
+ * alles, was erst durch ein Ereignis entsteht und beim Ausliefern der Seite
+ * noch gar nicht dastand, dazu die Sprachbloecke von DataTables und select2.
+ * Sie holen ihren Text ueber window.webrtcApp.t() und plural()
+ * (assets/js/i18n.js) aus demselben Katalog, den bootScript() weiter unten
+ * mit der Seite mitschickt - es gibt keinen zweiten.
+ *
+ * DAMIT IST DER UMZUG DURCH. Dass nichts Neues dazukommt, haelt die Ratsche
+ * fest (tests/i18n_scan.php).
  *
  * NICHT UMGEZOGEN WERDEN Logmeldungen und die Texte geworfener Ausnahmen:
  * Sie werden geloggt und nie angezeigt, richten sich also an den Betreiber

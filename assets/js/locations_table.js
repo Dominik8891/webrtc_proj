@@ -96,15 +96,15 @@ window.webrtcApp.locationsTable = {
      */
     statusView(availability) {
         if (availability === "busy") {
-            return { icon: this.stateHtml('busy', 'Im Gespräch'),
-                     text: "Im Gespräch", callable: false };
+            const wort = window.webrtcApp.t('standortliste.zustand.busy');
+            return { icon: this.stateHtml('busy', wort), text: wort, callable: false };
         }
         if (availability === "live") {
-            return { icon: this.stateHtml('online', 'Verfügbar'),
-                     text: "Verfügbar", callable: true };
+            const wort = window.webrtcApp.t('standortliste.zustand.live');
+            return { icon: this.stateHtml('online', wort), text: wort, callable: true };
         }
-        return { icon: this.stateHtml('offline', 'Nicht verfügbar'),
-                 text: "Nicht verfügbar", callable: false };
+        const wort = window.webrtcApp.t('standortliste.zustand.idle');
+        return { icon: this.stateHtml('offline', wort), text: wort, callable: false };
     },
 
     /**
@@ -265,8 +265,8 @@ window.webrtcApp.locationsTable = {
             actionBtns += this.iconBtn({
                 klasse: 'delete-location-btn',
                 symbol: 'delete',
-                titel:  'Löschen',
-                label:  'Standort ' + ort + ' löschen',
+                titel:  window.webrtcApp.t('allgemein.loeschen'),
+                label:  window.webrtcApp.t('standortliste.loeschen_label', { ort: ort }),
                 id:     item.id,
                 warnend: true
             });
@@ -452,7 +452,9 @@ window.webrtcApp.locationsTable = {
             + 'den Einstellungen der anderen geladen.'
         );
         $table.find('tbody').html(
-            `<tr><td colspan="${vorhanden || 1}">Diese Tabelle ist falsch konfiguriert.</td></tr>`
+            '<tr><td colspan="' + (vorhanden || 1) + '">'
+            + this.esc(window.webrtcApp.t('standortliste.falsch_konfiguriert'))
+            + '</td></tr>'
         );
         return false;
     },
@@ -535,7 +537,9 @@ window.webrtcApp.locationsTable = {
                     // die beim Ergaenzen einer Spalte vergessen wird.
                     const spalten = self.columnKeys(options).length;
                     $table.find('tbody').html(
-                        '<tr><td colspan="' + spalten + '">Fehler beim Laden der Daten.</td></tr>');
+                        '<tr><td colspan="' + spalten + '">'
+                        + self.esc(window.webrtcApp.t('standortliste.fehler_laden'))
+                        + '</td></tr>');
                 }
             }
         });
@@ -783,24 +787,35 @@ window.webrtcApp.locationsTable = {
             // l = Laengenauswahl, f = Suchfeld, t = Tabelle,
             // i = Anzahlangabe, p = Blaetterleiste
             dom: '<"app-dt-top"lf>t<"app-dt-bottom"ip>',
+            // DER SPRACHBLOCK VON DataTables - aus dem Katalog wie jeder
+            // andere Text der Anwendung. Bis hierher stand er als deutsche
+            // Liste im Code, und damit blieb die Tabelle deutsch, waehrend
+            // die Seite um sie herum die Sprache wechselte.
+            //
+            // _MENU_, _START_, _END_, _TOTAL_ und _MAX_ SIND KEINE
+            // PLATZHALTER DIESER ANWENDUNG. DataTables setzt sie selbst ein;
+            // fuer den Katalog sind sie gewoehnlicher Text und gehen
+            // unveraendert durch. Deshalb heissen sie auch nicht {n} - ein
+            // {n} wuerde I18n::einsetzen() fuellen und DataTables faende
+            // nichts mehr vor.
             language: {
                 search: '',
-                searchPlaceholder: 'Suchen',
-                lengthMenu: '_MENU_ Einträge',
-                info: '_START_–_END_ von _TOTAL_',
-                infoEmpty: 'Keine Einträge',
-                infoFiltered: '(gefiltert aus _MAX_)',
-                zeroRecords: 'Nichts gefunden.',
-                emptyTable: 'Keine Standorte vorhanden.',
+                searchPlaceholder: window.webrtcApp.t('tabelle.suchen'),
+                lengthMenu:        window.webrtcApp.t('tabelle.laenge'),
+                info:              window.webrtcApp.t('tabelle.info'),
+                infoEmpty:         window.webrtcApp.t('tabelle.info_leer'),
+                infoFiltered:      window.webrtcApp.t('tabelle.info_gefiltert'),
+                zeroRecords:       window.webrtcApp.t('tabelle.nichts_gefunden'),
+                emptyTable:        window.webrtcApp.t('standortliste.leer'),
                 paginate: {
-                    first: 'Erste',
-                    last: 'Letzte',
-                    next: 'Weiter',
-                    previous: 'Zurück'
+                    first:    window.webrtcApp.t('tabelle.erste'),
+                    last:     window.webrtcApp.t('tabelle.letzte'),
+                    next:     window.webrtcApp.t('tabelle.weiter'),
+                    previous: window.webrtcApp.t('tabelle.zurueck')
                 },
                 aria: {
-                    sortAscending: ': aufsteigend sortieren',
-                    sortDescending: ': absteigend sortieren'
+                    sortAscending:  window.webrtcApp.t('tabelle.sort_auf'),
+                    sortDescending: window.webrtcApp.t('tabelle.sort_ab')
                 }
             }
         };
@@ -1059,13 +1074,13 @@ window.webrtcApp.locationsTable = {
             .on('click', '.delete-location-btn', function() {
                 const locationId = $(this).data('locationid');
                 if (!locationId) {
-                    window.webrtcApp.notify.error('Der Standort konnte nicht zugeordnet werden.');
+                    window.webrtcApp.notify.error(window.webrtcApp.t('standortliste.nicht_zugeordnet'));
                     return;
                 }
                 window.webrtcApp.notify.confirm({
-                    title: 'Standort löschen?',
-                    text: 'Der Standort verschwindet von der Karte und aus allen Listen. Das lässt sich nicht rückgängig machen.',
-                    confirmText: 'Löschen',
+                    title: window.webrtcApp.t('standortliste.loeschen_frage'),
+                    text: window.webrtcApp.t('standortliste.loeschen_text'),
+                    confirmText: window.webrtcApp.t('allgemein.loeschen'),
                     danger: true
                 }).then(ja => {
                     if (!ja) return;
@@ -1076,18 +1091,19 @@ window.webrtcApp.locationsTable = {
                         dataType: 'json',
                         success: function(response) {
                             if (response.success) {
-                                window.webrtcApp.notify.success('Standort gelöscht.');
+                                window.webrtcApp.notify.success(window.webrtcApp.t('standortliste.geloescht'));
                                 // Tabelle neu laden - mit den Optionen, mit
                                 // denen sie geladen wurde. Hier stand vorher
                                 // eine zweite, von Hand gepflegte Kopie der
                                 // Tabellenkonfiguration.
                                 window.webrtcApp.locationsTable.loadLocationsTable(options);
                             } else {
-                                window.webrtcApp.notify.error(response.error || 'Der Standort konnte nicht gelöscht werden.');
+                                window.webrtcApp.notify.error(response.error
+                                    || window.webrtcApp.t('standortliste.loeschen_fehler'));
                             }
                         },
                         error: function() {
-                            window.webrtcApp.notify.error('Der Standort konnte nicht gelöscht werden.');
+                            window.webrtcApp.notify.error(window.webrtcApp.t('standortliste.loeschen_fehler'));
                         }
                     });
                 });

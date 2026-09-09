@@ -169,7 +169,7 @@ window.webrtcApp.review = {
         // Dialog waere hier "assertive" - und genau das soll sie nicht sein.
         karte.setAttribute('role', 'region');
         karte.setAttribute('aria-live', 'polite');
-        karte.setAttribute('aria-label', 'Führung bewerten');
+        karte.setAttribute('aria-label', window.webrtcApp.t('bewertung.frage.titel'));
         karte.innerHTML = this.karteHtml(fuehrung, vonSelbst);
 
         document.body.appendChild(karte);
@@ -198,35 +198,53 @@ window.webrtcApp.review = {
      */
     karteHtml(fuehrung, vonSelbst) {
         const skala = this.skala();
-        const wer   = fuehrung.guide ? this.esc(fuehrung.guide) : 'Ihrem Guide';
-        const was   = fuehrung.title
-                    ? ' – <span class="rev-ask__what">' + this.esc(fuehrung.title) + '</span>'
-                    : '';
+        // DER NAME UND DER TITEL SIND PLATZHALTER IM SATZ und werden nicht
+        // davorgesetzt: Der Katalog traegt die Frage samt Fragezeichen und
+        // Gedankenstrich, das Markup bleibt hier (tHtml maskiert den
+        // Katalogtext und setzt die fertigen Schnipsel ein).
+        const wer   = fuehrung.guide
+                    ? '<strong>' + this.esc(fuehrung.guide) + '</strong>'
+                    : '<strong>' + this.esc(window.webrtcApp.t('bewertung.frage.guide_unbekannt'))
+                      + '</strong>';
+        const frage = fuehrung.title
+                    ? window.webrtcApp.tHtml('bewertung.frage.lead_titel', {
+                          guide: wer,
+                          titel: '<span class="rev-ask__what">'
+                                 + this.esc(fuehrung.title) + '</span>'
+                      })
+                    : window.webrtcApp.tHtml('bewertung.frage.lead', { guide: wer });
 
         let sterne = '';
         for (let i = skala.min; i <= skala.max; i++) {
-            const name = (skala.names && skala.names[i]) ? skala.names[i] : (i + ' Sterne');
+            const name = (skala.names && skala.names[i])
+                       ? skala.names[i]
+                       : window.webrtcApp.plural('bewertung.sterne.anzahl', i);
             sterne += '<button type="button" class="rev-pick" data-stars="' + i + '"'
                    +  ' aria-pressed="false" title="' + this.esc(name) + '"'
                    +  ' aria-label="' + this.esc(name) + '"><span aria-hidden="true">★</span></button>';
         }
 
-        return '<button type="button" class="app-ask__close" aria-label="Schließen">×</button>'
-             + '<p class="app-ask__lead">Wie war die Führung mit <strong>' + wer + '</strong>?' + was + '</p>'
-             + '<div class="rev-ask__stars" role="group" aria-label="Sterne">' + sterne + '</div>'
+        const t = (k) => this.esc(window.webrtcApp.t(k));
+
+        return '<button type="button" class="app-ask__close" aria-label="'
+             +   t('allgemein.schliessen') + '">×</button>'
+             + '<p class="app-ask__lead">' + frage + '</p>'
+             + '<div class="rev-ask__stars" role="group" aria-label="'
+             +   t('bewertung.frage.sterne') + '">' + sterne + '</div>'
              + '<p class="rev-ask__word" id="rev-ask-word"></p>'
-             + '<label class="rev-ask__label" for="rev-ask-text">Wenn Sie mögen, ein paar Sätze</label>'
+             + '<label class="rev-ask__label" for="rev-ask-text">'
+             +   t('bewertung.frage.text_label') + '</label>'
              + '<textarea id="rev-ask-text" class="form-control rev-ask__text" rows="3"'
              +   ' maxlength="' + (parseInt(skala.bodyMax, 10) || 1000) + '"'
-             +   ' placeholder="Was sollten andere wissen?"></textarea>'
+             +   ' placeholder="' + t('bewertung.frage.text_platzhalter') + '"></textarea>'
              + '<div class="app-ask__actions">'
              +   '<button type="button" class="btn btn-secondary btn-sm rev-ask__later">'
-             +     (vonSelbst ? 'Später' : 'Abbrechen')
+             +     t(vonSelbst ? 'bewertung.frage.spaeter' : 'dialog.abbrechen')
              +   '</button>'
-             +   '<button type="button" class="btn btn-primary btn-sm rev-ask__send" disabled>Absenden</button>'
+             +   '<button type="button" class="btn btn-primary btn-sm rev-ask__send" disabled>'
+             +     t('bewertung.frage.absenden') + '</button>'
              + '</div>'
-             + '<p class="app-ask__foot">Ihr Name steht nicht dabei. Der Guide kann die '
-             +   'Bewertung nicht ändern und nicht löschen.</p>';
+             + '<p class="app-ask__foot">' + t('bewertung.frage.fuss') + '</p>';
     },
 
     /**
@@ -295,7 +313,7 @@ window.webrtcApp.review = {
     sende(id, sterne, text) {
         if (this.busy) return;
         if (!sterne) {
-            window.webrtcApp.notify.info('Bitte wählen Sie zuerst die Sterne.');
+            window.webrtcApp.notify.info(window.webrtcApp.t('bewertung.frage.sterne_zuerst'));
             return;
         }
         this.busy = true;
@@ -311,7 +329,7 @@ window.webrtcApp.review = {
             this.busy = false;
             if (!antwort || !antwort.success) {
                 window.webrtcApp.notify.error(
-                    (antwort && antwort.error) || 'Die Bewertung konnte nicht gespeichert werden.'
+                    (antwort && antwort.error) || window.webrtcApp.t('bewertung.frage.fehler')
                 );
                 return;
             }
@@ -321,7 +339,7 @@ window.webrtcApp.review = {
             // Sollte der naechste Heartbeat noch die alte Antwort tragen,
             // taucht die Frage nicht ein zweites Mal auf.
             this.merkeUebersprungen(id);
-            window.webrtcApp.notify.success('Danke – Ihre Bewertung steht beim Guide.');
+            window.webrtcApp.notify.success(window.webrtcApp.t('bewertung.frage.danke'));
 
             // Auf der Anfragenseite verschwindet damit der Knopf. Die Liste
             // holt sich der Server; sie hier von Hand umzubauen waere ein
@@ -332,7 +350,7 @@ window.webrtcApp.review = {
         })
         .catch(() => {
             this.busy = false;
-            window.webrtcApp.notify.error('Keine Verbindung. Bitte erneut versuchen.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('allgemein.keine_verbindung'));
         });
     },
 
@@ -447,7 +465,10 @@ window.webrtcApp.review = {
             html += '<span class="' + klasse + '" aria-hidden="true">★</span>';
         }
         return '<span class="rev-stars" role="img" aria-label="'
-             + this.esc(this.zahlText(zahl) + ' von ' + max + ' Sternen') + '">'
+             // Derselbe Schluessel wie beim Server (App\Helper\ReviewView):
+             // Es ist dieselbe Beschriftung derselben Sterne.
+             + this.esc(window.webrtcApp.t('bewertung.sterne.label',
+                   { wert: this.zahlText(zahl), max: max })) + '">'
              + html + '</span>';
     },
 
@@ -490,10 +511,14 @@ window.webrtcApp.review = {
         // hat, steht gar nichts: "0 Fuehrungen" ist keine Auskunft.
         if (touren < 1) return '';
 
-        const text = 'Neu · ' + (touren === 1 ? 'eine Führung' : touren + ' Führungen')
-                   + (anzahl > 0
-                      ? (anzahl === 1 ? ', eine Bewertung' : ', ' + anzahl + ' Bewertungen')
-                      : '');
+        // Zwei Formen, kein Zusammenkleben - dasselbe Muster wie im Server
+        // (App\Helper\ReviewView::jungHtml): Der Satz mit dem Zusatz ist ein
+        // eigener Eintrag und nicht der Satz ohne ihn plus Komma.
+        const text = anzahl > 0
+            ? window.webrtcApp.plural('bewertung.kurz.fuehrungen_bewertet', touren, {
+                  bewertet: window.webrtcApp.plural('bewertung.kurz.bewertungen', anzahl)
+              })
+            : window.webrtcApp.plural('bewertung.kurz.fuehrungen', touren);
 
         return '<span class="rev-short rev-short--young">' + this.esc(text) + '</span>';
     },

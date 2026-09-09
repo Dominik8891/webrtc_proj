@@ -192,10 +192,15 @@ window.webrtcApp.signaling = {
             // Meldung vor dem Abbau: endCall() laesst auf Mobilgeraeten die
             // Seite neu laden und wartet dabei auf den laengsten stehenden
             // Hinweis (siehe rtc.abortCall).
-            window.webrtcApp.notify.error('Der Anruf konnte nicht gestartet werden.\n'
-                + (data.reason === 'no_media_selected'
-                    ? 'Die Gegenseite hat weder Ton noch Bild ausgewählt.'
-                    : 'Die Verbindung ließ sich nicht aufbauen.'));
+            // ZWEI GANZE MELDUNGEN und nicht ein Satzanfang plus Grund:
+            // Welcher Nebensatz sich an "Der Anruf konnte nicht gestartet
+            // werden" anschliesst, ist eine Frage der Sprache und keine der
+            // Zeichenkettenverkettung.
+            window.webrtcApp.notify.error(window.webrtcApp.t(
+                data.reason === 'no_media_selected'
+                    ? 'gespraech.fehler.start_keine_medien'
+                    : 'gespraech.fehler.start_verbindung'
+            ));
             window.webrtcApp.rtc.endCall(false);
         }
     },

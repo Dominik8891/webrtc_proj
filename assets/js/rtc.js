@@ -144,7 +144,7 @@ window.webrtcApp.rtc = {
             // ueber der Seite, die danach zu sehen ist, und verschwindet von
             // selbst. Vorher hielt ein alert() die Ansicht mit dem roten
             // Verbindungsstatus so lange offen, bis jemand klickte.
-            window.webrtcApp.notify.error('Der andere Teilnehmer hat die Verbindung beendet.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('gespraech.fehler.gegenseite_beendet'));
             // sendSignal=false: Wir antworten nicht mit einem eigenen Hangup.
             this.endCall(false);
             return;
@@ -337,8 +337,11 @@ window.webrtcApp.rtc = {
 
             antwort = await window.webrtcApp.signaling.sendSignalMessage(nachricht);
         } catch (fehler) {
-            window.webrtcApp.rtc.abortCall('Der Anruf konnte nicht aufgebaut werden: '
-                + (fehler && fehler.message ? fehler.message : 'unbekannter Fehler'));
+            window.webrtcApp.rtc.abortCall(window.webrtcApp.t('gespraech.fehler.aufbau_grund', {
+                grund: (fehler && fehler.message)
+                    ? fehler.message
+                    : window.webrtcApp.t('allgemein.unbekannter_fehler')
+            }));
             return;
         }
 
@@ -350,7 +353,7 @@ window.webrtcApp.rtc = {
             window.webrtcApp.rtc.abortCall(
                 (antwort && antwort.msg)
                     ? antwort.msg
-                    : 'Der Anruf konnte nicht zugestellt werden. Bitte später erneut versuchen.'
+                    : window.webrtcApp.t('gespraech.fehler.nicht_zugestellt')
             );
             return;
         }
@@ -453,7 +456,7 @@ window.webrtcApp.rtc = {
         const data  = state.pendingOffer;
 
         if (!data) {
-            window.webrtcApp.notify.error('Der Anruf ist nicht mehr da.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('gespraech.fehler.anruf_weg'));
             return;
         }
 
@@ -479,7 +482,7 @@ window.webrtcApp.rtc = {
         const callView = document.getElementById('call-view');
         if (callView) callView.style.display = '';
         const name = document.getElementById('remote-username');
-        if (name) name.textContent = 'Anruf mit ' + state.targetUsername;
+        if (name) name.textContent = window.webrtcApp.t('gespraech.anruf_mit', { name: state.targetUsername });
 
         // Die im Dialog gewaehlten Geraete gelten fuer den ganzen Call - auch
         // dann, wenn die Kamera zwischendurch aus und wieder an geht.
@@ -494,7 +497,7 @@ window.webrtcApp.rtc = {
         window.webrtcApp.rtc.createPeerConnection(false);
         const pc = window.webrtcApp.refs.localPeerConnection;
         if (!pc) {
-            window.webrtcApp.rtc.sendCallFailedMsg('Die Verbindung konnte nicht aufgebaut werden.');
+            window.webrtcApp.rtc.sendCallFailedMsg(window.webrtcApp.t('gespraech.fehler.verbindung'));
             return;
         }
 
@@ -504,9 +507,10 @@ window.webrtcApp.rtc = {
                 sdp: data.sdp
             }));
         } catch (e) {
-            window.webrtcApp.rtc.sendCallFailedMsg(
-                'Die Verbindung konnte nicht aufgebaut werden: ' + (e && e.message ? e.message : 'unbekannter Fehler')
-            );
+            window.webrtcApp.rtc.sendCallFailedMsg(window.webrtcApp.t(
+                'gespraech.fehler.verbindung_grund',
+                { grund: (e && e.message) ? e.message : window.webrtcApp.t('allgemein.unbekannter_fehler') }
+            ));
             return;
         }
 
@@ -518,9 +522,10 @@ window.webrtcApp.rtc = {
             answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
         } catch (e) {
-            window.webrtcApp.rtc.sendCallFailedMsg(
-                'Die Verbindung konnte nicht aufgebaut werden: ' + (e && e.message ? e.message : 'unbekannter Fehler')
-            );
+            window.webrtcApp.rtc.sendCallFailedMsg(window.webrtcApp.t(
+                'gespraech.fehler.verbindung_grund',
+                { grund: (e && e.message) ? e.message : window.webrtcApp.t('allgemein.unbekannter_fehler') }
+            ));
             return;
         }
 
@@ -592,7 +597,7 @@ window.webrtcApp.rtc = {
         if (ton.stream && !bild.stream) {
             window.webrtcApp.notify.error(
                 window.webrtcApp.rtc.mediaErrorText(bild.fehler, 'video')
-                + ' Der Anruf läuft ohne Bild weiter.'
+                + ' ' + window.webrtcApp.t('gespraech.medien.ohne_bild')
             );
             return ton.stream;
         }
@@ -600,7 +605,7 @@ window.webrtcApp.rtc = {
         if (bild.stream && !ton.stream) {
             window.webrtcApp.notify.error(
                 window.webrtcApp.rtc.mediaErrorText(ton.fehler, 'audio')
-                + ' Der Anruf läuft ohne Ton weiter; der Chat bleibt nutzbar.'
+                + ' ' + window.webrtcApp.t('gespraech.medien.ohne_ton')
             );
             return bild.stream;
         }
@@ -650,26 +655,29 @@ window.webrtcApp.rtc = {
      */
     mediaErrorText(fehler, kind) {
         const name = fehler && fehler.name ? fehler.name : '';
-        const video = (kind === 'video');
-        const geraet = video ? 'die Kamera' : 'das Mikrofon';
-        const Geraet = video ? 'Die Kamera'  : 'Das Mikrofon';
+        // JE GERAET EIN EIGENER SATZ, und nicht ein Satz mit eingesetztem
+        // Geraetenamen. Vorher stand hier "der Zugriff auf " + geraet, dazu
+        // ein grossgeschriebenes "Die Kamera"/"Das Mikrofon" fuer den
+        // Satzanfang und ein "sie"/"es" fuer den Rueckbezug - drei Formen
+        // desselben Wortes, die es nur im Deutschen so gibt. Der Katalog
+        // traegt jetzt beide Saetze vollstaendig.
+        const teil = (kind === 'video') ? 'kamera' : 'mikro';
 
         if (name === 'NotAllowedError' || name === 'SecurityError') {
-            return 'Der Zugriff auf ' + geraet + ' wurde abgelehnt. Bitte erlauben Sie ihn '
-                 + 'in den Einstellungen des Browsers und versuchen Sie es erneut.';
+            return window.webrtcApp.t('gespraech.medien.abgelehnt_' + teil);
         }
         if (name === 'NotFoundError' || name === 'OverconstrainedError'
             || name === 'ConstraintNotSatisfiedError') {
-            return video
-                ? 'Es wurde keine Kamera gefunden. Ohne Kamera lässt sich kein Bild übertragen.'
-                : 'Es wurde kein Mikrofon gefunden. Ohne Mikrofon lässt sich kein Gespräch führen.';
+            return window.webrtcApp.t('gespraech.medien.fehlt_' + teil);
         }
         if (name === 'NotReadableError' || name === 'TrackStartError') {
-            return Geraet + ' lässt sich nicht öffnen. Vermutlich benutzt '
-                 + (video ? 'sie' : 'es') + ' gerade ein anderes Programm.';
+            return window.webrtcApp.t('gespraech.medien.belegt_' + teil);
         }
-        return Geraet + ' konnte nicht verwendet werden: '
-             + (fehler && fehler.message ? fehler.message : 'unbekannter Fehler');
+        return window.webrtcApp.t('gespraech.medien.fehler_' + teil, {
+            grund: (fehler && fehler.message)
+                ? fehler.message
+                : window.webrtcApp.t('allgemein.unbekannter_fehler')
+        });
     },
 
     /**
@@ -813,7 +821,7 @@ window.webrtcApp.rtc = {
         versuch.catch(() => {
             if (window.webrtcApp.state.callRole === window.webrtcApp.protocol.ROLE_GUIDE) return;
             window.webrtcApp.rtc.showSystemNotice(
-                'Bitte einmal auf das Bild tippen, damit Ton und Bild starten.'
+                window.webrtcApp.t('gespraech.tippen')
             );
             const ansicht = document.getElementById('call-view');
             if (!ansicht || typeof ansicht.addEventListener !== 'function') return;
@@ -1019,7 +1027,7 @@ window.webrtcApp.rtc = {
             }
         } catch (e) {
             console.error("ICE-Server konnten nicht geladen werden:", e.message);
-            warning = "Die Verbindungsdaten konnten nicht geladen werden.";
+            warning = window.webrtcApp.t('gespraech.ice.keine_daten');
             iceServers = [];
         }
 
@@ -1050,12 +1058,16 @@ window.webrtcApp.rtc = {
         console.log("ICE-Server geladen:", iceServers.length, "(TURN verfügbar:", turnAvailable + ")");
 
         if (!turnAvailable) {
-            window.webrtcApp.rtc.showSystemNotice(
-                "Hinweis: Es ist kein TURN-Server verfügbar. Der Anruf klappt nur, wenn "
-                + "beide Seiten in einfachen Netzen sind." + (warning ? " (" + warning + ")" : "")
-            );
+            // Zwei ganze Saetze im Katalog statt eines angehaengten
+            // Klammerzusatzes: Ob der Grund in Klammern, nach einem
+            // Gedankenstrich oder gar nicht dahintersteht, entscheidet die
+            // Sprache.
+            window.webrtcApp.rtc.showSystemNotice(warning
+                ? window.webrtcApp.t('gespraech.ice.kein_turn_grund', { grund: warning })
+                : window.webrtcApp.t('gespraech.ice.kein_turn'));
         } else if (warning) {
-            window.webrtcApp.rtc.showSystemNotice("Hinweis: " + warning);
+            window.webrtcApp.rtc.showSystemNotice(
+                window.webrtcApp.t('gespraech.ice.hinweis', { text: warning }));
         }
     },
 
@@ -1141,7 +1153,7 @@ window.webrtcApp.rtc = {
         } else if (cs === 'closed' || ics === 'closed') {
             // Geschlossen wird nur von uns selbst oder endgültig durch den
             // Browser - hier gibt es nichts mehr zu retten.
-            window.webrtcApp.rtc.giveUpReconnect("Die Verbindung zum Gesprächspartner wurde beendet.");
+            window.webrtcApp.rtc.giveUpReconnect(window.webrtcApp.t('gespraech.fehler.partner_beendet'));
         }
     },
 
@@ -1159,7 +1171,7 @@ window.webrtcApp.rtc = {
         window.webrtcApp.signaling.setPollInterval(window.webrtcApp.signaling.POLL_INTERVAL_IN_CALL);
 
         if (wasDisturbed) {
-            window.webrtcApp.rtc.showSystemNotice("Verbindung wiederhergestellt.");
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t('gespraech.zustand.wiederhergestellt'));
         }
     },
 
@@ -1232,7 +1244,7 @@ window.webrtcApp.rtc = {
                 return;
             }
             window.webrtcApp.rtc.giveUpReconnect(
-                "Die Verbindung zum Gesprächspartner konnte nicht wiederhergestellt werden."
+                window.webrtcApp.t('gespraech.fehler.kein_wiederaufbau')
             );
         }, window.webrtcApp.rtc.RECONNECT_DEADLINE_MS);
     },
@@ -1256,7 +1268,7 @@ window.webrtcApp.rtc = {
 
         if (state.reconnect.attempts >= window.webrtcApp.rtc.MAX_ICE_RESTARTS) {
             window.webrtcApp.rtc.giveUpReconnect(
-                "Die Verbindung zum Gesprächspartner konnte nicht wiederhergestellt werden."
+                window.webrtcApp.t('gespraech.fehler.kein_wiederaufbau')
             );
             return;
         }
@@ -1443,15 +1455,24 @@ window.webrtcApp.rtc = {
     // =====================================================================
 
     /**
-     * Textbausteine und CSS-Klasse je Zustand.
+     * Katalogschluessel und CSS-Klasse je Zustand.
+     *
+     * SCHLUESSEL UND NICHT TEXT: Diese Tabelle steht als Objektliteral im
+     * Modul und wird beim Laden der Datei EINMAL ausgewertet. Ein fertiger
+     * Text darin waere der Text der Sprache, die beim Laden galt - und
+     * bliebe es. Der Schluessel wird erst beim Setzen aufgeloest
+     * (setConnectionStatus).
+     *
+     * Der Ruhezustand hat keinen: Dort steht nichts, und ein leerer
+     * Katalogeintrag waere ein Text, den niemand vermisst, bis er fehlt.
      */
     CONNECTION_STATUS_LABELS: {
-        idle:         { text: '',                       cssClass: '' },
-        connecting:   { text: 'Verbindung wird aufgebaut', cssClass: 'connection-status--connecting' },
-        connected:    { text: 'Verbunden',              cssClass: 'connection-status--connected' },
-        unstable:     { text: 'Verbindung instabil',    cssClass: 'connection-status--unstable' },
-        reconnecting: { text: 'Wiederverbindung …',     cssClass: 'connection-status--reconnecting' },
-        disconnected: { text: 'Verbindung getrennt',    cssClass: 'connection-status--disconnected' }
+        idle:         { key: null,                          cssClass: '' },
+        connecting:   { key: 'gespraech.zustand.aufbau',     cssClass: 'connection-status--connecting' },
+        connected:    { key: 'gespraech.zustand.verbunden',  cssClass: 'connection-status--connected' },
+        unstable:     { key: 'gespraech.zustand.instabil',   cssClass: 'connection-status--unstable' },
+        reconnecting: { key: 'gespraech.zustand.wieder',     cssClass: 'connection-status--reconnecting' },
+        disconnected: { key: 'gespraech.zustand.getrennt',   cssClass: 'connection-status--disconnected' }
     },
 
     /**
@@ -1470,7 +1491,7 @@ window.webrtcApp.rtc = {
         // IST jetzt das Overlay.
         const el = document.getElementById('connection-status');
         if (el) {
-            el.textContent = label.text;
+            el.textContent = label.key ? window.webrtcApp.t(label.key) : '';
             el.className = 'connection-status ' + label.cssClass;
             el.style.display = (status === 'idle') ? 'none' : '';
         }
@@ -1552,7 +1573,7 @@ window.webrtcApp.rtc = {
             });
             window.webrtcApp.sound.stop('call_ringtone');
             window.webrtcApp.rtc.endCall(false);
-            window.webrtcApp.notify.info('Der Anruf wurde nicht angenommen.');
+            window.webrtcApp.notify.info(window.webrtcApp.t('gespraech.fehler.nicht_angenommen'));
         }, 25000);
         console.log('Start Timeout :' + window.webrtcApp.state.callTimeout);
     },

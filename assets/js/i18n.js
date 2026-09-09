@@ -27,6 +27,15 @@
  * "call.abgelehnt" auf dem Schirm. Eine leere Meldung faellt niemandem auf -
  * und damit faellt auch nicht auf, dass ein Text fehlt.
  *
+ * WAS UEBER DIE EREIGNISSE HINAUS NOCH HIER LANDET
+ * ------------------------------------------------
+ * Die Sprachbloecke der beiden fremden Bibliotheken. DataTables und select2
+ * sprechen ab Werk englisch und lassen sich nur dadurch uebersetzen, dass
+ * man ihnen ihre Texte uebergibt - assets/js/locations_table.js und
+ * assets/js/map.js tun das aus diesem Katalog. Die Marken darin (_MENU_,
+ * _START_, _TOTAL_ ...) sind KEINE Platzhalter dieser Anwendung: Sie gehen
+ * unveraendert durch, weil die Bibliothek sie selbst einsetzt.
+ *
  * WAS DIESES MODUL NICHT TUT
  * --------------------------
  * Die Seite umschreiben. Wer die Sprache wechselt, holt die Seite neu; sie
@@ -133,6 +142,27 @@ window.webrtcApp.i18n = {
     },
 
     /**
+     * Maskiert, was in HTML als Text stehen soll.
+     *
+     * Es gibt diese Funktion in mehreren Modulen dieser Anwendung, und das
+     * ist dort auch richtig - sie maskieren FREMDEN Text. Diese hier gehoert
+     * zum Katalog und wird von tHtml() gebraucht; ein Modul, das nur einen
+     * Satz aus dem Katalog braucht, soll dafuer keine eigene mitbringen
+     * muessen.
+     *
+     * @param {*} wert
+     * @returns {string}
+     */
+    esc(wert) {
+        return String(wert ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    /**
      * Welche Form gilt in dieser Sprache fuer diese Anzahl?
      *
      * Gleichlautend mit App\Helper\I18n::pluralForm(). Zwei Fassungen
@@ -174,6 +204,37 @@ window.webrtcApp.t = function (schluessel, werte) {
     if (typeof text !== 'string') return schluessel;
 
     return i18n.einsetzen(text, werte);
+};
+
+/**
+ * Derselbe Text, aber fuer eine Stelle, die HTML entgegennimmt.
+ *
+ * WOZU ES DAS BRAUCHT
+ * -------------------
+ * Manche Saetze tragen eine Hervorhebung mittendrin: "Ihre Anfrage fuer
+ * <strong>Lissabon</strong> ist beim Guide." Im Katalog steht kein HTML
+ * (lang/de.php, Regel 5), im Katalog steht der Satz mit einem Platzhalter -
+ * und das Markup kommt vom Aufrufer.
+ *
+ * DIE REIHENFOLGE IST DER GANZE PUNKT, und sie ist dieselbe wie in
+ * App\Helper\ViewHelper::tHtml(): Erst wird der KATALOGTEXT maskiert, dann
+ * werden die Werte eingesetzt. Andersherum verloere ein uebergebenes
+ * "<strong>" seine spitzen Klammern und stuende sichtbar in der Seite.
+ *
+ * WAS DER AUFRUFER SCHULDET: Jeder uebergebene Wert geht UNMASKIERT in die
+ * Seite. Wer fremden Text einsetzt, maskiert ihn selbst - genau wie in PHP.
+ *
+ * @param {string} schluessel
+ * @param {Object} [werte] Fertige HTML-Schnipsel
+ * @returns {string} HTML
+ */
+window.webrtcApp.tHtml = function (schluessel, werte) {
+    const i18n = window.webrtcApp.i18n;
+    const text = i18n.roh(schluessel);
+
+    if (typeof text !== 'string') return i18n.esc(schluessel);
+
+    return i18n.einsetzen(i18n.esc(text), werte);
 };
 
 /**

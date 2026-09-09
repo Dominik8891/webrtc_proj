@@ -152,7 +152,7 @@ window.webrtcApp.tour = {
         // Sie meldet sich, aber sie unterbricht nicht.
         karte.setAttribute('role', 'region');
         karte.setAttribute('aria-live', 'polite');
-        karte.setAttribute('aria-label', 'Laufende Führung');
+        karte.setAttribute('aria-label', window.webrtcApp.t('fuehrung.karte.titel'));
         karte.innerHTML = this.karteHtml(fuehrung);
 
         document.body.appendChild(karte);
@@ -183,31 +183,46 @@ window.webrtcApp.tour = {
      * @returns {string} HTML
      */
     karteHtml(fuehrung) {
-        const wer  = fuehrung.partner_name ? this.esc(fuehrung.partner_name) : 'Ihrem Kunden';
+        // NAME UND TITEL SIND PLATZHALTER IM SATZ. Vorher stand der Satz in
+        // drei Stuecken hier ("Ihre Fuehrung mit " + Name + " ist noch nicht
+        // beendet."), und mit ihm die deutsche Wortstellung.
+        const wer  = '<strong>' + this.esc(fuehrung.partner_name
+                     || window.webrtcApp.t('fuehrung.karte.kunde_unbekannt')) + '</strong>';
         const titel = String(fuehrung.title || '').trim();
-        const was  = titel ? ' – <span class="tour-ask__what">' + this.esc(titel) + '</span>' : '';
         const id   = parseInt(fuehrung.id, 10) || 0;
 
-        const rest = this.restText(fuehrung.rejoin_in);
+        const lead = titel
+            ? window.webrtcApp.tHtml('fuehrung.karte.lead_titel', {
+                  kunde: wer,
+                  titel: '<span class="tour-ask__what">' + this.esc(titel) + '</span>'
+              })
+            : window.webrtcApp.tHtml('fuehrung.karte.lead', { kunde: wer });
 
-        return '<button type="button" class="app-ask__close" aria-label="Schließen">×</button>'
-             + '<p class="app-ask__lead">Ihre Führung mit <strong>' + wer + '</strong>' + was
-             +   ' ist noch nicht beendet.</p>'
-             + '<p class="tour-ask__note">Aufgelegt heißt nicht beendet: Solange die Führung '
-             +   'offen ist, können Sie und Ihr Kunde wieder einsteigen'
-             +   (rest !== '' ? ' – ' + this.esc(rest) : '') + '.</p>'
+        // Mit und ohne Frist zwei ganze Saetze: Ob die Restzeit hinter einem
+        // Gedankenstrich, in Klammern oder vorne steht, entscheidet die
+        // Sprache und nicht diese Zeile.
+        const rest = this.restText(fuehrung.rejoin_in);
+        const hinweis = rest !== ''
+            ? window.webrtcApp.t('fuehrung.karte.hinweis_frist', { rest: rest })
+            : window.webrtcApp.t('fuehrung.karte.hinweis');
+
+        const t = (k) => this.esc(window.webrtcApp.t(k));
+
+        return '<button type="button" class="app-ask__close" aria-label="'
+             +   t('allgemein.schliessen') + '">×</button>'
+             + '<p class="app-ask__lead">' + lead + '</p>'
+             + '<p class="tour-ask__note">' + this.esc(hinweis) + '</p>'
              + '<div class="app-ask__actions">'
-             +   '<button type="button" class="btn btn-secondary btn-sm tour-ask__later">Später</button>'
+             +   '<button type="button" class="btn btn-secondary btn-sm tour-ask__later">'
+             +     t('fuehrung.karte.spaeter') + '</button>'
              +   '<button type="button" class="btn btn-secondary btn-sm tour-rejoin"'
              +     ' data-userid="' + (parseInt(fuehrung.customer_user_id, 10) || 0) + '"'
              +     ' data-locationid="' + (parseInt(fuehrung.location_id, 10) || 0) + '"'
-             +     '>Wieder einsteigen</button>'
+             +     '>' + t('standort.anfrage.einsteigen') + '</button>'
              +   '<button type="button" class="btn btn-primary btn-sm tour-finish"'
-             +     ' data-id="' + id + '">Führung beenden</button>'
+             +     ' data-id="' + id + '">' + t('fuehrung.beenden') + '</button>'
              + '</div>'
-             + '<p class="app-ask__foot">Erst nach dem Beenden ist die Führung abgeschlossen. '
-             +   'Ihr Kunde kann sie dann nicht mehr neu starten und wird nach einer '
-             +   'Bewertung gefragt.</p>';
+             + '<p class="app-ask__foot">' + t('fuehrung.karte.fuss') + '</p>';
     },
 
     /**
@@ -228,12 +243,12 @@ window.webrtcApp.tour = {
         if (isNaN(s) || s <= 0) return '';
 
         const min = Math.round(s / 60);
-        if (min < 1)  return 'noch weniger als eine Minute';
-        if (min === 1) return 'noch etwa eine Minute';
-        if (min < 60) return 'noch etwa ' + min + ' Minuten';
+        if (min < 1) return window.webrtcApp.t('fuehrung.rest.unter_minute');
+        // plural() und nicht ein Vergleich auf 1: Welche Formen eine Sprache
+        // kennt, steht im Katalog.
+        if (min < 60) return window.webrtcApp.plural('fuehrung.rest.minuten', min);
 
-        const std = Math.round(min / 60);
-        return 'noch etwa ' + (std === 1 ? 'eine Stunde' : std + ' Stunden');
+        return window.webrtcApp.plural('fuehrung.rest.stunden', Math.round(min / 60));
     },
 
     // -----------------------------------------------------------------
@@ -254,11 +269,9 @@ window.webrtcApp.tour = {
         if (!id || this.busy) return;
 
         window.webrtcApp.notify.confirm({
-            title: 'Führung beenden?',
-            text: 'Danach ist die Führung abgeschlossen: Sie und Ihr Kunde können nicht '
-                + 'mehr einsteigen, der Startknopf verschwindet, und Ihr Kunde wird nach '
-                + 'einer Bewertung gefragt. Rückgängig geht das nicht.',
-            confirmText: 'Beenden'
+            title: window.webrtcApp.t('fuehrung.beenden_frage.titel'),
+            text: window.webrtcApp.t('fuehrung.beenden_frage.text'),
+            confirmText: window.webrtcApp.t('fuehrung.beenden_frage.knopf')
         }).then(ok => {
             if (!ok) return;
             this.busy = true;
@@ -274,12 +287,12 @@ window.webrtcApp.tour = {
                 this.busy = false;
                 if (!antwort || !antwort.success) {
                     window.webrtcApp.notify.error(
-                        (antwort && antwort.error) || 'Das hat nicht geklappt.'
+                        (antwort && antwort.error) || window.webrtcApp.t('allgemein.nicht_geklappt')
                     );
                     return;
                 }
                 this.schliesse();
-                window.webrtcApp.notify.success('Führung beendet.');
+                window.webrtcApp.notify.success(window.webrtcApp.t('fuehrung.beendet'));
 
                 // Auf der Anfragenseite steht die Zeile jetzt anders da. Die
                 // Liste kommt vom Server; sie hier von Hand umzubauen waere
@@ -291,7 +304,7 @@ window.webrtcApp.tour = {
             })
             .catch(() => {
                 this.busy = false;
-                window.webrtcApp.notify.error('Keine Verbindung. Bitte erneut versuchen.');
+                window.webrtcApp.notify.error(window.webrtcApp.t('allgemein.keine_verbindung'));
             });
         });
     },
@@ -315,7 +328,7 @@ window.webrtcApp.tour = {
         if (!userId) return;
 
         if (typeof window.webrtcApp?.rtc?.startCall !== 'function') {
-            window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('gespraech.kein_anruf_hier'));
             return;
         }
 

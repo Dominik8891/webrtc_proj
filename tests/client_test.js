@@ -1239,9 +1239,23 @@ function ackLastMove(status = 'executed', reason) {
             address: { country_code: 'de', city: 'Berlin' }
         } };
 
-        const fenster = { webrtcApp: { notify: {
-            error: (t) => global.__alerts.push(String(t)), success() {}, info() {}
-        } } };
+        // DER KATALOG GEHT MIT IN DEN EIGENEN GELTUNGSBEREICH.
+        //
+        // map.js holt seine Texte ueber window.webrtcApp.t(); dieses Fenster
+        // hier ist aber ein eigenes Objekt und nicht das globale des
+        // Harness. Weitergereicht werden deshalb die ECHTEN Funktionen samt
+        // dem echten Katalog aus lang/de.php - eine Attrappe, die den
+        // Schluessel zurueckgibt, liesse einen fehlenden Katalogeintrag
+        // unbemerkt durchgehen.
+        const fenster = { webrtcApp: {
+            t:      window.webrtcApp.t,
+            plural: window.webrtcApp.plural,
+            tHtml:  window.webrtcApp.tHtml,
+            i18n:   window.webrtcApp.i18n,
+            notify: {
+                error: (t) => global.__alerts.push(String(t)), success() {}, info() {}
+            }
+        } };
 
         // Mitschreiben, ob zur Karte gescrollt wurde.
         const kartenBereich = { gescrollt: 0, scrollIntoView() { this.gescrollt++; } };

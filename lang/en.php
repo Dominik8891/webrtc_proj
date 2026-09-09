@@ -173,6 +173,29 @@ return [
     'anfrage.status.cancelled' => 'cancelled',
 
     // -----------------------------------------------------------------
+    // THE REQUEST LIST IN THE BROWSER (assets/js/requests.js)
+    // -----------------------------------------------------------------
+    'anfrage.neu'                => 'A new request for one of your tours.',
+    'anfrage.angenommen'         => 'Your request has been accepted.',
+    'anfrage.zugesagt'           => 'Accepted. The customer starts the tour at the agreed time – you will be called then.',
+    'anfrage.abgelehnt'          => 'Declined.',
+    'anfrage.zurueckgenommen'    => 'Withdrawn.',
+    'anfrage.zurueckziehen'      => 'Withdraw',
+    'anfrage.partner_unbekannt'  => 'Unknown',
+
+    'anfrage.zeile.von'              => 'Requested by {name}',
+    'anfrage.zeile.guide'            => 'Your guide: {name}',
+    'anfrage.zeile.wunschzeit'       => 'Preferred time: {zeit}',
+    'anfrage.zeile.fuehrung'         => 'Tour',
+    'anfrage.zeile.nichts_zu_tun'    => 'Nothing left to do.',
+    'anfrage.zeile.bewertet'         => 'Rated: {sterne}',
+    'anfrage.zeile.bewertung_eigen'  => 'Your rating: {sterne}',
+
+    'anfrage.rest.ohne_frist' => 'Still running. End it when you are done.',
+    'anfrage.rest.abgelaufen' => 'Rejoining is no longer possible.',
+    'anfrage.rest.offen'      => 'You can rejoin for another {dauer}.',
+
+    // -----------------------------------------------------------------
     // DIE BEIDEN E-MAILS. Sie gehen in der Sprache des EMPFAENGERS heraus
     // (user.lang, geholt mit I18n::tIn) und nicht in der dessen, der sie
     // ausloest.
@@ -195,6 +218,26 @@ return [
 
     'allgemein.gespeichert'     => 'Saved.',
     'allgemein.interner_fehler' => 'Internal error. Please try again later.',
+
+    'allgemein.loeschen'          => 'Delete',
+    'allgemein.keine_verbindung'  => 'No connection. Please try again.',
+    'allgemein.nicht_geklappt'    => 'That did not work.',
+    'allgemein.unbekannter_fehler'=> 'unknown error',
+
+    // -----------------------------------------------------------------
+    // THE BROWSER DIALOGUES (assets/js/notify.js)
+    // -----------------------------------------------------------------
+    'dialog.hinweis'             => 'Notice',
+    'dialog.hinweis_schliessen'  => 'Dismiss notice',
+    'dialog.verstanden'          => 'Got it',
+    'dialog.sicher'              => 'Are you sure?',
+    'dialog.ja'                  => 'Yes',
+    'dialog.abbrechen'           => 'Cancel',
+    'dialog.eingabe'             => 'Input',
+    'dialog.speichern'           => 'Save',
+    'dialog.pflicht'             => 'Please enter something.',
+    'dialog.loeschen.titel'      => 'Delete this record?',
+    'dialog.loeschen.text'       => 'This cannot be undone.',
 
     // -----------------------------------------------------------------
     // THE HEADER
@@ -231,6 +274,11 @@ return [
     'kopf.bereit.aus'        => 'Not available',
     'kopf.bereit.titel_an'   => 'You can be called as a guide. Clicking ends your availability.',
     'kopf.bereit.titel_aus'  => 'You cannot be called. Clicking makes you available.',
+
+    'kopf.knopf.bedingungen'    => 'Accept the new terms',
+    'kopf.knopf.standort_neu'   => 'Add a new location',
+    'kopf.knopf.guide_werden'   => 'Become a tour guide!',
+    'kopf.knopf.alle_standorte' => 'All locations',
 
     // -----------------------------------------------------------------
     // THE LOCATION PAGE
@@ -298,6 +346,17 @@ return [
     'standort.anfrage.einsteigen'       => 'Rejoin',
     'standort.anfrage.starten'          => 'Start tour',
 
+    'standort.anfrage.zeit_fehlt'       => 'Please pick a time – “Right now” counts as one.',
+    'standort.anfrage.fehler'           => 'The request could not be sent.',
+    'standort.anfrage.gestellt'         => 'Request sent. The guide will answer – you will see it here and on the counter above.',
+    'standort.anfrage.zurueck_frage'    => 'Withdraw the request?',
+    'standort.anfrage.zurueck_text'     => 'The guide will then see that the tour is not happening.',
+    'standort.anfrage.zurueck_knopf'    => 'Withdraw',
+    'standort.anfrage.zurueckgezogen'   => 'Request withdrawn.',
+    'standort.anfrage.nicht_mehr_offen' => 'Your request is no longer open. What became of it is under “Requests”.',
+    'standort.anfrage.ortszeit'         => 'That is {zeit} local time at the meeting point.',
+    'standort.anfrage.ausserhalb'       => 'That is outside the usual hours ({zeiten}). You can still ask – the guide decides.',
+
     'standort.bearbeiten.raster_spalte'    => 'Select or clear this part of the day on every day',
     'standort.bearbeiten.raster_zeile'     => 'Select or clear this whole day',
     'standort.bearbeiten.raster_feld'      => '{tag} {abschnitt}',
@@ -331,6 +390,8 @@ return [
     'standort.fehler.nicht_gefunden' => 'Location not found.',
     'standort.fehler.loeschen'       => 'Deleting failed.',
     'standort.fehler.grund_fehlt'    => 'Please give a reason.',
+    'standort.fehler.kein_punkt'     => 'Not saved: please pick the location on the map.',
+    'standort.fehler.nicht_angelegt' => 'The location could not be created.',
 
     'standort.bild.zu_viele'            => 'A location cannot hold more than {n} pictures.',
     'standort.bild.keine_datei'         => 'No file was sent.',
@@ -340,6 +401,19 @@ return [
     'standort.bild.keine_reihenfolge'   => 'No order given.',
     'standort.bild.reihenfolge_fehler'  => 'The order could not be saved.',
     'standort.bild.titelbild_fehler'    => 'The cover picture could not be changed.',
+
+    'standort.bild.titelbild_nicht_gesetzt' => 'The cover picture could not be set.',
+    'standort.bild.format'              => 'This picture format is not accepted (JPEG, PNG or WebP).',
+    'standort.bild.zu_gross_mb'         => 'The file is too large – {n} MB are allowed.',
+    'standort.bild.hinzugefuegt'        => 'Picture added.',
+    'standort.bild.loeschen_frage'      => 'Delete this picture?',
+    'standort.bild.loeschen_text'       => 'The picture will disappear from the location page. This cannot be undone.',
+    'standort.bild.nicht_geloescht'     => 'The picture could not be deleted.',
+    'standort.bild.grenze_erreicht'     => 'The limit of {n} pictures is reached (the cover counts).',
+    'standort.bild.noch_moeglich' => [
+        'one'   => 'One more picture of {grenze} possible, the cover counts.',
+        'other' => '{n} more of {grenze} pictures possible, the cover counts.',
+    ],
 
     // -----------------------------------------------------------------
     // THE GUIDE
@@ -443,6 +517,39 @@ return [
     'bewertung.stern.4' => 'Good',
     'bewertung.stern.5' => 'Excellent',
 
+    // The question after a tour (assets/js/review.js).
+    'bewertung.frage.titel'            => 'Rate the tour',
+    'bewertung.frage.lead'             => 'How was the tour with {guide}?',
+    'bewertung.frage.lead_titel'       => 'How was the tour with {guide}? – {titel}',
+    'bewertung.frage.guide_unbekannt'  => 'your guide',
+    'bewertung.frage.sterne'           => 'Stars',
+    'bewertung.frage.text_label'       => 'A few words, if you like',
+    'bewertung.frage.text_platzhalter' => 'What should others know?',
+    'bewertung.frage.spaeter'          => 'Later',
+    'bewertung.frage.absenden'         => 'Send',
+    'bewertung.frage.fuss'             => 'Your name is not shown. The guide can neither change nor delete the rating.',
+    'bewertung.frage.sterne_zuerst'    => 'Please pick the stars first.',
+    'bewertung.frage.fehler'           => 'The rating could not be saved.',
+    'bewertung.frage.danke'            => 'Thank you – your rating has reached the guide.',
+
+    'bewertung.sterne.anzahl' => [
+        'one'   => '{n} star',
+        'other' => '{n} stars',
+    ],
+
+    'bewertung.kurz.fuehrungen' => [
+        'one'   => 'New · one tour',
+        'other' => 'New · {n} tours',
+    ],
+    'bewertung.kurz.fuehrungen_bewertet' => [
+        'one'   => 'New · one tour, {bewertet}',
+        'other' => 'New · {n} tours, {bewertet}',
+    ],
+    'bewertung.kurz.bewertungen' => [
+        'one'   => 'one rating',
+        'other' => '{n} ratings',
+    ],
+
     // -----------------------------------------------------------------
     // THE ADMINISTRATION
     // -----------------------------------------------------------------
@@ -537,6 +644,22 @@ return [
     'verwaltung.rolle.guide'                => 'Guide',
     'verwaltung.rolle.kunde'                => 'Customer',
 
+    // The three confirmations of the admin area (assets/js/admin.js).
+    'verwaltung.sperre.titel'       => 'Block location',
+    'verwaltung.sperre.text'        => '“{titel}” disappears from the map and the list. The guide sees this text in their own location list. Nothing is deleted.',
+    'verwaltung.sperre.grund'       => 'Reason',
+    'verwaltung.sperre.platzhalter' => 'Why is it being blocked?',
+    'verwaltung.sperre.pflicht'     => 'Without a reason the guide cannot make sense of the block.',
+    'verwaltung.sperre.erledigt'    => 'Blocked.',
+
+    'verwaltung.freigabe.titel'    => 'Lift the block?',
+    'verwaltung.freigabe.text'     => '“{titel}” will appear on the map and in the list again.',
+    'verwaltung.freigabe.erledigt' => 'Unblocked.',
+
+    'verwaltung.bewertung_weg.titel'    => 'Remove this rating?',
+    'verwaltung.bewertung_weg.text'     => 'The rating disappears from the location page and from the guide profile and no longer counts towards the average. It is not deleted – it stays here on the record. The customer cannot rate this tour again afterwards.',
+    'verwaltung.bewertung_weg.erledigt' => 'Removed.',
+
     // -----------------------------------------------------------------
     // THE IMAGE STORE
     // -----------------------------------------------------------------
@@ -576,6 +699,8 @@ return [
 
     'konto.farbprofil.unbekannt' => 'Unknown colour scheme.',
     'konto.farbprofil.fehler'    => 'The colour scheme could not be saved.',
+    'konto.farbprofil.gespeichert' => 'Colour scheme saved.',
+    'konto.farbprofil.fehler_netz' => 'The colour scheme could not be saved. Please try again later.',
 
     // -----------------------------------------------------------------
     // THE SIGN-UP
@@ -653,6 +778,24 @@ return [
     'tabelle.spalte.beschreibung'  => 'Description',
     'tabelle.spalte.aktionen'      => 'Actions',
 
+    // THE DataTables LANGUAGE BLOCK (assets/js/locations_table.js).
+    //
+    // _MENU_, _START_, _END_, _TOTAL_ and _MAX_ are NOT placeholders of this
+    // application: DataTables fills them in itself, and I18n::einsetzen()
+    // leaves them alone. That is why they are not written as {n}.
+    'tabelle.suchen'          => 'Search',
+    'tabelle.laenge'          => '_MENU_ entries',
+    'tabelle.info'            => '_START_–_END_ of _TOTAL_',
+    'tabelle.info_leer'       => 'No entries',
+    'tabelle.info_gefiltert'  => '(filtered from _MAX_)',
+    'tabelle.nichts_gefunden' => 'Nothing found.',
+    'tabelle.erste'           => 'First',
+    'tabelle.letzte'          => 'Last',
+    'tabelle.weiter'          => 'Next',
+    'tabelle.zurueck'         => 'Previous',
+    'tabelle.sort_auf'        => ': sort ascending',
+    'tabelle.sort_ab'         => ': sort descending',
+
     'allgemein.schliessen' => 'Close',
 
     // -----------------------------------------------------------------
@@ -696,6 +839,8 @@ return [
     'passwort.aendern.knopf'      => 'Change password',
     'passwort.aendern.abbrechen'  => 'Cancel',
 
+    'passwort.geaendert' => 'Password changed.',
+
     // -----------------------------------------------------------------
     // THE HOME PAGE
     // -----------------------------------------------------------------
@@ -736,11 +881,111 @@ return [
     'startseite.schritt3.titel' => 'Guide them',
     'startseite.schritt3.text'  => 'The arrow keys set the direction. The guide hears and sees what you want and goes there.',
 
+    // The popup on a map pin (assets/js/home_map.js).
+    'startseite.karte.eigen_bereit'      => 'You are available – for others this location is highlighted right now.',
+    'startseite.karte.eigen_nicht_bereit'=> 'While you are not available this location is shown dimmed.',
+    'startseite.karte.eigen_knopf'       => 'View and edit location',
+    'startseite.karte.gesperrt'          => 'Blocked. The location is not visible to others.',
+    'startseite.karte.gesperrt_grund'    => 'Blocked: {grund}. The location is not visible to others.',
+    'startseite.karte.busy'              => 'The guide is on another tour right now.',
+    'startseite.karte.idle'              => 'Nobody is on site right now. The location stays bookable as soon as the guide is available.',
+    'startseite.karte.knopf'             => 'View location',
+    'startseite.karte.knopf_live'        => 'View tour',
+
+    'startseite.karte.guides' => [
+        'one'   => '1 guide available',
+        'other' => '{n} guides available',
+    ],
+    'startseite.karte.standorte' => [
+        'one'   => '1 location',
+        'other' => '{n} locations',
+    ],
+
     // -----------------------------------------------------------------
     // THE LOCATION LIST
     // -----------------------------------------------------------------
     'standortliste.titel'      => 'All locations',
     'standortliste.untertitel' => 'The same locations as on the map, here to search and sort.',
+
+    // The table itself (assets/js/locations_table.js). The state words differ
+    // from standort.zustand.* on purpose: the column is narrow and answers a
+    // narrower question.
+    'standortliste.zustand.live' => 'Available',
+    'standortliste.zustand.busy' => 'In a call',
+    'standortliste.zustand.idle' => 'Not available',
+
+    'standortliste.leer'                 => 'No locations yet.',
+    'standortliste.fehler_laden'         => 'The data could not be loaded.',
+    'standortliste.falsch_konfiguriert'  => 'This table is misconfigured.',
+    'standortliste.loeschen_label'       => 'Delete location {ort}',
+    'standortliste.loeschen_frage'       => 'Delete this location?',
+    'standortliste.loeschen_text'        => 'The location disappears from the map and from every list. This cannot be undone.',
+    'standortliste.geloescht'            => 'Location deleted.',
+    'standortliste.loeschen_fehler'      => 'The location could not be deleted.',
+    'standortliste.nicht_zugeordnet'     => 'The location could not be assigned.',
+
+    // -----------------------------------------------------------------
+    // THE FORM WITH THE MAP (assets/js/map.js)
+    // -----------------------------------------------------------------
+    'standort.karte.select2_fehlt'    => 'The selection fields could not be loaded because a required library (select2) is missing. Please reload the page. If the problem persists, the cause is most likely your internet connection or an ad blocker.',
+    'standort.karte.laender_leer'     => 'No countries could be loaded. Without a country there is no city search. Please contact the administrator – the country data is missing from the database.',
+    'standort.karte.laender_fehler'   => 'The country list could not be loaded. Please reload the page. If the problem persists, the server is unreachable or the database is unavailable.',
+    'standort.karte.punkt_fehlt'      => 'The point on the map is missing. Please click the map, choose a city or use “Use my current location” – only then can the location be saved.',
+    'standort.karte.keine_ansicht'    => 'No map view is available for this country.',
+    'standort.karte.land_zuerst'      => 'Please choose a country first',
+    'standort.karte.keine_ortung'     => 'Your browser does not support location detection.',
+    'standort.karte.ortung_fehler'    => 'Your location could not be determined: {grund}',
+    'standort.karte.keine_stadt_am_ort' => 'no city at this location',
+
+    // The select2 language block. The number comes from the same constant as
+    // minimumInputLength (map.STADT_MIN_ZEICHEN).
+    'stadtsuche.zu_kurz'          => 'Please enter at least {n} letters.',
+    'stadtsuche.keine_stadt'      => 'No city found.',
+    'stadtsuche.land_zuerst'      => 'Please choose a country first.',
+    'stadtsuche.nicht_erreichbar' => 'The city search is unavailable right now. Please wait a moment and type again.',
+
+    // -----------------------------------------------------------------
+    // THE AVAILABILITY SWITCH (assets/js/availability.js)
+    // -----------------------------------------------------------------
+    'bereit.jetzt_anrufbar' => 'You can now be called as a guide – {rest}.',
+    'bereit.beendet'        => 'Availability ended. Your locations can no longer be called.',
+    'bereit.fehler'         => 'Your availability could not be changed. Please try again.',
+    'bereit.abgelaufen'     => 'Your availability has expired – you can no longer be called. Set yourself to “Available” again to carry on.',
+    'bereit.titel_an_rest'  => 'You can be called as a guide ({rest}). Clicking ends your availability.',
+
+    'bereit.rest.aus'      => 'not available',
+    'bereit.rest.sekunden' => '{n} s left',
+    'bereit.rest.minuten'  => '{n} min left',
+    'bereit.rest.stunden'  => '{std}:{min} h left',
+
+    // -----------------------------------------------------------------
+    // THE RUNNING TOUR (assets/js/tour.js, assets/js/requests.js)
+    // -----------------------------------------------------------------
+    'fuehrung.beenden'  => 'End tour',
+    'fuehrung.beendet'  => 'Tour ended.',
+
+    'fuehrung.karte.titel'            => 'Running tour',
+    'fuehrung.karte.kunde_unbekannt'  => 'your customer',
+    'fuehrung.karte.lead'             => 'Your tour with {kunde} has not been ended yet.',
+    'fuehrung.karte.lead_titel'       => 'Your tour with {kunde} – {titel} – has not been ended yet.',
+    'fuehrung.karte.hinweis'          => 'Hanging up is not ending: while the tour is open, you and your customer can rejoin.',
+    'fuehrung.karte.hinweis_frist'    => 'Hanging up is not ending: while the tour is open, you and your customer can rejoin – {rest}.',
+    'fuehrung.karte.spaeter'          => 'Later',
+    'fuehrung.karte.fuss'             => 'Only after ending is the tour complete. Your customer can no longer restart it and will be asked for a rating.',
+
+    'fuehrung.beenden_frage.titel' => 'End the tour?',
+    'fuehrung.beenden_frage.text'  => 'After that the tour is complete: neither you nor your customer can rejoin, the start button disappears, and your customer will be asked for a rating. This cannot be undone.',
+    'fuehrung.beenden_frage.knopf' => 'End',
+
+    'fuehrung.rest.unter_minute' => 'less than a minute left',
+    'fuehrung.rest.minuten' => [
+        'one'   => 'about a minute left',
+        'other' => 'about {n} minutes left',
+    ],
+    'fuehrung.rest.stunden' => [
+        'one'   => 'about an hour left',
+        'other' => 'about {n} hours left',
+    ],
 
     // -----------------------------------------------------------------
     // OFFERING AND EDITING A LOCATION
@@ -926,6 +1171,14 @@ return [
     'chat.verlauf.titel'   => 'History',
     'chat.verlauf.zurueck' => 'Back to all chats',
 
+    // The chat windows in the browser (assets/js/chat.js, ui_chat.js,
+    // chat_badge.js).
+    'chat.neue_nachricht'      => 'New message.',
+    'chat.fehler.zu_lang'      => 'Message not sent – it is too long.',
+    'chat.fehler.uebertragung' => 'Message not sent – transmission error.',
+    'chat.fehler.start'        => 'The chat could not be started.',
+    'chat.fehler.weg'          => 'This chat no longer exists.',
+
     // -----------------------------------------------------------------
     // THE CALL
     // -----------------------------------------------------------------
@@ -960,6 +1213,107 @@ return [
     'gespraech.anruf.ton'        => 'Send sound',
     'gespraech.anruf.annehmen'   => 'Accept',
     'gespraech.anruf.ablehnen'   => 'Decline',
+    'gespraech.anruf.medien_noetig' => 'Please select at least audio or video to accept the call.',
+
+    // -----------------------------------------------------------------
+    // WHAT COMES UP DURING A CALL (assets/js/rtc.js, control.js, media.js,
+    // signaling.js)
+    // -----------------------------------------------------------------
+    'gespraech.anruf_mit'      => 'Call with {name}',
+    'gespraech.kein_anruf_hier'=> 'Calling is not available on this page.',
+    'gespraech.tippen'         => 'Please tap the picture once so that audio and video start.',
+    'gespraech.freigeben'      => 'Unlock controls',
+
+    'gespraech.fehler.aufbau_grund'      => 'The call could not be set up: {grund}',
+    'gespraech.fehler.nicht_zugestellt'  => 'The call could not be delivered. Please try again later.',
+    'gespraech.fehler.anruf_weg'         => 'The call is gone.',
+    'gespraech.fehler.nicht_angenommen'  => 'The call was not answered.',
+    'gespraech.fehler.verbindung'        => 'The connection could not be established.',
+    'gespraech.fehler.verbindung_grund'  => 'The connection could not be established: {grund}',
+    'gespraech.fehler.gegenseite_beendet'=> 'The other participant ended the connection.',
+    'gespraech.fehler.partner_beendet'   => 'The connection to the other participant was ended.',
+    'gespraech.fehler.kein_wiederaufbau' => 'The connection to the other participant could not be restored.',
+    'gespraech.fehler.start_keine_medien'=> 'The call could not be started: the other side selected neither audio nor video.',
+    'gespraech.fehler.start_verbindung'  => 'The call could not be started: the connection could not be established.',
+
+    'gespraech.fehler.mikro_an'         => 'The microphone could not be switched on: {grund}',
+    'gespraech.fehler.mikro_aus'        => 'The microphone could not be muted: {grund}',
+    'gespraech.fehler.kamera_an'        => 'The camera could not be switched on: {grund}',
+    'gespraech.fehler.kamera_aus'       => 'The camera could not be switched off: {grund}',
+    'gespraech.fehler.geraet_wechsel'   => 'The device could not be taken over: {grund}',
+    'gespraech.fehler.kein_mikrokanal'  => 'No microphone channel has been negotiated.',
+    'gespraech.fehler.kein_kamerakanal' => 'No channel for the camera was negotiated when the connection was set up.',
+    'gespraech.fehler.kein_geraetekanal'=> 'No channel has been negotiated for this device.',
+
+    'gespraech.hinweis.ohne_eigenen_ton' => 'The call continues without your own audio; the chat stays usable.',
+
+    // The refusals from getUserMedia - ONE WHOLE SENTENCE PER DEVICE.
+    'gespraech.medien.abgelehnt_kamera' => 'Access to the camera was denied. Please allow it in your browser settings and try again.',
+    'gespraech.medien.abgelehnt_mikro'  => 'Access to the microphone was denied. Please allow it in your browser settings and try again.',
+    'gespraech.medien.fehlt_kamera'     => 'No camera was found. Without a camera no picture can be transmitted.',
+    'gespraech.medien.fehlt_mikro'      => 'No microphone was found. Without a microphone no conversation is possible.',
+    'gespraech.medien.belegt_kamera'    => 'The camera cannot be opened. Another program is probably using it.',
+    'gespraech.medien.belegt_mikro'     => 'The microphone cannot be opened. Another program is probably using it.',
+    'gespraech.medien.fehler_kamera'    => 'The camera could not be used: {grund}',
+    'gespraech.medien.fehler_mikro'     => 'The microphone could not be used: {grund}',
+    'gespraech.medien.ohne_bild'        => 'The call continues without video.',
+    'gespraech.medien.ohne_ton'         => 'The call continues without audio; the chat stays usable.',
+
+    // The device list in the call dialogue.
+    'gespraech.geraet.keine_freigabe'      => 'The device cannot be selected yet. Please allow access to camera and microphone and open the device list again.',
+    'gespraech.geraet.kamera_aus_hinweis'  => 'The camera is off. Your choice applies as soon as you switch it on.',
+    'gespraech.geraet.mikro_stumm_hinweis' => 'The microphone is muted. Your choice applies as soon as you switch it on.',
+    'gespraech.geraet.keine_kamera'        => 'No camera found',
+    'gespraech.geraet.kein_mikrofon'       => 'No microphone found',
+    'gespraech.geraet.kamera_nr'           => 'Camera {n}',
+    'gespraech.geraet.mikrofon_nr'         => 'Microphone {n}',
+
+    'gespraech.mikrofon_stumm'  => 'Mute microphone',
+    'gespraech.mikrofon_an'     => 'Unmute microphone',
+    'gespraech.kamera_aus_titel'=> 'Switch camera off',
+    'gespraech.kamera_an'       => 'Switch camera on',
+
+    // The ICE servers.
+    'gespraech.ice.keine_daten'     => 'The connection data could not be loaded.',
+    'gespraech.ice.hinweis'         => 'Note: {text}',
+    'gespraech.ice.kein_turn'       => 'Note: no TURN server is available. The call only works if both sides are on simple networks.',
+    'gespraech.ice.kein_turn_grund' => 'Note: no TURN server is available. The call only works if both sides are on simple networks. ({grund})',
+
+    // The visible connection state.
+    'gespraech.zustand.aufbau'           => 'Connecting',
+    'gespraech.zustand.verbunden'        => 'Connected',
+    'gespraech.zustand.instabil'         => 'Connection unstable',
+    'gespraech.zustand.wieder'           => 'Reconnecting …',
+    'gespraech.zustand.getrennt'         => 'Disconnected',
+    'gespraech.zustand.wiederhergestellt'=> 'Connection restored.',
+
+    // THE DIRECTION INDICATOR shown to the guide. Upper case on purpose: it
+    // fills the screen and is read at a glance while walking.
+    'gespraech.richtung.forward'   => 'FORWARD',
+    'gespraech.richtung.backward'  => 'BACK',
+    'gespraech.richtung.left'      => 'LEFT',
+    'gespraech.richtung.right'     => 'RIGHT',
+    'gespraech.richtung.look_up'   => 'LOOK UP',
+    'gespraech.richtung.look_down' => 'LOOK DOWN',
+
+    // The controls.
+    'gespraech.steuerung.nicht_stabil'        => 'Control command not sent – the connection is not stable right now.',
+    'gespraech.steuerung.uebertragung'        => 'Control command not sent – transmission error.',
+    'gespraech.steuerung.verworfen'           => 'Control command discarded – the connection had dropped.',
+    'gespraech.steuerung.keine_bestaetigung'  => 'No confirmation received for the control command.',
+    'gespraech.steuerung.sperre_fehler'       => 'The lock could not be transmitted.',
+    'gespraech.steuerung.gesperrt'            => 'The guide has locked the controls.',
+    'gespraech.steuerung.gesperrt_grund'      => 'The guide has locked the controls. ({grund})',
+    'gespraech.steuerung.freigegeben'         => 'The guide has unlocked the controls again.',
+
+    // The rejection reasons from the protocol - EACH CARRIES THE WHOLE
+    // MESSAGE.
+    'gespraech.abgelehnt.unstable'  => 'Control command rejected – the connection was not stable.',
+    'gespraech.abgelehnt.locked'    => 'Control command rejected – the guide has locked the controls.',
+    'gespraech.abgelehnt.duplicate' => 'Control command rejected – the command was a repeat.',
+    'gespraech.abgelehnt.no_role'   => 'Control command rejected – the other side does not know its role.',
+    'gespraech.abgelehnt.invalid'   => 'Control command rejected – the command was invalid.',
+    'gespraech.abgelehnt.unbekannt' => 'Control command rejected – the reason is unknown.',
 
     // -----------------------------------------------------------------
     // THE RESULT PAGES

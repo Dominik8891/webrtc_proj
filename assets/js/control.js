@@ -45,24 +45,29 @@ window.webrtcApp.control = {
      * Gehen kurz schaut, der schlechteste Fall.
      */
     DIRECTIONS: {
-        forward:   { arrow: '↑', label: 'VORWÄRTS',     sound: 'move_forward_sound' },
-        backward:  { arrow: '↓', label: 'ZURÜCK',       sound: 'move_back_sound'    },
-        left:      { arrow: '←', label: 'LINKS',        sound: 'turn_left_sound'    },
-        right:     { arrow: '→', label: 'RECHTS',       sound: 'turn_right_sound'   },
-        look_up:   { arrow: '⇑', label: 'BLICK HOCH',   sound: 'look_up_sound'      },
-        look_down: { arrow: '⇓', label: 'BLICK RUNTER', sound: 'look_down_sound'    }
+        forward:   { arrow: '↑', key: 'gespraech.richtung.forward',   sound: 'move_forward_sound' },
+        backward:  { arrow: '↓', key: 'gespraech.richtung.backward',  sound: 'move_back_sound'    },
+        left:      { arrow: '←', key: 'gespraech.richtung.left',      sound: 'turn_left_sound'    },
+        right:     { arrow: '→', key: 'gespraech.richtung.right',     sound: 'turn_right_sound'   },
+        look_up:   { arrow: '⇑', key: 'gespraech.richtung.look_up',   sound: 'look_up_sound'      },
+        look_down: { arrow: '⇓', key: 'gespraech.richtung.look_down', sound: 'look_down_sound'    }
     },
 
     /**
-     * Klartext zu den Ablehnungsgründen aus dem Protokoll, für die Anzeige
-     * beim Zuschauer.
+     * Katalogschluessel zu den Ablehnungsgruenden aus dem Protokoll, fuer die
+     * Anzeige beim Zuschauer.
+     *
+     * JEDER SCHLUESSEL TRAEGT DIE GANZE MELDUNG - "Steuerbefehl abgelehnt"
+     * eingeschlossen. Vorher stand hier nur der Grund und der Aufrufer setzte
+     * "Steuerbefehl abgelehnt – " davor; damit lag die Wortstellung im Code
+     * und nicht im Katalog.
      */
-    REJECT_TEXTS: {
-        unstable:  'Verbindung war nicht stabil.',
-        locked:    'Der Guide hat die Steuerung gesperrt.',
-        duplicate: 'Befehl war eine Wiederholung.',
-        no_role:   'Die Gegenseite kennt ihre Rolle nicht.',
-        invalid:   'Befehl wurde als ungültig abgewiesen.'
+    REJECT_KEYS: {
+        unstable:  'gespraech.abgelehnt.unstable',
+        locked:    'gespraech.abgelehnt.locked',
+        duplicate: 'gespraech.abgelehnt.duplicate',
+        no_role:   'gespraech.abgelehnt.no_role',
+        invalid:   'gespraech.abgelehnt.invalid'
     },
 
     /**
@@ -230,7 +235,7 @@ window.webrtcApp.control = {
             return false;
         }
         if (state.control.locked) {
-            window.webrtcApp.rtc.showSystemNotice('Steuerung ist gesperrt – der Guide hat sie angehalten.');
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t('gespraech.sperre.hinweis'));
             return false;
         }
         // Solange eine Bestätigung aussteht, wird nichts nachgeschoben.
@@ -239,14 +244,14 @@ window.webrtcApp.control = {
         // Verbindungssperre: unverändert aus dem vorherigen Stand übernommen.
         if (!window.webrtcApp.rtc.canSendControlCommand()) {
             window.webrtcApp.rtc.showSystemNotice(
-                'Steuerbefehl nicht gesendet – Verbindung ist gerade nicht stabil.'
+                window.webrtcApp.t('gespraech.steuerung.nicht_stabil')
             );
             return false;
         }
 
         const seq = state.control.nextSeq;
         if (!this.send('move', { dir: direction, seq: seq })) {
-            window.webrtcApp.rtc.showSystemNotice('Steuerbefehl nicht gesendet – Übertragungsfehler.');
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t('gespraech.steuerung.uebertragung'));
             return false;
         }
 
@@ -270,7 +275,7 @@ window.webrtcApp.control = {
             if (state.control.pendingSeq !== seq) return;
             state.control.pendingSeq = null;
             window.webrtcApp.control.updatePadState();
-            window.webrtcApp.rtc.showSystemNotice('Keine Bestätigung für den Steuerbefehl erhalten.');
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t('gespraech.steuerung.keine_bestaetigung'));
         }, this.ACK_TIMEOUT_MS);
     },
 
@@ -300,7 +305,7 @@ window.webrtcApp.control = {
 
         const sent = this.send('control_lock', { locked: !!locked, reason: reason });
         if (!sent) {
-            window.webrtcApp.rtc.showSystemNotice('Sperre konnte nicht übermittelt werden.');
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t('gespraech.steuerung.sperre_fehler'));
             return false;
         }
 
@@ -420,7 +425,7 @@ window.webrtcApp.control = {
         // Anweisung mehr.
         if (!window.webrtcApp.rtc.mayExecuteControlCommand()) {
             this.send('ack', { seq: msg.seq, status: 'rejected', reason: 'unstable' });
-            window.webrtcApp.rtc.showSystemNotice('Steuerbefehl verworfen – Verbindung war unterbrochen.');
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t('gespraech.steuerung.verworfen'));
             return;
         }
 
@@ -463,8 +468,8 @@ window.webrtcApp.control = {
         this.updatePadState();
 
         if (msg.status === 'rejected') {
-            const text = this.REJECT_TEXTS[msg.reason] || 'Grund unbekannt.';
-            window.webrtcApp.rtc.showSystemNotice('Steuerbefehl abgelehnt – ' + text);
+            const schluessel = this.REJECT_KEYS[msg.reason] || 'gespraech.abgelehnt.unbekannt';
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t(schluessel));
         }
     },
 
@@ -481,11 +486,11 @@ window.webrtcApp.control = {
 
         if (!changed) return;
         if (msg.locked) {
-            window.webrtcApp.rtc.showSystemNotice(
-                'Der Guide hat die Steuerung gesperrt.' + (msg.reason ? ' (' + msg.reason + ')' : '')
-            );
+            window.webrtcApp.rtc.showSystemNotice(msg.reason
+                ? window.webrtcApp.t('gespraech.steuerung.gesperrt_grund', { grund: msg.reason })
+                : window.webrtcApp.t('gespraech.steuerung.gesperrt'));
         } else {
-            window.webrtcApp.rtc.showSystemNotice('Der Guide hat die Steuerung wieder freigegeben.');
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t('gespraech.steuerung.freigegeben'));
         }
     },
 
@@ -525,7 +530,7 @@ window.webrtcApp.control = {
         if (!box) return;
 
         if (arrow) arrow.textContent = info.arrow;
-        if (label) label.textContent = info.label;
+        if (label) label.textContent = window.webrtcApp.t(info.key);
 
         // Klasse komplett neu setzen: Ein zweiter Befehl derselben Richtung
         // soll die Einblendung neu starten, nicht nur die Frist verlängern.
@@ -559,7 +564,7 @@ window.webrtcApp.control = {
 
         const btn = document.getElementById('control-lock-btn');
         if (btn) {
-            btn.textContent = locked ? 'Steuerung freigeben' : 'Steuerung sperren';
+            btn.textContent = window.webrtcApp.t(locked ? 'gespraech.freigeben' : 'gespraech.sperren');
             btn.className = 'btn fw-bold control-lock-btn '
                 + (locked ? 'btn-success' : 'btn-warning');
         }

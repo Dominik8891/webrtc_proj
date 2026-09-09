@@ -21,8 +21,12 @@ window.webrtcApp.utils = window.webrtcApp.utils || {};
 window.webrtcApp.utils.showSuccessAlertIfNeeded = function(param, value, message, art) {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get(param) === value) {
-        // Parameter entfernen und URL bereinigen
-        urlParams.delete('success');
+        // Entfernt wird DER GEPRUEFTE Parameter und nicht fest 'success':
+        // Hier stand frueher der feste Name, weil alle Aufrufer bis auf
+        // einen so hiessen. Der eine - 'change' nach dem Passwortwechsel -
+        // blieb dadurch in der Adresse stehen, und ein Neuladen der Seite
+        // meldete die Aenderung ein zweites Mal.
+        urlParams.delete(param);
         const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
         window.history.replaceState({}, document.title, newUrl);
         // Der Hinweis erscheint kurz und verschwindet von selbst.

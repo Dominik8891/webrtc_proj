@@ -138,21 +138,16 @@ window.webrtcApp.availability = {
 
             if (!melden) return;
             if (this.seconds > 0) {
-                window.webrtcApp.notify.success(
-                    'Sie sind jetzt als Guide anrufbar – ' + this.restText() + '.'
-                );
+                window.webrtcApp.notify.success(window.webrtcApp.t(
+                    'bereit.jetzt_anrufbar', { rest: this.restText() }));
             } else {
-                window.webrtcApp.notify.info(
-                    'Bereitschaft beendet. Ihre Standorte sind nicht mehr anrufbar.'
-                );
+                window.webrtcApp.notify.info(window.webrtcApp.t('bereit.beendet'));
             }
         })
         .catch(() => {
             this.busy = false;
             if (melden) {
-                window.webrtcApp.notify.error(
-                    'Die Bereitschaft konnte nicht geändert werden. Bitte erneut versuchen.'
-                );
+                window.webrtcApp.notify.error(window.webrtcApp.t('bereit.fehler'));
             }
         });
     },
@@ -186,10 +181,7 @@ window.webrtcApp.availability = {
         this.seconds = Math.max(0, neu);
 
         if (!gewollt && liefVorher && this.seconds === 0) {
-            window.webrtcApp.notify.info(
-                'Ihre Bereitschaft ist abgelaufen – Sie sind nicht mehr anrufbar. '
-                + 'Zum Weiterführen wieder auf „Bereit“ stellen.'
-            );
+            window.webrtcApp.notify.info(window.webrtcApp.t('bereit.abgelaufen'));
         }
 
         this.render();
@@ -317,12 +309,15 @@ window.webrtcApp.availability = {
         knopf.classList.toggle('app-ready--soon', an && this.seconds <= this.WARN_SECONDS);
         knopf.setAttribute('aria-pressed', an ? 'true' : 'false');
         knopf.setAttribute('data-seconds', String(this.seconds));
+        // Dieselben Schluessel wie in der Kopfleiste des Servers
+        // (App\Helper\ViewHelper) - derselbe Knopf, nur nachgezogen. Der
+        // Titel im eingeschalteten Zustand traegt zusaetzlich die Restzeit
+        // und hat deshalb einen eigenen Schluessel.
         knopf.setAttribute('title', an
-            ? 'Sie sind als Guide anrufbar (' + this.restText()
-              + '). Klicken beendet die Bereitschaft.'
-            : 'Sie sind nicht anrufbar. Klicken stellt Sie auf bereit.');
+            ? window.webrtcApp.t('bereit.titel_an_rest', { rest: this.restText() })
+            : window.webrtcApp.t('kopf.bereit.titel_aus'));
 
-        if (text) text.textContent = an ? 'Bereit' : 'Nicht bereit';
+        if (text) text.textContent = window.webrtcApp.t(an ? 'kopf.bereit.an' : 'kopf.bereit.aus');
 
         // Die Restzeit steht mit einem Trennpunkt am Text, nicht in Klammern:
         // In der schmalen Kopfleiste soll sie wie eine Fortsetzung gelesen
@@ -341,13 +336,18 @@ window.webrtcApp.availability = {
      */
     restText() {
         const s = this.seconds;
-        if (s <= 0)  return 'nicht bereit';
-        if (s < 60)  return 'noch ' + s + ' Sek';
-        if (s < 3600) return 'noch ' + Math.floor(s / 60) + ' Min';
+        if (s <= 0)  return window.webrtcApp.t('bereit.rest.aus');
+        if (s < 60)  return window.webrtcApp.t('bereit.rest.sekunden', { n: s });
+        if (s < 3600) return window.webrtcApp.t('bereit.rest.minuten', { n: Math.floor(s / 60) });
 
         const std = Math.floor(s / 3600);
         const min = Math.floor((s % 3600) / 60);
-        return 'noch ' + std + ':' + String(min).padStart(2, '0') + ' Std';
+        // Stunden und Minuten getrennt, nicht als fertige Uhrzeit: Der
+        // Doppelpunkt ist hier ein Trennzeichen und steht deshalb im
+        // Katalogtext, wo eine Sprache ihn auch anders setzen kann.
+        return window.webrtcApp.t('bereit.rest.stunden', {
+            std: std, min: String(min).padStart(2, '0')
+        });
     }
 };
 

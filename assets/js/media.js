@@ -164,7 +164,7 @@ window.webrtcApp.media = {
         const track = await this.acquireTrack('audio');
         if (!track) {
             window.webrtcApp.rtc.showSystemNotice(
-                'Der Anruf läuft ohne eigenen Ton weiter; der Chat bleibt nutzbar.'
+                window.webrtcApp.t('gespraech.hinweis.ohne_eigenen_ton')
             );
             return;
         }
@@ -173,7 +173,8 @@ window.webrtcApp.media = {
         if (!sender) return;
         try { await sender.replaceTrack(track); }
         catch (e) {
-            window.webrtcApp.notify.error('Das Mikrofon liess sich nicht einschalten: ' + this.errorDetail(e));
+            window.webrtcApp.notify.error(window.webrtcApp.t(
+                'gespraech.fehler.mikro_an', { grund: this.errorDetail(e) }));
             return;
         }
         this.announceStream(sender, window.webrtcApp.refs.localStream, track);
@@ -288,14 +289,15 @@ window.webrtcApp.media = {
 
         const sender = this.senderFor('audio');
         if (!sender) {
-            window.webrtcApp.notify.error('Es ist kein Mikrofonkanal ausgehandelt.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('gespraech.fehler.kein_mikrokanal'));
             return false;
         }
 
         if (!on) {
             try { await sender.replaceTrack(null); }
             catch (e) {
-                window.webrtcApp.notify.error('Das Mikrofon liess sich nicht stummschalten: ' + this.errorDetail(e));
+                window.webrtcApp.notify.error(window.webrtcApp.t(
+                    'gespraech.fehler.mikro_aus', { grund: this.errorDetail(e) }));
                 return false;
             }
             this.updateIcons();
@@ -310,7 +312,8 @@ window.webrtcApp.media = {
         }
         try { await sender.replaceTrack(track); }
         catch (e) {
-            window.webrtcApp.notify.error('Das Mikrofon liess sich nicht einschalten: ' + this.errorDetail(e));
+            window.webrtcApp.notify.error(window.webrtcApp.t(
+                'gespraech.fehler.mikro_an', { grund: this.errorDetail(e) }));
             return false;
         }
         this.announceStream(sender, window.webrtcApp.refs.localStream, track);
@@ -354,7 +357,7 @@ window.webrtcApp.media = {
         const sender = this.senderFor('video');
         if (!sender) {
             window.webrtcApp.notify.error(
-                'Für die Kamera wurde beim Verbindungsaufbau kein Kanal ausgehandelt.'
+                window.webrtcApp.t('gespraech.fehler.kein_kamerakanal')
             );
             return false;
         }
@@ -362,7 +365,8 @@ window.webrtcApp.media = {
         if (!on) {
             try { await sender.replaceTrack(null); }
             catch (e) {
-                window.webrtcApp.notify.error('Die Kamera liess sich nicht abschalten: ' + this.errorDetail(e));
+                window.webrtcApp.notify.error(window.webrtcApp.t(
+                    'gespraech.fehler.kamera_aus', { grund: this.errorDetail(e) }));
                 return false;
             }
             this.releaseLocalTracks('video');
@@ -380,7 +384,8 @@ window.webrtcApp.media = {
             // Die eben geholte Spur nicht offen liegen lassen.
             try { track.stop(); } catch (e2) {}
             this.removeFromLocalStream(track);
-            window.webrtcApp.notify.error('Die Kamera liess sich nicht einschalten: ' + this.errorDetail(e));
+            window.webrtcApp.notify.error(window.webrtcApp.t(
+                'gespraech.fehler.kamera_an', { grund: this.errorDetail(e) }));
             return false;
         }
 
@@ -422,8 +427,7 @@ window.webrtcApp.media = {
             // liefert enumerateDevices() leere Kennungen. Frueher brach die
             // Funktion hier still ab - der Wechsel "tat einfach nichts".
             window.webrtcApp.notify.error(
-                'Das Gerät lässt sich noch nicht auswählen. Bitte erlauben Sie den Zugriff '
-                + 'auf Kamera und Mikrofon und öffnen Sie die Geräteliste erneut.'
+                window.webrtcApp.t('gespraech.geraet.keine_freigabe')
             );
             return false;
         }
@@ -435,16 +439,16 @@ window.webrtcApp.media = {
         // Ausgeschaltet: Wahl gemerkt, mehr nicht.
         if (!this.isSending(kind)) {
             window.webrtcApp.notify.info(
-                kind === 'video'
-                    ? 'Die Kamera ist aus. Die Auswahl gilt, sobald Sie sie einschalten.'
-                    : 'Das Mikrofon ist stumm. Die Auswahl gilt, sobald Sie es einschalten.'
+                window.webrtcApp.t(kind === 'video'
+                    ? 'gespraech.geraet.kamera_aus_hinweis'
+                    : 'gespraech.geraet.mikro_stumm_hinweis')
             );
             return false;
         }
 
         const sender = this.senderFor(kind);
         if (!sender) {
-            window.webrtcApp.notify.error('Für dieses Gerät ist kein Kanal ausgehandelt.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('gespraech.fehler.kein_geraetekanal'));
             return false;
         }
 
@@ -457,7 +461,8 @@ window.webrtcApp.media = {
         } catch (e) {
             try { neu.stop(); } catch (e2) {}
             this.removeFromLocalStream(neu);
-            window.webrtcApp.notify.error('Das Gerät liess sich nicht übernehmen: ' + this.errorDetail(e));
+            window.webrtcApp.notify.error(window.webrtcApp.t(
+                'gespraech.fehler.geraet_wechsel', { grund: this.errorDetail(e) }));
             return false;
         }
 
@@ -619,20 +624,32 @@ window.webrtcApp.media = {
         }
 
         this.fillSelects(['camera-select', 'camera-select-in-call'],
-            devices.filter(d => d.kind === 'videoinput'), 'Kamera', 'video');
+            devices.filter(d => d.kind === 'videoinput'), 'video');
         this.fillSelects(['mic-select', 'mic-select-in-call'],
-            devices.filter(d => d.kind === 'audioinput'), 'Mikrofon', 'audio');
+            devices.filter(d => d.kind === 'audioinput'), 'audio');
     },
 
     /**
      * Schreibt eine Geraeteliste in mehrere Auswahlfelder.
      *
+     * DIE BEZEICHNUNG KOMMT NICHT MEHR ALS WORT HEREIN. Vorher stand hier
+     * "(Kein " + bezeichnung + " gefunden)" - im Deutschen schon falsch
+     * ("Kein Kamera"), und in jeder anderen Sprache waere es der Anfang
+     * einer eigenen Grammatik. Jetzt entscheidet die Art des Geraets ueber
+     * den SCHLUESSEL, und der ganze Satz steht im Katalog.
+     *
      * @param {string[]} ids - IDs der Auswahlfelder
      * @param {Array} devices - Eintraege aus enumerateDevices()
-     * @param {string} bezeichnung - "Kamera" oder "Mikrofon"
      * @param {string} kind - 'audio' oder 'video'
      */
-    fillSelects(ids, devices, bezeichnung, kind) {
+    fillSelects(ids, devices, kind) {
+        const leerSchluessel = kind === 'video'
+            ? 'gespraech.geraet.keine_kamera'
+            : 'gespraech.geraet.kein_mikrofon';
+        const nrSchluessel = kind === 'video'
+            ? 'gespraech.geraet.kamera_nr'
+            : 'gespraech.geraet.mikrofon_nr';
+
         const aktiv = this.activeDeviceId(kind);
         const gemerkt = (kind === 'video')
             ? window.webrtcApp.state.media.videoDeviceId
@@ -648,7 +665,7 @@ window.webrtcApp.media = {
 
             if (devices.length === 0) {
                 const leer = document.createElement('option');
-                leer.text = '(Kein ' + bezeichnung + ' gefunden)';
+                leer.text = window.webrtcApp.t(leerSchluessel);
                 leer.disabled = true;
                 sel.appendChild(leer);
                 return;
@@ -658,7 +675,7 @@ window.webrtcApp.media = {
                 const option = document.createElement('option');
                 option.value = device.deviceId;
                 // Ohne Freigabe ist das Label leer - dann eine Nummer.
-                option.text = device.label || (bezeichnung + ' ' + (i + 1));
+                option.text = device.label || window.webrtcApp.t(nrSchluessel, { n: i + 1 });
                 sel.appendChild(option);
             });
 
@@ -721,7 +738,8 @@ window.webrtcApp.media = {
         if (micIcon) micIcon.src = mic ? 'assets/img/mic.png' : 'assets/img/mic-off.png';
         const micBtn = document.getElementById('switch-mic-btn');
         if (micBtn) {
-            micBtn.title = mic ? 'Mikrofon stummschalten' : 'Mikrofon einschalten';
+            micBtn.title = window.webrtcApp.t(mic
+                ? 'gespraech.mikrofon_stumm' : 'gespraech.mikrofon_an');
             if (micBtn.setAttribute) micBtn.setAttribute('aria-pressed', mic ? 'false' : 'true');
         }
 
@@ -729,7 +747,8 @@ window.webrtcApp.media = {
         if (camIcon) camIcon.src = cam ? 'assets/img/camera.png' : 'assets/img/camera-off.png';
         const camBtn = document.getElementById('switch-cam-btn');
         if (camBtn) {
-            camBtn.title = cam ? 'Kamera ausschalten' : 'Kamera einschalten';
+            camBtn.title = window.webrtcApp.t(cam
+                ? 'gespraech.kamera_aus_titel' : 'gespraech.kamera_an');
             if (camBtn.setAttribute) camBtn.setAttribute('aria-pressed', cam ? 'false' : 'true');
         }
 
@@ -757,8 +776,9 @@ window.webrtcApp.media = {
      * @returns {string}
      */
     errorDetail(e) {
-        if (!e) return 'unbekannter Fehler';
-        return e.message || e.name || 'unbekannter Fehler';
+        const unbekannt = window.webrtcApp.t('allgemein.unbekannter_fehler');
+        if (!e) return unbekannt;
+        return e.message || e.name || unbekannt;
     },
 
     /**

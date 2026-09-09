@@ -81,7 +81,7 @@ window.webrtcApp.init = function() {
             // benachrichtigt - wegen eines vergessenen Hakens.
             if (!useVideo && !useAudio) {
                 window.webrtcApp.notify.error(
-                    'Bitte mindestens Ton oder Video auswählen, um den Anruf anzunehmen.'
+                    window.webrtcApp.t('gespraech.anruf.medien_noetig')
                 );
                 return;
             }
@@ -327,32 +327,31 @@ window.addEventListener('DOMContentLoaded', function() {
             window.webrtcApp.signaling.sendHeartbeat(window.webrtcApp.state.isCallActive);
         });
     }
-    // DIE ABLEHNUNGEN DES STANDORTFORMULARS.
+    // HIER STANDEN DIE ABLEHNUNGEN DES STANDORTFORMULARS.
     //
-    // Sie kommen als Nummer in der Adresse zurueck, weil das Formular nach
-    // Post/Redirect/Get antwortet - der POST-Rumpf ist dabei weg, und eine
-    // Meldung im Rumpf waere es auch. Die Nummern vergibt
-    // App\Controller\LocationController::pruefeInhalt(); wer dort eine
-    // Pruefung ergaenzt, ergaenzt hier den Satz dazu.
+    // Sie kamen als Nummer in der Adresse zurueck (success=0, 2, 3, 4, 6, 7),
+    // und diese Datei fuehrte zu jeder Nummer einen eigenen Satz. Dieselbe
+    // Pruefung antwortete damit auf zwei Wegen verschieden: Beim BEARBEITEN
+    // schickte App\Controller\LocationController::pruefeInhalt() ihren
+    // Klartext mit ("Der Titel muss mindestens 3 Zeichen lang sein"), beim
+    // ANLEGEN nur den Code - und hier stand dann "Bitte einen Titel
+    // angeben". Zwei Meldungen zu einer Regel, von denen nur eine im
+    // Sprachkatalog stand.
     //
-    // Ein "Standort gespeichert" steht hier NICHT mehr: Nach dem Speichern
-    // fuehrt der Weg auf die Standortseite, und die sagt es selbst - auch
-    // ohne JavaScript (LocationController::hinweisHtml).
+    // Jetzt liefert der Server auch beim Anlegen den fertigen Satz
+    // (?fehler=<Text>), und das Formular zeigt ihn ueber sich an - ohne
+    // JavaScript, so wie die Standortseite es beim Bearbeiten schon tat.
     //
-    // OHNE ZAHLEN. Die Grenzen stehen in den Konstanten des Controllers und
-    // gehen von dort an die Felder des Formulars (maxlength, min, max). Eine
-    // Zahl in diesem Satz waere eine zweite Fassung derselben Regel - und die
-    // Meldung waere die erste, die beim Aendern vergessen wird.
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '0', 'Nicht gespeichert: Die Kurzbeschreibung ist zu kurz oder zu lang.', 'error');
-    // success=2: die Koordinaten fehlten oder lagen ausserhalb des gueltigen
-    // Bereichs (siehe LocationController::setLocation).
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '2', 'Nicht gespeichert: Bitte den Standort auf der Karte auswählen.', 'error');
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '3', 'Nicht gespeichert: Bitte einen Titel angeben.', 'error');
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '4', 'Der Standort konnte nicht gespeichert werden.', 'error');
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '6', 'Nicht gespeichert: Die ausführliche Beschreibung ist zu lang.', 'error');
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '7', 'Nicht gespeichert: Die angegebene Dauer liegt außerhalb des erlaubten Bereichs.', 'error');
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('success', '5', 'Registrierung erfolgreich.');
-    window.webrtcApp.utils.showSuccessAlertIfNeeded('change', '1', 'Passwort geändert.');
+    // MIT success=5 ist zugleich ein Text entfallen, den niemand mehr
+    // ausloest: Nach einer Registrierung fuehrt der Weg auf eine eigene
+    // Ergebnisseite (ergebnis.registriert.*), und kein Controller schickt
+    // diese Nummer noch.
+    //
+    // Geblieben ist die Rueckmeldung nach dem Passwortwechsel. Sie kommt
+    // aus App\Controller\PasswordController als blosse Marke, nicht als
+    // Text - der Satz dazu steht im Katalog.
+    window.webrtcApp.utils.showSuccessAlertIfNeeded(
+        'change', '1', window.webrtcApp.t('passwort.geaendert'));
     // Hier stand ein Aufruf von ui.expandPanelForWideTableIfNeeded(): Er hat
     // auf breiten Seiten dem Inhaltsbereich und allen Karten darin ihre
     // Bootstrap-Klassen wieder abgenommen, weil zwei weisse Kaesten

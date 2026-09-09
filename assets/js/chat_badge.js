@@ -79,7 +79,7 @@ window.webrtcApp.chatBadge = {
         this.render();
 
         if (mehr && !this.fensterOffen()) {
-            window.webrtcApp.notify.info('Neue Nachricht.');
+            window.webrtcApp.notify.info(window.webrtcApp.t('chat.neue_nachricht'));
             this.ton();
         }
     },
@@ -128,9 +128,12 @@ window.webrtcApp.chatBadge = {
 
         knopf.setAttribute('data-unread', String(offen));
         knopf.classList.toggle('app-chats--on', offen > 0);
+        // Derselbe Schluessel wie in der Kopfleiste des Servers
+        // (App\Helper\ViewHelper): Es ist derselbe Knopf mit derselben
+        // Zahl - nur eine Sekunde spaeter.
         knopf.setAttribute('title', offen > 0
-            ? offen + ' ungelesene Nachricht(en)'
-            : 'Ihre Nachrichten');
+            ? window.webrtcApp.plural('kopf.nachrichten.ungelesen', offen)
+            : window.webrtcApp.t('kopf.nachrichten.titel'));
 
         const zahl = document.getElementById('chats-count');
         if (zahl) {

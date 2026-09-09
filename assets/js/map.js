@@ -69,6 +69,16 @@ window.webrtcApp.locationMap = {
     NOMINATIM_TAKT: 1000,
 
     /**
+     * Ab wie vielen Buchstaben die Staedtesuche losgeht.
+     *
+     * Steht hier und nicht nur als Ziffer in der select2-Einstellung, weil
+     * die Zahl auch im Hinweistext vorkommt ("Bitte mindestens 3 Buchstaben
+     * eingeben"). Zwei Ziffern fuer dieselbe Regel liefen beim naechsten
+     * Aendern auseinander.
+     */
+    STADT_MIN_ZEICHEN: 3,
+
+    /**
      * Wie viele Suchergebnisse gemerkt werden.
      *
      * Genug fuer das Tippen an einem Formular - wer eine Stadt sucht,
@@ -170,12 +180,7 @@ window.webrtcApp.locationMap = {
         // Stadtfeld waeren dann funktionslos, ohne dass der Nutzer erfaehrt
         // warum. Deshalb vorher pruefen und sauber abbrechen.
         if (!$.fn || typeof $.fn.select2 !== 'function') {
-            this.zeigeHinweis(
-                'Die Auswahlfelder konnten nicht geladen werden, weil eine ' +
-                'benötigte Bibliothek (select2) fehlt. Bitte die Seite neu ' +
-                'laden. Besteht das Problem weiter, ist vermutlich die ' +
-                'Internetverbindung oder ein Werbeblocker die Ursache.'
-            );
+            this.zeigeHinweis(window.webrtcApp.t('standort.karte.select2_fehlt'));
             return;
         }
 
@@ -189,11 +194,13 @@ window.webrtcApp.locationMap = {
         // kommen spaeter, wenn die Laenderliste da ist (loadCountries).
         this.stelleKoordinatenWiederHer();
 
-        // Erfolgsmeldung nach Save
-        const urlParams = new URLSearchParams(window.location.search);
-        if(urlParams.get('success') === '1'){
-            window.webrtcApp.notify.success('Standort gespeichert.');
-        }
+        // HIER STAND EINE ERFOLGSMELDUNG auf success=1. Sie kam nie an:
+        // Kein Controller schickt diese Nummer noch. Nach dem Speichern
+        // fuehrt der Weg auf die Standortseite, und die meldet es selbst
+        // (App\Controller\LocationController::setLocation) - auch ohne
+        // JavaScript. Die ABLEHNUNG steht seit derselben Aenderung ebenfalls
+        // dort, wo sie hingehoert: als fertiger Satz vom Server ueber dem
+        // Formular (?fehler=), nicht als Nummer, die diese Datei uebersetzt.
     },
 
     /**
@@ -257,7 +264,10 @@ window.webrtcApp.locationMap = {
                     throw new Error('Unerwartetes Antwortformat');
                 }
 
-                $('#countrySelect').empty().append('<option value="">Land wählen...</option>');
+                // Dieselbe Beschriftung wie im Formular selbst und wie im
+                // select2 weiter unten - ein Text, drei Stellen.
+                $('#countrySelect').empty().append('<option value=""></option>')
+                    .find('option').text(window.webrtcApp.t('standort.formular.land_waehlen'));
                 const filteredCountries = data
                     .filter(country => country.iso2 && this.allowedCountryCodes.includes(country.iso2.toUpperCase()))
                     .sort((a, b) => a.country_name.localeCompare(b.country_name));
@@ -267,11 +277,7 @@ window.webrtcApp.locationMap = {
                 // Spalte iso2 fehlt (siehe migrations/003 und 004). Ohne Land
                 // laesst sich auch keine Stadt suchen, deshalb hier melden.
                 if (filteredCountries.length === 0) {
-                    this.zeigeHinweis(
-                        'Es konnten keine Länder geladen werden. Ohne Land ist ' +
-                        'keine Städtesuche möglich. Bitte an den Administrator ' +
-                        'wenden - die Länderdaten fehlen in der Datenbank.'
-                    );
+                    this.zeigeHinweis(window.webrtcApp.t('standort.karte.laender_leer'));
                 }
 
                 filteredCountries.forEach(country => {
@@ -296,7 +302,10 @@ window.webrtcApp.locationMap = {
                 });
 
                 $('#countrySelect').select2({
-                    placeholder: "Land wählen...",
+                    // Derselbe Schluessel, den auch das Formular selbst
+                    // benutzt (assets/html/set_location.html) - es ist
+                    // dasselbe leere Feld, nur von select2 gezeichnet.
+                    placeholder: window.webrtcApp.t('standort.formular.land_waehlen'),
                     allowClear: true,
                     templateResult: this.formatCountryOption,
                     templateSelection: this.formatCountryOption
@@ -311,11 +320,7 @@ window.webrtcApp.locationMap = {
                 // wortlos leer: die Promise-Kette brach ab, select2 wurde nie
                 // initialisiert, und der Nutzer sah ein totes Feld.
                 console.error('Länder konnten nicht geladen werden:', fehler);
-                this.zeigeHinweis(
-                    'Die Länderliste konnte nicht geladen werden. Bitte die ' +
-                    'Seite neu laden. Besteht das Problem weiter, ist der ' +
-                    'Server nicht erreichbar oder die Datenbank nicht verfügbar.'
-                );
+                this.zeigeHinweis(window.webrtcApp.t('standort.karte.laender_fehler'));
             });
     },
 
@@ -446,11 +451,7 @@ window.webrtcApp.locationMap = {
         }
 
         e.preventDefault();
-        this.zeigeHinweis(
-            'Es fehlt der Punkt auf der Karte. Bitte in die Karte klicken, ' +
-            'eine Stadt wählen oder "Aktuellen Standort verwenden" - erst ' +
-            'dann lässt sich der Standort speichern.'
-        );
+        this.zeigeHinweis(window.webrtcApp.t('standort.karte.punkt_fehlt'));
 
         // Der Hinweis steht oben im Formular, die Karte weiter unten. Ohne
         // das Scrollen sieht der Nutzer je nach Fenstergroesse weder das eine
@@ -527,7 +528,7 @@ window.webrtcApp.locationMap = {
                 if (data[0] && data[0].lat && data[0].lon) {
                     this.map.setView([data[0].lat, data[0].lon], 6);
                 } else {
-                    window.webrtcApp.notify.error('Für dieses Land steht keine Kartenansicht zur Verfügung.');
+                    window.webrtcApp.notify.error(window.webrtcApp.t('standort.karte.keine_ansicht'));
                     $('#countrySelect').val('').trigger('change');
                 }
             });
@@ -655,9 +656,9 @@ window.webrtcApp.locationMap = {
     initCitySelect2() {
         let self = this;
         $('#citySelect').select2({
-            placeholder: "Stadt wählen...",
+            placeholder: window.webrtcApp.t('standort.formular.stadt_waehlen'),
             allowClear: true,
-            minimumInputLength: 3,
+            minimumInputLength: self.STADT_MIN_ZEICHEN,
             ajax: {
                 // EINE SEKUNDE, UND DAS IST KEINE BEQUEMLICHKEIT.
                 // Die Nutzungsregeln von Nominatim nennen ein absolutes
@@ -726,8 +727,12 @@ window.webrtcApp.locationMap = {
             },
             templateResult: city => city.text,
             templateSelection: city => city.text,
+            // DER SPRACHBLOCK VON select2 - im Katalog wie jeder andere
+            // Text. Die Zahl kommt aus minimumInputLength daneben und steht
+            // deshalb als Platzhalter im Satz und nicht als Ziffer darin.
             language: {
-                inputTooShort: () => 'Bitte mindestens 3 Buchstaben eingeben.',
+                inputTooShort: () => window.webrtcApp.t(
+                    'stadtsuche.zu_kurz', { n: self.STADT_MIN_ZEICHEN }),
                 // Ohne diese Zeile zeigt select2 sein englisches
                 // "No results found" - irrefuehrend, weil die Suche ohne
                 // ausgewaehltes Land gar nicht erst losgeschickt wird
@@ -735,9 +740,9 @@ window.webrtcApp.locationMap = {
                 // unterscheiden.
                 noResults: () => {
                     const iso2 = $('#countrySelect option:selected').data('iso2');
-                    return iso2
-                        ? 'Keine Stadt gefunden.'
-                        : 'Bitte zuerst ein Land wählen.';
+                    return window.webrtcApp.t(iso2
+                        ? 'stadtsuche.keine_stadt'
+                        : 'stadtsuche.land_zuerst');
                 },
                 // Ohne diese Zeile stand hier select2s englisches "The
                 // results could not be loaded." - und eine gescheiterte
@@ -746,8 +751,7 @@ window.webrtcApp.locationMap = {
                 // die Stadt nicht, bei der anderen weiss die Anwendung es
                 // nicht. Der Hinweis auf das Warten steht dabei, weil die
                 // haeufigste Ursache die Sperre wegen zu vieler Anfragen ist.
-                errorLoading: () => 'Die Städtesuche ist gerade nicht erreichbar. '
-                    + 'Bitte einen Moment warten und noch einmal tippen.'
+                errorLoading: () => window.webrtcApp.t('stadtsuche.nicht_erreichbar')
             }
         });
 
@@ -821,7 +825,9 @@ window.webrtcApp.locationMap = {
         const $stadt = $('#citySelect');
         if (!$stadt.length) return;
 
-        const text = aktiv ? 'Stadt wählen...' : 'Bitte zuerst ein Land wählen';
+        const text = window.webrtcApp.t(aktiv
+            ? 'standort.formular.stadt_waehlen'
+            : 'standort.karte.land_zuerst');
 
         // Erst den Sperrzustand setzen und select2 neu zeichnen lassen ...
         $stadt.prop('disabled', !aktiv).trigger('change.select2');
@@ -1113,7 +1119,7 @@ window.webrtcApp.locationMap = {
                         data.address.hamlet || data.address.municipality || data.address.suburb || data.address.county || '';
                 }
                 if (!place) {
-                    place = 'keine Stadt am Standort';
+                    place = window.webrtcApp.t('standort.karte.keine_stadt_am_ort');
                 }
 
                 // Stadt im Select2 wählen
@@ -1129,7 +1135,7 @@ window.webrtcApp.locationMap = {
      */
     onCurrentLocation() {
         if (!navigator.geolocation) {
-            window.webrtcApp.notify.error('Ihr Browser unterstützt keine Standortbestimmung.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('standort.karte.keine_ortung'));
             return;
         }
         navigator.geolocation.getCurrentPosition((pos) => {
@@ -1144,7 +1150,7 @@ window.webrtcApp.locationMap = {
                             data.address.hamlet || data.address.municipality || data.address.suburb || data.address.county || '';
                     }
                     if (!found) {
-                        found = 'keine Stadt am Standort';
+                        found = window.webrtcApp.t('standort.karte.keine_stadt_am_ort');
                     }
                     if ($('#countrySelect').length && data.address) {
                         this.landAusKoordinatenSetzen(data.address.country_code);
@@ -1174,7 +1180,8 @@ window.webrtcApp.locationMap = {
                     }
                 });
         }, function (err) {
-            window.webrtcApp.notify.error('Standort konnte nicht ermittelt werden: ' + err.message);
+            window.webrtcApp.notify.error(window.webrtcApp.t(
+                'standort.karte.ortung_fehler', { grund: err.message }));
         });
     }
 };

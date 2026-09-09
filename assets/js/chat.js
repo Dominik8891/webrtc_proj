@@ -109,7 +109,7 @@ window.webrtcApp.chat = {
         // (protocol.MAX_CHAT_TEXT), also hier gar nicht erst absenden.
         const raw = window.webrtcApp.protocol.serialize('chat', { text: String(msg) });
         if (raw === null) {
-            window.webrtcApp.rtc.showSystemNotice("Nachricht nicht gesendet – sie ist zu lang.");
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t('chat.fehler.zu_lang'));
             return false;
         }
 
@@ -117,7 +117,7 @@ window.webrtcApp.chat = {
             dc.send(raw);
         } catch (e) {
             console.warn("Chatnachricht konnte nicht gesendet werden:", e);
-            window.webrtcApp.rtc.showSystemNotice("Nachricht nicht gesendet – Übertragungsfehler.");
+            window.webrtcApp.rtc.showSystemNotice(window.webrtcApp.t('chat.fehler.uebertragung'));
             return false;
         }
         this.appendMsg("self", msg);

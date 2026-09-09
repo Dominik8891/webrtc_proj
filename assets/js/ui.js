@@ -41,13 +41,13 @@ window.webrtcApp.ui = {
         let target = '';
         if (window.isLoggedIn && window.userCan) {
             if (window.userCan.termsOutdated) {
-                text = 'Neue Bedingungen bestätigen';
+                text = window.webrtcApp.t('kopf.knopf.bedingungen');
                 target = 'index.php?act=guide_role_page';
             } else if (window.userCan.offerLocation) {
-                text = 'Neue Lokation hinzufügen';
+                text = window.webrtcApp.t('kopf.knopf.standort_neu');
                 target = 'index.php?act=set_location_page';
             } else if (window.userCan.becomeGuide) {
-                text = 'Jetzt Tour-Guide werden!';
+                text = window.webrtcApp.t('kopf.knopf.guide_werden');
                 target = 'index.php?act=guide_role_page';
             }
             if (text) {
@@ -69,7 +69,10 @@ window.webrtcApp.ui = {
         var browseLocationButtonDiv = document.getElementById('browse-locations-button');
         browseLocationButtonDiv.innerHTML = '';
         if (window.isLoggedIn) {
-            browseLocationButtonDiv.innerHTML = `<a href="index.php?act=show_locations_page" class="btn btn-secondary btn-sm">Alle Standorte</a>`;
+            // Der Text kommt aus dem Katalog, das Markup bleibt hier - im
+            // Katalog steht kein HTML (siehe lang/de.php, Regel 5).
+            const beschriftung = window.webrtcApp.t('kopf.knopf.alle_standorte');
+            browseLocationButtonDiv.innerHTML = `<a href="index.php?act=show_locations_page" class="btn btn-secondary btn-sm">${beschriftung}</a>`;
             browseLocationButtonDiv.style.display = '';
         } else {
             browseLocationButtonDiv.style.display = 'none';
@@ -87,9 +90,9 @@ window.webrtcApp.ui = {
      */
     confirmDelete: function(in_url) {
         window.webrtcApp.notify.confirm({
-            title: 'Datensatz löschen?',
-            text: 'Das lässt sich nicht rückgängig machen.',
-            confirmText: 'Löschen',
+            title: window.webrtcApp.t('dialog.loeschen.titel'),
+            text: window.webrtcApp.t('dialog.loeschen.text'),
+            confirmText: window.webrtcApp.t('allgemein.loeschen'),
             danger: true
         }).then(ja => {
             if (ja) window.location.href = in_url;
@@ -150,9 +153,9 @@ window.webrtcApp.ui = {
 
             e.preventDefault();
             window.webrtcApp.notify.confirm({
-                title:       form.getAttribute('data-confirm-title') || 'Sind Sie sicher?',
+                title:       form.getAttribute('data-confirm-title') || window.webrtcApp.t('dialog.sicher'),
                 text:        text,
-                confirmText: form.getAttribute('data-confirm-ok') || 'Ja',
+                confirmText: form.getAttribute('data-confirm-ok') || window.webrtcApp.t('dialog.ja'),
                 danger:      form.hasAttribute('data-confirm-danger')
             }).then(ja => {
                 if (!ja) return;

@@ -86,21 +86,22 @@ window.webrtcApp.admin = {
 
         const titel = knopf.getAttribute('data-title') || ('#' + id);
 
+        // DER TITEL GEHT ALS PLATZHALTER IN DEN SATZ und wird nicht davor
+        // geklebt. Auch die Anfuehrungszeichen stehen im Katalogtext: „…“ ist
+        // die deutsche Form, andere Sprachen setzen andere Zeichen.
         window.webrtcApp.notify.prompt({
-            title: 'Standort sperren',
-            text: '„' + titel + '“ verschwindet aus Karte und Liste. Der Guide '
-                + 'bekommt diesen Text in seiner Standortliste zu sehen. '
-                + 'Gelöscht wird nichts.',
-            label: 'Grund',
-            placeholder: 'Warum wird gesperrt?',
+            title: window.webrtcApp.t('verwaltung.sperre.titel'),
+            text: window.webrtcApp.t('verwaltung.sperre.text', { titel: titel }),
+            label: window.webrtcApp.t('verwaltung.sperre.grund'),
+            placeholder: window.webrtcApp.t('verwaltung.sperre.platzhalter'),
             required: true,
-            requiredText: 'Ohne Grund ist die Sperre für den Guide nicht nachvollziehbar.',
-            confirmText: 'Sperren',
+            requiredText: window.webrtcApp.t('verwaltung.sperre.pflicht'),
+            confirmText: window.webrtcApp.t('verwaltung.sperren'),
             multiline: true
         }).then(grund => {
             if (grund === null) return;           // abgebrochen
             this.schicke('index.php?act=block_location', { id: id, reason: grund },
-                         'Gesperrt.', false);
+                         window.webrtcApp.t('verwaltung.sperre.erledigt'), false);
         });
     },
 
@@ -116,12 +117,13 @@ window.webrtcApp.admin = {
         const titel = knopf.getAttribute('data-title') || ('#' + id);
 
         window.webrtcApp.notify.confirm({
-            title: 'Sperre aufheben?',
-            text: '„' + titel + '“ erscheint danach wieder auf der Karte und in der Liste.',
-            confirmText: 'Freigeben'
+            title: window.webrtcApp.t('verwaltung.freigabe.titel'),
+            text: window.webrtcApp.t('verwaltung.freigabe.text', { titel: titel }),
+            confirmText: window.webrtcApp.t('verwaltung.freigeben')
         }).then(ja => {
             if (!ja) return;
-            this.schicke('index.php?act=unblock_location', { id: id }, 'Freigegeben.', false);
+            this.schicke('index.php?act=unblock_location', { id: id },
+                         window.webrtcApp.t('verwaltung.freigabe.erledigt'), false);
         });
     },
 
@@ -143,16 +145,14 @@ window.webrtcApp.admin = {
         if (!id || this.busy) return;
 
         window.webrtcApp.notify.confirm({
-            title: 'Bewertung entfernen?',
-            text: 'Die Bewertung verschwindet von der Standortseite und vom Profil des '
-                + 'Guides und zählt nicht mehr im Durchschnitt. Gelöscht wird sie nicht – '
-                + 'sie bleibt hier nachvollziehbar stehen. Der Kunde kann diese Führung '
-                + 'danach nicht erneut bewerten.',
-            confirmText: 'Entfernen',
+            title: window.webrtcApp.t('verwaltung.bewertung_weg.titel'),
+            text: window.webrtcApp.t('verwaltung.bewertung_weg.text'),
+            confirmText: window.webrtcApp.t('verwaltung.bewertungen.entfernen'),
             danger: true
         }).then(ja => {
             if (!ja) return;
-            this.schicke('index.php?act=review_remove', { id: id }, 'Entfernt.', true);
+            this.schicke('index.php?act=review_remove', { id: id },
+                         window.webrtcApp.t('verwaltung.bewertung_weg.erledigt'), true);
         });
     },
 
@@ -196,7 +196,7 @@ window.webrtcApp.admin = {
             this.busy = false;
             if (!antwort || !antwort.success) {
                 window.webrtcApp.notify.error(
-                    (antwort && antwort.error) || 'Das hat nicht geklappt.'
+                    (antwort && antwort.error) || window.webrtcApp.t('allgemein.nicht_geklappt')
                 );
                 return;
             }
@@ -207,7 +207,7 @@ window.webrtcApp.admin = {
         })
         .catch(() => {
             this.busy = false;
-            window.webrtcApp.notify.error('Keine Verbindung. Bitte erneut versuchen.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('allgemein.keine_verbindung'));
         });
     },
 };

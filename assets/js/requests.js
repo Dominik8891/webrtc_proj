@@ -128,11 +128,11 @@ window.webrtcApp.requests = {
         }
 
         if (mehrEingehend) {
-            window.webrtcApp.notify.info('Neue Anfrage für eine Ihrer Führungen.');
+            window.webrtcApp.notify.info(window.webrtcApp.t('anfrage.neu'));
             this.ton();
         }
         if (mehrZusagen) {
-            window.webrtcApp.notify.success('Ihre Anfrage wurde angenommen.');
+            window.webrtcApp.notify.success(window.webrtcApp.t('anfrage.angenommen'));
             this.ton();
         }
     },
@@ -176,11 +176,17 @@ window.webrtcApp.requests = {
         knopf.setAttribute('data-running',  String(offen));
         knopf.classList.toggle('app-requests--on', summe > 0);
 
+        // DIESELBEN SCHLUESSEL WIE IN DER KOPFLEISTE DES SERVERS
+        // (App\Helper\ViewHelper): Es ist derselbe Knopf mit denselben
+        // Zahlen, nur nachgezogen. Und es sind Formen und keine
+        // Klammerloesung mehr - "Anfrage(n)" gibt es im Englischen nicht.
         const teile = [];
-        if (ein > 0)   teile.push(ein + ' Anfrage(n) warten auf Ihre Antwort');
-        if (aus > 0)   teile.push(aus + ' Ihrer Anfragen wurde(n) angenommen');
-        if (offen > 0) teile.push(offen + ' Führung(en) sind noch nicht beendet');
-        knopf.setAttribute('title', teile.length ? teile.join(', ') : 'Ihre Anfragen');
+        if (ein > 0)   teile.push(window.webrtcApp.plural('kopf.anfragen.eingehend', ein));
+        if (aus > 0)   teile.push(window.webrtcApp.plural('kopf.anfragen.ausgehend', aus));
+        if (offen > 0) teile.push(window.webrtcApp.plural('kopf.anfragen.laufend', offen));
+        knopf.setAttribute('title', teile.length
+            ? teile.join(', ')
+            : window.webrtcApp.t('kopf.anfragen.titel'));
 
         const zahl = document.getElementById('requests-count');
         if (zahl) {
@@ -269,7 +275,7 @@ window.webrtcApp.requests = {
     zeileHtml(z, eingehend) {
         const zustand = String(z.status || '');
         const titel   = this.titelVon(z);
-        const wer     = z.partner_name ? this.esc(z.partner_name) : 'Unbekannt';
+        const wer     = this.esc(z.partner_name || window.webrtcApp.t('anfrage.partner_unbekannt'));
 
         // LAEUFT NOCH: begonnen und nicht beendet. Der Server rechnet das aus
         // (App\Model\TourRequest::runningSql) - hier wird es nur gezeigt. Die
@@ -283,12 +289,16 @@ window.webrtcApp.requests = {
              +   '<div class="req-item__head">'
              +     '<span class="req-item__title">' + titel + '</span>'
              +     (laeuft
-                    ? '<span class="app-tag app-tag--live"><span class="app-dot"></span>Läuft</span>'
+                    ? '<span class="app-tag app-tag--live"><span class="app-dot"></span>'
+                      + this.esc(window.webrtcApp.t('standort.anfrage.marke_laeuft')) + '</span>'
                     : this.zustandHtml(zustand))
              +   '</div>'
              +   '<p class="req-item__meta">'
-             +     (eingehend ? 'Angefragt von ' : 'Ihr Guide: ') + wer
-             +     ' · Wunschzeitpunkt: ' + this.esc(this.zeitText(z))
+             +     window.webrtcApp.tHtml(
+                       eingehend ? 'anfrage.zeile.von' : 'anfrage.zeile.guide',
+                       { name: wer })
+             +     ' · ' + this.esc(window.webrtcApp.t(
+                       'anfrage.zeile.wunschzeit', { zeit: this.zeitText(z) }))
              +     (laeuft ? '<br><span class="req-item__rest">' + this.esc(this.restText(z)) + '</span>' : '')
              +   '</p>'
              +   '<div class="app-actions req-item__actions">' + this.aktionenHtml(z, eingehend) + '</div>'
@@ -333,12 +343,14 @@ window.webrtcApp.requests = {
             html += '<button type="button" class="btn btn-success btn-sm req-call"'
                  +  ' data-userid="' + (parseInt(z.guide_user_id, 10) || 0) + '"'
                  +  ' data-locationid="' + (parseInt(z.location_id, 10) || 0) + '">'
-                 +  (laeuft ? 'Wieder einsteigen' : 'Führung starten') + '</button>';
+                 +  this.esc(window.webrtcApp.t(laeuft
+                        ? 'standort.anfrage.einsteigen' : 'standort.anfrage.starten')) + '</button>';
         }
         if (eingehend && laeuft && z.customer_user_id) {
             html += '<button type="button" class="btn btn-secondary btn-sm req-call"'
                  +  ' data-userid="' + (parseInt(z.customer_user_id, 10) || 0) + '"'
-                 +  ' data-locationid="' + (parseInt(z.location_id, 10) || 0) + '">Wieder einsteigen</button>';
+                 +  ' data-locationid="' + (parseInt(z.location_id, 10) || 0) + '">'
+                 +  this.esc(window.webrtcApp.t('standort.anfrage.einsteigen')) + '</button>';
         }
 
         // BEENDEN - nur der Guide, und nur bei einer laufenden Fuehrung.
@@ -347,7 +359,8 @@ window.webrtcApp.requests = {
         // klickt, koennen beide wieder einsteigen.
         if (eingehend && laeuft) {
             html += '<button type="button" class="btn btn-primary btn-sm tour-finish"'
-                 +  ' data-id="' + id + '">Führung beenden</button>';
+                 +  ' data-id="' + id + '">'
+                 +  this.esc(window.webrtcApp.t('fuehrung.beenden')) + '</button>';
         }
 
         // Zuruecknehmen darf, wer beteiligt ist - solange die Fuehrung nicht
@@ -355,7 +368,8 @@ window.webrtcApp.requests = {
         // "abgebrochen".
         if ((zustand === 'open' || zustand === 'accepted') && !z.started_at) {
             html += '<button type="button" class="btn btn-secondary btn-sm req-cancel" data-id="' + id + '">'
-                 +  (eingehend ? 'Absagen' : 'Zurückziehen') + '</button>';
+                 +  this.esc(window.webrtcApp.t(eingehend
+                        ? 'standort.anfrage.absagen' : 'anfrage.zurueckziehen')) + '</button>';
         }
 
         // DIE BEWERTUNG - der Ort, an dem eine uebersprungene Frage wieder
@@ -370,7 +384,8 @@ window.webrtcApp.requests = {
             html += '<button type="button" class="btn btn-primary btn-sm rev-open"'
                  +  ' data-request="' + id + '"'
                  +  ' data-title="' + this.esc((z.title || '').trim()) + '"'
-                 +  ' data-guide="' + this.esc(z.partner_name || '') + '">Führung bewerten</button>';
+                 +  ' data-guide="' + this.esc(z.partner_name || '') + '">'
+                 +  this.esc(window.webrtcApp.t('bewertung.frage.titel')) + '</button>';
         }
 
         if (html === '') {
@@ -401,13 +416,17 @@ window.webrtcApp.requests = {
         const modul  = window.webrtcApp.review;
 
         if (!isNaN(sterne) && sterne > 0 && modul) {
+            // Die Sterne sind fertiges HTML und werden als Platzhalter in
+            // den Satz gesetzt - der Katalog traegt den Doppelpunkt mit.
             return '<span class="req-item__done">'
-                 + (eingehend ? 'Bewertet: ' : 'Ihre Bewertung: ')
-                 + modul.sterneHtml(sterne)
+                 + window.webrtcApp.tHtml(
+                       eingehend ? 'anfrage.zeile.bewertet' : 'anfrage.zeile.bewertung_eigen',
+                       { sterne: modul.sterneHtml(sterne) })
                  + '</span>';
         }
 
-        return '<span class="req-item__done">Nichts mehr zu tun.</span>';
+        return '<span class="req-item__done">'
+             + this.esc(window.webrtcApp.t('anfrage.zeile.nichts_zu_tun')) + '</span>';
     },
 
     /**
@@ -506,11 +525,11 @@ window.webrtcApp.requests = {
     restText(z) {
         const s = parseInt(z.rejoin_in, 10);
         if (isNaN(s)) {
-            return 'Läuft noch. Beenden Sie sie, wenn Sie fertig sind.';
+            return window.webrtcApp.t('anfrage.rest.ohne_frist');
         }
-        if (s <= 0) return 'Der Wiedereinstieg ist abgelaufen.';
+        if (s <= 0) return window.webrtcApp.t('anfrage.rest.abgelaufen');
 
-        return 'Wiedereinstieg noch ' + this.dauerText(s) + ' möglich.';
+        return window.webrtcApp.t('anfrage.rest.offen', { dauer: this.dauerText(s) });
     },
 
     /**
@@ -527,8 +546,12 @@ window.webrtcApp.requests = {
         const titel = (z.title || '').trim();
         if (titel !== '') return this.esc(titel);
 
+        // Derselbe Schluessel wie auf der Standortseite: "Führung in {ort}"
+        // ist dort die Ueberschrift und hier der Titel derselben Sache.
         const ort = [z.city_name, z.country_name].filter(t => t && t.trim() !== '').join(', ');
-        return ort !== '' ? this.esc('Führung in ' + ort) : 'Führung';
+        return this.esc(ort !== ''
+            ? window.webrtcApp.t('standort.titel.fuehrung_in', { ort: ort })
+            : window.webrtcApp.t('anfrage.zeile.fuehrung'));
     },
 
     /**
@@ -621,7 +644,7 @@ window.webrtcApp.requests = {
             this.busy = false;
             if (!antwort || !antwort.success) {
                 window.webrtcApp.notify.error(
-                    (antwort && antwort.error) || 'Das hat nicht geklappt.'
+                    (antwort && antwort.error) || window.webrtcApp.t('allgemein.nicht_geklappt')
                 );
                 this.load();
                 return;
@@ -629,19 +652,16 @@ window.webrtcApp.requests = {
             if (antwort.requests) this.render(antwort.requests);
 
             if (route === 'request_accept') {
-                window.webrtcApp.notify.success(
-                    'Angenommen. Der Kunde startet die Führung zum vereinbarten Zeitpunkt – '
-                  + 'Sie werden dann angerufen.'
-                );
+                window.webrtcApp.notify.success(window.webrtcApp.t('anfrage.zugesagt'));
             } else if (route === 'request_decline') {
-                window.webrtcApp.notify.info('Abgelehnt.');
+                window.webrtcApp.notify.info(window.webrtcApp.t('anfrage.abgelehnt'));
             } else {
-                window.webrtcApp.notify.info('Zurückgenommen.');
+                window.webrtcApp.notify.info(window.webrtcApp.t('anfrage.zurueckgenommen'));
             }
         })
         .catch(() => {
             this.busy = false;
-            window.webrtcApp.notify.error('Keine Verbindung. Bitte erneut versuchen.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('allgemein.keine_verbindung'));
         });
     },
 
@@ -661,7 +681,7 @@ window.webrtcApp.requests = {
         if (!userId) return;
 
         if (typeof window.webrtcApp?.rtc?.startCall !== 'function') {
-            window.webrtcApp.notify.error('Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.');
+            window.webrtcApp.notify.error(window.webrtcApp.t('gespraech.kein_anruf_hier'));
             return;
         }
         window.webrtcApp.rtc.startCall(userId, locationId);

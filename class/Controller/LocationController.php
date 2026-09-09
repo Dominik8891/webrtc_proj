@@ -267,6 +267,18 @@ class LocationController
             $out
         );
 
+        // DIE ABLEHNUNG DES SERVERS, als fertiger Satz aus der Adresse
+        // (Post/Redirect/Get). Dieselbe Meldung, derselbe Kasten und
+        // derselbe Katalogschluessel wie beim Bearbeiten auf der
+        // Standortseite (LocationView::hinweisHtml) - es ist dieselbe
+        // Pruefung. Ein 'gespeichert' gibt es hier nicht: Nach dem
+        // Speichern fuehrt der Weg auf die Standortseite, und die sagt es
+        // selbst.
+        $out = str_replace('###NOTICE###', ViewHelper::hinweisHtml(
+            (string)Request::g('fehler', ''),
+            false
+        ), $out);
+
         ViewHelper::output($out);
     }
 
@@ -326,7 +338,16 @@ class LocationController
             ]);
 
             if (!$inhalt['ok']) {
-                header('Location: index.php?act=set_location_page&success=' . $inhalt['code']);
+                // DER FERTIGE SATZ, nicht die Nummer. Anlegen und Bearbeiten
+                // gehen durch dieselbe pruefeInhalt() - vorher nahm das
+                // Bearbeiten deren Klartext mit und das Anlegen einen Code,
+                // zu dem assets/js/main.js einen ZWEITEN Text fuehrte. Damit
+                // gab es zu jeder Pruefung zwei Meldungen, und nur eine davon
+                // stand im Sprachkatalog; die andere blieb deutsch und nannte
+                // auch andere Dinge ("Bitte einen Titel angeben" gegen "Der
+                // Titel muss mindestens 3 Zeichen lang sein").
+                header('Location: index.php?act=set_location_page&fehler='
+                    . rawurlencode($inhalt['text']));
                 exit;
             }
 
@@ -342,7 +363,8 @@ class LocationController
             // decimal(10,8) nur Werte bis +/-99,99999999 aufnehmen kann.
             if (!is_numeric($latitude)  || $latitude  < -90  || $latitude  > 90 ||
                 !is_numeric($longitude) || $longitude < -180 || $longitude > 180) {
-                header("Location: index.php?act=set_location_page&success=2");
+                header('Location: index.php?act=set_location_page&fehler='
+                    . rawurlencode(I18n::t('standort.fehler.kein_punkt')));
                 exit;
             }
 
@@ -383,12 +405,14 @@ class LocationController
                 exit;
             }
 
-            // MIT act. Ohne den Parameter landete die Weiterleitung bei
-            // index.php ohne Aktion - und index.php leitet dann auf
-            // index.php?act=home weiter, wobei success=1 verlorengeht. Die
-            // Erfolgsmeldung, die assets/js/main.js daran haengt, erschien
-            // deshalb nie.
-            header("Location: index.php?act=home&success=4");
+            // ZURUECK AUFS FORMULAR und nicht auf die Startseite: Die
+            // Eingaben sind gemerkt (merkeEingaben), das Formular bringt sie
+            // wieder mit, und die Meldung steht darueber. Vorher fuehrte
+            // dieser Weg mit einer Nummer auf die Startseite - dort stand das
+            // Formular nicht mehr, und die Nummer uebersetzte
+            // assets/js/main.js in einen eigenen Satz.
+            header('Location: index.php?act=set_location_page&fehler='
+                . rawurlencode(I18n::t('standort.fehler.nicht_angelegt')));
             exit;
         }
     }
@@ -439,7 +463,7 @@ class LocationController
      * Was NICHT hierher gehoert: Koordinaten, Land und Stadt. Die gibt es
      * nur beim Anlegen - siehe updateLocation().
      *
-     * @return array{ok:bool, code?:string, text?:string, werte?:array<string,mixed>}
+     * @return array{ok:bool, text?:string, werte?:array<string,mixed>}
      */
     private static function pruefeInhalt(): array
     {
@@ -453,25 +477,25 @@ class LocationController
         // Mindestlaenge von drei - und ein Titel aus 70 Umlauten waere zu
         // lang fuer varchar(120), obwohl er 70 Zeichen hat.
         if (mb_strlen($titel) < self::TITEL_MIN) {
-            return self::inhaltFehler('3',
+            return self::inhaltFehler(
                 I18n::t('standort.fehler.titel_kurz', ['n' => self::TITEL_MIN]));
         }
         if (mb_strlen($titel) > self::TITEL_MAX) {
-            return self::inhaltFehler('3',
+            return self::inhaltFehler(
                 I18n::t('standort.fehler.titel_lang', ['n' => self::TITEL_MAX]));
         }
 
         if (mb_strlen($kurz) < self::KURZ_MIN) {
-            return self::inhaltFehler('0',
+            return self::inhaltFehler(
                 I18n::t('standort.fehler.kurz_kurz', ['n' => self::KURZ_MIN]));
         }
         if (mb_strlen($kurz) > self::KURZ_MAX) {
-            return self::inhaltFehler('0',
+            return self::inhaltFehler(
                 I18n::t('standort.fehler.kurz_lang', ['n' => self::KURZ_MAX]));
         }
 
         if (mb_strlen($lang) > self::LANG_MAX) {
-            return self::inhaltFehler('6',
+            return self::inhaltFehler(
                 I18n::t('standort.fehler.lang_lang', ['n' => self::LANG_MAX]));
         }
 
@@ -481,11 +505,11 @@ class LocationController
         $minuten = null;
         if ($dauer !== '') {
             if (!ctype_digit($dauer)) {
-                return self::inhaltFehler('7', I18n::t('standort.fehler.dauer_zahl'));
+                return self::inhaltFehler(I18n::t('standort.fehler.dauer_zahl'));
             }
             $minuten = (int)$dauer;
             if ($minuten < self::DAUER_MIN || $minuten > self::DAUER_MAX) {
-                return self::inhaltFehler('7', I18n::t('standort.fehler.dauer_bereich', [
+                return self::inhaltFehler(I18n::t('standort.fehler.dauer_bereich', [
                     'min' => self::DAUER_MIN,
                     'max' => self::DAUER_MAX,
                 ]));
@@ -524,13 +548,18 @@ class LocationController
     /**
      * Baut eine Ablehnung aus pruefeInhalt().
      *
-     * @param string $in_code Code fuer die Weiterleitung des Anlegeformulars
-     * @param string $in_text Klartext fuer die Standortseite
-     * @return array{ok:bool, code:string, text:string}
+     * NUR NOCH DER TEXT. Hier stand frueher zusaetzlich ein Code, den das
+     * Anlegeformular als success=<n> in der Adresse zurueckbekam und den
+     * assets/js/main.js in einen eigenen Satz uebersetzte - eine zweite
+     * Fassung derselben Pruefmeldung, in einer zweiten Datei, ausserhalb des
+     * Sprachkatalogs. Der Text kommt jetzt fuer beide Wege von hier.
+     *
+     * @param string $in_text Klartext fuer die Weiterleitung
+     * @return array{ok:bool, text:string}
      */
-    private static function inhaltFehler(string $in_code, string $in_text): array
+    private static function inhaltFehler(string $in_text): array
     {
-        return ['ok' => false, 'code' => $in_code, 'text' => $in_text];
+        return ['ok' => false, 'text' => $in_text];
     }
 
     /**

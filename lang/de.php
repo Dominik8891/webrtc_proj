@@ -37,14 +37,23 @@
  * Bildspeichers) - und seit der Stufe der Vorlagen jeder Text aus
  * assets/html, geholt ueber den Marker {{t:schluessel}}.
  *
- * NOCH NICHT hier stehen die Meldungen des Browsers unter assets/js. Sie
- * ziehen in der naechsten Stufe nach; dass dabei nichts Neues dazukommt,
+ * SEIT DER STUFE DES BROWSERS auch die Meldungen aus assets/js: alles, was
+ * erst durch ein Ereignis entsteht und deshalb beim Ausliefern der Seite noch
+ * gar nicht dastand ("Anruf abgelehnt", "Datei zu gross"), dazu die
+ * Sprachbloecke der beiden Bibliotheken DataTables und select2. Geholt wird
+ * das ueber window.webrtcApp.t() und plural() (assets/js/i18n.js); der
+ * Katalog geht als window.appI18n mit der Seite mit (I18n::bootScript).
+ *
+ * DAMIT IST DER UMZUG DURCH. Was noch deutsch im Code steht, steht dort mit
+ * Absicht - siehe den naechsten Absatz -, und dass nichts Neues dazukommt,
  * haelt der Test fest, der neue nackte deutsche Literale meldet
  * (tests/i18n_scan.php).
  *
  * WAS AUSDRUECKLICH NICHT HIERHER GEHOERT: Logmeldungen und die Texte
  * geworfener Ausnahmen. Sie richten sich an den Betreiber und nicht an den
- * Benutzer - dieselbe Grenze, die auch der Scanner zieht.
+ * Benutzer - dieselbe Grenze, die auch der Scanner zieht. Ebenso wenig
+ * technische Schluessel, die nie jemand liest: der Vergleichswert 'keine' in
+ * assets/js/location_page.js etwa ist kein Text, sondern eine Kennung.
  */
 return [
 
@@ -253,6 +262,37 @@ return [
     'anfrage.status.cancelled' => 'abgebrochen',
 
     // -----------------------------------------------------------------
+    // DIE ANFRAGENLISTE IM BROWSER (assets/js/requests.js)
+    //
+    // Die Seite selbst kommt vom Server; diese Zeilen zieht das Skript nach,
+    // sobald der Heartbeat etwas Neues meldet.
+    // -----------------------------------------------------------------
+    'anfrage.neu'                => 'Neue Anfrage für eine Ihrer Führungen.',
+    'anfrage.angenommen'         => 'Ihre Anfrage wurde angenommen.',
+    'anfrage.zugesagt'           => 'Angenommen. Der Kunde startet die Führung zum vereinbarten Zeitpunkt – Sie werden dann angerufen.',
+    'anfrage.abgelehnt'          => 'Abgelehnt.',
+    'anfrage.zurueckgenommen'    => 'Zurückgenommen.',
+    'anfrage.zurueckziehen'      => 'Zurückziehen',
+    'anfrage.partner_unbekannt'  => 'Unbekannt',
+
+    // Die Kopfzeile einer Zeile. Der Name steht als Platzhalter darin und
+    // wird nicht davorgesetzt: "Angefragt von Anna" und "Ihr Guide: Anna"
+    // sind zwei Saetze mit zwei Wortstellungen.
+    'anfrage.zeile.von'              => 'Angefragt von {name}',
+    'anfrage.zeile.guide'            => 'Ihr Guide: {name}',
+    'anfrage.zeile.wunschzeit'       => 'Wunschzeitpunkt: {zeit}',
+    'anfrage.zeile.fuehrung'         => 'Führung',
+    'anfrage.zeile.nichts_zu_tun'    => 'Nichts mehr zu tun.',
+    'anfrage.zeile.bewertet'         => 'Bewertet: {sterne}',
+    'anfrage.zeile.bewertung_eigen'  => 'Ihre Bewertung: {sterne}',
+
+    // Wie lange der Wiedereinstieg noch offen steht. Die Dauer kommt fertig
+    // aus dauer.kurz.* und steht als Platzhalter im Satz.
+    'anfrage.rest.ohne_frist' => 'Läuft noch. Beenden Sie sie, wenn Sie fertig sind.',
+    'anfrage.rest.abgelaufen' => 'Der Wiedereinstieg ist abgelaufen.',
+    'anfrage.rest.offen'      => 'Wiedereinstieg noch {dauer} möglich.',
+
+    // -----------------------------------------------------------------
     // DIE BEIDEN E-MAILS
     //
     // SIE STEHEN IN DER SPRACHE DES EMPFAENGERS, nicht in der dessen, der
@@ -297,6 +337,33 @@ return [
     'allgemein.gespeichert'     => 'Gespeichert.',
     'allgemein.interner_fehler' => 'Interner Fehler. Bitte versuchen Sie es später erneut.',
 
+    // Woerter und Saetze, die an vielen Stellen gleich lauten. Sie stehen
+    // hier und nicht je Seite noch einmal: "Löschen" ist ueberall dasselbe
+    // Wort, und "Keine Verbindung" ueberall dieselbe Auskunft.
+    'allgemein.loeschen'          => 'Löschen',
+    'allgemein.keine_verbindung'  => 'Keine Verbindung. Bitte erneut versuchen.',
+    'allgemein.nicht_geklappt'    => 'Das hat nicht geklappt.',
+    'allgemein.unbekannter_fehler'=> 'unbekannter Fehler',
+
+    // -----------------------------------------------------------------
+    // DIE DIALOGE DES BROWSERS (assets/js/notify.js)
+    //
+    // Sie ersetzen alert(), confirm() und prompt(). Was hier steht, sind die
+    // VORGABEN: Ein Aufrufer, der einen eigenen Titel oder eine eigene
+    // Knopfbeschriftung mitgibt, ueberschreibt sie.
+    // -----------------------------------------------------------------
+    'dialog.hinweis'             => 'Hinweis',
+    'dialog.hinweis_schliessen'  => 'Hinweis schließen',
+    'dialog.verstanden'          => 'Verstanden',
+    'dialog.sicher'              => 'Sind Sie sicher?',
+    'dialog.ja'                  => 'Ja',
+    'dialog.abbrechen'           => 'Abbrechen',
+    'dialog.eingabe'             => 'Eingabe',
+    'dialog.speichern'           => 'Speichern',
+    'dialog.pflicht'             => 'Bitte etwas eintragen.',
+    'dialog.loeschen.titel'      => 'Datensatz löschen?',
+    'dialog.loeschen.text'       => 'Das lässt sich nicht rückgängig machen.',
+
     // -----------------------------------------------------------------
     // DIE KOPFLEISTE (App\Helper\ViewHelper)
     //
@@ -336,6 +403,13 @@ return [
     'kopf.bereit.aus'        => 'Nicht bereit',
     'kopf.bereit.titel_an'   => 'Sie sind als Guide anrufbar. Klicken beendet die Bereitschaft.',
     'kopf.bereit.titel_aus'  => 'Sie sind nicht anrufbar. Klicken stellt Sie auf bereit.',
+
+    // Die beiden Knoepfe, die assets/js/ui.js in die Leiste schreibt. Welcher
+    // davon erscheint, entscheidet window.userCan und nicht der Katalog.
+    'kopf.knopf.bedingungen'    => 'Neue Bedingungen bestätigen',
+    'kopf.knopf.standort_neu'   => 'Neue Lokation hinzufügen',
+    'kopf.knopf.guide_werden'   => 'Jetzt Tour-Guide werden!',
+    'kopf.knopf.alle_standorte' => 'Alle Standorte',
 
     // -----------------------------------------------------------------
     // DIE STANDORTSEITE (App\Helper\LocationView)
@@ -406,9 +480,29 @@ return [
     'standort.anfrage.einsteigen'       => 'Wieder einsteigen',
     'standort.anfrage.starten'          => 'Führung starten',
 
+    // Was der Browser waehrend des Anfragens sagt (assets/js/location_page.js).
+    // Die Saetze darueber baut der Server beim ersten Aufbau der Seite; diese
+    // hier entstehen erst durch eine Handlung und haben deshalb dort kein
+    // Gegenstueck.
+    'standort.anfrage.zeit_fehlt'       => 'Bitte einen Wunschzeitpunkt wählen – „Jetzt sofort“ ist auch einer.',
+    'standort.anfrage.fehler'           => 'Die Anfrage konnte nicht gestellt werden.',
+    'standort.anfrage.gestellt'         => 'Anfrage gestellt. Der Guide antwortet – Sie sehen es hier und am Zähler oben.',
+    'standort.anfrage.zurueck_frage'    => 'Anfrage zurückziehen?',
+    'standort.anfrage.zurueck_text'     => 'Der Guide sieht dann, dass die Führung nicht stattfindet.',
+    'standort.anfrage.zurueck_knopf'    => 'Zurückziehen',
+    'standort.anfrage.zurueckgezogen'   => 'Anfrage zurückgezogen.',
+    'standort.anfrage.nicht_mehr_offen' => 'Ihre Anfrage ist nicht mehr offen. Was daraus geworden ist, steht unter „Anfragen“.',
+    // Die beiden Hinweise unter dem Wunschzeitpunkt. Die Zeit und die
+    // ueblichen Zeiten stehen als Platzhalter IM Satz - die Hervorhebung
+    // setzt der Aufrufer ein (webrtcApp.tHtml).
+    'standort.anfrage.ortszeit'         => 'Das ist {zeit} Ortszeit am Treffpunkt.',
+    'standort.anfrage.ausserhalb'       => 'Das liegt außerhalb der üblichen Zeiten ({zeiten}). Anfragen können Sie trotzdem – der Guide entscheidet.',
+
     // Das Bearbeitungsformular. Was in der Vorlage steht
-    // (assets/html/location_edit.html), zieht erst in der naechsten Stufe
-    // nach - hier steht, was App\Helper\LocationView selbst baut.
+    // (assets/html/location_edit.html), holt sich diese ueber den Marker
+    // {{t:schluessel}} - hier steht, was App\Helper\LocationView selbst
+    // baut. Dieselben Schluessel benutzt assets/js/location_page.js, wenn es
+    // eine Bildkachel nachtraegt: derselbe Knopf, derselbe Text.
     'standort.bearbeiten.raster_spalte'    => 'Diesen Abschnitt an allen Tagen an- oder abwählen',
     'standort.bearbeiten.raster_zeile'     => 'Diesen Tag ganz an- oder abwählen',
     'standort.bearbeiten.raster_feld'      => '{tag} {abschnitt}',
@@ -446,6 +540,11 @@ return [
     'standort.fehler.nicht_gefunden' => 'Standort nicht gefunden.',
     'standort.fehler.loeschen'       => 'Fehler beim Löschen.',
     'standort.fehler.grund_fehlt'    => 'Bitte einen Grund angeben.',
+    // Die beiden Ablehnungen, die es nur beim ANLEGEN gibt: Land, Stadt und
+    // Koordinaten lassen sich spaeter nicht mehr aendern, es gibt also auch
+    // keine Pruefung dafuer beim Bearbeiten.
+    'standort.fehler.kein_punkt'     => 'Nicht gespeichert: Bitte den Standort auf der Karte auswählen.',
+    'standort.fehler.nicht_angelegt' => 'Der Standort konnte nicht angelegt werden.',
 
     'standort.bild.zu_viele'            => 'Mehr als {n} Bilder sind an einem Standort nicht möglich.',
     'standort.bild.keine_datei'         => 'Es wurde keine Datei geschickt.',
@@ -455,6 +554,22 @@ return [
     'standort.bild.keine_reihenfolge'   => 'Keine Reihenfolge angegeben.',
     'standort.bild.reihenfolge_fehler'  => 'Die Reihenfolge konnte nicht gespeichert werden.',
     'standort.bild.titelbild_fehler'    => 'Das Titelbild konnte nicht geändert werden.',
+
+    // Was der Browser beim Verwalten der Bilder sagt
+    // (assets/js/location_page.js). Die Pruefung der Datei ist dort eine
+    // Hoeflichkeit - verbindlich ist die des Servers darueber.
+    'standort.bild.titelbild_nicht_gesetzt' => 'Das Titelbild konnte nicht gesetzt werden.',
+    'standort.bild.format'              => 'Dieses Bildformat wird nicht angenommen (JPEG, PNG oder WebP).',
+    'standort.bild.zu_gross_mb'         => 'Die Datei ist zu groß – erlaubt sind {n} MB.',
+    'standort.bild.hinzugefuegt'        => 'Bild hinzugefügt.',
+    'standort.bild.loeschen_frage'      => 'Bild löschen?',
+    'standort.bild.loeschen_text'       => 'Das Bild verschwindet von der Standortseite. Das lässt sich nicht rückgängig machen.',
+    'standort.bild.nicht_geloescht'     => 'Das Bild konnte nicht gelöscht werden.',
+    'standort.bild.grenze_erreicht'     => 'Die Obergrenze von {n} Bildern ist erreicht (Titelbild mitgezählt).',
+    'standort.bild.noch_moeglich' => [
+        'one'   => 'Noch ein Bild von {grenze} möglich, Titelbild mitgezählt.',
+        'other' => 'Noch {n} von {grenze} Bildern möglich, Titelbild mitgezählt.',
+    ],
 
     // -----------------------------------------------------------------
     // DER GUIDE (App\Helper\GuideView)
@@ -575,6 +690,45 @@ return [
     'bewertung.stern.4' => 'Gut',
     'bewertung.stern.5' => 'Großartig',
 
+    // Die Frage nach der Fuehrung (assets/js/review.js). Sie erscheint nach
+    // dem Auflegen und in der Anfragenliste.
+    'bewertung.frage.titel'            => 'Führung bewerten',
+    'bewertung.frage.lead'             => 'Wie war die Führung mit {guide}?',
+    'bewertung.frage.lead_titel'       => 'Wie war die Führung mit {guide}? – {titel}',
+    'bewertung.frage.guide_unbekannt'  => 'Ihrem Guide',
+    'bewertung.frage.sterne'           => 'Sterne',
+    'bewertung.frage.text_label'       => 'Wenn Sie mögen, ein paar Sätze',
+    'bewertung.frage.text_platzhalter' => 'Was sollten andere wissen?',
+    'bewertung.frage.spaeter'          => 'Später',
+    'bewertung.frage.absenden'         => 'Absenden',
+    'bewertung.frage.fuss'             => 'Ihr Name steht nicht dabei. Der Guide kann die Bewertung nicht ändern und nicht löschen.',
+    'bewertung.frage.sterne_zuerst'    => 'Bitte wählen Sie zuerst die Sterne.',
+    'bewertung.frage.fehler'           => 'Die Bewertung konnte nicht gespeichert werden.',
+    'bewertung.frage.danke'            => 'Danke – Ihre Bewertung steht beim Guide.',
+
+    // Der Rueckfall, wenn der Server keine Stufenbeschriftung mitschickt.
+    'bewertung.sterne.anzahl' => [
+        'one'   => '{n} Stern',
+        'other' => '{n} Sterne',
+    ],
+
+    // Die kurze Zeile in Liste und Kartenfenster, solange es keinen
+    // Durchschnitt gibt. Dasselbe Muster wie bewertung.jung.* darueber: Der
+    // Satz MIT Zusatz ist ein eigener Eintrag und nicht der Satz ohne ihn
+    // plus Komma.
+    'bewertung.kurz.fuehrungen' => [
+        'one'   => 'Neu · eine Führung',
+        'other' => 'Neu · {n} Führungen',
+    ],
+    'bewertung.kurz.fuehrungen_bewertet' => [
+        'one'   => 'Neu · eine Führung, {bewertet}',
+        'other' => 'Neu · {n} Führungen, {bewertet}',
+    ],
+    'bewertung.kurz.bewertungen' => [
+        'one'   => 'eine Bewertung',
+        'other' => '{n} Bewertungen',
+    ],
+
     // -----------------------------------------------------------------
     // DIE VERWALTUNG (App\Helper\AdminView)
     // -----------------------------------------------------------------
@@ -669,6 +823,24 @@ return [
     'verwaltung.rolle.guide'                => 'Guide',
     'verwaltung.rolle.kunde'                => 'Kunde',
 
+    // Die drei Rueckfragen des Verwaltungsbereichs (assets/js/admin.js). Der
+    // Titel des Standorts steht als Platzhalter IM Satz - samt der
+    // Anfuehrungszeichen, denn die setzt jede Sprache anders.
+    'verwaltung.sperre.titel'       => 'Standort sperren',
+    'verwaltung.sperre.text'        => '„{titel}“ verschwindet aus Karte und Liste. Der Guide bekommt diesen Text in seiner Standortliste zu sehen. Gelöscht wird nichts.',
+    'verwaltung.sperre.grund'       => 'Grund',
+    'verwaltung.sperre.platzhalter' => 'Warum wird gesperrt?',
+    'verwaltung.sperre.pflicht'     => 'Ohne Grund ist die Sperre für den Guide nicht nachvollziehbar.',
+    'verwaltung.sperre.erledigt'    => 'Gesperrt.',
+
+    'verwaltung.freigabe.titel'    => 'Sperre aufheben?',
+    'verwaltung.freigabe.text'     => '„{titel}“ erscheint danach wieder auf der Karte und in der Liste.',
+    'verwaltung.freigabe.erledigt' => 'Freigegeben.',
+
+    'verwaltung.bewertung_weg.titel'    => 'Bewertung entfernen?',
+    'verwaltung.bewertung_weg.text'     => 'Die Bewertung verschwindet von der Standortseite und vom Profil des Guides und zählt nicht mehr im Durchschnitt. Gelöscht wird sie nicht – sie bleibt hier nachvollziehbar stehen. Der Kunde kann diese Führung danach nicht erneut bewerten.',
+    'verwaltung.bewertung_weg.erledigt' => 'Entfernt.',
+
     // -----------------------------------------------------------------
     // DER BILDSPEICHER (App\Helper\ImageStore)
     //
@@ -712,6 +884,8 @@ return [
 
     'konto.farbprofil.unbekannt' => 'Unbekanntes Farbprofil.',
     'konto.farbprofil.fehler'    => 'Farbprofil konnte nicht gespeichert werden.',
+    'konto.farbprofil.gespeichert' => 'Farbprofil gespeichert.',
+    'konto.farbprofil.fehler_netz' => 'Farbprofil konnte nicht gespeichert werden. Bitte später erneut versuchen.',
 
     // -----------------------------------------------------------------
     // DIE REGISTRIERUNG (App\Controller\SignupController)
@@ -817,6 +991,25 @@ return [
     'tabelle.spalte.beschreibung'  => 'Beschreibung',
     'tabelle.spalte.aktionen'      => 'Aktionen',
 
+    // DER SPRACHBLOCK VON DataTables (assets/js/locations_table.js).
+    //
+    // _MENU_, _START_, _END_, _TOTAL_ und _MAX_ sind KEINE Platzhalter dieser
+    // Anwendung: DataTables setzt sie selbst ein, und I18n::einsetzen() laesst
+    // sie unangetastet stehen. Sie heissen deshalb bewusst nicht {n} - ein
+    // {n} wuerde hier gefuellt, und DataTables faende nichts mehr vor.
+    'tabelle.suchen'          => 'Suchen',
+    'tabelle.laenge'          => '_MENU_ Einträge',
+    'tabelle.info'            => '_START_–_END_ von _TOTAL_',
+    'tabelle.info_leer'       => 'Keine Einträge',
+    'tabelle.info_gefiltert'  => '(gefiltert aus _MAX_)',
+    'tabelle.nichts_gefunden' => 'Nichts gefunden.',
+    'tabelle.erste'           => 'Erste',
+    'tabelle.letzte'          => 'Letzte',
+    'tabelle.weiter'          => 'Weiter',
+    'tabelle.zurueck'         => 'Zurück',
+    'tabelle.sort_auf'        => ': aufsteigend sortieren',
+    'tabelle.sort_ab'         => ': absteigend sortieren',
+
     // Das Kreuz an jedem Dialog. Es steht in vier Vorlagen und meint
     // ueberall dasselbe.
     'allgemein.schliessen' => 'Schließen',
@@ -864,6 +1057,11 @@ return [
     'passwort.aendern.knopf'      => 'Passwort ändern',
     'passwort.aendern.abbrechen'  => 'Abbrechen',
 
+    // Die Rueckmeldung nach dem Wechsel. Sie kommt als Marke in der Adresse
+    // zurueck (change=1) und wird im Browser gezeigt - siehe
+    // assets/js/main.js.
+    'passwort.geaendert' => 'Passwort geändert.',
+
     // -----------------------------------------------------------------
     // DIE STARTSEITE
     // -----------------------------------------------------------------
@@ -904,11 +1102,122 @@ return [
     'startseite.schritt3.titel' => 'Führen',
     'startseite.schritt3.text'  => 'Mit den Pfeiltasten geben Sie die Richtung vor. Der Guide hört und sieht Ihren Wunsch und geht dorthin.',
 
+    // Das Fenster an einer Kartennadel (assets/js/home_map.js). Die
+    // Zustandsmarken darin kommen aus standort.zustand.* - es ist derselbe
+    // Zustand desselben Standorts.
+    'startseite.karte.eigen_bereit'      => 'Sie sind bereit – für andere ist dieser Standort gerade hervorgehoben.',
+    'startseite.karte.eigen_nicht_bereit'=> 'Solange Sie nicht bereit sind, wird dieser Standort gedämpft angezeigt.',
+    'startseite.karte.eigen_knopf'       => 'Standort ansehen und bearbeiten',
+    'startseite.karte.gesperrt'          => 'Gesperrt. Der Standort ist für andere nicht sichtbar.',
+    'startseite.karte.gesperrt_grund'    => 'Gesperrt: {grund}. Der Standort ist für andere nicht sichtbar.',
+    'startseite.karte.busy'              => 'Der Guide ist gerade in einer anderen Führung.',
+    'startseite.karte.idle'              => 'Gerade ist niemand vor Ort. Der Standort bleibt buchbar, sobald der Guide bereit ist.',
+    'startseite.karte.knopf'             => 'Standort ansehen',
+    'startseite.karte.knopf_live'        => 'Führung ansehen',
+
+    // Die beiden Zaehler ueber der Karte.
+    'startseite.karte.guides' => [
+        'one'   => '1 Guide verfügbar',
+        'other' => '{n} Guides verfügbar',
+    ],
+    'startseite.karte.standorte' => [
+        'one'   => '1 Standort',
+        'other' => '{n} Standorte',
+    ],
+
     // -----------------------------------------------------------------
     // DIE STANDORTLISTE
     // -----------------------------------------------------------------
     'standortliste.titel'      => 'Alle Standorte',
     'standortliste.untertitel' => 'Dieselben Standorte wie auf der Karte, hier zum Durchsuchen und Sortieren.',
+
+    // Die Tabelle selbst (assets/js/locations_table.js).
+    //
+    // DIE ZUSTANDSWOERTER SIND HIER ANDERE als in standort.zustand.*, und das
+    // ist Absicht: Die Spalte ist schmal und beantwortet eine engere Frage -
+    // "kann ich hier jetzt eine Fuehrung bekommen".
+    'standortliste.zustand.live' => 'Verfügbar',
+    'standortliste.zustand.busy' => 'Im Gespräch',
+    'standortliste.zustand.idle' => 'Nicht verfügbar',
+
+    'standortliste.leer'                 => 'Keine Standorte vorhanden.',
+    'standortliste.fehler_laden'         => 'Fehler beim Laden der Daten.',
+    'standortliste.falsch_konfiguriert'  => 'Diese Tabelle ist falsch konfiguriert.',
+    'standortliste.loeschen_label'       => 'Standort {ort} löschen',
+    'standortliste.loeschen_frage'       => 'Standort löschen?',
+    'standortliste.loeschen_text'        => 'Der Standort verschwindet von der Karte und aus allen Listen. Das lässt sich nicht rückgängig machen.',
+    'standortliste.geloescht'            => 'Standort gelöscht.',
+    'standortliste.loeschen_fehler'      => 'Der Standort konnte nicht gelöscht werden.',
+    'standortliste.nicht_zugeordnet'     => 'Der Standort konnte nicht zugeordnet werden.',
+
+    // -----------------------------------------------------------------
+    // DAS ANLEGEFORMULAR MIT KARTE (assets/js/map.js)
+    // -----------------------------------------------------------------
+    'standort.karte.select2_fehlt'    => 'Die Auswahlfelder konnten nicht geladen werden, weil eine benötigte Bibliothek (select2) fehlt. Bitte die Seite neu laden. Besteht das Problem weiter, ist vermutlich die Internetverbindung oder ein Werbeblocker die Ursache.',
+    'standort.karte.laender_leer'     => 'Es konnten keine Länder geladen werden. Ohne Land ist keine Städtesuche möglich. Bitte an den Administrator wenden – die Länderdaten fehlen in der Datenbank.',
+    'standort.karte.laender_fehler'   => 'Die Länderliste konnte nicht geladen werden. Bitte die Seite neu laden. Besteht das Problem weiter, ist der Server nicht erreichbar oder die Datenbank nicht verfügbar.',
+    'standort.karte.punkt_fehlt'      => 'Es fehlt der Punkt auf der Karte. Bitte in die Karte klicken, eine Stadt wählen oder „Aktuellen Standort verwenden“ – erst dann lässt sich der Standort speichern.',
+    'standort.karte.keine_ansicht'    => 'Für dieses Land steht keine Kartenansicht zur Verfügung.',
+    'standort.karte.land_zuerst'      => 'Bitte zuerst ein Land wählen',
+    'standort.karte.keine_ortung'     => 'Ihr Browser unterstützt keine Standortbestimmung.',
+    'standort.karte.ortung_fehler'    => 'Standort konnte nicht ermittelt werden: {grund}',
+    'standort.karte.keine_stadt_am_ort' => 'keine Stadt am Standort',
+
+    // Der Sprachblock von select2. Die Zahl im ersten Satz kommt aus
+    // derselben Konstante wie minimumInputLength (map.STADT_MIN_ZEICHEN) und
+    // steht deshalb als Platzhalter da.
+    'stadtsuche.zu_kurz'          => 'Bitte mindestens {n} Buchstaben eingeben.',
+    'stadtsuche.keine_stadt'      => 'Keine Stadt gefunden.',
+    'stadtsuche.land_zuerst'      => 'Bitte zuerst ein Land wählen.',
+    'stadtsuche.nicht_erreichbar' => 'Die Städtesuche ist gerade nicht erreichbar. Bitte einen Moment warten und noch einmal tippen.',
+
+    // -----------------------------------------------------------------
+    // DER SCHALTER "BEREIT" (assets/js/availability.js)
+    //
+    // Der Knopf selbst kommt vom Server und benutzt kopf.bereit.*; hier steht
+    // nur, was durch eine Handlung oder durch den Ablauf der Frist entsteht.
+    // -----------------------------------------------------------------
+    'bereit.jetzt_anrufbar' => 'Sie sind jetzt als Guide anrufbar – {rest}.',
+    'bereit.beendet'        => 'Bereitschaft beendet. Ihre Standorte sind nicht mehr anrufbar.',
+    'bereit.fehler'         => 'Die Bereitschaft konnte nicht geändert werden. Bitte erneut versuchen.',
+    'bereit.abgelaufen'     => 'Ihre Bereitschaft ist abgelaufen – Sie sind nicht mehr anrufbar. Zum Weiterführen wieder auf „Bereit“ stellen.',
+    'bereit.titel_an_rest'  => 'Sie sind als Guide anrufbar ({rest}). Klicken beendet die Bereitschaft.',
+
+    // Die Restzeit. Der Doppelpunkt zwischen Stunden und Minuten steht MIT im
+    // Text - er ist ein Trennzeichen und keine Rechenvorschrift.
+    'bereit.rest.aus'      => 'nicht bereit',
+    'bereit.rest.sekunden' => 'noch {n} Sek',
+    'bereit.rest.minuten'  => 'noch {n} Min',
+    'bereit.rest.stunden'  => 'noch {std}:{min} Std',
+
+    // -----------------------------------------------------------------
+    // DIE LAUFENDE FUEHRUNG (assets/js/tour.js, assets/js/requests.js)
+    // -----------------------------------------------------------------
+    'fuehrung.beenden'  => 'Führung beenden',
+    'fuehrung.beendet'  => 'Führung beendet.',
+
+    'fuehrung.karte.titel'            => 'Laufende Führung',
+    'fuehrung.karte.kunde_unbekannt'  => 'Ihrem Kunden',
+    'fuehrung.karte.lead'             => 'Ihre Führung mit {kunde} ist noch nicht beendet.',
+    'fuehrung.karte.lead_titel'       => 'Ihre Führung mit {kunde} – {titel} – ist noch nicht beendet.',
+    'fuehrung.karte.hinweis'          => 'Aufgelegt heißt nicht beendet: Solange die Führung offen ist, können Sie und Ihr Kunde wieder einsteigen.',
+    'fuehrung.karte.hinweis_frist'    => 'Aufgelegt heißt nicht beendet: Solange die Führung offen ist, können Sie und Ihr Kunde wieder einsteigen – {rest}.',
+    'fuehrung.karte.spaeter'          => 'Später',
+    'fuehrung.karte.fuss'             => 'Erst nach dem Beenden ist die Führung abgeschlossen. Ihr Kunde kann sie dann nicht mehr neu starten und wird nach einer Bewertung gefragt.',
+
+    'fuehrung.beenden_frage.titel' => 'Führung beenden?',
+    'fuehrung.beenden_frage.text'  => 'Danach ist die Führung abgeschlossen: Sie und Ihr Kunde können nicht mehr einsteigen, der Startknopf verschwindet, und Ihr Kunde wird nach einer Bewertung gefragt. Rückgängig geht das nicht.',
+    'fuehrung.beenden_frage.knopf' => 'Beenden',
+
+    'fuehrung.rest.unter_minute' => 'noch weniger als eine Minute',
+    'fuehrung.rest.minuten' => [
+        'one'   => 'noch etwa eine Minute',
+        'other' => 'noch etwa {n} Minuten',
+    ],
+    'fuehrung.rest.stunden' => [
+        'one'   => 'noch etwa eine Stunde',
+        'other' => 'noch etwa {n} Stunden',
+    ],
 
     // -----------------------------------------------------------------
     // STANDORT ANBIETEN UND BEARBEITEN
@@ -1117,6 +1426,13 @@ return [
     'chat.verlauf.titel'   => 'Verlauf',
     'chat.verlauf.zurueck' => 'Zurück zu allen Chats',
 
+    // Die Chatfenster im Browser (assets/js/chat.js, ui_chat.js, chat_badge.js).
+    'chat.neue_nachricht'      => 'Neue Nachricht.',
+    'chat.fehler.zu_lang'      => 'Nachricht nicht gesendet – sie ist zu lang.',
+    'chat.fehler.uebertragung' => 'Nachricht nicht gesendet – Übertragungsfehler.',
+    'chat.fehler.start'        => 'Der Chat konnte nicht gestartet werden.',
+    'chat.fehler.weg'          => 'Dieser Chat existiert nicht mehr.',
+
     // -----------------------------------------------------------------
     // DAS GESPRAECH
     //
@@ -1155,6 +1471,118 @@ return [
     'gespraech.anruf.ton'        => 'Ton senden',
     'gespraech.anruf.annehmen'   => 'Annehmen',
     'gespraech.anruf.ablehnen'   => 'Ablehnen',
+    'gespraech.anruf.medien_noetig' => 'Bitte mindestens Ton oder Video auswählen, um den Anruf anzunehmen.',
+
+    // -----------------------------------------------------------------
+    // WAS WAEHREND EINES ANRUFS ENTSTEHT (assets/js/rtc.js, control.js,
+    // media.js, signaling.js)
+    //
+    // Kein Satz hier wird zusammengesetzt. Wo ein Grund dazugehoert, gibt es
+    // ihn als Platzhalter - und wo es ihn auch ohne Grund gibt, zwei
+    // Eintraege statt eines Klammerzusatzes im Code.
+    // -----------------------------------------------------------------
+    'gespraech.anruf_mit'      => 'Anruf mit {name}',
+    'gespraech.kein_anruf_hier'=> 'Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.',
+    'gespraech.tippen'         => 'Bitte einmal auf das Bild tippen, damit Ton und Bild starten.',
+    'gespraech.freigeben'      => 'Steuerung freigeben',
+
+    'gespraech.fehler.aufbau_grund'      => 'Der Anruf konnte nicht aufgebaut werden: {grund}',
+    'gespraech.fehler.nicht_zugestellt'  => 'Der Anruf konnte nicht zugestellt werden. Bitte später erneut versuchen.',
+    'gespraech.fehler.anruf_weg'         => 'Der Anruf ist nicht mehr da.',
+    'gespraech.fehler.nicht_angenommen'  => 'Der Anruf wurde nicht angenommen.',
+    'gespraech.fehler.verbindung'        => 'Die Verbindung konnte nicht aufgebaut werden.',
+    'gespraech.fehler.verbindung_grund'  => 'Die Verbindung konnte nicht aufgebaut werden: {grund}',
+    'gespraech.fehler.gegenseite_beendet'=> 'Der andere Teilnehmer hat die Verbindung beendet.',
+    'gespraech.fehler.partner_beendet'   => 'Die Verbindung zum Gesprächspartner wurde beendet.',
+    'gespraech.fehler.kein_wiederaufbau' => 'Die Verbindung zum Gesprächspartner konnte nicht wiederhergestellt werden.',
+    'gespraech.fehler.start_keine_medien'=> 'Der Anruf konnte nicht gestartet werden: Die Gegenseite hat weder Ton noch Bild ausgewählt.',
+    'gespraech.fehler.start_verbindung'  => 'Der Anruf konnte nicht gestartet werden: Die Verbindung ließ sich nicht aufbauen.',
+
+    'gespraech.fehler.mikro_an'         => 'Das Mikrofon ließ sich nicht einschalten: {grund}',
+    'gespraech.fehler.mikro_aus'        => 'Das Mikrofon ließ sich nicht stummschalten: {grund}',
+    'gespraech.fehler.kamera_an'        => 'Die Kamera ließ sich nicht einschalten: {grund}',
+    'gespraech.fehler.kamera_aus'       => 'Die Kamera ließ sich nicht abschalten: {grund}',
+    'gespraech.fehler.geraet_wechsel'   => 'Das Gerät ließ sich nicht übernehmen: {grund}',
+    'gespraech.fehler.kein_mikrokanal'  => 'Es ist kein Mikrofonkanal ausgehandelt.',
+    'gespraech.fehler.kein_kamerakanal' => 'Für die Kamera wurde beim Verbindungsaufbau kein Kanal ausgehandelt.',
+    'gespraech.fehler.kein_geraetekanal'=> 'Für dieses Gerät ist kein Kanal ausgehandelt.',
+
+    'gespraech.hinweis.ohne_eigenen_ton' => 'Der Anruf läuft ohne eigenen Ton weiter; der Chat bleibt nutzbar.',
+
+    // Die Absagen von getUserMedia - JE GERAET EIN GANZER SATZ. Vorher stand
+    // im Code "der Zugriff auf " plus "die Kamera"/"das Mikrofon", dazu ein
+    // grossgeschriebenes "Die"/"Das" fuer den Satzanfang und ein "sie"/"es"
+    // fuer den Rueckbezug: drei Formen desselben Wortes, die es so nur im
+    // Deutschen gibt.
+    'gespraech.medien.abgelehnt_kamera' => 'Der Zugriff auf die Kamera wurde abgelehnt. Bitte erlauben Sie ihn in den Einstellungen des Browsers und versuchen Sie es erneut.',
+    'gespraech.medien.abgelehnt_mikro'  => 'Der Zugriff auf das Mikrofon wurde abgelehnt. Bitte erlauben Sie ihn in den Einstellungen des Browsers und versuchen Sie es erneut.',
+    'gespraech.medien.fehlt_kamera'     => 'Es wurde keine Kamera gefunden. Ohne Kamera lässt sich kein Bild übertragen.',
+    'gespraech.medien.fehlt_mikro'      => 'Es wurde kein Mikrofon gefunden. Ohne Mikrofon lässt sich kein Gespräch führen.',
+    'gespraech.medien.belegt_kamera'    => 'Die Kamera lässt sich nicht öffnen. Vermutlich benutzt sie gerade ein anderes Programm.',
+    'gespraech.medien.belegt_mikro'     => 'Das Mikrofon lässt sich nicht öffnen. Vermutlich benutzt es gerade ein anderes Programm.',
+    'gespraech.medien.fehler_kamera'    => 'Die Kamera konnte nicht verwendet werden: {grund}',
+    'gespraech.medien.fehler_mikro'     => 'Das Mikrofon konnte nicht verwendet werden: {grund}',
+    'gespraech.medien.ohne_bild'        => 'Der Anruf läuft ohne Bild weiter.',
+    'gespraech.medien.ohne_ton'         => 'Der Anruf läuft ohne Ton weiter; der Chat bleibt nutzbar.',
+
+    // Die Geraeteliste im Anrufdialog.
+    'gespraech.geraet.keine_freigabe'      => 'Das Gerät lässt sich noch nicht auswählen. Bitte erlauben Sie den Zugriff auf Kamera und Mikrofon und öffnen Sie die Geräteliste erneut.',
+    'gespraech.geraet.kamera_aus_hinweis'  => 'Die Kamera ist aus. Die Auswahl gilt, sobald Sie sie einschalten.',
+    'gespraech.geraet.mikro_stumm_hinweis' => 'Das Mikrofon ist stumm. Die Auswahl gilt, sobald Sie es einschalten.',
+    'gespraech.geraet.keine_kamera'        => 'Keine Kamera gefunden',
+    'gespraech.geraet.kein_mikrofon'       => 'Kein Mikrofon gefunden',
+    'gespraech.geraet.kamera_nr'           => 'Kamera {n}',
+    'gespraech.geraet.mikrofon_nr'         => 'Mikrofon {n}',
+
+    // Die Titel der beiden Umschalter in der Leiste.
+    'gespraech.mikrofon_stumm'  => 'Mikrofon stummschalten',
+    'gespraech.mikrofon_an'     => 'Mikrofon einschalten',
+    'gespraech.kamera_aus_titel'=> 'Kamera ausschalten',
+    'gespraech.kamera_an'       => 'Kamera einschalten',
+
+    // Die ICE-Server. Der Grund kommt teils vom Server und steht deshalb als
+    // Platzhalter im Satz.
+    'gespraech.ice.keine_daten'     => 'Die Verbindungsdaten konnten nicht geladen werden.',
+    'gespraech.ice.hinweis'         => 'Hinweis: {text}',
+    'gespraech.ice.kein_turn'       => 'Hinweis: Es ist kein TURN-Server verfügbar. Der Anruf klappt nur, wenn beide Seiten in einfachen Netzen sind.',
+    'gespraech.ice.kein_turn_grund' => 'Hinweis: Es ist kein TURN-Server verfügbar. Der Anruf klappt nur, wenn beide Seiten in einfachen Netzen sind. ({grund})',
+
+    // Der sichtbare Verbindungszustand.
+    'gespraech.zustand.aufbau'           => 'Verbindung wird aufgebaut',
+    'gespraech.zustand.verbunden'        => 'Verbunden',
+    'gespraech.zustand.instabil'         => 'Verbindung instabil',
+    'gespraech.zustand.wieder'           => 'Wiederverbindung …',
+    'gespraech.zustand.getrennt'         => 'Verbindung getrennt',
+    'gespraech.zustand.wiederhergestellt'=> 'Verbindung wiederhergestellt.',
+
+    // DIE RICHTUNGSANZEIGE beim Guide. GROSSGESCHRIEBEN mit Absicht: Sie
+    // steht bildschirmfuellend da und wird im Gehen mit einem Blick gelesen.
+    'gespraech.richtung.forward'   => 'VORWÄRTS',
+    'gespraech.richtung.backward'  => 'ZURÜCK',
+    'gespraech.richtung.left'      => 'LINKS',
+    'gespraech.richtung.right'     => 'RECHTS',
+    'gespraech.richtung.look_up'   => 'BLICK HOCH',
+    'gespraech.richtung.look_down' => 'BLICK RUNTER',
+
+    // Die Steuerung.
+    'gespraech.steuerung.nicht_stabil'        => 'Steuerbefehl nicht gesendet – die Verbindung ist gerade nicht stabil.',
+    'gespraech.steuerung.uebertragung'        => 'Steuerbefehl nicht gesendet – Übertragungsfehler.',
+    'gespraech.steuerung.verworfen'           => 'Steuerbefehl verworfen – die Verbindung war unterbrochen.',
+    'gespraech.steuerung.keine_bestaetigung'  => 'Keine Bestätigung für den Steuerbefehl erhalten.',
+    'gespraech.steuerung.sperre_fehler'       => 'Sperre konnte nicht übermittelt werden.',
+    'gespraech.steuerung.gesperrt'            => 'Der Guide hat die Steuerung gesperrt.',
+    'gespraech.steuerung.gesperrt_grund'      => 'Der Guide hat die Steuerung gesperrt. ({grund})',
+    'gespraech.steuerung.freigegeben'         => 'Der Guide hat die Steuerung wieder freigegeben.',
+
+    // Die Ablehnungsgruende aus dem Protokoll - JEDER TRAEGT DIE GANZE
+    // MELDUNG. Vorher stand hier nur der Grund und der Code setzte
+    // "Steuerbefehl abgelehnt – " davor.
+    'gespraech.abgelehnt.unstable'  => 'Steuerbefehl abgelehnt – die Verbindung war nicht stabil.',
+    'gespraech.abgelehnt.locked'    => 'Steuerbefehl abgelehnt – der Guide hat die Steuerung gesperrt.',
+    'gespraech.abgelehnt.duplicate' => 'Steuerbefehl abgelehnt – der Befehl war eine Wiederholung.',
+    'gespraech.abgelehnt.no_role'   => 'Steuerbefehl abgelehnt – die Gegenseite kennt ihre Rolle nicht.',
+    'gespraech.abgelehnt.invalid'   => 'Steuerbefehl abgelehnt – der Befehl war ungültig.',
+    'gespraech.abgelehnt.unbekannt' => 'Steuerbefehl abgelehnt – der Grund ist unbekannt.',
 
     // -----------------------------------------------------------------
     // DIE ERGEBNISSEITEN
