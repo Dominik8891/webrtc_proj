@@ -328,6 +328,24 @@ CREATE TABLE IF NOT EXISTS `city` (
   `city_name` varchar(255) NOT NULL,
   `country_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
+
+  -- Eine Stadt JE LAND nur einmal (Migration 021).
+  -- Der Name allein taugt nicht als Schluessel: Valencia gibt es in Spanien
+  -- und in Venezuela, Toledo in Spanien und in den USA. Die Suche im
+  -- Anwendungscode (Location::selectCity) fragt seit derselben Aenderung
+  -- ebenfalls mit dem Land - vorher fand sie die gleichnamige Stadt im
+  -- falschen Land und haengte den neuen Standort an deren country_id.
+  --
+  -- Der Index vergleicht mit der Sortierung der Spalte, und die ist bei
+  -- utf8mb4 ohne weitere Angabe die des Servers: ohne Ruecksicht auf Gross-
+  -- und Kleinschreibung. "Lisbon" und "lisbon" sind fuer ihn dasselbe -
+  -- genau wie fuer selectCity(). Beide benutzen dieselbe Regel.
+  --
+  -- KEY `country_id` bleibt daneben stehen: Der Fremdschluessel braucht
+  -- einen Index, der mit country_id ANFAENGT, und der eindeutige tut das
+  -- nicht (dort steht city_name vorn).
+  UNIQUE KEY `city_name_country` (`city_name`, `country_id`),
+
   KEY `country_id` (`country_id`),
   CONSTRAINT `city_ibfk_1` FOREIGN KEY (`country_id`) REFERENCES `country` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

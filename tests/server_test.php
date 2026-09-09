@@ -7984,6 +7984,61 @@ ok('der Index steht in der Wanderung und im Dump, und die Wanderung raeumt vorhe
 
 
 // ---------------------------------------------------------------------
+fwrite(STDERR, "\nEine Stadt je Land nur einmal\n");
+
+// DER BEFUND: selectCity() fragte allein nach dem Namen. Valencia gibt es in
+// Spanien und in Venezuela - wer nach dem einen den anderen anlegte, bekam
+// die vorhandene Zeile samt der country_id des FALSCHEN Landes, und sein
+// Standort hing seither an einem Land, in dem er nicht liegt. Ohne
+// Fehlermeldung.
+$locationQuelle = file_get_contents($ROOT . '/class/Model/Location.php');
+check(preg_match('/WHERE city_name = :city\s+AND country_id = :country/', $locationQuelle) === 1,
+    'selectCity() fragt weiterhin ohne Land - eine gleichnamige Stadt im '
+    . 'falschen Land wird wieder gefunden');
+check(strpos($locationQuelle, 'public function selectCity($country_id)') !== false,
+    'selectCity() nimmt das Land nicht entgegen');
+check(strpos($locationQuelle, '$this->selectCity($country_id)') !== false,
+    'setNewLocation() gibt das Land nicht mit');
+
+// Und der doppelte Schluessel ist keine Stoerung: Zwischen der Frage von
+// selectCity() und dem INSERT liegt ein Fenster. Schlaegt der Index zu, ist
+// die richtige Antwort die Zeile des anderen - nicht "City konnte nicht
+// bestimmt werden!". Dasselbe Vorgehen wie in User und TourReview.
+check(preg_match('/insertCityName.*?23000.*?selectCity\(\$country_id\)/s', $locationQuelle) === 1,
+    'insertCityName() behandelt den doppelten Schluessel nicht als Regelfall');
+
+$wanderung21 = file_get_contents($ROOT . '/migrations/021_stadt_je_land_eindeutig.sql');
+check(strpos($wanderung21, 'ADD UNIQUE KEY IF NOT EXISTS `city_name_country`') !== false,
+    'die Wanderung legt den Index nicht an');
+// SCHRITT 1 IST DIE LISTE, SCHRITT 2 DIE ABSAGE. Der ALTER TABLE allein
+// scheiterte auch - aber mit EINEM Paar in der Treibermeldung statt mit der
+// Liste, die man zum Aufraeumen braucht. Derselbe Grund wie in 002.
+check(strpos($wanderung21, 'GROUP BY c.`city_name`, c.`country_id`') !== false,
+    'die Wanderung sucht vorher nicht nach Doppelungen je Land');
+check(strpos($wanderung21, "SIGNAL SQLSTATE '45000'") !== false,
+    'die Wanderung bricht bei Doppelungen nicht ab');
+// Sie fasst den Bestand NICHT an: kein UPDATE, kein DELETE - das
+// Zusammenfuehren ist eine eigene Aufgabe mit eigener Vorschau.
+foreach (['UPDATE ', 'DELETE FROM '] as $befehl) {
+    $ausfuehrbar = 0;
+    foreach (preg_split('/\R/', $wanderung21) as $zeile) {
+        if (preg_match('/^\s*--/', $zeile)) continue;   // Kommentar
+        if (stripos($zeile, $befehl) !== false) $ausfuehrbar++;
+    }
+    check($ausfuehrbar === 0,
+        "die Wanderung enthaelt ein ausfuehrbares $befehl - sie darf den Bestand nicht anfassen");
+}
+
+check(strpos($dump, 'UNIQUE KEY `city_name_country` (`city_name`, `country_id`)') !== false,
+    'der Dump kennt den Index auf city nicht');
+// KEY `country_id` muss BLEIBEN: Der Fremdschluessel braucht einen Index,
+// der mit country_id anfaengt - der eindeutige tut das nicht.
+check(strpos($dump, 'KEY `country_id` (`country_id`)') !== false,
+    'der Dump hat den Index fuer den Fremdschluessel verloren');
+ok('Name und Land bilden den Schluessel - im Code, in der Wanderung und im Dump');
+
+
+// ---------------------------------------------------------------------
 fwrite(STDERR, "\nEin Schalter, eine Auswertung (App\\Helper\\Env)\n");
 
 /**

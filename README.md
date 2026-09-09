@@ -67,13 +67,31 @@ mariadb -u <user> -p <datenbank> < migrations/016_bewertungen.sql
 mariadb -u <user> -p <datenbank> < migrations/017_fuehrung_beenden.sql
 mariadb -u <user> -p <datenbank> < migrations/018_bremse.sql
 mariadb -u <user> -p <datenbank> < migrations/019_standort_chat.sql
+mariadb -u <user> -p <datenbank> < migrations/020_username_eindeutig.sql
+mariadb -u <user> -p <datenbank> < migrations/021_stadt_je_land_eindeutig.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)), `017` ergänzt `tour_request.closed_at`: Der Guide **beendet die Führung ausdrücklich**, statt dass das Auflegen sie abschließt (siehe [Auflegen ist nicht beenden](#auflegen-ist-nicht-beenden)), `018` legt die Tabelle `rate_limit` an — die **serverseitigen Versuchszähler**, die vorher in der Session des Aufrufers lagen, `019` gibt dem Chat seine **Herkunft** (`chat.location_id`) und nimmt ihm die **Einladung** (siehe [Der Chat](#-der-chat-über-einen-standort)). Alle sind idempotent.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)), `017` ergänzt `tour_request.closed_at`: Der Guide **beendet die Führung ausdrücklich**, statt dass das Auflegen sie abschließt (siehe [Auflegen ist nicht beenden](#auflegen-ist-nicht-beenden)), `018` legt die Tabelle `rate_limit` an — die **serverseitigen Versuchszähler**, die vorher in der Session des Aufrufers lagen, `019` gibt dem Chat seine **Herkunft** (`chat.location_id`) und nimmt ihm die **Einladung** (siehe [Der Chat](#-der-chat-über-einen-standort)), `020` macht den **Benutzernamen eindeutig** (Index auf `user.username`), `021` macht eine **Stadt je Land eindeutig** (Index auf `city(city_name, country_id)`). Alle sind idempotent.
 
 **Nach `011` braucht die Anwendung ein Ablageverzeichnis für Bilder**, sonst lässt sich kein Bild hochladen; alles andere läuft unverändert weiter. Siehe [Bilder](#bilder-ablage-formate-größen).
 
 **Nach `013` beginnt die Aufzeichnung bei null.** Vergangene Führungen sind nirgends festgehalten und lassen sich nicht nachtragen — es gab dafür keinen Datensatz, und genau deshalb gibt es die Tabelle.
+
+**`020` und `021` können abbrechen, und das ist ihr Zweck.** Beide ziehen
+einen eindeutigen Index nach, den es vorher nicht gab — und wo ein Bestand
+ihm widerspricht, ist das Zusammenführen eine Entscheidung, die keine
+Migration treffen darf. Sie geben deshalb zuerst die betroffenen Zeilen aus
+und brechen dann ab, **ohne etwas zu ändern**. Was zu tun ist, steht im Kopf
+der jeweiligen Datei.
+
+Bei `021` sind das Städte, die unter demselben Namen im selben Land zweimal
+in der Tabelle stehen. Der Grund dafür liegt im alten Schreibpfad: Die Suche
+fragte nur nach dem Namen und nicht nach dem Land — wer nach dem spanischen
+Valencia einen Standort im venezolanischen anlegte, bekam die spanische Zeile
+samt ihrem Land. Und die Ortsnamen kamen von Nominatim in der Sprache des
+Browsers, sodass derselbe Ort als „Lissabon" und als „Lisbon" in der Tabelle
+landen konnte. Beides ist im Code behoben; `021` sichert es in der Datenbank
+ab. **Den Bestand vereinheitlicht sie nicht** — das ist eine eigene Aufgabe.
 
 **`019` löscht als einzige etwas** — die Spalten `chat.is_active` und `chat.pending_for`. Jede vorhandene Zeile wird dadurch zu einem gewöhnlichen Chat: Eine Einladung, die noch offen war, ist ab dann ein offenes Gespräch, und der Angeschriebene sieht sie im Zähler der Kopfleiste statt in einem Fenster mit zwei Knöpfen. Nachrichten gehen keine verloren.
 

@@ -169,7 +169,10 @@ class Location
     {
         if ($user_id > 0) {
             try {
-                $result = $this->selectCity();
+                // Das Land geht mit: Ohne es faende selectCity() eine
+                // gleichnamige Stadt in einem ANDEREN Land und haengte den
+                // Standort an deren country_id.
+                $result = $this->selectCity($country_id);
                 if ($result === false) {
                     $city_id = $this->insertCityName($country_id);
                 } else {
@@ -1080,16 +1083,41 @@ class Location
     }
 
     /**
-     * Gibt die Stadt zurück, falls sie existiert.
+     * Gibt die Stadt zurück, falls es sie IN DIESEM LAND schon gibt.
+     *
+     * DAS LAND GEHOERT IN DIE BEDINGUNG
+     * ---------------------------------
+     * Hier stand nur "WHERE city_name = :city" - ohne Land. Ein Stadtname
+     * ist aber nicht weltweit eindeutig: Valencia gibt es in Spanien und in
+     * Venezuela, Toledo in Spanien und in den USA, Santiago mehrfach. Wer
+     * nach dem spanischen Valencia einen Standort im venezolanischen anlegte,
+     * bekam die vorhandene Zeile zurueck - samt der country_id VON SPANIEN.
+     * Sein Standort haengt seither an einem Land, in dem er nicht liegt, und
+     * zwar still: Die Seite zeigt einen Ort, die Liste sortiert ihn unter
+     * dem falschen Land ein, und niemand sieht einen Fehler.
+     *
+     * Das war kein Randfall, sondern die Regel dieser Abfrage - sie konnte
+     * gar nicht anders antworten. Mit dem Land in der Bedingung findet sie
+     * nur noch, was auch wirklich gemeint ist; alles andere ist "gibt es
+     * noch nicht" und wird angelegt.
+     *
+     * GROSS- UND KLEINSCHREIBUNG spielt keine Rolle: Die Tabelle steht auf
+     * utf8mb4 mit der Standardsortierung des Servers, und die vergleicht
+     * ohne Ruecksicht darauf. "Lisbon" findet also auch "lisbon" - und der
+     * eindeutige Index aus Migration 021 sieht es genauso. Beide benutzen
+     * dieselbe Regel, deshalb koennen sie nicht auseinanderlaufen.
+     *
+     * @param int $country_id Land, in dem gesucht wird
      * @return array|false
      */
-    public function selectCity()
+    public function selectCity($country_id)
     {
         try {
             $stmt = PdoConnect::$connection->prepare(
-                "SELECT * FROM city WHERE city_name = :city"
+                "SELECT * FROM city WHERE city_name = :city AND country_id = :country"
             );
             $stmt->bindParam(':city', $this->city);
+            $stmt->bindParam(':country', $country_id, \PDO::PARAM_INT);
             $stmt->execute();
             $result = $stmt->fetch(\PDO::FETCH_ASSOC);
             return $result ?: false;
@@ -1101,8 +1129,24 @@ class Location
 
     /**
      * Legt eine neue Stadt an (falls noch nicht vorhanden).
+     *
+     * DER DOPPELTE SCHLUESSEL IST HIER KEINE STOERUNG
+     * -----------------------------------------------
+     * Seit Migration 021 liegt auf (city_name, country_id) ein eindeutiger
+     * Index. Zwischen der Frage von selectCity() und diesem INSERT liegt ein
+     * Fenster; legen zwei Guides im selben Augenblick einen Standort in
+     * derselben Stadt an, sehen beide "gibt es noch nicht" und schreiben
+     * beide. Genau dafuer ist der Index da - die Vorabfrage ist die
+     * Bequemlichkeit, der Index ist die Zusage.
+     *
+     * Sein Zuschlagen (SQLSTATE 23000) heisst deshalb nicht "Fehler", sondern
+     * "der andere war schneller". Die richtige Antwort darauf ist, dessen
+     * Zeile zu benutzen - und nicht, dem Guide "City konnte nicht bestimmt
+     * werden!" hinzuwerfen. Dasselbe Vorgehen wie in App\Model\User und
+     * App\Model\TourReview.
+     *
      * @param int $country_id
-     * @return int|false Neue Stadt-ID oder false bei Fehler
+     * @return int|false Stadt-ID oder false bei Fehler
      */
     public function insertCityName($country_id)
     {
@@ -1115,6 +1159,14 @@ class Location
             $stmt->execute();
             return PdoConnect::$connection->lastInsertId();
         } catch (\PDOException $e) {
+            // 23000 = Integritaetsverletzung, hier der eindeutige Index.
+            // Als Zeichenkette und nicht als Zahl - PDO liefert den
+            // SQLSTATE-Code so. Dieselbe Schreibweise wie in
+            // App\Model\TourReview::create() und App\Model\User::register().
+            if ($e->getCode() === '23000') {
+                $vorhanden = $this->selectCity($country_id);
+                if ($vorhanden !== false) return $vorhanden['id'];
+            }
             error_log('Fehler beim Anlegen einer Stadt: ' . $e->getMessage());
             return false;
         }
