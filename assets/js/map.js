@@ -28,6 +28,54 @@ window.webrtcApp.locationMap = {
     selectedCountryCode: null,   // Aktuell gewähltes Land (ID)
     countryJustSetByLocation: false, // Flag: wurde Land durch Geolocation gesetzt?
 
+    // -----------------------------------------------------------------
+    // Nominatim (Geocoding)
+    // -----------------------------------------------------------------
+
+    /** Der Dienst, der aus Koordinaten Ortsnamen macht und umgekehrt. */
+    NOMINATIM: 'https://nominatim.openstreetmap.org/',
+
+    /**
+     * Die Sprache, in der Nominatim antworten soll.
+     *
+     * WARUM DAS HIER STEHEN MUSS
+     * --------------------------
+     * Ohne diese Angabe richtet sich Nominatim nach dem Accept-Language-
+     * Header des BROWSERS. Das heisst: Wer den Standort mit einem deutschen
+     * Browser anlegt, speichert "Lissabon"; wer denselben Punkt mit einem
+     * englischen Browser anlegt, speichert "Lisbon". Beides landet in
+     * city.city_name und location.osm_place - die Stadtnamen in der
+     * Datenbank haengen also davon ab, wer sie eingetragen hat.
+     *
+     * Eine feste Sprache macht daraus einen bestimmbaren Wert. Englisch und
+     * nicht Deutsch, weil die Anwendung weltweit laufen soll und der
+     * gespeicherte Name der ist, den ein Kunde aus einem anderen Land
+     * wiedererkennen muss.
+     *
+     * ACHTUNG: Das gilt ab jetzt fuer NEUE Eintraege. Der Bestand ist
+     * gemischt und muss getrennt vereinheitlicht werden.
+     */
+    NOMINATIM_SPRACHE: 'en',
+
+    /**
+     * Baut eine Nominatim-Adresse.
+     *
+     * DIE EINE STELLE, an der accept-language gesetzt wird. Sechs Aufrufe
+     * verteilt ueber dieses Modul haetten sonst sechs Gelegenheiten, sie zu
+     * vergessen - und ein vergessener Aufruf faellt nicht auf, er liefert
+     * nur still einen Namen in einer anderen Sprache.
+     *
+     * @param {string} in_pfad     'search' oder 'reverse'
+     * @param {Object} in_parameter Abfrageparameter; Werte werden kodiert
+     * @returns {string} Vollstaendige Adresse
+     */
+    nominatimUrl(in_pfad, in_parameter) {
+        const p = new URLSearchParams(in_parameter || {});
+        p.set('format', 'json');
+        p.set('accept-language', this.NOMINATIM_SPRACHE);
+        return this.NOMINATIM + in_pfad + '?' + p.toString();
+    },
+
     /**
      * Liest das aktuelle Land aus dem Country-Select.
      * @returns {string} Ländercode (ISO2), Großbuchstaben
@@ -111,9 +159,7 @@ window.webrtcApp.locationMap = {
      */
     initMap() {
         this.map = L.map('map').setView([51, 10], 5);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(this.map);
+        window.webrtcApp.mapTiles.add(this.map);
 
         this.map.on('click', (e) => this.onMapClick(e));
     },
@@ -159,7 +205,12 @@ window.webrtcApp.locationMap = {
                         $('<option>', {
                             value: country.id,
                             text: country.country_name,
-                            'data-country-name': country.country_name,
+                            // data-country-name stand hier und trug den
+                            // deutschen Namen ein zweites Mal - allein, um
+                            // ihn als Suchbegriff an Nominatim zu geben.
+                            // Diesen Weg gibt es nicht mehr (siehe
+                            // onCountryChange), also faellt das Attribut weg.
+                            // Der ANGEZEIGTE Name bleibt: er steht in text.
                             'data-iso2': country.iso2
                         })
                     );
@@ -357,9 +408,27 @@ window.webrtcApp.locationMap = {
 
         if (!this.selectedCountryCode) return;
 
-        // Map auf das gewählte Land zentrieren
-        const countryName = selectedOption.data('country-name');
-        fetch('https://nominatim.openstreetmap.org/search?country=' + encodeURIComponent(countryName) + '&format=json')
+        // Map auf das gewählte Land zentrieren.
+        //
+        // UEBER DEN ISO-CODE UND NICHT UEBER DEN LAENDERNAMEN. Der Name kam
+        // aus country.country_name und ist dort deutsch. Als Suchbegriff band
+        // er die Kartenansicht an die Sprache des Datenbestandes: Sobald die
+        // Ländernamen uebersetzt werden, faende Nominatim nichts mehr, und
+        // der Nutzer bekaeme "keine Kartenansicht" fuer ein Land, das es sehr
+        // wohl gibt. Der Code ist sprachunabhaengig.
+        //
+        // ZWEI PARAMETER, ZWEI AUFGABEN:
+        //   country=      ist die Anfrage (strukturierte Suche). Ohne sie
+        //                 haette Nominatim keinen Suchbegriff und lieferte
+        //                 eine leere Liste - countrycodes allein ist nur ein
+        //                 Filter und keine Frage.
+        //   countrycodes= ist der Filter darauf. Er stellt sicher, dass ein
+        //                 Treffer auch wirklich in diesem Land liegt.
+        fetch(this.nominatimUrl('search', {
+            country: iso2,
+            countrycodes: iso2,
+            limit: 1
+        }))
             .then(resp => resp.json())
             .then(data => {
                 if (data[0] && data[0].lat && data[0].lon) {
@@ -481,7 +550,7 @@ window.webrtcApp.locationMap = {
 
         // Den Ortsnamen traegt der Server nicht mit zurueck - er ist nur
         // Anzeige und stuende sonst als "-" neben einem gesetzten Marker.
-        fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon)
+        fetch(this.nominatimUrl('reverse', { lat: lat, lon: lon }))
             .then(resp => resp.json())
             .then(data => { $('#osm_place').text(data.display_name || ''); })
             .catch(() => { /* nur Anzeige - ein Fehlschlag darf nichts stoeren */ });
@@ -502,7 +571,12 @@ window.webrtcApp.locationMap = {
                     let countryIso2 = $('#countrySelect option:selected').data('iso2');
                     if (!countryIso2) return success({ results: [] });
                     let query = params.data.q;
-                    fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&countrycodes=${countryIso2}&format=json&addressdetails=1&limit=15`)
+                    fetch(self.nominatimUrl('search', {
+                        q: query,
+                        countrycodes: countryIso2,
+                        addressdetails: 1,
+                        limit: 15
+                    }))
                         .then(r => r.json())
                         .then(data => {
                             success({ results: self.formatCityResults(data, query) });
@@ -567,7 +641,7 @@ window.webrtcApp.locationMap = {
             self.marker = L.marker([data.lat, data.lon]).addTo(self.map);
             self.map.setView([data.lat, data.lon], 12);
             // OSM Place Name holen
-            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${data.lat}&lon=${data.lon}`)
+            fetch(self.nominatimUrl('reverse', { lat: data.lat, lon: data.lon }))
                 .then(resp => resp.json())
                 .then(r => {
                     $('#osm_place').text(r.display_name || '');
@@ -699,7 +773,7 @@ window.webrtcApp.locationMap = {
         $('#latitude').val(e.latlng.lat);
         $('#longitude').val(e.latlng.lng);
 
-        fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + e.latlng.lat + '&lon=' + e.latlng.lng)
+        fetch(this.nominatimUrl('reverse', { lat: e.latlng.lat, lon: e.latlng.lng }))
             .then(resp => resp.json())
             .then(data => {
                 $('#osm_place').text(data.display_name || '');
@@ -736,7 +810,7 @@ window.webrtcApp.locationMap = {
         }
         navigator.geolocation.getCurrentPosition((pos) => {
             let lat = pos.coords.latitude, lon = pos.coords.longitude;
-            fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon)
+            fetch(this.nominatimUrl('reverse', { lat: lat, lon: lon }))
                 .then(resp => resp.json())
                 .then(data => {
                     $('#osm_place').text(data.display_name || '');

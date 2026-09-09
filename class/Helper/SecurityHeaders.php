@@ -82,10 +82,32 @@ class SecurityHeaders
      *
      * Leaflet baut die Adressen aus '{s}.tile.openstreetmap.org' zusammen -
      * das {s} wird zu a, b oder c. Deshalb der Platzhalter statt drei
-     * Eintraegen; die Adresse steht in assets/js/map.js, home_map.js,
-     * location_page.js und locations_table.js.
+     * Eintraegen.
+     *
+     * DIE ADRESSE STEHT AUF DER ANDEREN SEITE AN GENAU EINER STELLE:
+     * assets/js/map_tiles.js. Sie stand einmal in vier Modulen (map.js,
+     * home_map.js, location_page.js, locations_table.js) - wer den Anbieter
+     * wechselt, aendert jetzt jene Datei und diese Konstante, sonst nichts.
+     * Ein Test haelt fest, dass es bei der einen Stelle bleibt.
      */
     private const KARTEN_KACHELN = 'https://*.tile.openstreetmap.org';
+
+    /**
+     * Der Geocoding-Dienst.
+     *
+     * assets/js/map.js fragt ihn beim Anlegen eines Standorts: Land
+     * zentrieren, Staedte suchen, zu einem Kartenpunkt den Ortsnamen holen.
+     * Das sind fetch()-Aufrufe, und die pruefen Browser gegen connect-src -
+     * NICHT gegen img-src, wo die Kacheln stehen.
+     *
+     * ER FEHLTE HIER. Solange CSP_MODE auf "melden" steht, faellt das nicht
+     * auf: Der Browser meldet und laesst durch. Auf "scharf" waere die
+     * Staedtesuche tot gewesen, und zwar auf eine Art, die niemand mit
+     * dieser Datei in Verbindung bringt - das Feld bleibt leer, eine
+     * Fehlermeldung gibt es nicht. Die Adresse steht in map.js an einer
+     * Stelle (locationMap.NOMINATIM).
+     */
+    private const GEOCODING = 'https://nominatim.openstreetmap.org';
 
     /** Die erlaubten Werte von CSP_MODE. */
     private const MODI = ['aus', 'melden', 'scharf'];
@@ -255,7 +277,9 @@ class SecurityHeaders
             // Liste, die irgendwann nicht mehr stimmt - und dann fallen
             // Anrufe aus, ohne dass jemand diese Datei im Verdacht hat.
             // -------------------------------------------------------------
-            "connect-src 'self' stun: turn: turns:",
+            // Dazu der Geocoding-Dienst (siehe self::GEOCODING): Er ist der
+            // einzige fremde Host, den der Client per fetch anspricht.
+            "connect-src 'self' " . self::GEOCODING . " stun: turn: turns:",
 
             // Kein <object>, kein <embed>, kein Flash-Erbe.
             "object-src 'none'",

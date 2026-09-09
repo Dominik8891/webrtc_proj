@@ -122,10 +122,7 @@ window.webrtcApp.locationPage = {
             attributionControl: true
         });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap',
-            maxZoom: 19
-        }).addTo(this.map);
+        window.webrtcApp.mapTiles.add(this.map);
 
         L.marker([this.daten.lat, this.daten.lon], { title: this.daten.place || 'Treffpunkt' })
             .addTo(this.map);

@@ -8210,15 +8210,44 @@ foreach (array_unique($treffer[1]) as $host) {
     check(strpos($csp, $host) !== false, "style-src kennt $host nicht");
 }
 
-// Die Kartenkacheln kommen nicht aus index.html, sondern aus vier
-// JS-Modulen - und der Platzhalter {s} wird zu a, b oder c.
-$kachelModule = 0;
+// Die Kartenkacheln kommen nicht aus index.html, sondern aus einem
+// JS-Modul - und der Platzhalter {s} wird zu a, b oder c.
+//
+// GENAU EIN MODUL, und das ist der eigentliche Punkt dieser Pruefung. Die
+// Adresse stand einmal in vier Modulen; ein Anbieterwechsel war damit
+// vierfach zu machen, und der vergessene vierte faellt niemandem auf - die
+// Karte laedt ja. Seit assets/js/map_tiles.js gibt es die eine Stelle. Wer
+// die Adresse woanders wieder einsetzt, laesst diese Pruefung scheitern.
+$kachelModule = [];
 foreach (glob($ROOT . '/assets/js/*.js') as $datei) {
-    if (strpos((string)file_get_contents($datei), '.tile.openstreetmap.org') !== false) $kachelModule++;
+    if (strpos((string)file_get_contents($datei), '.tile.openstreetmap.org') !== false) {
+        $kachelModule[] = basename($datei);
+    }
 }
-check($kachelModule > 0, 'die Kartenkacheln kommen aus einer anderen Quelle als angenommen');
+check($kachelModule === ['map_tiles.js'],
+    'die Kacheladresse steht nicht (mehr) allein in map_tiles.js, sondern in: '
+    . (implode(', ', $kachelModule) ?: 'gar keinem Modul'));
 check(strpos($csp, 'https://*.tile.openstreetmap.org') !== false,
-    "img-src kennt die Kartenkacheln nicht ($kachelModule Module laden sie)");
+    'img-src kennt die Kartenkacheln nicht');
+
+// --- Der Geocoding-Dienst -------------------------------------------------
+// Er wird per fetch angesprochen und faellt damit unter connect-src, nicht
+// unter img-src. Fehlt er dort, ist auf CSP_MODE=scharf die Staedtesuche
+// tot - ohne Fehlermeldung, das Feld bleibt einfach leer.
+$mapQuelle = (string)file_get_contents($ROOT . '/assets/js/map.js');
+check(substr_count($mapQuelle, 'nominatim.openstreetmap.org') === 1,
+    'die Nominatim-Adresse steht mehr als einmal in map.js - '
+    . 'sie gehoert in die Konstante NOMINATIM');
+check(strpos($csp, 'https://nominatim.openstreetmap.org') !== false,
+    'connect-src kennt den Geocoding-Dienst nicht');
+
+// Und: JEDE Anfrage dorthin traegt accept-language. Ohne den Parameter
+// antwortet Nominatim in der Sprache des Browsers - dann haengt der
+// gespeicherte Stadtname davon ab, wer den Standort angelegt hat.
+check(strpos($mapQuelle, "p.set('accept-language'") !== false,
+    'nominatimUrl setzt accept-language nicht');
+check(preg_match('/fetch\(\s*[\'"`]https:\/\/nominatim/', $mapQuelle) === 0,
+    'in map.js steht ein fetch direkt auf Nominatim, das an nominatimUrl vorbeigeht');
 
 // --- connect-src und die ICE-Server ---------------------------------------
 // CHROME PRUEFT DIE TURN- UND STUN-SERVER EINER RTCPeerConnection GEGEN

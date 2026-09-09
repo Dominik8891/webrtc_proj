@@ -368,7 +368,7 @@ style-src   'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net
 img-src     'self' data: https://*.tile.openstreetmap.org;
 font-src    'self';
 media-src   'self' blob:;
-connect-src 'self' stun: turn: turns:;
+connect-src 'self' https://nominatim.openstreetmap.org stun: turn: turns:;
 object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
 ```
 
@@ -397,6 +397,14 @@ Vier Zeilen daran verdienen eine Erklärung:
   sähe aus wie ein Netzproblem. Einzelne Adressen stehen dort nicht: Welcher
   TURN-Host antwortet, holt der Server zur Laufzeit bei Metered ab — eine
   Liste hier wäre eine Liste, die irgendwann nicht mehr stimmt.
+* **`connect-src` nennt außerdem `nominatim.openstreetmap.org`** — den
+  Geocoding-Dienst, den `assets/js/map.js` beim Anlegen eines Standorts
+  fragt (Land zentrieren, Städte suchen, zu einem Kartenpunkt den Ortsnamen
+  holen). Er ist der einzige fremde Host, den der Client per `fetch`
+  anspricht, und `fetch` prüft der Browser gegen `connect-src` — nicht gegen
+  `img-src`, wo die Kacheln stehen. Er hat hier gefehlt: Auf `CSP_MODE=melden`
+  fällt das nicht auf, auf `scharf` wäre die Städtesuche ohne Fehlermeldung
+  tot gewesen.
 * **`img-src data:`** brauchen die Symbole in `assets/css/theme.css`; die
   liegen als SVG in den CSS-Variablen und nicht als Datei.
 

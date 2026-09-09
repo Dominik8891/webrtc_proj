@@ -944,7 +944,7 @@ window.webrtcApp.locationsTable = {
         }).show();
         if (!this.mapInitialized) {
             this.map = L.map('descMap').setView([lat, lng], 14);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.map);
+            window.webrtcApp.mapTiles.add(this.map);
             this.mapInitialized = true;
         } else {
             this.map.setView([lat, lng], 14);
@@ -971,7 +971,7 @@ window.webrtcApp.locationsTable = {
         setTimeout(() => {
             if (!this.modalMapInitialized) {
                 this.modalMap = L.map('modalMap').setView([lat, lng], 16);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(this.modalMap);
+                window.webrtcApp.mapTiles.add(this.modalMap);
                 this.modalMapInitialized = true;
             } else {
                 this.modalMap.setView([lat, lng], 16);

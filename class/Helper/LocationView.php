@@ -528,7 +528,10 @@ class LocationView
             $html .= '<dt>Dauer</dt><dd>' . self::esc(self::dauerText((int)$minuten)) . '</dd>';
         }
 
-        $sprachen = Languages::names($in_daten['languages'] ?? '');
+        // namesInline und nicht names: Die Namen werden hier durch Kommas
+        // zu EINEM Text verbunden, und ein rechtslaeufiger Name (Arabisch)
+        // wuerde das Komma daneben mitziehen. Siehe App\Helper\Languages.
+        $sprachen = Languages::namesInline($in_daten['languages'] ?? '');
         if ($sprachen !== []) {
             $html .= '<dt>Sprachen</dt><dd>' . self::esc(implode(', ', $sprachen)) . '</dd>';
         }

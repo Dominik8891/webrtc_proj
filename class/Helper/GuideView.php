@@ -281,7 +281,11 @@ class GuideView
         $seit = self::dabeiSeit($in_profil['joined_at'] ?? null);
         if ($seit !== '') $teile[] = 'Guide seit ' . $seit;
 
-        $sprachen = Languages::names($in_profil['languages'] ?? '');
+        // namesInline: Der Streifen setzt die Namen mit Kommas in einen
+        // Satz und den Satz danach mit " · " neben andere. Ein
+        // rechtslaeufiger Name braucht dort seine Klammer, sonst wandern die
+        // Trennzeichen. Siehe App\Helper\Languages::namesInline.
+        $sprachen = Languages::namesInline($in_profil['languages'] ?? '');
         if ($sprachen !== []) $teile[] = 'Spricht ' . implode(', ', $sprachen);
 
         if ($teile === []) return '';

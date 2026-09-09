@@ -149,10 +149,7 @@ window.webrtcApp.homeMap = {
             attributionControl: true
         });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap',
-            maxZoom: 19
-        }).addTo(this.map);
+        window.webrtcApp.mapTiles.add(this.map);
 
         this.layer = L.layerGroup().addTo(this.map);
     },
