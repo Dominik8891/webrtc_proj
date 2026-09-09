@@ -787,73 +787,136 @@ function ackLastMove(status = 'executed', reason) {
         ok('kein Bilddienst, kein Emoji-Zeichen, keine fremde Schrift');
     }
 
-    console.error('\n26b) Die Staedtesuche zeigt nur, was zum Suchbegriff passt');
+    console.error('\n26b) Die Staedtesuche zeigt den Treffer, nicht seine Umgebung');
     {
-        // DER BEFUND: Eingabe "rhed" bei Land Deutschland lieferte
-        // "Saarlouis". formatCityResults hatte zwei Durchgaenge - der erste
-        // filterte, der zweite schob bei weniger als drei Treffern die GANZE
-        // Antwort ungefiltert nach. Nominatim antwortet auf "rhed" auch mit
-        // Strassen, und deren Adressfeld nennt die Stadt drumherum.
+        // ZWEI BEFUNDE, EINE URSACHE.
+        //
+        // 1. Eingabe "rhed" lieferte "Saarlouis" - ein Notbehelf schob bei
+        //    weniger als drei Treffern die ganze Antwort ungefiltert nach.
+        // 2. Eingabe "rhed" fand danach GAR NICHTS, waehrend "rhe" und
+        //    "rhede" richtig antworteten.
+        //
+        // Hinter beidem stand dieselbe falsche Annahme: dass in item.address
+        // der Ort steht, um den es geht. Dort steht die GANZE Hierarchie -
+        // der Ort UND alle uebergeordneten. Die Reihenfolge
+        // "city || town || village" griff sich damit die groesste Ebene: Beim
+        // Dorf Rhede, das zu Bocholt gehoert, kam "Bocholt" heraus, und
+        // "Bocholt" enthaelt "rhed" nicht. Dazu galten deutsche Gemeinden
+        // nicht als Ort, weil sie als class "boundary" zurueckkommen.
+        //
+        // Die Faelle unten sind nachgebaute Antwortformen von Nominatim.
         const karte = app.locationMap;
 
-        const rhed = [
-            { class: 'place', type: 'town', addresstype: 'town',
-              display_name: 'Rhede, Kreis Borken, Nordrhein-Westfalen, Deutschland',
-              address: { town: 'Rhede' }, namedetails: { name: 'Rhede' },
-              lat: '51.83', lon: '6.70' },
-            { class: 'highway', type: 'residential', addresstype: 'road',
-              display_name: 'Rhedener Strasse, Saarlouis, Saarland, Deutschland',
-              address: { city: 'Saarlouis' }, namedetails: { name: 'Rhedener Strasse' },
-              lat: '49.31', lon: '6.75' }
+        const formen = [
+            ['Stadt, eigener Name auch im Adressfeld', 'Rhede', {
+                class: 'place', type: 'town', addresstype: 'town', place_rank: 16,
+                name: 'Rhede',
+                display_name: 'Rhede, Kreis Borken, Nordrhein-Westfalen, Deutschland',
+                address: { town: 'Rhede', county: 'Kreis Borken' },
+                namedetails: { name: 'Rhede' }, lat: '51.83', lon: '6.70' }],
+
+            ['Dorf INNERHALB einer anderen Stadt', 'Rhede', {
+                class: 'place', type: 'village', addresstype: 'village', place_rank: 19,
+                name: 'Rhede',
+                display_name: 'Rhede, Bocholt, Kreis Borken, Nordrhein-Westfalen, Deutschland',
+                address: { village: 'Rhede', town: 'Bocholt' },
+                namedetails: { name: 'Rhede' }, lat: '51.84', lon: '6.71' }],
+
+            ['Gemeinde als Grenze (class=boundary)', 'Rhede (Ems)', {
+                class: 'boundary', type: 'administrative', addresstype: 'administrative',
+                place_rank: 16, name: 'Rhede (Ems)',
+                display_name: 'Rhede (Ems), Samtgemeinde Dörpen, Landkreis Emsland, Deutschland',
+                address: { municipality: 'Samtgemeinde Dörpen', county: 'Landkreis Emsland' },
+                namedetails: { name: 'Rhede (Ems)' }, lat: '52.99', lon: '7.30' }],
+
+            ['Bauerschaft mit eigenem Adressfeld', 'Rhedebrügge', {
+                class: 'place', type: 'hamlet', addresstype: 'hamlet', place_rank: 20,
+                name: 'Rhedebrügge',
+                display_name: 'Rhedebrügge, Rhede, Kreis Borken, Deutschland',
+                address: { hamlet: 'Rhedebrügge', town: 'Rhede' },
+                namedetails: { name: 'Rhedebrügge' }, lat: '51.86', lon: '6.75' }],
+
+            ['Treffer ganz ohne address-Objekt', 'Rhede', {
+                class: 'place', type: 'village', addresstype: 'village', place_rank: 19,
+                name: 'Rhede',
+                display_name: 'Rhede, Emsland, Niedersachsen, Deutschland',
+                namedetails: { name: 'Rhede' }, lat: '52.98', lon: '7.31' }],
+
+            ['Stadtteil in einer Stadt, deren Name das Bruchstueck enthaelt', 'Rheda', {
+                class: 'place', type: 'suburb', addresstype: 'suburb', place_rank: 20,
+                name: 'Rheda',
+                display_name: 'Rheda, Rheda-Wiedenbrück, Kreis Gütersloh, Deutschland',
+                address: { suburb: 'Rheda', town: 'Rheda-Wiedenbrück' },
+                namedetails: { name: 'Rheda' }, lat: '51.85', lon: '8.30' }],
+
+            // Die beiden, die WEGFALLEN muessen:
+            ['Strasse in einer fremden Stadt', null, {
+                class: 'highway', type: 'residential', addresstype: 'road', place_rank: 26,
+                name: 'Rhedener Straße',
+                display_name: 'Rhedener Straße, Saarlouis, Saarland, Deutschland',
+                address: { road: 'Rhedener Straße', city: 'Saarlouis' },
+                namedetails: { name: 'Rhedener Straße' }, lat: '49.31', lon: '6.75' }],
+
+            ['Kreis - eine Grenze, aber zu grob fuer einen Treffpunkt', null, {
+                class: 'boundary', type: 'administrative', addresstype: 'county', place_rank: 12,
+                name: 'Kreis Rhede-Nord',
+                display_name: 'Kreis Rhede-Nord, Nordrhein-Westfalen, Deutschland',
+                address: { county: 'Kreis Rhede-Nord' },
+                namedetails: { name: 'Kreis Rhede-Nord' } }]
         ];
-        const namen = karte.formatCityResults(rhed, 'rhed').map(r => r.text);
-        assert.deepStrictEqual(namen, ['Rhede'],
-            'die Strasse bringt ihre Stadt wieder in die Liste: ' + JSON.stringify(namen));
-        ok('ein Treffer, der nur die Stadt drumherum nennt, kommt nicht in die Liste');
+
+        for (const [was, erwartet, treffer] of formen) {
+            const passt   = karte.passtZumSuchbegriff(treffer, 'rhed');
+            const gezeigt = passt ? karte.stadtNameVon(treffer) : null;
+            assert.strictEqual(gezeigt, erwartet,
+                was + ': gezeigt wuerde ' + JSON.stringify(gezeigt)
+                + ', erwartet ' + JSON.stringify(erwartet));
+        }
+        ok('acht Antwortformen, und jede ergibt den Namen des Treffers oder gar nichts');
+
+        // Und dasselbe fuer die ganze Antwort - bei DREI, VIER und FUENF
+        // Zeichen. Genau vier fielen vorher durch.
+        const alle = formen.map(f => f[2]);
+        for (const eingabe of ['rhe', 'rhed']) {
+            assert.deepStrictEqual(
+                karte.formatCityResults(alle, eingabe).map(r => r.text),
+                ['Rhede', 'Rhede (Ems)', 'Rhedebrügge', 'Rheda'],
+                'Eingabe "' + eingabe + '" liefert etwas anderes');
+        }
+        assert.deepStrictEqual(
+            karte.formatCityResults(alle, 'rhede').map(r => r.text),
+            ['Rhede', 'Rhede (Ems)', 'Rhedebrügge'],
+            'Eingabe "rhede" liefert etwas anderes');
+        ok('drei, vier und fuenf Zeichen antworten gleich - keine Laenge faellt durch');
 
         // Die Namensvarianten: Seit accept-language=en kommen die
         // Adressfelder auf Englisch. Wer "Lissabon" tippt, muss "Lisbon"
-        // trotzdem finden - angezeigt (und gespeichert) wird der englische
-        // Name.
-        const lissabon = [
-            { class: 'place', type: 'city', addresstype: 'city',
-              display_name: 'Lisbon, Portugal', address: { city: 'Lisbon' },
-              namedetails: { name: 'Lisboa', 'name:de': 'Lissabon', 'name:en': 'Lisbon' },
-              lat: '38.7', lon: '-9.1' }
-        ];
+        // finden - angezeigt (und gespeichert) wird der englische Name.
+        const lissabon = [{
+            class: 'place', type: 'city', addresstype: 'city', place_rank: 16,
+            display_name: 'Lisbon, Portugal', address: { city: 'Lisbon' },
+            namedetails: { name: 'Lisboa', 'name:de': 'Lissabon', 'name:en': 'Lisbon' },
+            lat: '38.7', lon: '-9.1' }];
         for (const eingabe of ['lissabon', 'lisbon', 'lisboa']) {
             assert.deepStrictEqual(karte.formatCityResults(lissabon, eingabe).map(r => r.text),
                 ['Lisbon'], 'Eingabe "' + eingabe + '" findet Lisbon nicht');
         }
         ok('der deutsch getippte Name findet die englische Antwort');
 
-        // ABER die Varianten zaehlen nur, wenn der Treffer SELBST ein Ort
-        // ist. Sonst holt "Rhedener Strasse" ihre Stadt durch dieselbe Tuer
+        // Namensvarianten zaehlen nur bei Treffern, die selbst ein Ort sind -
+        // sonst holt "Rhedener Strasse" ihre Stadt durch dieselbe Tuer
         // zurueck, die eben zugemacht wurde.
-        const strasseMitVariante = [
-            { class: 'highway', type: 'residential', addresstype: 'road',
-              display_name: 'Rhedener Strasse, Saarlouis, Saarland, Deutschland',
-              address: { city: 'Saarlouis' },
-              namedetails: { name: 'Rhedener Strasse', 'name:de': 'Rhedener Strasse' } }
-        ];
-        assert.deepStrictEqual(karte.formatCityResults(strasseMitVariante, 'rhed'), [],
+        assert.deepStrictEqual(karte.formatCityResults([formen[6][2]], 'rhed'), [],
             'die Namensvarianten einer Strasse lassen ihre Stadt durch');
         ok('Namensvarianten zaehlen nur bei Treffern, die selbst ein Ort sind');
 
-        // Jeder Name nur einmal, und Unfug ergibt eine leere Liste statt
-        // eines Fehlers.
-        const doppelt = [
-            { class: 'place', type: 'town', display_name: 'Rhede, A', address: { town: 'Rhede' } },
-            { class: 'place', type: 'town', display_name: 'Rhede, B', address: { town: 'Rhede' } }
-        ];
+        // Jeder Name nur einmal, und Unfug ergibt eine leere Liste.
+        const doppelt = [formen[0][2], formen[0][2]];
         assert.strictEqual(karte.formatCityResults(doppelt, 'rhed').length, 1, 'Dubletten stehen doppelt');
         assert.deepStrictEqual(karte.formatCityResults(null, 'x'), [], 'null ergibt keine leere Liste');
         assert.deepStrictEqual(karte.formatCityResults([], ''), [], 'leere Antwort ergibt keine leere Liste');
-        // Ohne Adressfelder traegt der erste Abschnitt von display_name.
-        const ohneAdresse = [{ class: 'place', type: 'village',
-                               display_name: 'Rhede, Emsland, Niedersachsen, Deutschland' }];
-        assert.deepStrictEqual(karte.formatCityResults(ohneAdresse, 'rhed').map(r => r.text), ['Rhede'],
-            'ohne Adressfelder faellt der Name nicht auf display_name zurueck');
+        assert.deepStrictEqual(karte.formatCityResults([{ display_name: 'Irgendwas, Land' }], 'irgend'), [],
+            'ein Treffer ohne jede Einordnung gilt als Ort');
         ok('jeder Name einmal, und kein Absturz an einer unerwarteten Antwort');
     }
 

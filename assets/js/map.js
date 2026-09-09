@@ -837,49 +837,150 @@ window.webrtcApp.locationMap = {
     },
 
     /**
-     * Der Name, unter dem ein Treffer in der Liste stehen wuerde.
-     *
-     * Die Reihenfolge der Felder ist die von Nominatim: city vor town vor
-     * village und so weiter, vom Groesseren zum Kleineren. Fehlt alles,
-     * bleibt der erste Abschnitt von display_name - dort steht der Name des
-     * Objekts selbst, vor Kreis, Land und Postleitzahl.
-     *
-     * @param {Object} in_treffer Ein Eintrag der Nominatim-Antwort
-     * @returns {string} Leerstring, wenn sich kein Name ableiten laesst
-     */
-    stadtNameVon(in_treffer) {
-        const adresse = (in_treffer && in_treffer.address) || {};
-        const ausAdresse = adresse.city || adresse.town || adresse.village
-            || adresse.hamlet || adresse.municipality || adresse.suburb;
-        if (ausAdresse) return String(ausAdresse);
-
-        const anzeige = in_treffer && in_treffer.display_name;
-        return typeof anzeige === 'string' ? anzeige.split(',')[0].trim() : '';
-    },
-
-    /**
      * Die Objektarten, die selbst ein Ort sind.
      *
      * Nominatim stellt jedem Treffer class und type voran: Eine Stadt ist
-     * class "place" mit type "city", eine Strasse ist class "highway". Diese
-     * Liste ist der Unterschied zwischen "der Treffer IST der Ort" und "der
-     * Treffer LIEGT in einem Ort" - siehe passtZumSuchbegriff().
+     * class "place" mit type "city", eine Strasse ist class "highway".
      */
     ORTSARTEN: ['city', 'town', 'village', 'hamlet', 'municipality',
                 'suburb', 'borough', 'quarter'],
 
     /**
+     * Ab welchem place_rank ein Verwaltungsgebiet als Ort zaehlt.
+     *
+     * Nominatim ordnet jedem Treffer einen Rang zu, der sagt, wie fein er
+     * ist: Land 4, Bundesland 8, Kreis 12, Stadt 16, Dorf 19, Stadtteil 20.
+     * Ab 13 faengt an, was man als Ort einer Fuehrung angeben wuerde - alles
+     * Groebere ist eine Verwaltungsebene und kein Treffpunkt.
+     */
+    ORTSRANG_AB: 13,
+
+    /**
      * Ist der Treffer selbst ein Ort - oder nur etwas, das in einem liegt?
      *
+     * DIE GEMEINDEGRENZE WAR DER BLINDE FLECK
+     * ---------------------------------------
+     * Hier stand nur "class ist place" oder "addresstype ist eine Ortsart".
+     * Beides trifft auf deutsche Gemeinden haeufig NICHT zu: Sie kommen als
+     * class "boundary" mit type "administrative" zurueck, und ihr
+     * addresstype kann ebenfalls "administrative" heissen. Solche Treffer
+     * galten damit als "kein Ort" - ihr eigener Name wurde nicht gelesen,
+     * ihre Namensvarianten nicht geprueft, und aus der Adresshierarchie kam
+     * die uebergeordnete Samtgemeinde. Sie fielen wortlos heraus.
+     *
+     * Der Rang haelt dabei die Verwaltungsebenen draussen, die keine Orte
+     * sind: Ein Kreis oder ein Bundesland ist auch eine Grenze mit type
+     * "administrative" - aber niemand trifft sich in einem Bundesland.
+     *
      * @param {Object} in_treffer Ein Eintrag der Nominatim-Antwort
-     * @returns {boolean} false auch dann, wenn die Angabe fehlt - im
+     * @returns {boolean} false auch dann, wenn die Angaben fehlen - im
      *                    Zweifel gilt der Treffer NICHT als Ort
      */
     istOrtSelbst(in_treffer) {
         if (!in_treffer) return false;
+
+        // Zu grob, um ein Ort zu sein - greift nur, wenn der Rang dabeisteht.
+        const rang = Number(in_treffer.place_rank);
+        if (Number.isFinite(rang) && rang < this.ORTSRANG_AB) return false;
+
         if (in_treffer.class === 'place'
             && this.ORTSARTEN.includes(in_treffer.type)) return true;
+
+        // Gemeinden, Staedte und Stadtteile kommen oft als Grenze zurueck.
+        if (in_treffer.class === 'boundary'
+            && in_treffer.type === 'administrative') return true;
+
         return this.ORTSARTEN.includes(in_treffer.addresstype);
+    },
+
+    /**
+     * Der Name, unter dem ein Treffer in der Liste stehen wuerde.
+     *
+     * DER TREFFER SELBST ODER DER ORT DRUMHERUM - DAS IST DIE FRAGE
+     * ------------------------------------------------------------
+     * Hier stand die Adresshierarchie zuerst:
+     *
+     *     address.city || address.town || address.village || ...
+     *
+     * Das sah nach "vom Groesseren zum Kleineren" aus und war der Fehler.
+     * Nominatim legt in `address` die GANZE Hierarchie eines Treffers ab -
+     * den Ort selbst UND alle uebergeordneten. Fuer das Dorf Rhede, das zu
+     * Bocholt gehoert, steht dort
+     *
+     *     { "village": "Rhede", "town": "Bocholt", ... }
+     *
+     * und die Reihenfolge oben griff sich "Bocholt". Wer "rhed" tippte,
+     * bekam also entweder den falschen Namen angeboten oder gar nichts -
+     * denn "Bocholt" enthaelt "rhed" nicht, und damit fiel der Treffer durch
+     * die Pruefung in passtZumSuchbegriff().
+     *
+     * DER EIGENE NAME STEHT WOANDERS: im ersten Abschnitt von display_name.
+     * Den nimmt diese Methode jetzt, wenn der Treffer selbst ein Ort ist -
+     * und zwar den, nicht namedetails.name: display_name ist in der Sprache
+     * der Anfrage (accept-language), namedetails.name traegt den rohen
+     * Namen aus OpenStreetMap. Fuer Lissabon heisst das "Lisbon" und nicht
+     * "Lisboa" - und "Lisbon" ist auch das, was gespeichert wird.
+     *
+     * IST DER TREFFER KEIN ORT - eine Strasse, ein Gebaeude -, dann ist die
+     * Adresshierarchie genau richtig: Dort steht die Stadt, in der das Ding
+     * liegt. Sie wird angezeigt, muss aber erst noch zum Suchbegriff passen;
+     * genau daran scheitert die "Rhedener Strasse" in Saarlouis.
+     *
+     * @param {Object} in_treffer Ein Eintrag der Nominatim-Antwort
+     * @returns {string} Leerstring, wenn sich kein Name ableiten laesst
+     */
+    stadtNameVon(in_treffer) {
+        if (this.istOrtSelbst(in_treffer)) {
+            const eigen = this.eigenerNameVon(in_treffer);
+            if (eigen !== '') return eigen;
+        }
+
+        const adresse = (in_treffer && in_treffer.address) || {};
+        const drumherum = adresse.city || adresse.town || adresse.village
+            || adresse.hamlet || adresse.municipality || adresse.suburb;
+        if (drumherum) return String(drumherum);
+
+        // WEDER ORT NOCH STADT DRUMHERUM: dann nichts.
+        //
+        // Hier stand ein letzter Rueckfall auf den eigenen Namen. Er sah
+        // harmlos aus und holte genau das zurueck, was istOrtSelbst() eben
+        // aussortiert hatte: Ein Kreis ist eine Grenze mit type
+        // "administrative", faellt am Rang durch - und stand ueber diesen
+        // Rueckfall wieder in der Liste, weil in seiner Adresshierarchie
+        // keine Stadt steht, sondern nur er selbst als "county".
+        //
+        // Ein Treffer, von dem sich weder sagen laesst, dass er ein Ort ist,
+        // noch in welcher Stadt er liegt, gehoert nicht in eine Auswahl von
+        // Staedten. formatCityResults() ueberspringt den leeren Namen.
+        return '';
+    },
+
+    /**
+     * Der Name des Treffers selbst.
+     *
+     * Der erste Abschnitt von display_name: Dort steht der Gegenstand, alles
+     * dahinter ist seine Umgebung. Und er ist uebersetzt - siehe
+     * stadtNameVon(). Fehlt display_name, bleiben die rohen Namensfelder als
+     * Rueckfall; die sind dann eben nicht uebersetzt, aber besser als nichts.
+     *
+     * @param {Object} in_treffer
+     * @returns {string}
+     */
+    eigenerNameVon(in_treffer) {
+        if (!in_treffer) return '';
+
+        const anzeige = in_treffer.display_name;
+        if (typeof anzeige === 'string' && anzeige.trim() !== '') {
+            return anzeige.split(',')[0].trim();
+        }
+        if (typeof in_treffer.name === 'string' && in_treffer.name.trim() !== '') {
+            return in_treffer.name.trim();
+        }
+
+        const varianten = in_treffer.namedetails;
+        if (varianten && typeof varianten.name === 'string') return varianten.name.trim();
+
+        return '';
     },
 
     /**
