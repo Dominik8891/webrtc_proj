@@ -11,7 +11,8 @@
 --                JEDE Zeile falsch und der Laender-Dropdown bleibt leer -
 --                selbst bei vollstaendig gefuellter Tabelle.
 --     Zeile 184  Parameter countrycodes= der Staedtesuche bei Nominatim.
---     Zeile 115  Flaggengrafik von flagcdn.com/24x18/<iso2>.png
+--     Zeile 115  das Kuerzel vor dem Laendernamen in der Auswahlliste
+--                (frueher eine Flaggengrafik von flagcdn.com)
 --
 -- REIHENFOLGE
 --   Diese Migration NUR die Spalte an. Die Stammdaten kommen danach mit

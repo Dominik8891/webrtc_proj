@@ -747,36 +747,114 @@ function ackLastMove(status = 'executed', reason) {
         html.setAttribute('data-theme', 'indigo');
     }
 
-    console.error('\n26) Die Laenderflagge kommt ohne Netz aus');
+    console.error('\n26) Das Laenderkuerzel braucht weder Netz noch Emoji-Schrift');
     {
-        // Vorher stand vor jedem Land ein <img> von flagcdn.com. Laedt das
-        // Bild nicht, zeichnet der Browser das Ersatzbild - bei 24x18 Pixeln
-        // ein schmaler Strich: "|Ägypten". Die Flagge kommt jetzt aus dem
-        // Laenderkuerzel und kann deshalb nicht fehlschlagen.
+        // Zwei Anlaeufe sind hier gescheitert: ein <img> von flagcdn.com
+        // (laedt es nicht, steht ein schmaler Strich vor dem Namen:
+        // "|Ägypten") und die Flagge als Zeichen aus zwei
+        // Regional-Indikatoren. Der zweite scheiterte an der Schrift -
+        // Windows liefert keine Flaggenzeichen mit, und Firefox waehlt seine
+        // eigenen dort nicht zuverlaessig aus. Jetzt stehen zwei Buchstaben
+        // aus der normalen Schrift da; die koennen nicht fehlschlagen.
         const karte = app.locationMap;
 
-        assert.strictEqual(karte.flaggeAusIso2('AT'), '\u{1F1E6}\u{1F1F9}', 'AT ergibt nicht die Flagge Oesterreichs');
-        assert.strictEqual(karte.flaggeAusIso2('eg'), '\u{1F1EA}\u{1F1EC}', 'Kleinschreibung wird nicht erkannt');
-        assert.strictEqual(karte.flaggeAusIso2(' de '), '\u{1F1E9}\u{1F1EA}', 'Leerzeichen werden nicht abgeschnitten');
-        ok('das Kuerzel wird zur Flagge');
+        assert.strictEqual(karte.kuerzelAusIso2('AT'), 'AT', 'AT kommt nicht durch');
+        assert.strictEqual(karte.kuerzelAusIso2('eg'), 'EG', 'Kleinschreibung wird nicht angehoben');
+        assert.strictEqual(karte.kuerzelAusIso2(' de '), 'DE', 'Leerzeichen werden nicht abgeschnitten');
+        ok('das Kuerzel kommt geprueft und in Grossbuchstaben zurueck');
 
-        // Alles, was kein Kuerzel ist, ergibt nichts - und nicht etwa ein
-        // Zeichen aus einem falschen Block.
-        for (const murks of ['', 'D', 'DEU', 'D1', null, undefined, 42, {}]) {
-            assert.strictEqual(karte.flaggeAusIso2(murks), '',
+        // Alles, was kein Kuerzel ist, ergibt nichts - dann faellt
+        // formatCountryOption() auf den blossen Namen zurueck.
+        for (const murks of ['', 'D', 'DEU', 'D1', 'Ä!', null, undefined, 42, {}]) {
+            assert.strictEqual(karte.kuerzelAusIso2(murks), '',
                 'ungueltige Eingabe ' + JSON.stringify(murks) + ' ergab etwas');
         }
         ok('ungueltige Kuerzel ergeben nichts');
 
-        // Und im Code darf kein Verweis auf den fremden Bilddienst mehr sein.
         const quelle = require('fs').readFileSync(
             require('path').join(__dirname, '..', 'assets', 'js', 'map.js'), 'utf8');
-        // Der Erklaertext darf ihn nennen, die Regeln nicht.
+        // Der Erklaertext darf beides nennen, die Regeln nicht.
         const ohneKommentare = quelle.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
         assert.ok(!ohneKommentare.includes('flagcdn'), 'map.js laedt noch Bilder von flagcdn');
         assert.ok(!ohneKommentare.includes('country.emoji'),
             'der Rest des entfernten emoji-Feldes steht noch im Code');
-        ok('kein Bilddienst und kein Rest des emoji-Feldes mehr');
+        // Und kein Regional-Indikator mehr: Die Anzeige darf nicht wieder an
+        // einer Emoji-Schrift haengen.
+        assert.ok(!ohneKommentare.includes('0x1F1E6'),
+            'die Flagge wird wieder aus Regional-Indikatoren gebildet');
+        assert.ok(!/fromCodePoint/.test(ohneKommentare),
+            'map.js baut wieder Zeichen aus Codepunkten');
+        ok('kein Bilddienst, kein Emoji-Zeichen, keine fremde Schrift');
+    }
+
+    console.error('\n26b) Die Staedtesuche zeigt nur, was zum Suchbegriff passt');
+    {
+        // DER BEFUND: Eingabe "rhed" bei Land Deutschland lieferte
+        // "Saarlouis". formatCityResults hatte zwei Durchgaenge - der erste
+        // filterte, der zweite schob bei weniger als drei Treffern die GANZE
+        // Antwort ungefiltert nach. Nominatim antwortet auf "rhed" auch mit
+        // Strassen, und deren Adressfeld nennt die Stadt drumherum.
+        const karte = app.locationMap;
+
+        const rhed = [
+            { class: 'place', type: 'town', addresstype: 'town',
+              display_name: 'Rhede, Kreis Borken, Nordrhein-Westfalen, Deutschland',
+              address: { town: 'Rhede' }, namedetails: { name: 'Rhede' },
+              lat: '51.83', lon: '6.70' },
+            { class: 'highway', type: 'residential', addresstype: 'road',
+              display_name: 'Rhedener Strasse, Saarlouis, Saarland, Deutschland',
+              address: { city: 'Saarlouis' }, namedetails: { name: 'Rhedener Strasse' },
+              lat: '49.31', lon: '6.75' }
+        ];
+        const namen = karte.formatCityResults(rhed, 'rhed').map(r => r.text);
+        assert.deepStrictEqual(namen, ['Rhede'],
+            'die Strasse bringt ihre Stadt wieder in die Liste: ' + JSON.stringify(namen));
+        ok('ein Treffer, der nur die Stadt drumherum nennt, kommt nicht in die Liste');
+
+        // Die Namensvarianten: Seit accept-language=en kommen die
+        // Adressfelder auf Englisch. Wer "Lissabon" tippt, muss "Lisbon"
+        // trotzdem finden - angezeigt (und gespeichert) wird der englische
+        // Name.
+        const lissabon = [
+            { class: 'place', type: 'city', addresstype: 'city',
+              display_name: 'Lisbon, Portugal', address: { city: 'Lisbon' },
+              namedetails: { name: 'Lisboa', 'name:de': 'Lissabon', 'name:en': 'Lisbon' },
+              lat: '38.7', lon: '-9.1' }
+        ];
+        for (const eingabe of ['lissabon', 'lisbon', 'lisboa']) {
+            assert.deepStrictEqual(karte.formatCityResults(lissabon, eingabe).map(r => r.text),
+                ['Lisbon'], 'Eingabe "' + eingabe + '" findet Lisbon nicht');
+        }
+        ok('der deutsch getippte Name findet die englische Antwort');
+
+        // ABER die Varianten zaehlen nur, wenn der Treffer SELBST ein Ort
+        // ist. Sonst holt "Rhedener Strasse" ihre Stadt durch dieselbe Tuer
+        // zurueck, die eben zugemacht wurde.
+        const strasseMitVariante = [
+            { class: 'highway', type: 'residential', addresstype: 'road',
+              display_name: 'Rhedener Strasse, Saarlouis, Saarland, Deutschland',
+              address: { city: 'Saarlouis' },
+              namedetails: { name: 'Rhedener Strasse', 'name:de': 'Rhedener Strasse' } }
+        ];
+        assert.deepStrictEqual(karte.formatCityResults(strasseMitVariante, 'rhed'), [],
+            'die Namensvarianten einer Strasse lassen ihre Stadt durch');
+        ok('Namensvarianten zaehlen nur bei Treffern, die selbst ein Ort sind');
+
+        // Jeder Name nur einmal, und Unfug ergibt eine leere Liste statt
+        // eines Fehlers.
+        const doppelt = [
+            { class: 'place', type: 'town', display_name: 'Rhede, A', address: { town: 'Rhede' } },
+            { class: 'place', type: 'town', display_name: 'Rhede, B', address: { town: 'Rhede' } }
+        ];
+        assert.strictEqual(karte.formatCityResults(doppelt, 'rhed').length, 1, 'Dubletten stehen doppelt');
+        assert.deepStrictEqual(karte.formatCityResults(null, 'x'), [], 'null ergibt keine leere Liste');
+        assert.deepStrictEqual(karte.formatCityResults([], ''), [], 'leere Antwort ergibt keine leere Liste');
+        // Ohne Adressfelder traegt der erste Abschnitt von display_name.
+        const ohneAdresse = [{ class: 'place', type: 'village',
+                               display_name: 'Rhede, Emsland, Niedersachsen, Deutschland' }];
+        assert.deepStrictEqual(karte.formatCityResults(ohneAdresse, 'rhed').map(r => r.text), ['Rhede'],
+            'ohne Adressfelder faellt der Name nicht auf display_name zurueck');
+        ok('jeder Name einmal, und kein Absturz an einer unerwarteten Antwort');
     }
 
     console.error('\n27) Die Wahl wird auch im Browser gemerkt');

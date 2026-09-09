@@ -246,28 +246,49 @@ window.webrtcApp.locationMap = {
     },
 
     /**
-     * Stellt eine Laenderoption mit Flagge dar.
+     * Stellt eine Laenderoption dar - mit dem Laenderkuerzel davor.
      *
-     * DER SENKRECHTE STRICH VOR DEM LAENDERNAMEN
-     * -------------------------------------------
-     * Hier stand vorher ein <img> von flagcdn.com. Laedt dieses Bild nicht -
-     * weil der Dienst nicht erreichbar ist, ein Inhaltsblocker ihn abweist
-     * oder gar keine Verbindung besteht -, zeichnet der Browser an seiner
-     * Stelle das Ersatzbild fuer ein kaputtes Bild. Bei den fest gesetzten
-     * 24x18 Pixeln ist das ein schmaler Strich vor dem Namen: "|Ägypten".
-     * Der Text selbst war nie betroffen; im DOM stand " Ägypten" mit einem
-     * fuehrenden Leerzeichen aus dem append(' ' + text).
+     * DREI ANLAEUFE, UND WARUM ES JETZT TEXT IST
+     * ------------------------------------------
+     * 1. Ein <img> von flagcdn.com. Laedt das Bild nicht - Dienst nicht
+     *    erreichbar, Inhaltsblocker, kein Netz -, zeichnet der Browser bei
+     *    den festen 24x18 Pixeln das Ersatzbild: einen schmalen Strich vor
+     *    dem Namen, "|Ägypten". Ausserdem ging bei jedem Aufklappen der
+     *    Liste die IP jedes Nutzers an einen fremden Dienst.
      *
-     * Die Flagge kommt jetzt aus dem Laenderkuerzel selbst: Zwei
-     * Regional-Indikator-Zeichen ergeben zusammen die Flagge des Landes
-     * (AT -> Oesterreich). Das ist Text, keine Datei - es kann nicht
-     * fehlschlagen, braucht keine Verbindung und schickt nicht bei jedem
-     * Aufklappen der Liste die IP jedes Nutzers an einen fremden Dienst.
+     * 2. Die Flagge als Zeichen, aus dem Kuerzel gebildet (zwei
+     *    Regional-Indikatoren, AT -> Oesterreich). Das kann nicht
+     *    fehlschlagen, weil nichts geladen wird - dachten wir. Es kann sehr
+     *    wohl fehlschlagen, nur eben an der Schrift:
      *
-     * WO ES NICHT GEHT: Windows liefert fuer Flaggen keine Zeichen mit. Dort
-     * erscheinen statt der Flagge die beiden Buchstaben des Kuerzels - also
-     * "AT Österreich". Das ist keine schoene, aber eine LESBARE Anzeige, und
-     * genau darin liegt der Unterschied zum kaputten Bild.
+     *      * WINDOWS HAT KEINE FLAGGEN. Segoe UI Emoji, die Emoji-Schrift
+     *        des Systems, enthaelt die Regional-Indikatoren als EINZELNE
+     *        Buchstabenzeichen, aber keine Verbindung der beiden zu einer
+     *        Flagge. Microsoft liefert Laenderflaggen bewusst nicht mit.
+     *        In Chrome und Edge steht dort deshalb "AT" statt der Flagge.
+     *      * FIREFOX BRINGT EINE EIGENE MIT (Twemoji Mozilla) und zeigt die
+     *        Flaggen deshalb meistens - aber eben nur meistens: Welche
+     *        Schrift ein Zeichen bekommt, entscheidet die Rueckfallkette,
+     *        und die waehlt auf Windows mal die eigene, mal die des
+     *        Systems. Genau das war hier zu sehen: Afghanistan, Albanien
+     *        und Algerien mit Flagge, Aethiopien und Oesterreich mit einem
+     *        Strich - auf derselben Seite, in derselben Liste.
+     *
+     *    Aus dem Code ist das nicht ableitbar; die Zeichen sind fuer alle
+     *    Laender gleich gebildet. Es ist eine Frage der Schriftauswahl im
+     *    Browser, und darauf hat diese Anwendung keinen Zugriff.
+     *
+     * 3. DAS KUERZEL ALS TEXT. Zwei Buchstaben aus der normalen Schrift.
+     *    Sie brauchen keine Emoji-Schrift, keine Rueckfallkette und keine
+     *    Verbindung; sie sehen auf jedem System gleich aus. Das ist der
+     *    einzige Unterschied zu Anlauf 2 - und es ist der Unterschied
+     *    zwischen "sieht meistens gut aus" und "stimmt immer".
+     *
+     *    Es geht dabei nichts verloren, was die Auswahl braucht: Der
+     *    Ländername steht daneben, das Kuerzel ordnet ihn nur ein. Wer die
+     *    Flagge wiederhaben will, braucht mitgelieferte Grafiken - 248
+     *    Dateien im Projekt, keine fremde Adresse. Das ist eine eigene
+     *    Entscheidung und keine Zeile in dieser Funktion.
      *
      * @param {Object} country Eintrag von select2
      * @returns {string|jQuery}
@@ -276,34 +297,32 @@ window.webrtcApp.locationMap = {
         if (!country.id) return country.text;
 
         const iso2 = $(country.element).data('iso2');
-        const flagge = window.webrtcApp.locationMap.flaggeAusIso2(iso2);
-        if (!flagge) return country.text;
+        const kuerzel = window.webrtcApp.locationMap.kuerzelAusIso2(iso2);
+        if (!kuerzel) return country.text;
 
-        // Die Flagge steht in einem eigenen Element mit fester Breite, damit
-        // die Laendernamen untereinander auf einer Linie beginnen - auch
-        // dort, wo statt der Flagge zwei Buchstaben stehen.
+        // Das Kuerzel steht in einem eigenen Element mit fester Breite, damit
+        // die Laendernamen untereinander auf einer Linie beginnen.
+        // aria-hidden, weil es dieselbe Auskunft ist wie der Name daneben -
+        // vorgelesen waere es eine Wiederholung.
         return $('<span>')
-            .append($('<span>', { 'class': 'land-flagge', 'aria-hidden': 'true', text: flagge }))
+            .append($('<span>', { 'class': 'land-kuerzel', 'aria-hidden': 'true', text: kuerzel }))
             .append(document.createTextNode(country.text));
     },
 
     /**
-     * Macht aus einem Laenderkuerzel die Flagge als Zeichen.
+     * Prueft ein Laenderkuerzel und gibt es in Grossbuchstaben zurueck.
      *
-     * A-Z liegen im Unicode-Block der Regional-Indikatoren ab U+1F1E6. Zwei
-     * davon nebeneinander sind die Flagge des Landes mit diesem Kuerzel.
+     * Die Pruefung ist der Sinn der Funktion: Was aus der Datenbank kommt,
+     * steht ungeprueft im data-Attribut, und was dort steht, landete frueher
+     * unbesehen in einer Zeichenberechnung. Zwei Buchstaben A-Z oder nichts.
      *
-     * @param {string} iso2 Zweibuchstabiges Kuerzel, z. B. 'AT'
-     * @returns {string} Die Flagge oder ein Leerstring bei ungueltiger Eingabe
+     * @param {string} iso2 Zweibuchstabiges Kuerzel, z. B. 'at'
+     * @returns {string} 'AT' - oder ein Leerstring bei ungueltiger Eingabe
      */
-    flaggeAusIso2(iso2) {
+    kuerzelAusIso2(iso2) {
         if (typeof iso2 !== 'string') return '';
         const code = iso2.trim().toUpperCase();
-        if (!/^[A-Z]{2}$/.test(code)) return '';
-        return String.fromCodePoint(
-            0x1F1E6 + code.charCodeAt(0) - 65,
-            0x1F1E6 + code.charCodeAt(1) - 65
-        );
+        return /^[A-Z]{2}$/.test(code) ? code : '';
     },
 
     /**
@@ -571,10 +590,15 @@ window.webrtcApp.locationMap = {
                     let countryIso2 = $('#countrySelect option:selected').data('iso2');
                     if (!countryIso2) return success({ results: [] });
                     let query = params.data.q;
+                    // namedetails=1 liefert die Namensvarianten des Ortes
+                    // (name:de, name:en, ...). Sie sind der Grund, warum ein
+                    // deutsch getippter Name eine englische Antwort noch
+                    // findet - siehe passtZumSuchbegriff().
                     fetch(self.nominatimUrl('search', {
                         q: query,
                         countrycodes: countryIso2,
                         addressdetails: 1,
+                        namedetails: 1,
                         limit: 15
                     }))
                         .then(r => r.json())
@@ -688,67 +712,141 @@ window.webrtcApp.locationMap = {
     },
 
     /**
+     * Der Name, unter dem ein Treffer in der Liste stehen wuerde.
+     *
+     * Die Reihenfolge der Felder ist die von Nominatim: city vor town vor
+     * village und so weiter, vom Groesseren zum Kleineren. Fehlt alles,
+     * bleibt der erste Abschnitt von display_name - dort steht der Name des
+     * Objekts selbst, vor Kreis, Land und Postleitzahl.
+     *
+     * @param {Object} in_treffer Ein Eintrag der Nominatim-Antwort
+     * @returns {string} Leerstring, wenn sich kein Name ableiten laesst
+     */
+    stadtNameVon(in_treffer) {
+        const adresse = (in_treffer && in_treffer.address) || {};
+        const ausAdresse = adresse.city || adresse.town || adresse.village
+            || adresse.hamlet || adresse.municipality || adresse.suburb;
+        if (ausAdresse) return String(ausAdresse);
+
+        const anzeige = in_treffer && in_treffer.display_name;
+        return typeof anzeige === 'string' ? anzeige.split(',')[0].trim() : '';
+    },
+
+    /**
+     * Die Objektarten, die selbst ein Ort sind.
+     *
+     * Nominatim stellt jedem Treffer class und type voran: Eine Stadt ist
+     * class "place" mit type "city", eine Strasse ist class "highway". Diese
+     * Liste ist der Unterschied zwischen "der Treffer IST der Ort" und "der
+     * Treffer LIEGT in einem Ort" - siehe passtZumSuchbegriff().
+     */
+    ORTSARTEN: ['city', 'town', 'village', 'hamlet', 'municipality',
+                'suburb', 'borough', 'quarter'],
+
+    /**
+     * Ist der Treffer selbst ein Ort - oder nur etwas, das in einem liegt?
+     *
+     * @param {Object} in_treffer Ein Eintrag der Nominatim-Antwort
+     * @returns {boolean} false auch dann, wenn die Angabe fehlt - im
+     *                    Zweifel gilt der Treffer NICHT als Ort
+     */
+    istOrtSelbst(in_treffer) {
+        if (!in_treffer) return false;
+        if (in_treffer.class === 'place'
+            && this.ORTSARTEN.includes(in_treffer.type)) return true;
+        return this.ORTSARTEN.includes(in_treffer.addresstype);
+    },
+
+    /**
+     * Passt ein Treffer zu dem, was der Nutzer getippt hat?
+     *
+     * DIE EINE PRUEFUNG - UND WARUM ES SIE BRAUCHT
+     * -------------------------------------------
+     * Hier standen ZWEI Durchgaenge. Der erste verglich den Suchbegriff mit
+     * den Adressfeldern. Der zweite hing an "sind es weniger als drei
+     * Treffer?" und schob dann die GANZE Antwort ungefiltert nach - ohne den
+     * Suchbegriff auch nur anzusehen.
+     *
+     * Das war der Fehler: Nominatim antwortet auf "rhed" auch mit Objekten,
+     * die den Begriff im Strassennamen tragen, und deren Adressfeld nennt
+     * die Stadt drumherum. Der erste Durchgang warf sie richtigerweise
+     * hinaus, der zweite holte sie zurueck - und in der Liste stand
+     * "Saarlouis", weil dort eine Strasse mit "rhed" liegt. Es gibt jetzt
+     * nur noch eine Regel: DER NAME, DER ANGEZEIGT WUERDE, MUSS PASSEN.
+     *
+     * DIE NAMENSVARIANTEN sind der zweite Teil, und sie haben eine Bedingung.
+     * Seit die Anfrage accept-language=en traegt, kommen die Adressfelder auf
+     * Englisch zurueck - wer "Lissabon" tippt, faende "Lisbon" sonst nicht
+     * mehr. namedetails (name, name:de, name:en, ...) traegt beide
+     * Schreibweisen.
+     *
+     * ABER: namedetails beschreibt DEN GEFUNDENEN GEGENSTAND, nicht die
+     * Stadt. Bei der "Rhedener Strasse" steht dort "Rhedener Strasse" - und
+     * wer die Varianten ungeprueft mitzaehlt, laesst Saarlouis durch genau
+     * dieselbe Tuer wieder herein, die eben zugemacht wurde. (Das ist beim
+     * Nachbauen der Antwort aufgefallen, nicht beim Lesen.) Deshalb zaehlen
+     * die Varianten nur, wenn der Treffer SELBST ein Ort ist - was Nominatim
+     * in class/type mitliefert.
+     *
+     * NICHT gegen das GANZE display_name: Dort stehen Strasse, Kreis, Land
+     * und Postleitzahl mit drin, und "rhed" faende darueber die Strasse in
+     * Saarlouis wieder. Vom display_name zaehlt nur der erste Abschnitt, und
+     * der steckt schon in stadtNameVon().
+     *
+     * @param {Object} in_treffer  Ein Eintrag der Nominatim-Antwort
+     * @param {string} in_gesucht  Suchbegriff, bereits kleingeschrieben
+     * @returns {boolean}
+     */
+    passtZumSuchbegriff(in_treffer, in_gesucht) {
+        if (in_gesucht === '') return true;
+
+        const kandidaten = [this.stadtNameVon(in_treffer)];
+
+        const varianten = in_treffer && in_treffer.namedetails;
+        if (this.istOrtSelbst(in_treffer) && varianten && typeof varianten === 'object') {
+            for (const wert of Object.values(varianten)) {
+                if (typeof wert === 'string') kandidaten.push(wert);
+            }
+        }
+
+        return kandidaten.some(k => k && k.toLowerCase().includes(in_gesucht));
+    },
+
+    /**
      * Bereitet die Städte-Ergebnisse für das Select2 vor.
+     *
+     * Ein Durchgang, eine Regel (passtZumSuchbegriff), und jeder Name nur
+     * einmal. Bleibt nichts uebrig, bleibt die Liste leer - select2 sagt
+     * dann "Keine Stadt gefunden.", und das ist die richtige Auskunft. Eine
+     * Liste mit Orten, die nicht gesucht waren, ist schlechter als keine.
+     *
      * @param {Array} data - API-Daten von Nominatim
      * @param {string} query - Suchbegriff
      * @returns {Array} Gefilterte und eindeutige Städte
      */
     formatCityResults(data, query) {
-        let lcQuery = (query || '').toLowerCase();
-        let results = data.filter(item => {
-            if (!item.address) return false;
-            let fields = [
-                item.address.city, item.address.town, item.address.village,
-                item.address.hamlet, item.address.municipality, item.address.suburb
-            ].filter(Boolean);
-            return fields.some(f => f.toLowerCase().includes(lcQuery));
-        }).map(item => {
-            let cityName = item.address.city
-                || item.address.town
-                || item.address.village
-                || item.address.hamlet
-                || item.address.municipality
-                || item.address.suburb
-                || item.display_name.split(',')[0];
-            return {
-                id: cityName,
-                text: cityName,
-                lat: item.lat,
-                lon: item.lon
-            };
-        });
+        const gesucht = (query || '').toLowerCase();
+        const treffer = Array.isArray(data) ? data : [];
 
-        // Falls zu wenig Ergebnisse, noch weitere hinzufügen
-        if (results.length < 3) {
-            data.forEach(item => {
-                if (!item.address) return;
-                let cityName = item.address.city
-                    || item.address.town
-                    || item.address.village
-                    || item.address.hamlet
-                    || item.address.municipality
-                    || item.address.suburb
-                    || item.display_name.split(',')[0];
-                if (cityName && !results.find(r => r.text === cityName)) {
-                    results.push({
-                        id: cityName,
-                        text: cityName,
-                        lat: item.lat,
-                        lon: item.lon
-                    });
-                }
+        const ergebnis = [];
+        const gesehen = new Set();
+
+        for (const eintrag of treffer) {
+            if (!this.passtZumSuchbegriff(eintrag, gesucht)) continue;
+
+            const name = this.stadtNameVon(eintrag);
+            if (name === '' || gesehen.has(name)) continue;
+
+            gesehen.add(name);
+            ergebnis.push({
+                id: name,
+                text: name,
+                lat: eintrag.lat,
+                lon: eintrag.lon
             });
         }
-        // Nur eindeutige Namen (keine Dubletten)
-        const unique = [];
-        const map = {};
-        for (const r of results) {
-            if (!map[r.text]) {
-                unique.push(r);
-                map[r.text] = true;
-            }
-        }
-        return unique;
+
+        return ergebnis;
     },
 
     /**

@@ -53,7 +53,9 @@ CREATE TABLE IF NOT EXISTS `country` (
   --   Zeile  78: filtert die Laenderliste gegen allowedCountryCodes -
   --              ohne iso2 bleibt der Laender-Dropdown LEER
   --   Zeile 184: Parameter countrycodes= der Staedtesuche bei Nominatim
-  --   Zeile 115: Flaggengrafik von flagcdn.com/24x18/<iso2>.png
+  --   Zeile 115: das Kuerzel vor dem Laendernamen in der Auswahlliste
+  --              (frueher eine Flaggengrafik von flagcdn.com, dann ein
+  --              Flaggenzeichen - beides ersetzt, siehe map.js)
   -- UNIQUE, weil der Code das fachliche Schluesselmerkmal ist und die
   -- Seed-Daten per INSERT IGNORE wiederholbar eingespielt werden koennen.
   `iso2` char(2) NOT NULL,

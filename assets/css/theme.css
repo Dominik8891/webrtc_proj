@@ -3063,16 +3063,28 @@ table.dataTable td.dataTables_empty {
     color: var(--app-text-faint);
 }
 
-/* Die Flagge vor dem Laendernamen. Feste Breite, damit die Namen
-   untereinander auf einer Linie beginnen - auch dort, wo das
-   Betriebssystem keine Flaggenzeichen hat und zwei Buchstaben stehen. */
-.land-flagge {
+/* Das Laenderkuerzel vor dem Laendernamen.
+
+   HIER STAND EINE FLAGGE - erst als Bild von flagcdn.com, dann als Zeichen
+   aus zwei Regional-Indikatoren. Beide Wege sind gescheitert, der zweite an
+   der Schrift: Windows liefert keine Flaggenzeichen mit, und Firefox bringt
+   zwar eigene mit, waehlt sie auf Windows aber nicht zuverlaessig aus -
+   in derselben Liste standen Flaggen neben Strichen. Zwei Buchstaben aus
+   der normalen Schrift koennen das nicht. Siehe formatCountryOption() in
+   assets/js/map.js.
+
+   Feste Breite, damit die Namen untereinander auf einer Linie beginnen.
+   Zurueckhaltend gesetzt: Das Kuerzel ordnet ein, der Name ist die
+   Auskunft - es darf ihm nicht die Aufmerksamkeit nehmen. */
+.land-kuerzel {
     display: inline-block;
-    width: 1.9em;
+    width: 2.2em;
     flex: none;
-    font-size: 1.05em;
+    font-size: 0.85em;
+    font-weight: var(--app-weight-medium);
     line-height: 1;
-    letter-spacing: 0;
+    letter-spacing: 0.04em;
+    color: var(--app-text-muted);
 }
 
 /* ---------------------------------------------------------------------------
