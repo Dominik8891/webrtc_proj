@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Helper\ViewHelper;
 use App\Helper\Request;
 use App\Helper\LogHelper;
@@ -37,7 +38,11 @@ class PasswordController
         $msg = "Falls diese E-Mail in unserem System hinterlegt ist, erhältst du eine Nachricht zum Zurücksetzen.";
 
         // User suchen (Antwort immer gleich, kein User-Enum möglich!)
-        $stmt = PdoConnect::$connection->prepare("SELECT id FROM user WHERE email = :email AND deleted = 0");
+        // DIE SPRACHE GEHT MIT. Die Mail geht an das KONTO und nicht an den,
+        // der das Formular abgeschickt hat - und beide muessen nicht dieselbe
+        // Sprache lesen: Wer hier eine fremde Adresse eintippt, bestimmt
+        // damit nicht, in welcher Sprache deren Besitzer angeschrieben wird.
+        $stmt = PdoConnect::$connection->prepare("SELECT id, lang FROM user WHERE email = :email AND deleted = 0");
         $stmt->bindParam(":email", $email);
         $stmt->execute();
         $user = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -81,8 +86,16 @@ class PasswordController
             // koennte der Anstossende den Link auf einen eigenen Server
             // umbiegen (App\Helper\Url).
             $resetLink = Url::to("index.php?act=reset_pw_page&token=$token");
-            Email::sendMail($email, 
-                "Hallo,\n\nKlicke auf den folgenden Link, um dein Passwort zu ändern:\n\n$resetLink\n\nDieser Link ist 1 Stunde gültig.", "Passwort zurücksetzen");
+
+            // tIn() und nicht t(): Der Text kommt in der Sprache des Kontos,
+            // nicht in der dieser Anfrage. I18n::normalize() faengt dabei ab,
+            // dass user.lang NULL sein darf - dann gilt die Vorgabe.
+            $sprache = I18n::normalize($user['lang'] ?? null);
+            Email::sendMail(
+                $email,
+                I18n::tIn($sprache, 'mail.passwort.text', ['link' => $resetLink]),
+                I18n::tIn($sprache, 'mail.passwort.betreff')
+            );
             // E-Mail-Adresse NICHT loggen - die UserID identifiziert den Vorgang eindeutig.
             error_log("Passwort-Reset angefordert für UserID {$user['id']} von IP {$_SERVER['REMOTE_ADDR']} um ".date('c'));
         } else {

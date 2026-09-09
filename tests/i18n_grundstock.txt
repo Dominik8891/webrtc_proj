@@ -301,22 +301,15 @@ assets/js/location_page.js	Noch
 assets/js/location_page.js	Schließen
 assets/js/location_page.js	Zurückziehen
 assets/js/location_page.js	als Titelbild verwenden" title="Als Titelbild"></button>
-assets/js/location_page.js	als bei Ihnen
-assets/js/location_page.js	den vereinbarten Zeitpunkt
 assets/js/location_page.js	der Guide entscheidet.
-assets/js/location_page.js	früher
-assets/js/location_page.js	jetzt
 assets/js/location_page.js	keine
 assets/js/location_page.js	löschen" title="Löschen"></button>
 assets/js/location_page.js	nach hinten" title="Nach hinten"></button>
 assets/js/location_page.js	nach vorne" title="Nach vorne"></button>
-assets/js/location_page.js	später
 assets/js/location_page.js	später an, und der Guide sagt zu oder ab.
 assets/js/location_page.js	und am Zähler in der Kopfleiste.</p>
 assets/js/location_page.js	von
-assets/js/location_page.js	vor
 assets/js/location_page.js	zugesagt. Kurz vorher lässt sich die
-assets/js/location_page.js	· dort ist es
 assets/js/locations_table.js	">Fehler beim Laden der Daten.</td></tr>
 assets/js/locations_table.js	(gefiltert aus _MAX_)
 assets/js/locations_table.js	<tr><td colspan="${vorhanden || 1}">Diese Tabelle ist falsch konfiguriert.</td></tr>
@@ -435,9 +428,6 @@ assets/js/requests.js	Sie werden dann angerufen.
 assets/js/requests.js	Wieder einsteigen
 assets/js/requests.js	Wiedereinstieg noch
 assets/js/requests.js	Zurückziehen
-assets/js/requests.js	durchgeführt
-assets/js/requests.js	jetzt
-assets/js/requests.js	vor
 assets/js/review.js	, eine Bewertung
 assets/js/review.js	<button type="button" class="app-ask__close" aria-label="Schließen">×</button>
 assets/js/review.js	<button type="button" class="btn btn-primary btn-sm rev-ask__send" disabled>Absenden</button>
@@ -553,10 +543,7 @@ class/Controller/ChatController.php	konto
 class/Controller/ChatController.php	title="Verlauf anzeigen"></a>
 class/Controller/EmailVerificationController.php	</p> <div class="app-actions app-actions--center"> <a href="index.php?act=home" class="btn btn-primary">Zur Startseite</a> </div> </div> </div> </div>
 class/Controller/EmailVerificationController.php	<div class="app-result"> <div class="app-panel"> <div class="app-panel__body"> <div class="app-result__mark app-result__mark--danger" aria-hidden="true">!</div> <h1 class="app-auth__title">Keine neue Mail verschickt</h1> <p class="app-result__text">
-class/Controller/EmailVerificationController.php	E-Mail-Adresse bestätigen
 class/Controller/EmailVerificationController.php	Es wurde bereits eine Bestätigungsmail verschickt. Bitte sehen Sie
-class/Controller/EmailVerificationController.php	Hallo,\n\nBitte bestätige deine E-Mail durch Klick auf diesen Link:\n\n
-class/Controller/EmailVerificationController.php	\n\nDieser Link ist 24 Stunden gültig.
 class/Controller/EmailVerificationController.php	auch im Spam-Ordner nach. Ein neuer Versand ist
 class/Controller/EmailVerificationController.php	konto
 class/Controller/GuideController.php	<div class="mt-3"><a href="index.php?act=home" class="link-secondary">Später entscheiden</a></div>
@@ -633,9 +620,6 @@ class/Controller/PasswordController.php	Das alte Passwort ist nicht korrekt!
 class/Controller/PasswordController.php	Der Link ist ungültig oder abgelaufen.
 class/Controller/PasswordController.php	Die Passwörter stimmen nicht überein oder sind zu kurz.
 class/Controller/PasswordController.php	Falls diese E-Mail in unserem System hinterlegt ist, erhältst du eine Nachricht zum Zurücksetzen.
-class/Controller/PasswordController.php	Hallo,\n\nKlicke auf den folgenden Link, um dein Passwort zu ändern:\n\n
-class/Controller/PasswordController.php	Passwort zurücksetzen
-class/Controller/PasswordController.php	\n\nDieser Link ist 1 Stunde gültig.
 class/Controller/RequestController.php	Den eigenen Standort fragt man nicht an.
 class/Controller/RequestController.php	Die Anfrage konnte nicht gestellt werden.
 class/Controller/RequestController.php	Diese Anfrage lässt sich nicht mehr beantworten.
@@ -837,7 +821,6 @@ class/Helper/GuideView.php	Ihr Guide
 class/Helper/GuideView.php	Ihr Profil
 class/Helper/GuideView.php	Ihre Standorte
 class/Helper/GuideView.php	MB. Ohne Bild stehen Ihre Initialen dort –
-class/Helper/GuideView.php	März
 class/Helper/GuideView.php	Sie bieten diese Führung an
 class/Helper/GuideView.php	Sie bieten noch keinen Standort an. Über "Standort anbieten" wird
 class/Helper/GuideView.php	Standortseiten, in der Standortliste und hier. Ihr Benutzername
@@ -917,12 +900,10 @@ class/Helper/LocationView.php	Zurück in die Galerie</button>
 class/Helper/LocationView.php	als Titelbild verwenden"
 class/Helper/LocationView.php	anfrage
 class/Helper/LocationView.php	bis
-class/Helper/LocationView.php	den vereinbarten Zeitpunkt
 class/Helper/LocationView.php	der Guide muss wissen, wem er zusagt.</p>
 class/Helper/LocationView.php	ein sehr breites mit ruhigen Flächen, auf denen die Schrift steht.
 class/Helper/LocationView.php	fehler
 class/Helper/LocationView.php	gespeichert
-class/Helper/LocationView.php	jetzt
 class/Helper/LocationView.php	löschen" title="Löschen"></button>
 class/Helper/LocationView.php	nach hinten" title="Nach hinten"></button>
 class/Helper/LocationView.php	nach vorne" title="Nach vorne"></button>
@@ -935,7 +916,6 @@ class/Helper/LocationView.php	title="Diesen Abschnitt an allen Tagen an- oder ab
 class/Helper/LocationView.php	title="Diesen Tag ganz an- oder abwählen">
 class/Helper/LocationView.php	und am Zähler in der Kopfleiste.</p>
 class/Helper/LocationView.php	von
-class/Helper/LocationView.php	vor
 class/Helper/LocationView.php	wieder einsteigen; Ihr Guide beendet die Führung, wenn Sie fertig sind.
 class/Helper/LocationView.php	zugesagt. Kurz vorher lässt sich die
 class/Helper/MailGate.php	<div class="alert alert-warning app-mailhint" role="status"> <strong>E-Mail-Adresse noch nicht bestätigt.</strong> Anfragen, Chat und das Hochladen von Bildern sind bis dahin gesperrt. <a href="index.php?act=send_email_verify" class="btn btn-outline-primary btn-sm"> Bestätigungsmail senden </a> </div>
@@ -1017,7 +997,6 @@ class/Model/RateLimit.php	noch
 class/Model/TourRequest.php	AS callable, -- LAEUFT NOCH: begonnen und nicht beendet. Daran haengen der -- Wiedereinstieg auf beiden Seiten und der Knopf "Fuehrung -- beenden" beim Guide. Die Ansicht rechnet nichts nach.
 class/Model/TourRequest.php	AS running, -- Wie lange der Wiedereinstieg noch offen steht. Negativ oder -- NULL heisst: nicht mehr. Der Browser zeigt damit an, wie -- lange die Fuehrung noch zu retten ist, ohne selbst eine -- Frist zu kennen. CASE WHEN
 class/Model/TourRequest.php	alle
-class/Model/TourRequest.php	durchgeführt
 class/Model/TourReview.php	Enttäuschend
 class/Model/TourReview.php	Großartig
 class/Model/TourReview.php	alle

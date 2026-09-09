@@ -47,27 +47,34 @@ namespace App\Helper;
  * kann sie im Formular ueberschreiben - fuer Grenzfaelle bleibt das letzte
  * Wort bei ihm.
  *
- * JEDE METHODE HIER IST EINE REINE FUNKTION: Werte rein, Werte raus. Keine
- * Sitzung, keine Anfrage, keine Datenbank.
+ * DIE BESCHRIFTUNGEN STEHEN IM SPRACHKATALOG und nicht mehr hier: "Montag"
+ * und "abends" sind Text, die Reihenfolge der Tage und die Stundengrenzen
+ * sind es nicht. Was das Raster ausmacht - die Kennungen, die Stellen, die
+ * Grenzen - bleibt deshalb in dieser Datei; wie es heisst, holen tage() und
+ * abschnitte() aus App\Helper\I18n.
+ *
+ * BIS AUF DIESE DREI METHODEN IST HIER JEDE EINE REINE FUNKTION: Werte rein,
+ * Werte raus. Keine Sitzung, keine Anfrage, keine Datenbank. tage(),
+ * abschnitte() und text() haengen an der aktiven Sprache - sie geben Text
+ * heraus, und Text hat eine Sprache.
  */
 class Availability
 {
     /**
-     * Die Wochentage, Montag zuerst.
+     * Die Wochentage, Montag zuerst - als KENNUNGEN.
      *
-     * Der Schluessel ist die Kennung im Formular, der Wert die Beschriftung.
-     * Die REIHENFOLGE ist zugleich die Stelle im gespeicherten Muster - wer
-     * sie aendert, verschiebt alle Angaben aller Standorte.
+     * Die Kennung steht im Formularfeld ("do-abend") und bestimmt die Stelle
+     * im gespeicherten Muster. Sie ist damit Technik und keine Beschriftung:
+     * Sie bleibt deutsch abgekuerzt, auch wenn die Seite englisch ist, denn
+     * sonst hiesse dasselbe Kaestchen je nach Sprache anders und die
+     * gespeicherten Muster liefen auseinander.
+     *
+     * Die REIHENFOLGE ist zugleich die Stelle im Muster - wer sie aendert,
+     * verschiebt alle Angaben aller Standorte.
+     *
+     * WIE SIE HEISSEN, steht in lang/<sprache>.php unter zeit.tag.<kennung>.
      */
-    private const TAGE = [
-        'mo' => ['kurz' => 'Mo', 'lang' => 'Montag'],
-        'di' => ['kurz' => 'Di', 'lang' => 'Dienstag'],
-        'mi' => ['kurz' => 'Mi', 'lang' => 'Mittwoch'],
-        'do' => ['kurz' => 'Do', 'lang' => 'Donnerstag'],
-        'fr' => ['kurz' => 'Fr', 'lang' => 'Freitag'],
-        'sa' => ['kurz' => 'Sa', 'lang' => 'Samstag'],
-        'so' => ['kurz' => 'So', 'lang' => 'Sonntag'],
-    ];
+    private const TAGE = ['mo', 'di', 'mi', 'do', 'fr', 'sa', 'so'];
 
     /**
      * Die vier Tagesabschnitte, mit ihren Grenzen in Stunden.
@@ -83,33 +90,54 @@ class Availability
      * sie liesse sich im Raster nicht von der ersten unterscheiden.
      */
     private const ABSCHNITTE = [
-        'nacht'      => ['kurz' => 'nachts',      'von' => 22, 'bis' => 6],
-        'vormittag'  => ['kurz' => 'vormittags',  'von' => 6,  'bis' => 12],
-        'nachmittag' => ['kurz' => 'nachmittags', 'von' => 12, 'bis' => 18],
-        'abend'      => ['kurz' => 'abends',      'von' => 18, 'bis' => 22],
+        'nacht'      => ['von' => 22, 'bis' => 6],
+        'vormittag'  => ['von' => 6,  'bis' => 12],
+        'nachmittag' => ['von' => 12, 'bis' => 18],
+        'abend'      => ['von' => 18, 'bis' => 22],
     ];
 
     /** Laenge des gespeicherten Musters: 7 Tage mal 4 Abschnitte. */
     public const LAENGE = 28;
 
     /**
-     * Die Wochentage als Liste.
+     * Die Wochentage als Liste, mit ihren Beschriftungen.
      *
-     * @return array<string,array<string,string>>
+     * KURZ UND LANG, weil beides gebraucht wird: Die Kopfspalte des Rasters
+     * ist schmal, das Vorleseprogramm daneben liest den ganzen Namen.
+     *
+     * IN DER AKTIVEN SPRACHE. Wer eine andere braucht, uebersetzt nicht hier,
+     * sondern setzt sie vorher (App\Helper\I18n) - es gibt keinen Aufrufer,
+     * der Wochentage in einer fremden Sprache braucht.
+     *
+     * @return array<string,array<string,string>> Kennung => kurz/lang
      */
     public static function tage(): array
     {
-        return self::TAGE;
+        $liste = [];
+        foreach (self::TAGE as $kennung) {
+            $liste[$kennung] = [
+                'kurz' => I18n::t('zeit.tag.' . $kennung . '.kurz'),
+                'lang' => I18n::t('zeit.tag.' . $kennung . '.lang'),
+            ];
+        }
+        return $liste;
     }
 
     /**
-     * Die Tagesabschnitte als Liste, mit ihren Stundengrenzen.
+     * Die Tagesabschnitte als Liste, mit ihren Stundengrenzen und ihrem Namen.
      *
-     * @return array<string,array<string,mixed>>
+     * DIE GRENZEN STEHEN IN DIESER DATEI, DER NAME IM KATALOG. Wann der Abend
+     * anfaengt, ist keine Frage der Sprache; wie er heisst, schon.
+     *
+     * @return array<string,array<string,mixed>> Kennung => von/bis/kurz
      */
     public static function abschnitte(): array
     {
-        return self::ABSCHNITTE;
+        $liste = [];
+        foreach (self::ABSCHNITTE as $kennung => $a) {
+            $liste[$kennung] = $a + ['kurz' => I18n::t('zeit.abschnitt.' . $kennung)];
+        }
+        return $liste;
     }
 
     /**
@@ -150,7 +178,7 @@ class Availability
         $muster = str_split(self::leer());
         if (!is_array($in_roh)) return implode('', $muster);
 
-        $tage       = array_keys(self::TAGE);
+        $tage       = self::TAGE;
         $abschnitte = array_keys(self::ABSCHNITTE);
 
         foreach ($in_roh as $eintrag) {
@@ -210,7 +238,7 @@ class Availability
      */
     public static function hat($in_wert, string $in_tag, string $in_abschnitt): bool
     {
-        $t = array_search($in_tag, array_keys(self::TAGE), true);
+        $t = array_search($in_tag, self::TAGE, true);
         $a = array_search($in_abschnitt, array_keys(self::ABSCHNITTE), true);
         if ($t === false || $a === false) return false;
 
@@ -294,18 +322,23 @@ class Availability
         $muster = self::muster($in_wert);
         if (self::istLeer($muster)) return '';
 
-        $tage  = array_values(self::TAGE);
         $saetze = [];
 
-        foreach (array_values(self::ABSCHNITTE) as $a_index => $abschnitt) {
+        foreach (array_values(self::abschnitte()) as $a_index => $abschnitt) {
             // Welche Tage tragen diesen Abschnitt?
             $treffer = [];
-            foreach ($tage as $t_index => $tag) {
+            foreach (self::TAGE as $t_index => $tag) {
                 if ($muster[self::stelle($t_index, $a_index)] === '1') $treffer[] = $t_index;
             }
             if ($treffer === []) continue;
 
-            $saetze[] = self::tageText($treffer) . ' ' . $abschnitt['kurz'];
+            // Tage und Abschnitt kommen als EIN Satzstueck aus dem Katalog:
+            // In welcher Reihenfolge die beiden stehen, ist eine Frage der
+            // Sprache und keine des Codes.
+            $saetze[] = I18n::t('zeit.tage_abschnitt', [
+                'tage'      => self::tageText($treffer),
+                'abschnitt' => $abschnitt['kurz'],
+            ]);
         }
 
         return implode(', ', $saetze);
@@ -319,7 +352,7 @@ class Availability
      */
     private static function tageText(array $in_tage): string
     {
-        $kurz   = array_column(array_values(self::TAGE), 'kurz');
+        $kurz   = array_column(array_values(self::tage()), 'kurz');
         $stuecke = [];
         $start   = null;
         $vorher  = null;

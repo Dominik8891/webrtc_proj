@@ -302,9 +302,15 @@ class GuideView
      * einem Bild ist eine Angabe mehr ueber eine Person, die nur
      * Stadtfuehrungen anbietet.
      *
-     * Die Monatsnamen stehen hier und kommen nicht aus strftime(): Das
-     * haengt an der Locale des Servers, und die ist auf einem gemieteten
+     * Die Monatsnamen kommen aus dem Sprachkatalog und nicht aus strftime():
+     * Das haengt an der Locale des Servers, und die ist auf einem gemieteten
      * Server oft englisch - dann stuende auf einer deutschen Seite "March".
+     * Ueber den Katalog haengt der Name an der Sprache der SEITE, und die ist
+     * die einzige, die hier etwas zu sagen hat.
+     *
+     * MONAT UND JAHR STEHEN AUCH IM KATALOG (datum.monat_jahr) und werden
+     * nicht hier aneinandergehaengt: In welcher Reihenfolge die beiden stehen
+     * und ob ein Komma dazwischen gehoert, ist eine Frage der Sprache.
      *
      * @param mixed $in_datum Wert aus der Datenbank (Y-m-d H:i:s)
      * @return string Leerstring, wenn das Datum fehlt oder unbrauchbar ist
@@ -317,13 +323,13 @@ class GuideView
         $zeit = strtotime($roh);
         if ($zeit === false) return '';
 
-        $monate = ['', 'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-                   'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
-
         $nr = (int)date('n', $zeit);
         if ($nr < 1 || $nr > 12) return '';
 
-        return $monate[$nr] . ' ' . date('Y', $zeit);
+        return I18n::t('datum.monat_jahr', [
+            'monat' => I18n::t('datum.monat.' . $nr),
+            'jahr'  => date('Y', $zeit),
+        ]);
     }
 
     /**

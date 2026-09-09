@@ -3,6 +3,7 @@
 namespace App\Model;
 
 use App\Helper\Countries;
+use App\Helper\I18n;
 
 /**
  * Die Anfrage einer Fuehrung - und der Datensatz ueber die Fuehrung selbst.
@@ -97,24 +98,28 @@ class TourRequest
     }
 
     /**
-     * Die deutschen Namen der Zustaende - fuer Anzeige und Protokoll.
+     * Die Namen der Zustaende - fuer Anzeige und Protokoll.
      *
-     * Sie stehen hier und nicht in der Ansicht: Liste, Standortseite und
-     * Kopfleiste benennen denselben Zustand, und drei Fassungen desselben
-     * Wortes waeren drei Gelegenheiten, sie auseinanderlaufen zu lassen.
+     * DER WEG HIERHER geht ueber den Sprachkatalog (anfrage.status.<wert>),
+     * und zwar von hier aus und nicht von der Ansicht: Liste, Standortseite
+     * und Verwaltung benennen denselben Zustand, und drei Fassungen desselben
+     * Wortes waeren drei Gelegenheiten, sie auseinanderlaufen zu lassen. Die
+     * Anfragenliste im Browser holt dieselben Schluessel
+     * (assets/js/requests.js) - vorher stand die Liste dort ein zweites Mal.
      *
-     * @return array<string,string>
+     * DER SCHLUESSEL IST DER GESPEICHERTE WERT. 'open' bleibt 'open', auch auf
+     * einer deutschen Seite: Er steht so in der Spalte request.status, und
+     * uebersetzt wird der Name und nicht der Zustand.
+     *
+     * @return array<string,string> Zustand => Name in der aktiven Sprache
      */
     public static function statusNames(): array
     {
-        return [
-            self::STATUS_OPEN      => 'offen',
-            self::STATUS_ACCEPTED  => 'angenommen',
-            self::STATUS_DECLINED  => 'abgelehnt',
-            self::STATUS_EXPIRED   => 'abgelaufen',
-            self::STATUS_DONE      => 'durchgeführt',
-            self::STATUS_CANCELLED => 'abgebrochen',
-        ];
+        $namen = [];
+        foreach (self::statuses() as $wert) {
+            $namen[$wert] = I18n::t('anfrage.status.' . $wert);
+        }
+        return $namen;
     }
 
     /**

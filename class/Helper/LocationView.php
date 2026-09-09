@@ -551,20 +551,31 @@ class LocationView
      * Minuten" schlechter als beides. Unter einer Stunde bleibt es bei
      * Minuten, darueber wird gerundet dargestellt.
      *
+     * DIE EINZAHL KOMMT AUS DEM KATALOG UND NICHT AUS EINEM if: Vorher stand
+     * hier "1 Stunde" ausgeschrieben - und daneben "$minuten . ' Minuten'",
+     * was bei einer einzelnen Minute "1 Minuten" ergab. Genau das ist der
+     * Grund fuer I18n::plural(): Welche Form zu welcher Zahl gehoert,
+     * entscheidet die Sprache und nicht der Aufrufer.
+     *
      * @param int $in_minuten
      * @return string
      */
     public static function dauerText(int $in_minuten): string
     {
-        if ($in_minuten < 60) return $in_minuten . ' Minuten';
+        if ($in_minuten < 60) return I18n::plural('dauer.minuten', $in_minuten);
 
         $stunden = intdiv($in_minuten, 60);
         $rest    = $in_minuten % 60;
 
-        $text = $stunden === 1 ? '1 Stunde' : $stunden . ' Stunden';
-        if ($rest > 0) $text .= ' ' . $rest . ' Minuten';
+        $text = I18n::plural('dauer.stunden', $stunden);
+        if ($rest === 0) return $text;
 
-        return $text;
+        // Wie die beiden Teile zusammenkommen, steht ebenfalls im Katalog -
+        // aus demselben Grund wie bei Monat und Jahr.
+        return I18n::t('dauer.stunden_minuten', [
+            'stunden' => $text,
+            'minuten' => I18n::plural('dauer.minuten', $rest),
+        ]);
     }
 
     /**
@@ -887,24 +898,26 @@ class LocationView
     public static function wunschzeitText(array $in_anfrage): string
     {
         if (!isset($in_anfrage['wish_in']) || !is_numeric($in_anfrage['wish_in'])) {
-            return 'den vereinbarten Zeitpunkt';
+            return I18n::t('zeit.vereinbart');
         }
 
         $s = (int)$in_anfrage['wish_in'];
-        if ($s <= 60 && $s >= -60) return 'jetzt';
+        if ($s <= 60 && $s >= -60) return I18n::t('zeit.jetzt');
 
-        $rest = abs($s);
-        $minuten = (int)round($rest / 60);
-        if ($minuten < 60) {
-            $dauer = $minuten . ' Minuten';
-        } else {
-            $stunden = (int)round($minuten / 60);
-            $dauer = $stunden < 24
-                ? $stunden . ' Stunden'
-                : (int)round($stunden / 24) . ' Tagen';
-        }
+        // DIE RICHTUNG STECKT IM SCHLUESSEL und wird nicht vor die Dauer
+        // gesetzt: Im Englischen steht sie hinten ("3 hours ago"), und ein
+        // vorangestelltes "vor " schriebe die deutsche Wortstellung fest.
+        // Zudem heisst es "in drei Tagen", aber "drei Tage" - dieselbe Zahl,
+        // dieselbe Einheit, ein anderes Wort.
+        $richtung = $s > 0 ? 'zeit.in.' : 'zeit.vor.';
 
-        return $s > 0 ? 'in ' . $dauer : 'vor ' . $dauer;
+        $minuten = (int)round(abs($s) / 60);
+        if ($minuten < 60) return I18n::plural($richtung . 'minuten', $minuten);
+
+        $stunden = (int)round($minuten / 60);
+        if ($stunden < 24) return I18n::plural($richtung . 'stunden', $stunden);
+
+        return I18n::plural($richtung . 'tagen', (int)round($stunden / 24));
     }
 
     /**

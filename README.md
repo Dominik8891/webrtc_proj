@@ -2185,10 +2185,17 @@ Guide wird man **auf Nachfrage, nicht nebenbei**. Früher genügte das Anlegen e
 
 ## 🌍 Sprache: das Fundament
 
-**Stufe 0.** Es gibt einen Weg, wie ein Text zu seiner Sprache kommt — aber
-noch keine Übersetzung. Der Bestand der Anwendung ist weiterhin deutsch, und
-das ist Absicht: Ein Umzug, bei dem Fundament und Texte gleichzeitig entstehen,
-entscheidet an drei Stellen gleichzeitig, wie Sprache funktioniert.
+**Zuerst das Fundament.** Es gibt einen Weg, wie ein Text zu seiner Sprache
+kommt — und *dann* erst ziehen die Texte um. Das ist Absicht: Ein Umzug, bei
+dem Fundament und Texte gleichzeitig entstehen, entscheidet an drei Stellen
+gleichzeitig, wie Sprache funktioniert.
+
+Umgezogen sind bisher die **Kataloge und Formate** — Ländernamen, Monate,
+Wochentage, Tagesabschnitte, Zustandswörter, Dauern, relative Zeitangaben und
+die beiden E-Mails (siehe [unten](#kataloge-und-formate)). Der Bestand der
+**Seiten** ist weiterhin deutsch und zieht Schlüssel für Schlüssel nach; dass
+dabei nichts Neues dazukommt, hält die
+[Ratsche](#die-ratsche-gegen-neue-deutsche-literale) fest.
 
 ### Woher die Sprache kommt
 
@@ -2286,6 +2293,55 @@ niemandem auf, weil sie ja funktioniert.
 Das `<html lang="…">` wird mitgesetzt. Es ist keine Zierde: Vorleseprogramme
 wählen daran ihre Aussprache, Browser ihre Silbentrennung. Fest verdrahtetes
 `lang="de"` auf einer englischen Seite ist schlimmer als gar keines.
+
+### Kataloge und Formate
+
+**Die Texte, die niemand als Text sieht.** Ein Satz in einer Vorlage ist leicht
+zu finden. Schwerer sind die Texte, die *zusammengesetzt* werden — und wer sie
+im Code zusammensetzt, schreibt dabei die deutsche Grammatik fest:
+
+| Was | Wo es jetzt herkommt | Was daran nicht nur Vokabeln sind |
+|---|---|---|
+| **Ländernamen** | `App\Helper\Countries` | Die Namen lagen schon zweisprachig da; angezeigt wurde immer die deutsche Spalte. Jetzt fragt der Katalog `I18n::aktiv()` **selbst** — kein Aufrufer reicht die Sprache durch. |
+| **Monatsnamen** | `datum.monat.1`…`.12` | Und `datum.monat_jahr`: In welcher Reihenfolge Monat und Jahr stehen, ist eine Frage der Sprache. |
+| **Wochentage, Tagesabschnitte** | `zeit.tag.*`, `zeit.abschnitt.*` | Die **Kennungen** (`do-abend`) bleiben deutsch abgekürzt — sie stehen so im gespeicherten Muster und sind Technik. Die **Stundengrenzen** bleiben in `App\Helper\Availability`: Wann der Abend anfängt, ist keine Frage der Sprache. |
+| **Zustände einer Anfrage** | `anfrage.status.<wert>` | Die Wörter standen zweimal da — in `App\Model\TourRequest` und noch einmal in `assets/js/requests.js`. Jetzt ist es derselbe Schlüssel. |
+| **Dauern** | `dauer.*`, `dauer.kurz.*` | `dauerText()` schrieb „1 Minuten": Die Form stand im `if` und nicht im Katalog. Genau dafür gibt es `I18n::plural()`. |
+| **Relative Zeitangaben** | `zeit.in.*`, `zeit.vor.*` | Der ganze Satzteil, nicht die Dauer allein — siehe unten. |
+| **Datumsformate** | `datum.mit_uhrzeit`, `datum.locale` | Ein `date()`-Muster und eine Intl-Kennung. Technik, und trotzdem sprachabhängig. |
+
+**Die Richtung steckt im Schlüssel.** `zeit.vor.stunden` heißt auf Deutsch
+„vor 3 Stunden" und auf Englisch „3 hours ago" — die Richtung steht einmal
+vorn und einmal hinten. Wer im Code `'vor ' . $dauer` schreibt, schreibt damit
+die deutsche Wortstellung fest, und die nächste Sprache bekommt sie
+aufgezwungen. Aus demselben Grund steht die Dauer dort ein zweites Mal: „in
+drei **Tagen**" ist der Dativ, „drei **Tage**" der Nominativ.
+
+Dieselben drei Sätze standen an drei Orten — auf der Standortseite (PHP), in
+ihrem Skript und in der Anfragenliste. Jetzt sind es dieselben Schlüssel.
+
+**Im Browser** folgt `toLocaleDateString` der gewählten Sprache
+(`webrtcApp.i18n.locale()`). Die Kennung kommt aus dem Katalog und nicht aus
+`lang()`, weil sie mehr trägt als die Sprache: `en` allein ergäbe die
+amerikanische Reihenfolge Monat/Tag, gewollt ist `en-GB`. Die Monatsnamen
+selbst bringt der Browser mit — ein zweiter Monatskatalog im Skript wäre eine
+Liste, die niemand pflegt.
+
+**Die beiden E-Mails** — Bestätigung und Passwort-Reset — gehen in der Sprache
+des **Empfängers** heraus, nicht in der dessen, der sie auslöst. Eine Seite
+entsteht in der Sprache ihres Aufrufers; eine E-Mail geht an jemand anderen.
+Wer eine fremde Adresse in „Passwort vergessen" einträgt, bestimmt damit nicht,
+in welcher Sprache deren Besitzer angeschrieben wird. Geholt wird der Text mit
+`I18n::tIn($sprache, …)` und `user.lang` — **nicht** mit `setzen()` und
+hinterher zurück: Dazwischen käme jeder Text dieser Anfrage in der fremden
+Sprache heraus, und ein vergessenes Zurücksetzen (ein `return`, eine Ausnahme)
+stellte den Rest der Seite still um.
+
+**`App\Helper\Languages` bleibt, wie es ist.** Dort stehen die Sprachen, in
+denen ein Guide *führen* kann — als **Endonyme**: `Deutsch`, `Français`,
+`Русский`. Ein Endonym ist in jeder Oberflächensprache dasselbe Wort; wer nach
+einer Führung auf Russisch sucht, sucht nach `Русский` und nicht nach
+„Russian". Es gibt hier nichts zu übersetzen.
 
 ### Die Ratsche gegen neue deutsche Literale
 

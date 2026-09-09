@@ -877,7 +877,7 @@ window.webrtcApp.locationPage = {
 
             return {
                 tag:       tag,
-                wochentag: this.TAGE_LANG[tag],
+                wochentag: this.tagName(tag),
                 stunde:    t.hour,
                 minute:    t.minute,
                 jahr:      t.year,
@@ -891,8 +891,27 @@ window.webrtcApp.locationPage = {
         }
     },
 
-    /** Die Wochentage, wie sie im Hinweis stehen. */
-    TAGE_LANG: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
+    /**
+     * Die KENNUNGEN der Wochentage, Montag zuerst - wie in
+     * App\Helper\Availability. Sie sind Bezeichner und keine Beschriftung:
+     * Dieselbe Reihenfolge bestimmt die Stelle im gespeicherten Muster.
+     */
+    TAGE: ['mo', 'di', 'mi', 'do', 'fr', 'sa', 'so'],
+
+    /**
+     * Der ausgeschriebene Name eines Wochentags.
+     *
+     * AUS DEM KATALOG und nicht aus einer Liste in dieser Datei: Hier standen
+     * die sieben deutschen Namen ein zweites Mal - das erste steht in
+     * App\Helper\Availability, und beide sind jetzt derselbe Schluessel.
+     *
+     * @param {number} index 0 = Montag
+     * @returns {string}
+     */
+    tagName(index) {
+        const kennung = this.TAGE[index];
+        return kennung ? window.webrtcApp.t('zeit.tag.' + kennung + '.lang') : '';
+    },
 
     /**
      * Faellt dieser Zeitpunkt in eines der angekreuzten Felder?
@@ -988,12 +1007,25 @@ window.webrtcApp.locationPage = {
         if (unterschied === 0) return;
 
         const stunden = Math.abs(unterschied) / 60;
-        // Halbe und dreiviertel Stunden gibt es wirklich (Indien, Nepal,
-        // Teile Australiens) - deshalb keine ganzzahlige Rechnung.
-        const text = (Number.isInteger(stunden) ? stunden : stunden.toFixed(2).replace(/0+$/, '').replace('.', ','))
-                   + (stunden === 1 ? ' Stunde' : ' Stunden');
 
-        ziel.textContent = ' · dort ist es ' + text + (unterschied > 0 ? ' später' : ' früher') + ' als bei Ihnen';
+        // Halbe und dreiviertel Stunden gibt es wirklich (Indien, Nepal,
+        // Teile Australiens) - deshalb keine ganzzahlige Rechnung. Das
+        // Dezimaltrennzeichen kommt von Intl und nicht mehr aus einem
+        // replace('.', ','): Ob dort ein Komma oder ein Punkt steht, ist eine
+        // Frage der Sprache, und der Browser weiss sie.
+        const zahl = stunden.toLocaleString(window.webrtcApp.i18n.locale(),
+                                            { maximumFractionDigits: 2 });
+        const text = window.webrtcApp.plural('dauer.stunden', stunden, { n: zahl });
+
+        // Die Richtung steckt im Schluessel, nicht in einem eingesetzten
+        // Wort: Im Englischen steht "later" an einer anderen Stelle des
+        // Satzes als "später" im Deutschen.
+        const satz = window.webrtcApp.t(
+            unterschied > 0 ? 'zeit.zone.spaeter' : 'zeit.zone.frueher',
+            { dauer: text }
+        );
+
+        ziel.textContent = ' · ' + satz;
     },
 
     /**
@@ -1008,18 +1040,22 @@ window.webrtcApp.locationPage = {
      */
     wunschzeitText(anfrage) {
         const s = parseInt(anfrage.wish_in, 10);
-        if (isNaN(s)) return 'den vereinbarten Zeitpunkt';
-        if (s <= 60 && s >= -60) return 'jetzt';
+        if (isNaN(s)) return window.webrtcApp.t('zeit.vereinbart');
+        if (s <= 60 && s >= -60) return window.webrtcApp.t('zeit.jetzt');
+
+        // Dieselben Schluessel wie in App\Helper\LocationView::wunschzeitText
+        // und in assets/js/requests.js: derselbe Zeitpunkt, drei Orte, ein
+        // Satz. Die Richtung steckt im Schluessel, weil sie im Englischen
+        // hinten steht ("3 hours ago").
+        const richtung = s > 0 ? 'zeit.in.' : 'zeit.vor.';
 
         const minuten = Math.round(Math.abs(s) / 60);
-        let dauer;
-        if (minuten < 60) {
-            dauer = minuten + ' Minuten';
-        } else {
-            const stunden = Math.round(minuten / 60);
-            dauer = stunden < 24 ? stunden + ' Stunden' : Math.round(stunden / 24) + ' Tagen';
-        }
-        return (s > 0 ? 'in ' : 'vor ') + dauer;
+        if (minuten < 60) return window.webrtcApp.plural(richtung + 'minuten', minuten);
+
+        const stunden = Math.round(minuten / 60);
+        if (stunden < 24) return window.webrtcApp.plural(richtung + 'stunden', stunden);
+
+        return window.webrtcApp.plural(richtung + 'tagen', Math.round(stunden / 24));
     },
 
     /**

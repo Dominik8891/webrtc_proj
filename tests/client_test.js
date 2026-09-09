@@ -6,7 +6,7 @@
  * Siehe tests/README.md.
  */
 const assert = require('assert');
-const { app, FakePeerConnection, makeChannel } = require('./client_harness');
+const { app, FakePeerConnection, makeChannel, ladeKatalog } = require('./client_harness');
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 let passed = 0;
@@ -2719,11 +2719,36 @@ function ackLastMove(status = 'executed', reason) {
             '"jetzt sofort" wird nicht als jetzt gelesen');
         assert.strictEqual(anfragen.zeitText({ wish_in: 30 }), 'jetzt',
             'eine halbe Minute ist nicht mehr "jetzt"');
-        assert.ok(/^in 20 Min/.test(anfragen.zeitText({ wish_in: 1200 })), 'Minuten fehlen');
-        assert.ok(/^in 3 Std/.test(anfragen.zeitText({ wish_in: 10800 })), 'Stunden fehlen');
-        assert.ok(/^in 2 Tagen/.test(anfragen.zeitText({ wish_in: 172800 })), 'Tage fehlen');
-        assert.ok(/^vor /.test(anfragen.zeitText({ wish_in: -3600 })),
+        assert.strictEqual(anfragen.zeitText({ wish_in: 1200 }), 'in 20 Minuten', 'Minuten fehlen');
+        assert.strictEqual(anfragen.zeitText({ wish_in: 10800 }), 'in 3 Stunden', 'Stunden fehlen');
+        assert.strictEqual(anfragen.zeitText({ wish_in: 172800 }), 'in 2 Tagen', 'Tage fehlen');
+        assert.strictEqual(anfragen.zeitText({ wish_in: -3600 }), 'vor 1 Stunde',
             'ein verstrichener Zeitpunkt liegt in der Zukunft');
+        // DIE SAETZE KOMMEN AUS DEM KATALOG und stehen nicht mehr in dieser
+        // Datei - dieselben Schluessel wie in
+        // App\Helper\LocationView::wunschzeitText. Ein "in " im Code haette
+        // die deutsche Wortstellung festgeschrieben; im Englischen steht die
+        // Richtung hinten.
+        {
+            const vorher = global.window.appI18n;
+            global.window.appI18n = {
+                lang: 'en', default: 'en',
+                catalog: ladeKatalog('en'), fallback: {}
+            };
+            assert.strictEqual(anfragen.zeitText({ wish_in: -10800 }), '3 hours ago',
+                'im Englischen steht die Richtung nicht hinten');
+            assert.strictEqual(anfragen.zeitText({ wish_in: 3600 }), 'in 1 hour',
+                'die englische Einzahl fehlt');
+            // Und die Zustandsmarke ebenso: Die Woerter standen hier ein
+            // zweites Mal, wortgleich mit denen in App\Model\TourRequest.
+            assert.ok(/>completed</.test(anfragen.zustandHtml('done')),
+                'die Zustandsmarke folgt der Sprache nicht');
+            global.window.appI18n = vorher;
+        }
+        assert.ok(/>durchgeführt</.test(anfragen.zustandHtml('done')),
+            'die deutsche Zustandsmarke fehlt');
+        assert.ok(/app-tag--warn/.test(anfragen.zustandHtml('open')),
+            'die Klasse der Marke haengt nicht mehr am Zustand');
         ok('der Wunschzeitpunkt steht als Abstand da und nicht als Uhrzeit');
 
         // --- Die Knoepfe einer Zeile -----------------------------------------
@@ -3308,6 +3333,35 @@ function ackLastMove(status = 'executed', reason) {
         assert.strictEqual(i18n.pluralForm('xx', 1), 'one',
             'eine unbekannte Sprache faellt nicht auf die Zweiformenregel zurueck');
         ok('die Pluralregel sagt dasselbe wie die in PHP');
+
+        // --- Die Kennung fuer Intl ---------------------------------------
+        //
+        // toLocaleDateString und Verwandte brauchen mehr als das
+        // Sprachkuerzel: 'en' allein ergibt die amerikanische Reihenfolge
+        // (Monat vor Tag). Welche Region zu einer Sprache gehoert, steht
+        // deshalb im Katalog und nicht im Skript.
+        global.window.appI18n = { lang: 'de', default: 'en', catalog: ladeKatalog('de'), fallback: {} };
+        assert.strictEqual(i18n.locale(), 'de-DE', 'die deutsche Kennung fehlt');
+        assert.strictEqual(app.locationPage.tagName(3), 'Donnerstag',
+            'die deutschen Wochentage kommen nicht aus dem Katalog');
+
+        global.window.appI18n = { lang: 'en', default: 'en', catalog: ladeKatalog('en'), fallback: {} };
+        assert.strictEqual(i18n.locale(), 'en-GB',
+            'die englische Kennung traegt keine Region - dann steht der Monat vor dem Tag');
+        assert.strictEqual(app.locationPage.tagName(3), 'Thursday',
+            'die englischen Wochentage fehlen');
+
+        // OHNE DEN SCHLUESSEL gilt das nackte Kuerzel und NICHT der
+        // Schluessel selbst: Intl bekaeme "datum.locale" als Kennung und
+        // wuerfe einen RangeError - eine Ausnahme mitten in der Anzeige
+        // statt eines Datums in der falschen Reihenfolge.
+        global.window.appI18n = { lang: 'de', default: 'en', catalog: {}, fallback: {} };
+        assert.strictEqual(i18n.locale(), 'de',
+            'ohne Schluessel kommt keine brauchbare Kennung heraus');
+        // Ein unbekannter Tag ergibt einen Leerstring und keinen Schluessel:
+        // Der Index kommt aus einer Rechnung und nicht aus dem Katalog.
+        assert.strictEqual(app.locationPage.tagName(9), '', 'ein Tag ausserhalb der Woche ergibt Text');
+        ok('die Kennung fuer Intl und die Wochentage kommen aus dem Katalog');
 
         global.window.appI18n = vorher;
     }

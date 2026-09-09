@@ -485,10 +485,45 @@ for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'media.js', 's
     eval(fs.readFileSync(path.join(ROOT, 'requests.js'), 'utf8'));
 
     // i18n.js: webrtcApp.t() und webrtcApp.plural(). Die Datei ruft beim
-    // Laden nichts auf und braucht kein DOM - sie liest window.appI18n, und
-    // das legt die Pruefung selbst hin. Ohne einen solchen Katalog liefert
-    // sie den Schluessel zurueck, und genau das ist eine der Pruefungen.
+    // Laden nichts auf und braucht kein DOM - sie liest window.appI18n.
     eval(fs.readFileSync(path.join(ROOT, 'i18n.js'), 'utf8'));
+
+    // UND DER ECHTE KATALOG DAZU.
+    //
+    // Er wird nicht nachgebaut, sondern aus lang/de.php geholt - genau wie
+    // die Anwendung ihn holt (App\Helper\I18n::bootScript legt ihn im
+    // Dokument ab). Ein nachgebauter Katalog im Test hiesse: Die Pruefungen
+    // laufen gegen Texte, die es nur im Test gibt, und ein Schluessel, der
+    // in lang/de.php fehlt, faellt hier nicht auf. Genau das soll er.
+    //
+    // PHP IST OHNEHIN VORAUSSETZUNG fuer die Testsuite (tests/README.md), und
+    // json_encode ist der kuerzeste Weg von einem PHP-Array in ein
+    // JavaScript-Objekt.
+    //
+    // DIE VORGABE bleibt hier leer: Die Kette "Sprache, dann Vorgabe, dann
+    // Schluessel" prueft Abschnitt 46 mit einem eigenen Katalog. Hier geht es
+    // um die Texte, die die Module wirklich anzeigen.
+    window.appI18n = {
+        lang:     'de',
+        default:  'en',
+        catalog:  ladeKatalog('de'),
+        fallback: {}
+    };
+}
+
+/**
+ * Der Sprachkatalog aus lang/<sprache>.php.
+ *
+ * @param {string} sprache
+ * @returns {Object}
+ */
+function ladeKatalog(sprache) {
+    const datei = path.join(__dirname, '..', 'lang', sprache + '.php');
+    const json  = require('child_process').execFileSync(
+        'php', ['-r', 'echo json_encode(require $argv[1]);', datei],
+        { encoding: 'utf8' }
+    );
+    return JSON.parse(json);
 }
 
 // Module, die von rtc.js benutzt werden, aber hier nicht geladen sind
@@ -527,4 +562,6 @@ global.__confirmAntwort = true;
 window.webrtcApp.uiRtc = { setEndCallButtonVisible() {}, getUsername: async () => 'Partner' };
 window.webrtcApp.uiChat = { updatePollingState() {} };
 
-module.exports = { app: window.webrtcApp, els, FakePeerConnection, makeChannel };
+// ladeKatalog geht mit hinaus: Die Pruefungen stellen die Sprache um, und
+// dafuer brauchen sie denselben Weg zum Katalog wie das Laden oben.
+module.exports = { app: window.webrtcApp, els, FakePeerConnection, makeChannel, ladeKatalog };

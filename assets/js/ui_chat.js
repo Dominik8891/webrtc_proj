@@ -288,13 +288,20 @@ window.webrtcApp.uiChat = {
                               && a.getMonth() === b.getMonth()
                               && a.getDate() === b.getDate();
 
-        if (gleich(d, heute))   return 'Heute';
-        if (gleich(d, gestern)) return 'Gestern';
+        if (gleich(d, heute))   return this.esc(window.webrtcApp.t('datum.heute'));
+        if (gleich(d, gestern)) return this.esc(window.webrtcApp.t('datum.gestern'));
 
         // Das Jahr nur, wenn es ein anderes ist.
         const optionen = { day: 'numeric', month: 'long' };
         if (d.getFullYear() !== heute.getFullYear()) optionen.year = 'numeric';
-        return this.esc(d.toLocaleDateString('de-DE', optionen));
+
+        // DIE KENNUNG KOMMT AUS DEM KATALOG und steht nicht mehr fest als
+        // 'de-DE' hier: Der Monatsname und die Reihenfolge der Teile sollen
+        // der gewaehlten Sprache folgen und nicht der, in der diese Datei
+        // geschrieben wurde. Die Monatsnamen selbst bringt der Browser mit -
+        // dafuer gibt es Intl, und ein zweiter Monatskatalog im Skript waere
+        // eine Liste, die niemand pflegt.
+        return this.esc(d.toLocaleDateString(window.webrtcApp.i18n.locale(), optionen));
     },
 
     /**

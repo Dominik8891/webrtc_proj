@@ -38,18 +38,34 @@ namespace App\Helper;
  *          ankam.
  * Englisch: CLDR (Unicode), erzeugt mit Intl.DisplayNames.
  *
- * ZWEISPRACHIG VON ANFANG AN, obwohl vorerst nur Deutsch angezeigt wird:
- * Die englische Fassung der Oberflaeche kommt, und 248 Namen zweimal
- * nachzutragen waere dieselbe Arbeit ein zweites Mal. Welche Sprache gilt,
- * entscheidet spaeter eine Stelle - bis dahin steht hier self::VORGABE.
+ * WELCHE SPRACHE GILT, entscheidet App\Helper\I18n und sonst niemand. Der
+ * Katalog fragt sie selbst ab (I18n::aktiv()), statt sie sich von jedem
+ * Aufrufer uebergeben zu lassen: Die Laendernamen gehen an ein Dutzend
+ * Stellen - in Listen, in Ansichten, in JSON-Antworten -, und jede von ihnen
+ * muesste die Sprache sonst durchreichen. Eine, die es vergaesse, zeigte
+ * mitten auf einer englischen Seite "Österreich", und es fiele niemandem auf.
+ *
+ * UEBERGEBEN LAESST SIE SICH TROTZDEM: Die Mails brauchen die Sprache des
+ * EMPFAENGERS und nicht die der Anfrage. Dafuer nimmt jede Methode hier eine
+ * Sprache entgegen; null heisst "die aktive".
  *
  * EINE NEUE SPRACHE ist ein dritter Schluessel je Eintrag. Ein Test prueft,
  * dass keiner fehlt.
  */
 class Countries
 {
-    /** Wird benutzt, solange die Oberflaeche nur Deutsch kann. */
-    public const VORGABE = 'de';
+    /**
+     * Der Rueckfall, wenn ein Eintrag eine Sprache nicht fuehrt.
+     *
+     * DIESELBE VORGABE WIE IN App\Helper\I18n und keine zweite Zahl daneben:
+     * Fiele ein Katalogtext auf Englisch zurueck und ein Laendername auf
+     * Deutsch, stuende beides in derselben Zeile.
+     *
+     * Zu greifen braucht der Rueckfall heute nicht - ein Test prueft, dass
+     * jeder Eintrag jede Sprache fuehrt. Er steht da fuer den Tag, an dem
+     * eine dritte Sprache dazukommt und die 248 Namen noch fehlen.
+     */
+    public const VORGABE = I18n::DEFAULT;
 
     /** Die Sprachen, die dieser Katalog fuehrt. */
     public const SPRACHEN = ['de', 'en'];
@@ -347,30 +363,48 @@ class Countries
      * einer Luecke; das ist wenig, aber es ist eine Auskunft, und es faellt
      * auf.
      *
-     * @param mixed  $in_iso2
-     * @param string $in_sprache Fehlt sie im Katalog, gilt self::VORGABE
+     * @param mixed       $in_iso2
+     * @param string|null $in_sprache null heisst: die aktive Sprache
      * @return string
      */
-    public static function name($in_iso2, string $in_sprache = self::VORGABE): string
+    public static function name($in_iso2, ?string $in_sprache = null): string
     {
         $code = self::normalize($in_iso2);
         if ($code === '' || !isset(self::NAMES[$code])) return $code;
 
+        $sprache = self::sprache($in_sprache);
         $eintrag = self::NAMES[$code];
-        return $eintrag[$in_sprache] ?? $eintrag[self::VORGABE];
+        return $eintrag[$sprache] ?? $eintrag[self::VORGABE];
+    }
+
+    /**
+     * Welche Sprache gilt fuer diesen Aufruf?
+     *
+     * Die eine Stelle, an der aus "nichts uebergeben" die aktive Sprache
+     * wird. Sie steht hier und nicht in jeder Methode einzeln - sonst
+     * beantwortete die naechste Methode die Frage anders.
+     *
+     * @param string|null $in_sprache
+     * @return string
+     */
+    private static function sprache(?string $in_sprache): string
+    {
+        return $in_sprache ?? I18n::aktiv();
     }
 
     /**
      * Alle Laender als Code => Name.
      *
-     * @param string $in_sprache
+     * @param string|null $in_sprache null heisst: die aktive Sprache
      * @return array<string,string>
      */
-    public static function all(string $in_sprache = self::VORGABE): array
+    public static function all(?string $in_sprache = null): array
     {
+        $sprache = self::sprache($in_sprache);
+
         $liste = [];
         foreach (self::NAMES as $code => $eintrag) {
-            $liste[$code] = $eintrag[$in_sprache] ?? $eintrag[self::VORGABE];
+            $liste[$code] = $eintrag[$sprache] ?? $eintrag[self::VORGABE];
         }
         return $liste;
     }
@@ -391,10 +425,10 @@ class Countries
      * einen leeren Ort zeigen.
      *
      * @param array<int,array<string,mixed>> $in_zeilen
-     * @param string                         $in_sprache
+     * @param string|null                    $in_sprache null heisst: die aktive Sprache
      * @return array<int,array<string,mixed>>
      */
-    public static function zeilenNamenSetzen(array $in_zeilen, string $in_sprache = self::VORGABE): array
+    public static function zeilenNamenSetzen(array $in_zeilen, ?string $in_sprache = null): array
     {
         foreach ($in_zeilen as &$zeile) {
             if (!is_array($zeile)) continue;
@@ -472,10 +506,10 @@ class Countries
      * Dasselbe fuer eine einzelne Zeile.
      *
      * @param array<string,mixed> $in_zeile
-     * @param string              $in_sprache
+     * @param string|null         $in_sprache null heisst: die aktive Sprache
      * @return array<string,mixed>
      */
-    public static function zeileNamenSetzen(array $in_zeile, string $in_sprache = self::VORGABE): array
+    public static function zeileNamenSetzen(array $in_zeile, ?string $in_sprache = null): array
     {
         $zeilen = self::zeilenNamenSetzen([$in_zeile], $in_sprache);
         return $zeilen[0];

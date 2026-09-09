@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Helper\Request;
 use App\Helper\Url;
 use App\Helper\ViewHelper;
@@ -80,11 +81,16 @@ class EmailVerificationController
             $token = bin2hex(random_bytes(32));
             $expires = date('Y-m-d H:i:s', time() + 86400); // z.B. 24 Stunden gültig
 
-            // Hole E-Mail-Adresse für den User
-            $stmtEmail = PdoConnect::$connection->prepare("SELECT email FROM user WHERE id = :uid");
+            // Adresse UND Sprache des Kontos. Die Sprache geht mit, weil die
+            // Mail an den EMPFAENGER geht und nicht an den, der sie ausloest:
+            // Der Registrierungsablauf ruft diese Methode mit einer frisch
+            // angelegten Kennung, und die Oberflaeche daneben kann in einer
+            // anderen Sprache stehen.
+            $stmtEmail = PdoConnect::$connection->prepare("SELECT email, lang FROM user WHERE id = :uid");
             $stmtEmail->bindParam(":uid", $user_id);
             $stmtEmail->execute();
-            $email = $stmtEmail->fetchColumn();
+            $konto = $stmtEmail->fetch(\PDO::FETCH_ASSOC);
+            $email = $konto ? (string)$konto['email'] : '';
 
             if (!$email) {
                 error_log("Keine E-Mail für UserID {$user_id} gefunden.");
@@ -104,9 +110,14 @@ class EmailVerificationController
             // ausdruecklich NICHT aus dem Host-Header der Anfrage
             // (App\Helper\Url).
             $verifyLink = Url::to("index.php?act=verify_email&token=$token");
-            Email::sendMail($email, 
-                "Hallo,\n\nBitte bestätige deine E-Mail durch Klick auf diesen Link:\n\n$verifyLink\n\nDieser Link ist 24 Stunden gültig.",
-                "E-Mail-Adresse bestätigen");
+
+            // tIn() und nicht t() - der Text kommt in der Sprache des Kontos.
+            $sprache = I18n::normalize($konto['lang'] ?? null);
+            Email::sendMail(
+                $email,
+                I18n::tIn($sprache, 'mail.bestaetigung.text', ['link' => $verifyLink]),
+                I18n::tIn($sprache, 'mail.bestaetigung.betreff')
+            );
         } catch (\Exception $e) {
             error_log("Fehler beim Senden der Verifikations-Mail: " . $e->getMessage());
         }

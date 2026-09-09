@@ -25,6 +25,10 @@ require_once $ROOT . '/class/Model/Location.php';
 require_once $ROOT . '/class/Model/LocationImage.php';
 require_once $ROOT . '/class/Helper/ImageStore.php';
 require_once $ROOT . '/class/Helper/Languages.php';
+// Die Sprache VOR den Katalogen, die sie brauchen: Countries::VORGABE ist
+// I18n::DEFAULT, und Availability holt seine Beschriftungen aus I18n. Im
+// Betrieb erledigt das der Autoloader; hier gibt es keinen.
+require_once $ROOT . '/class/Helper/I18n.php';
 require_once $ROOT . '/class/Helper/Countries.php';
 require_once $ROOT . '/class/Helper/Availability.php';
 require_once $ROOT . '/class/Helper/LocationView.php';
@@ -52,9 +56,9 @@ require_once $ROOT . '/class/Helper/SecurityHeaders.php';
 require_once $ROOT . '/class/Helper/MailGate.php';
 require_once $ROOT . '/class/Helper/LogHelper.php';
 require_once $ROOT . '/class/Model/Email.php';
-// Die Sprache der Oberflaeche. VOR ViewHelper gebraucht - template() loest
-// dort die Textmarker {{t:...}} auf, und esc() macht sie unschaedlich.
-require_once $ROOT . '/class/Helper/I18n.php';
+// Die Sprache der Oberflaeche steht schon oben - sie wird auch VOR ViewHelper
+// gebraucht: template() loest dort die Textmarker {{t:...}} auf, und esc()
+// macht sie unschaedlich.
 require_once $ROOT . '/class/Helper/ViewHelper.php';
 require_once $ROOT . '/class/Helper/Auth.php';
 // Der Verwaltungsbereich. Nach ViewHelper und Auth, weil er beide benutzt:
@@ -116,6 +120,20 @@ use App\Controller\SystemController;
 $passed = 0;
 function ok($name) { global $passed; fwrite(STDERR, "  ok  $name\n"); $passed++; }
 function check($cond, $msg) { if (!$cond) { fwrite(STDERR, "\nFEHLGESCHLAGEN: $msg\n"); exit(1); } }
+
+// ---------------------------------------------------------------------
+// DIESE TESTS LAUFEN AUF DEUTSCH.
+//
+// Ohne diese Zeile gaelte die Vorgabe (I18n::DEFAULT, also Englisch): Auf der
+// Kommandozeile gibt es weder Konto noch Cookie noch Accept-Language, und
+// I18n::start() laeuft hier nie. Die erwarteten Saetze weiter unten
+// ("1 Stunde 30 Minuten", "Mo-Fr abends") sind aber die deutschen - sie
+// stehen so in der Anwendung, seit es sie gibt.
+//
+// GESETZT WIRD SIE HIER UND NICHT IN JEDEM ABSCHNITT: Ein Abschnitt, der die
+// Sprache umstellt, stellt sie am Ende wieder auf Deutsch zurueck - sonst
+// haengt das Ergebnis eines Tests davon ab, welcher vor ihm lief.
+I18n::setzen('de');
 
 // ---------------------------------------------------------------------
 fwrite(STDERR, "\n1) STUN-Fallback\n");
@@ -2915,16 +2933,36 @@ fwrite(STDERR, "\nDie Laendernamen stehen im Code, nicht in der Datenbank\n");
 // als CP437 gelesen und als U+251C/U+00FB neu gespeichert). Auf der Seite
 // stand vor jedem Umlaut ein senkrechter Strich. Die Namen kommen deshalb
 // aus App\Helper\Countries.
-check(count(Countries::all()) === 248, 'der Katalog fuehrt nicht 248 Laender');
-check(Countries::name('AT') === 'Österreich', 'AT ergibt nicht Österreich');
+check(count(Countries::all('de')) === 248, 'der Katalog fuehrt nicht 248 Laender');
+check(Countries::name('AT', 'de') === 'Österreich', 'AT ergibt nicht Österreich');
 check(Countries::name('AT', 'en') === 'Austria', 'AT ergibt auf Englisch nicht Austria');
-check(Countries::name('cw') === 'Curaçao', 'Kleinschreibung wird nicht angehoben');
-check(Countries::name(' de ') === 'Deutschland', 'Leerzeichen werden nicht abgeschnitten');
+check(Countries::name('cw', 'de') === 'Curaçao', 'Kleinschreibung wird nicht angehoben');
+check(Countries::name(' de ', 'de') === 'Deutschland', 'Leerzeichen werden nicht abgeschnitten');
 // Unbekannt ergibt den Code selbst - dieselbe Entscheidung wie bei
 // Languages::name(). Eine Luecke waere keine Auskunft.
-check(Countries::name('XY') === 'XY', 'ein unbekannter Code ergibt nicht sich selbst');
-check(Countries::name(42) === '', 'aus Unfug wird kein Name');
+check(Countries::name('XY', 'de') === 'XY', 'ein unbekannter Code ergibt nicht sich selbst');
+check(Countries::name(42, 'de') === '', 'aus Unfug wird kein Name');
 ok('der Katalog antwortet auf Code, Schreibweise und Unfug');
+
+// OHNE ANGABE GILT DIE SPRACHE DER SEITE. Das ist die eigentliche Anbindung:
+// Kein Aufrufer reicht die Sprache durch (Location, TourRequest, die
+// Ansichten) - sie fragen den Katalog, und der fragt App\Helper\I18n. Eine
+// Stelle, die es vergaesse, zeigte sonst mitten auf einer englischen Seite
+// "Österreich", und es fiele niemandem auf.
+I18n::setzen('de');
+check(Countries::name('AT') === 'Österreich', 'die aktive Sprache gilt nicht (de)');
+check(Countries::zeileNamenSetzen(['iso2' => 'FR'])['country_name'] === 'Frankreich',
+    'auch die Zeilen folgen der aktiven Sprache nicht (de)');
+I18n::setzen('en');
+check(Countries::name('AT') === 'Austria', 'die aktive Sprache gilt nicht (en)');
+check(Countries::zeileNamenSetzen(['iso2' => 'FR'])['country_name'] === 'France',
+    'auch die Zeilen folgen der aktiven Sprache nicht (en)');
+// Und eine ausdruecklich uebergebene Sprache schlaegt die aktive - das ist
+// der Weg, den die E-Mails nehmen: Sprache des Empfaengers, nicht der Anfrage.
+check(Countries::name('AT', 'de') === 'Österreich',
+    'die uebergebene Sprache setzt sich gegen die aktive nicht durch');
+I18n::setzen('de');
+ok('ohne Angabe gilt die Sprache der Seite, mit Angabe die uebergebene');
 
 // JEDER Eintrag muss JEDE Sprache haben - sonst faellt beim Umschalten auf
 // Englisch die Haelfte auf Deutsch zurueck, und niemand merkt es.
@@ -2934,11 +2972,17 @@ foreach (Countries::SPRACHEN as $sprache) {
         if (trim((string)$name) === '') $fehlend[] = "$code/$sprache";
     }
 }
+// Der Katalog fuehrt genau die Sprachen, in denen die Anwendung vorliegt.
+// Eine dritte Katalogdatei unter lang/ ohne dritten Namen je Land hiesse:
+// 248 Laender fallen still auf die Vorgabe zurueck.
+check(Countries::SPRACHEN === array_keys(I18n::SPRACHEN),
+    'der Laenderkatalog fuehrt andere Sprachen als die Oberflaeche: '
+    . implode(',', Countries::SPRACHEN) . ' gegen ' . implode(',', array_keys(I18n::SPRACHEN)));
 check($fehlend === [], 'im Katalog fehlen Namen: ' . implode(', ', array_slice($fehlend, 0, 10)));
 // Und die deutsche Fassung darf nicht heimlich die englische sein: Bei
 // mindestens den Laendern, die sich unterscheiden, muessen sie es auch tun.
-check(Countries::name('FR') !== Countries::name('FR', 'en')
-   && Countries::name('IT') !== Countries::name('IT', 'en'),
+check(Countries::name('FR', 'de') !== Countries::name('FR', 'en')
+   && Countries::name('IT', 'de') !== Countries::name('IT', 'en'),
     'deutsche und englische Namen sind dieselben - eine Sprache ist eine Kopie');
 ok('beide Sprachen sind vollstaendig und verschieden');
 
@@ -2963,7 +3007,7 @@ $zeilen = Countries::zeilenNamenSetzen([
     ['iso2' => 'AT', 'country_name' => '├ûsterreich'],
     ['iso2' => 'XY', 'country_name' => 'Unbekanntland'],
     ['country_name' => 'ohne iso2'],
-]);
+], 'de');
 check($zeilen[0]['country_name'] === 'Österreich', 'der kaputte Wert wird nicht ersetzt');
 check($zeilen[1]['country_name'] === 'Unbekanntland',
     'ein unbekannter Code ueberschreibt den vorhandenen Wert');
@@ -3845,12 +3889,28 @@ check(TourRequest::statuses() === ['open', 'accepted', 'declined', 'expired', 'd
     'die sechs Zustaende der Anfrage stimmen nicht');
 $namen = TourRequest::statusNames();
 foreach (TourRequest::statuses() as $z) {
-    check(isset($namen[$z]) && $namen[$z] !== '', "der Zustand '$z' hat keinen deutschen Namen");
+    check(isset($namen[$z]) && $namen[$z] !== '', "der Zustand '$z' hat keinen Namen");
+    // Der Schluessel muss im Katalog stehen. Faende t() ihn nicht, gaebe es
+    // trotzdem einen Namen - naemlich den Schluessel selbst, und der ist
+    // sichtbar, aber kein Wort.
+    check($namen[$z] !== 'anfrage.status.' . $z,
+        "der Zustand '$z' fehlt im Sprachkatalog");
 }
-// Die Namen stehen im Modell und nicht in drei Ansichten: Liste,
-// Standortseite und Kopfleiste benennen denselben Zustand.
-check(strpos(file_get_contents($ROOT . '/class/Model/TourRequest.php'), 'durchgeführt') !== false,
-    'die deutschen Namen stehen nicht im Modell');
+check($namen['done'] === 'durchgeführt', 'die deutschen Namen kommen nicht an');
+I18n::setzen('en');
+check(TourRequest::statusNames()['done'] === 'completed',
+    'die Zustaende folgen der Sprache nicht');
+I18n::setzen('de');
+
+// DIE WOERTER STEHEN IM KATALOG UND NICHT IM CODE - und zwar nur dort. Sie
+// werden an drei Stellen gebraucht (Anfragenliste, Verwaltung,
+// Standortseite); vor dem Umzug standen sie an zweien davon getrennt, im
+// Modell und im Skript der Anfragenliste.
+foreach (['class/Model/TourRequest.php', 'assets/js/requests.js'] as $datei) {
+    $inhalt = file_get_contents($ROOT . '/' . $datei);
+    check(strpos($inhalt, "'durchgeführt'") === false && strpos($inhalt, "'abgebrochen'") === false,
+        "$datei fuehrt eine eigene Liste der Zustandsnamen");
+}
 ok('sechs Zustaende, benannt an einer Stelle');
 
 // --- "Jetzt sofort" ist ein Abstand und kein Sonderfall --------------------
@@ -8815,6 +8875,180 @@ foreach ([
 check(SystemController::rueckweg('act=home&id=x') === 'index.php?act=home',
     'eine unbrauchbare Kennung faellt weg, das Ziel bleibt');
 ok('der Rueckweg fuehrt nur in diese Anwendung - Ziel und Kennung, sonst nichts');
+
+I18n::zuruecksetzen();
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nKataloge und Formate folgen der Sprache\n");
+
+// WORUM ES GEHT: Nicht jeder Text der Anwendung ist ein Satz in einer
+// Vorlage. Monatsnamen, Wochentage, Zustandswoerter, Dauern und relative
+// Zeitangaben werden ZUSAMMENGESETZT - und wer sie im Code zusammensetzt,
+// schreibt dabei die deutsche Grammatik fest. Diese Stufe zieht sie in den
+// Katalog, samt der Reihenfolge, in der ihre Teile stehen.
+
+// --- Die Monatsnamen ------------------------------------------------------
+I18n::setzen('de');
+check(GuideView::dabeiSeit('2024-03-17 09:00:00') === 'März 2024',
+    'der deutsche Monatsname fehlt');
+I18n::setzen('en');
+check(GuideView::dabeiSeit('2024-03-17 09:00:00') === 'March 2024',
+    'der englische Monatsname fehlt');
+// Unbrauchbares bleibt unbrauchbar - die Sprache aendert daran nichts.
+check(GuideView::dabeiSeit('') === '' && GuideView::dabeiSeit('kein Datum') === '',
+    'aus einem fehlenden Datum wird ein Text');
+I18n::setzen('de');
+ok('Monat und Jahr kommen aus dem Katalog, nicht aus einer Liste im Code');
+
+// --- Wochentage und Tagesabschnitte ---------------------------------------
+//
+// Die KENNUNGEN sind Technik und bleiben deutsch abgekuerzt: Sie stehen so im
+// gespeicherten Muster und im Formularfeld. Uebersetzt wird die Beschriftung.
+check(array_keys(Availability::tage()) === ['mo', 'di', 'mi', 'do', 'fr', 'sa', 'so'],
+    'die Kennungen der Wochentage haben sich geaendert - das verschiebt jedes Muster');
+check(Availability::tage()['do']['lang'] === 'Donnerstag'
+   && Availability::tage()['do']['kurz'] === 'Do',
+    'die deutschen Wochentage fehlen');
+check(Availability::abschnitte()['abend']['kurz'] === 'abends',
+    'der deutsche Name des Abschnitts fehlt');
+// Die GRENZEN sind keine Frage der Sprache und stehen weiter im Code.
+check(Availability::abschnitte()['abend']['von'] === 18
+   && Availability::abschnitte()['abend']['bis'] === 22,
+    'die Stundengrenzen sind aus dem Code verschwunden');
+
+// Der Satz aus dem Raster: Tage zusammengefasst, Abschnitt dahinter.
+$musterMoFr = Availability::normalize(['mo-abend', 'di-abend', 'mi-abend', 'do-abend', 'fr-abend']);
+check(Availability::text($musterMoFr) === 'Mo-Fr abends',
+    'der deutsche Satz der ueblichen Zeiten stimmt nicht: ' . Availability::text($musterMoFr));
+
+I18n::setzen('en');
+check(Availability::tage()['do']['lang'] === 'Thursday'
+   && Availability::tage()['do']['kurz'] === 'Thu',
+    'die englischen Wochentage fehlen');
+check(Availability::text($musterMoFr) === 'Mon-Fri evenings',
+    'der englische Satz der ueblichen Zeiten stimmt nicht: ' . Availability::text($musterMoFr));
+// DAS GESPEICHERTE MUSTER HAENGT NICHT AN DER SPRACHE. Sonst schriebe ein
+// englisches Formular etwas anderes in die Spalte als ein deutsches, und
+// dieselbe Zeile in der Datenbank hiesse je nach Herkunft etwas anderes.
+check(Availability::normalize(['mo-abend', 'di-abend', 'mi-abend', 'do-abend', 'fr-abend'])
+      === $musterMoFr,
+    'dieselbe Auswahl ergibt auf Englisch ein anderes Muster');
+check(Availability::hat($musterMoFr, 'do', 'abend'),
+    'die Kennungen haben sich mit der Sprache geaendert');
+I18n::setzen('de');
+ok('Wochentage und Tagesabschnitte kommen aus dem Katalog, die Kennungen bleiben');
+
+// --- Dauern ---------------------------------------------------------------
+//
+// DIE EINZAHL WAR EIN FEHLER: dauerText() schrieb "1 Minuten", weil die Form
+// im Code stand und nicht im Katalog. Genau dafuer gibt es I18n::plural().
+check(LocationView::dauerText(1)  === '1 Minute',   'die Einzahl der Minute fehlt');
+check(LocationView::dauerText(45) === '45 Minuten', 'die Mehrzahl der Minute fehlt');
+check(LocationView::dauerText(60) === '1 Stunde',   'die Einzahl der Stunde fehlt');
+check(LocationView::dauerText(90) === '1 Stunde 30 Minuten', 'die zusammengesetzte Dauer fehlt');
+I18n::setzen('en');
+check(LocationView::dauerText(1)  === '1 minute',  'die englische Einzahl fehlt');
+check(LocationView::dauerText(90) === '1 hour 30 minutes', 'die englische Dauer fehlt');
+I18n::setzen('de');
+ok('Dauern waehlen ihre Form ueber den Katalog, nicht ueber ein if im Code');
+
+// --- Relative Zeitangaben -------------------------------------------------
+//
+// DIE RICHTUNG STECKT IM SCHLUESSEL. Im Deutschen steht sie vorn ("vor 3
+// Stunden"), im Englischen hinten ("3 hours ago") - wer sie im Code an die
+// Dauer klebt, schreibt die deutsche Wortstellung fest.
+check(LocationView::wunschzeitText(['wish_in' => 0]) === 'jetzt', '"jetzt" fehlt');
+check(LocationView::wunschzeitText(['wish_in' => 1200]) === 'in 20 Minuten', 'die Zukunft fehlt');
+check(LocationView::wunschzeitText(['wish_in' => -10800]) === 'vor 3 Stunden', 'die Vergangenheit fehlt');
+check(LocationView::wunschzeitText(['wish_in' => 259200]) === 'in 3 Tagen', 'der Dativ der Tage fehlt');
+check(LocationView::wunschzeitText([]) === 'den vereinbarten Zeitpunkt',
+    'ohne Angabe fehlt der Rueckfall');
+I18n::setzen('en');
+check(LocationView::wunschzeitText(['wish_in' => -10800]) === '3 hours ago',
+    'im Englischen steht die Richtung hinten - der Satz stimmt nicht: '
+    . LocationView::wunschzeitText(['wish_in' => -10800]));
+check(LocationView::wunschzeitText(['wish_in' => 3600]) === 'in 1 hour',
+    'die englische Einzahl fehlt');
+I18n::setzen('de');
+ok('relative Zeitangaben tragen ihre Richtung im Schluessel');
+
+// --- Und dieselben Schluessel im Browser ----------------------------------
+//
+// Drei Orte nennen denselben Zeitpunkt: die Standortseite (PHP), ihr Skript
+// und die Anfragenliste. Vor dieser Stufe stand der Satz dreimal da.
+foreach (['assets/js/location_page.js', 'assets/js/requests.js'] as $datei) {
+    $inhalt = file_get_contents($ROOT . '/' . $datei);
+    check(strpos($inhalt, "'zeit.in.'") !== false && strpos($inhalt, "'zeit.vor.'") !== false,
+        "$datei baut die relative Zeitangabe nicht aus dem Katalog");
+}
+// Und kein Skript haelt noch eine eigene Wochentagsliste.
+check(strpos(file_get_contents($ROOT . '/assets/js/location_page.js'), 'Mittwoch') === false,
+    'assets/js/location_page.js fuehrt eine eigene Wochentagsliste');
+// KEIN toLocale*-AUFRUF TRAEGT NOCH EINE FESTE KENNUNG. Geprueft wird der
+// Aufruf und nicht das Vorkommen von "de-DE": Der Kommentar daneben darf
+// erklaeren, was dort frueher stand.
+foreach (glob($ROOT . '/assets/js/*.js') as $skript) {
+    check(preg_match("/toLocale[A-Za-z]*\\(\\s*['\"]/", (string)file_get_contents($skript)) !== 1,
+        basename($skript) . ' formatiert mit einer fest eingetragenen Kennung');
+}
+foreach (['de', 'en'] as $sprache) {
+    $katalog = require $ROOT . '/lang/' . $sprache . '.php';
+    check(isset($katalog['datum.locale']) && strpos($katalog['datum.locale'], '-') !== false,
+        "lang/$sprache.php fuehrt keine vollstaendige Intl-Kennung");
+}
+ok('der Browser formatiert Datum und Zeit in der gewaehlten Sprache');
+
+// --- Die abgekuerzte Dauer der Verwaltung ---------------------------------
+$dauer = new ReflectionMethod(App\Helper\AdminView::class, 'dauer');
+$dauer->setAccessible(true);
+check($dauer->invoke(null, 30) === 'gerade eben', 'unter einer Minute fehlt der Text');
+check($dauer->invoke(null, 12 * 60) === '12 Min', 'die Minuten fehlen');
+check($dauer->invoke(null, 3 * 3600 + 12 * 60) === '3 Std 12 Min', 'Stunden und Minuten fehlen');
+check($dauer->invoke(null, 50 * 3600) === '2 Tg 2 Std', 'Tage und Stunden fehlen');
+I18n::setzen('en');
+check($dauer->invoke(null, 30) === 'just now', 'der englische Text fehlt');
+check($dauer->invoke(null, 3 * 3600 + 12 * 60) === '3 hr 12 min', 'die englische Dauer fehlt');
+$datum = new ReflectionMethod(App\Helper\AdminView::class, 'datum');
+$datum->setAccessible(true);
+check($datum->invoke(null, '2026-09-09 14:12:00') === '09/09/2026 14:12',
+    'das englische Datumsmuster greift nicht: ' . $datum->invoke(null, '2026-09-09 14:12:00'));
+I18n::setzen('de');
+check($datum->invoke(null, '2026-09-09 14:12:00') === '09.09.2026 14:12',
+    'das deutsche Datumsmuster greift nicht');
+ok('die Verwaltung kuerzt ab - in beiden Sprachen');
+
+// --- Die beiden E-Mails ---------------------------------------------------
+//
+// SPRACHE DES EMPFAENGERS, NICHT DES AUSLOESERS. Eine Seite entsteht in der
+// Sprache dessen, der sie aufruft; eine E-Mail geht an jemand anderen. Wer
+// eine fremde Adresse in "Passwort vergessen" eintippt, bestimmt damit nicht,
+// in welcher Sprache deren Besitzer angeschrieben wird.
+I18n::setzen('en');
+check(I18n::tIn('de', 'mail.passwort.betreff') === 'Passwort zurücksetzen',
+    'tIn() folgt der aktiven Sprache statt der uebergebenen');
+check(strpos(I18n::tIn('de', 'mail.bestaetigung.text', ['link' => 'https://x/y']), 'https://x/y') !== false,
+    'der Link kommt im Text nicht an');
+check(strpos(I18n::tIn('en', 'mail.bestaetigung.text', ['link' => 'https://x/y']), 'Hello,') === 0,
+    'der englische Text fehlt');
+// Unbekanntes faellt auf die Vorgabe - genau wie ueberall sonst.
+check(I18n::tIn('xx', 'mail.passwort.betreff') === I18n::tIn(I18n::DEFAULT, 'mail.passwort.betreff'),
+    'eine unbekannte Sprache faellt nicht auf die Vorgabe');
+// Und die aktive Sprache bleibt unberuehrt: Ein tIn() mitten in einer Anfrage
+// darf den Rest der Seite nicht umstellen.
+check(I18n::aktiv() === 'en', 'tIn() hat die Sprache der Anfrage veraendert');
+I18n::setzen('de');
+
+// Die Sprache muss auch wirklich geholt werden - sonst stuende der Text zwar
+// im Katalog, die Mail ginge aber weiter in der Sprache der Anfrage hinaus.
+foreach (['class/Controller/PasswordController.php'      => 'mail.passwort',
+          'class/Controller/EmailVerificationController.php' => 'mail.bestaetigung'] as $datei => $praefix) {
+    $inhalt = file_get_contents($ROOT . '/' . $datei);
+    check(strpos($inhalt, "I18n::tIn(\$sprache, '" . $praefix) !== false,
+        "$datei verschickt nicht in der Sprache des Empfaengers");
+    check(preg_match('/SELECT[^"]*\blang\b[^"]*FROM user/', $inhalt) === 1,
+        "$datei holt die Sprache des Kontos nicht aus der Datenbank");
+}
+ok('die beiden Mails kommen in der Sprache des Empfaengers an');
 
 I18n::zuruecksetzen();
 

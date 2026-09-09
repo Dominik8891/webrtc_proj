@@ -413,28 +413,30 @@ window.webrtcApp.requests = {
     /**
      * Die Zustandsmarke.
      *
-     * Dieselben Woerter wie auf dem Server (App\Model\TourRequest) und auf
-     * der Standortseite.
+     * DIESELBEN WOERTER WIE AUF DEM SERVER, und ab jetzt auch aus derselben
+     * Quelle: dem Sprachkatalog (anfrage.status.<wert>). Hier stand die Liste
+     * ein zweites Mal - wortgleich mit der in App\Model\TourRequest, und
+     * damit eine Gelegenheit, sie auseinanderlaufen zu lassen.
+     *
+     * DIE KLASSEN BLEIBEN HIER. Sie sind Gestaltung und kein Text: Welche
+     * Marke gelb ist, hat mit der Sprache nichts zu tun.
      *
      * @param {string} zustand
      * @returns {string} HTML
      */
     zustandHtml(zustand) {
-        const namen = {
-            open:      'offen',
-            accepted:  'angenommen',
-            declined:  'abgelehnt',
-            expired:   'abgelaufen',
-            done:      'durchgeführt',
-            cancelled: 'abgebrochen'
-        };
         const klassen = {
             open:     'app-tag app-tag--warn',
             accepted: 'app-tag app-tag--live',
             done:     'app-tag app-tag--accent'
         };
         const klasse = klassen[zustand] || 'app-tag';
-        return '<span class="' + klasse + '">' + this.esc(namen[zustand] || zustand) + '</span>';
+        // Kennt der Katalog den Zustand nicht, steht sein Schluessel da -
+        // dieselbe Entscheidung wie ueberall in webrtcApp.t(). Ein Zustand,
+        // den der Server schickt und der Katalog nicht kennt, ist ein Fehler
+        // und soll auffallen.
+        return '<span class="' + klasse + '">'
+             + this.esc(window.webrtcApp.t('anfrage.status.' + zustand)) + '</span>';
     },
 
     /**
@@ -451,26 +453,43 @@ window.webrtcApp.requests = {
      */
     zeitText(z) {
         const s = parseInt(z.wish_in, 10);
-        if (isNaN(s)) return 'unbekannt';
+        if (isNaN(s)) return window.webrtcApp.t('zeit.unbekannt');
+        if (s <= 60 && s >= -60) return window.webrtcApp.t('zeit.jetzt');
 
-        if (s <= 60 && s >= -60) return 'jetzt';
-        if (s > 0)  return 'in ' + this.dauerText(s);
-        return 'vor ' + this.dauerText(-s);
+        // DIE RICHTUNG STECKT IM SCHLUESSEL und wird nicht vor die Dauer
+        // gesetzt: Im Englischen steht sie hinten ("3 hours ago"). Dieselben
+        // Schluessel wie in App\Helper\LocationView::wunschzeitText - es ist
+        // derselbe Zeitpunkt, nur auf einer anderen Seite.
+        const richtung = s > 0 ? 'zeit.in.' : 'zeit.vor.';
+
+        const min = Math.round(Math.abs(s) / 60);
+        if (min < 60) return window.webrtcApp.plural(richtung + 'minuten', min);
+
+        const std = Math.round(min / 60);
+        if (std < 24) return window.webrtcApp.plural(richtung + 'stunden', std);
+
+        return window.webrtcApp.plural(richtung + 'tagen', Math.round(std / 24));
     },
 
     /**
-     * Eine Dauer in Worten. Die Einheit wechselt mit der Groessenordnung -
-     * bei drei Tagen interessiert niemanden die Minute.
+     * Eine Dauer in Worten, abgekuerzt. Die Einheit wechselt mit der
+     * Groessenordnung - bei drei Tagen interessiert niemanden die Minute.
+     *
+     * ABGEKUERZT (dauer.kurz.*), weil sie hier mitten in einem Satz steht und
+     * ihn nicht auseinanderziehen soll. Der Wunschzeitpunkt darueber nimmt
+     * die ausgeschriebene Fassung: Er IST die Angabe der Zeile.
      *
      * @param {number} sekunden
      * @returns {string}
      */
     dauerText(sekunden) {
         const min = Math.round(sekunden / 60);
-        if (min < 60)   return min + ' Min';
+        if (min < 60) return window.webrtcApp.t('dauer.kurz.minuten', { n: min });
+
         const std = Math.round(min / 60);
-        if (std < 24)   return std + ' Std';
-        return Math.round(std / 24) + ' Tagen';
+        if (std < 24) return window.webrtcApp.t('dauer.kurz.stunden', { n: std });
+
+        return window.webrtcApp.t('dauer.kurz.tage', { n: Math.round(std / 24) });
     },
 
     /**

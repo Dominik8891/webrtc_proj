@@ -63,6 +63,29 @@ window.webrtcApp.i18n = {
     },
 
     /**
+     * Die Kennung fuer Intl - also fuer toLocaleDateString und Verwandte.
+     *
+     * WARUM SIE AUS DEM KATALOG KOMMT UND NICHT AUS lang(): Weil sie mehr
+     * traegt als die Sprache. 'en' allein laesst den Browser die
+     * amerikanische Reihenfolge waehlen (Monat vor Tag); gewollt ist 'en-GB'.
+     * Welche Region zu einer Sprache gehoert, ist eine Entscheidung dieser
+     * Anwendung und steht deshalb dort, wo ihre Texte stehen
+     * (Schluessel datum.locale).
+     *
+     * FEHLT DER SCHLUESSEL, gilt das nackte Sprachkuerzel. Hier steht
+     * ausnahmsweise nicht der Schluessel selbst wie bei jedem Text: Intl
+     * bekaeme "datum.locale" als Kennung und wuerfe einen RangeError - eine
+     * Ausnahme mitten in der Anzeige einer Nachricht, statt eines Datums in
+     * der falschen Reihenfolge.
+     *
+     * @returns {string} z.B. 'de-DE'
+     */
+    locale() {
+        const wert = window.webrtcApp.t('datum.locale');
+        return wert === 'datum.locale' ? this.lang() : wert;
+    },
+
+    /**
      * Der unveraenderte Katalogeintrag - Zeichenkette oder Formenobjekt.
      *
      * @param {string} schluessel

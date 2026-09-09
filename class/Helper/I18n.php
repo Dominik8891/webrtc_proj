@@ -17,13 +17,18 @@ namespace App\Helper;
  * dieselbe Trennung zwischen "was ist gueltig" und "was steht in der
  * Datenbank".
  *
- * WAS SIE NOCH NICHT TUT
+ * WIE WEIT DER UMZUG IST
  * ----------------------
- * Uebersetzen. Die Kataloge unter lang/ enthalten in dieser Stufe nur die
- * Schluessel, die die Sprachwahl selbst braucht. Der Bestand der Anwendung
- * bleibt deutsch, bis er Schluessel fuer Schluessel umgezogen ist. Das
- * Fundament steht vorher, weil sonst waehrend des Umzugs an drei Stellen
- * gleichzeitig entschieden wuerde, wie ein Text zu seiner Sprache kommt.
+ * Das Fundament steht, und die KATALOGE UND FORMATE sind umgezogen:
+ * Laendernamen (App\Helper\Countries), Monatsnamen, Wochentage und
+ * Tagesabschnitte (App\Helper\Availability), die Zustaende einer Anfrage
+ * (App\Model\TourRequest), Dauern, relative Zeitangaben und die beiden
+ * E-Mails. Das sind die Texte, die ZUSAMMENGESETZT werden - und wer sie im
+ * Code zusammensetzt, schreibt dabei die deutsche Grammatik fest.
+ *
+ * Der Bestand der SEITEN ist weiterhin deutsch und zieht Schluessel fuer
+ * Schluessel nach. Dass dabei nichts Neues dazukommt, haelt die Ratsche fest
+ * (tests/i18n_scan.php).
  *
  * WOHER DIE SPRACHE BEIM SEITENAUFBAU KOMMT
  * -----------------------------------------
@@ -333,6 +338,36 @@ class I18n
     }
 
     /**
+     * Der Text zu einem Schluessel in EINER BESTIMMTEN Sprache.
+     *
+     * WOZU ES DAS GIBT: fuer die E-Mails. Eine Seite entsteht in der Sprache
+     * DESSEN, DER SIE AUFRUFT - da genuegt t(). Eine E-Mail geht an jemand
+     * anderen, und sie soll in SEINER Sprache ankommen: Der Guide, dessen
+     * Oberflaeche englisch steht, loest mit einer Registrierung keine
+     * englische Bestaetigungsmail an einen deutschen Kunden aus. Die Sprache
+     * des Empfaengers steht in user.lang.
+     *
+     * WARUM NICHT setzen() UND HINTERHER ZURUECK: Weil dazwischen jeder Text
+     * dieser Anfrage in der fremden Sprache herauskaeme - und weil ein
+     * vergessenes Zuruecksetzen (ein return, eine Ausnahme) den Rest der
+     * Seite still umstellte. Die Sprache dieser Anfrage bleibt hier
+     * unberuehrt; uebergeben wird sie als Wert.
+     *
+     * @param string              $in_sprache    Kuerzel; Unbekanntes wird zur Vorgabe
+     * @param string              $in_schluessel
+     * @param array<string,mixed> $in_werte
+     * @return string
+     */
+    public static function tIn(string $in_sprache, string $in_schluessel, array $in_werte = []): string
+    {
+        $text = self::rohtext($in_schluessel, $in_sprache);
+        if ($text === null) return $in_schluessel;
+        if (!is_string($text))  return $in_schluessel;
+
+        return self::einsetzen($text, $in_werte);
+    }
+
+    /**
      * Der Text zu einem Schluessel in der Form, die zu n passt.
      *
      * WARUM n UEBERGEBEN WIRD UND NICHT NUR EINGESETZT
@@ -438,15 +473,18 @@ class I18n
     /**
      * Der unveraenderte Katalogeintrag - Zeichenkette oder Formenarray.
      *
-     * @param string $in_schluessel
+     * @param string      $in_schluessel
+     * @param string|null $in_sprache    null heisst: die aktive Sprache
      * @return string|array<string,string>|null null, wenn kein Katalog ihn kennt
      */
-    private static function rohtext(string $in_schluessel)
+    private static function rohtext(string $in_schluessel, ?string $in_sprache = null)
     {
-        $eigen = self::katalog(self::aktiv());
+        $sprache = self::normalize($in_sprache ?? self::aktiv());
+
+        $eigen = self::katalog($sprache);
         if (isset($eigen[$in_schluessel])) return $eigen[$in_schluessel];
 
-        if (self::aktiv() !== self::DEFAULT) {
+        if ($sprache !== self::DEFAULT) {
             $vorgabe = self::katalog(self::DEFAULT);
             if (isset($vorgabe[$in_schluessel])) return $vorgabe[$in_schluessel];
         }

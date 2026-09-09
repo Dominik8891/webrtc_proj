@@ -943,7 +943,10 @@ class AdminView
         if ($roh === '') return '';
 
         $zeit = strtotime($roh);
-        return $zeit === false ? '' : date('d.m.Y H:i', $zeit);
+        // DAS MUSTER STEHT IM KATALOG (datum.mit_uhrzeit). "9.9.2026" und
+        // "9/9/2026" sind dieselbe Angabe in zwei Sprachen, und ein fest
+        // eingetragenes 'd.m.Y' waere ein deutscher Satz in Kurzform.
+        return $zeit === false ? '' : date(I18n::t('datum.mit_uhrzeit'), $zeit);
     }
 
     /**
@@ -960,18 +963,34 @@ class AdminView
      */
     private static function dauer(int $in_sekunden): string
     {
-        if ($in_sekunden < 60) return 'gerade eben';
+        if ($in_sekunden < 60) return I18n::t('zeit.gerade_eben');
 
         $minuten = intdiv($in_sekunden, 60);
         $stunden = intdiv($minuten, 60);
         $rest    = $minuten % 60;
 
-        if ($stunden < 1)  return $minuten . ' Min';
+        // DIE ABGEKUERZTE FASSUNG (dauer.kurz.*) und nicht die
+        // ausgeschriebene: Diese Spalte ist schmal, und "3 Stunden 12
+        // Minuten" macht jede Zeile der Liste laenger, ohne mehr zu sagen.
+        // Ohne Formen - "Min" bleibt "Min", auch bei einer.
+        if ($stunden < 1) return I18n::t('dauer.kurz.minuten', ['n' => $minuten]);
+
         // Ab einem Tag sind die Minuten keine Auskunft mehr - da ist laengst
         // klar, dass etwas nicht stimmt.
-        if ($stunden >= 24) return intdiv($stunden, 24) . ' Tg ' . ($stunden % 24) . ' Std';
+        if ($stunden >= 24) {
+            return I18n::t('dauer.kurz.tage_stunden', [
+                'tage'    => I18n::t('dauer.kurz.tage',    ['n' => intdiv($stunden, 24)]),
+                'stunden' => I18n::t('dauer.kurz.stunden', ['n' => $stunden % 24]),
+            ]);
+        }
 
-        return $stunden . ' Std' . ($rest > 0 ? ' ' . $rest . ' Min' : '');
+        $text = I18n::t('dauer.kurz.stunden', ['n' => $stunden]);
+        if ($rest === 0) return $text;
+
+        return I18n::t('dauer.kurz.stunden_minuten', [
+            'stunden' => $text,
+            'minuten' => I18n::t('dauer.kurz.minuten', ['n' => $rest]),
+        ]);
     }
 
     /**
