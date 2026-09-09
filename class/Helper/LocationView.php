@@ -191,8 +191,13 @@ class LocationView
         $titel = trim((string)($in_daten['title'] ?? ''));
         if ($titel !== '') return $titel;
 
+        // DER GANZE SATZKOPF AUS DEM KATALOG und nicht "Führung in " vor
+        // den Ort geklebt: Wie eine Ueberschrift aus Angebot und Ort
+        // entsteht, ist eine Frage der Sprache.
         $ort = self::ortVon($in_daten);
-        return $ort !== '' ? 'Führung in ' . $ort : 'Standort';
+        return $ort !== ''
+            ? I18n::t('standort.titel.fuehrung_in', ['ort' => $ort])
+            : I18n::t('standort.titel.ohne_ort');
     }
 
     /**
@@ -231,20 +236,23 @@ class LocationView
         $zustand = (int)$in_daten['blocked'] === 1 ? 'idle' : (string)$in_daten['availability'];
 
         if ($in_eigen) {
-            $eigen = $zustand === 'live'
-                ? 'Sie sind bereit – dieser Standort ist gerade anrufbar.'
-                : 'Sie sind nicht bereit – dieser Standort wird gedämpft angezeigt.';
-            return '<span class="app-tag app-tag--accent">Ihr Standort</span>'
+            $eigen = I18n::t($zustand === 'live'
+                ? 'standort.zustand.eigen_bereit'
+                : 'standort.zustand.eigen_nicht_bereit');
+            return '<span class="app-tag app-tag--accent">'
+                 . self::esc(I18n::t('standort.zustand.eigen')) . '</span>'
                  . '<span class="loc__hint">' . self::esc($eigen) . '</span>';
         }
 
         if ($zustand === 'live') {
-            return '<span class="app-tag app-tag--live"><span class="app-dot"></span>Jetzt verfügbar</span>';
+            return '<span class="app-tag app-tag--live"><span class="app-dot"></span>'
+                 . self::esc(I18n::t('standort.zustand.live')) . '</span>';
         }
         if ($zustand === 'busy') {
-            return '<span class="app-tag app-tag--warn"><span class="app-dot"></span>Im Gespräch</span>';
+            return '<span class="app-tag app-tag--warn"><span class="app-dot"></span>'
+                 . self::esc(I18n::t('standort.zustand.busy')) . '</span>';
         }
-        return '<span class="app-tag">Kein Guide vor Ort</span>';
+        return '<span class="app-tag">' . self::esc(I18n::t('standort.zustand.idle')) . '</span>';
     }
 
     /**
@@ -263,13 +271,16 @@ class LocationView
         if ((int)$in_daten['blocked'] !== 1) return '';
 
         $grund = trim((string)($in_daten['blocked_reason'] ?? ''));
-        $wer   = $in_eigen
-            ? 'Ihr Standort ist gesperrt und für andere Nutzer nicht sichtbar.'
-            : 'Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.';
+        $wer   = I18n::t($in_eigen ? 'standort.sperre.eigen' : 'standort.sperre.fremd');
 
         return '<div class="alert alert-danger" role="alert">'
-             . '<strong>Gesperrt.</strong> ' . self::esc($wer)
-             . ($grund !== '' ? ' <span class="loc__reason">Grund: ' . self::esc($grund) . '</span>' : '')
+             . '<strong>' . self::esc(I18n::t('standort.sperre.wort')) . '</strong> '
+             . self::esc($wer)
+             . ($grund !== ''
+                ? ' <span class="loc__reason">'
+                  . self::esc(I18n::t('standort.sperre.grund', ['grund' => $grund]))
+                  . '</span>'
+                : '')
              . '</div>';
     }
 
@@ -341,8 +352,6 @@ class LocationView
     {
         if ($in_bilder === []) return '';
 
-        $alt = self::esc($in_titel);
-
         $kacheln = '';
         foreach ($in_bilder as $nr => $bild) {
             $id = (int)$bild['id'];
@@ -351,12 +360,15 @@ class LocationView
                      . ' data-full="' . self::bildUrl($id, 'full') . '"'
                      . ' data-shot="' . $nr . '">'
                      . '<img src="' . self::bildUrl($id, 'thumb') . '"'
-                     . ' alt="' . $alt . ' – Bild ' . ($nr + 1) . '" loading="lazy">'
+                     . ' alt="' . self::esc(I18n::t('standort.bilder.alt', [
+                            'titel' => $in_titel,
+                            'nr'    => $nr + 1,
+                        ])) . '" loading="lazy">'
                      . '</a>';
         }
 
         return '<section class="loc__shots">'
-             . '<h2 class="loc__h2">Bilder vom Ort</h2>'
+             . '<h2 class="loc__h2">' . self::esc(I18n::t('standort.bilder.titel')) . '</h2>'
              . '<div class="loc-shots" id="loc-shots">' . $kacheln . '</div>'
              . '</section>';
     }
@@ -415,8 +427,8 @@ class LocationView
     {
         $text = trim((string)($in_daten['description_long'] ?? ''));
         if ($text === '') {
-            return '<p class="loc__empty">Der Guide hat noch keine ausführliche '
-                 . 'Beschreibung hinterlegt.</p>';
+            return '<p class="loc__empty">'
+                 . self::esc(I18n::t('standort.beschreibung.leer')) . '</p>';
         }
 
         // Zeilenenden vereinheitlichen: Ein Windows-Browser schickt \r\n,
@@ -469,19 +481,29 @@ class LocationView
         if (Availability::istLeer($muster)) {
             if (!$in_eigen) return '';
 
+            // Der Verweis auf den Knopf steht MITTEN im Satz und ist
+            // hervorgehoben - deshalb der ganze Satz aus dem Katalog und
+            // das <em> als Platzhalter (ViewHelper::tHtml).
             return '<div class="loc-hours loc-hours--empty">'
-                 .   '<span class="loc-hours__title">Übliche Zeiten</span>'
-                 .   '<p class="loc__note">Sie haben noch keine angegeben. Kunden sehen dann '
-                 .     'nicht, wann sich eine Anfrage lohnt – über <em>Bearbeiten</em> lässt '
-                 .     'sich das nachtragen.</p>'
+                 .   '<span class="loc-hours__title">'
+                 .     self::esc(I18n::t('standort.zeiten.titel_leer')) . '</span>'
+                 .   '<p class="loc__note">'
+                 .     ViewHelper::tHtml('standort.zeiten.leer', [
+                           'knopf' => '<em>' . self::esc(I18n::t('standort.zeiten.bearbeiten')) . '</em>',
+                       ])
+                 .   '</p>'
                  . '</div>';
         }
 
         return '<div class="loc-hours" id="loc-hours"'
              .     ' data-timezone="' . self::esc($zone) . '">'
-             .   '<span class="loc-hours__title">Meistens unterwegs</span>'
+             .   '<span class="loc-hours__title">'
+             .     self::esc(I18n::t('standort.zeiten.titel')) . '</span>'
              .   '<p class="loc-hours__text">' . self::esc(Availability::text($muster)) . '</p>'
-             .   '<p class="loc-hours__zone">Ortszeit: ' . self::esc(Availability::zoneText($zone))
+             .   '<p class="loc-hours__zone">'
+             .     self::esc(I18n::t('standort.zeiten.ortszeit', [
+                       'zone' => Availability::zoneText($zone),
+                   ]))
              .     '<span class="loc-hours__diff" id="loc-hours-diff"></span></p>'
              . '</div>';
     }
@@ -525,7 +547,8 @@ class LocationView
 
         $minuten = $in_daten['duration_minutes'] ?? null;
         if ($minuten !== null && (int)$minuten > 0) {
-            $html .= '<dt>Dauer</dt><dd>' . self::esc(self::dauerText((int)$minuten)) . '</dd>';
+            $html .= '<dt>' . self::esc(I18n::t('standort.fakten.dauer')) . '</dt>'
+                   . '<dd>' . self::esc(self::dauerText((int)$minuten)) . '</dd>';
         }
 
         // namesInline und nicht names: Die Namen werden hier durch Kommas
@@ -533,12 +556,14 @@ class LocationView
         // wuerde das Komma daneben mitziehen. Siehe App\Helper\Languages.
         $sprachen = Languages::namesInline($in_daten['languages'] ?? '');
         if ($sprachen !== []) {
-            $html .= '<dt>Sprachen</dt><dd>' . self::esc(implode(', ', $sprachen)) . '</dd>';
+            $html .= '<dt>' . self::esc(I18n::t('standort.fakten.sprachen')) . '</dt>'
+                   . '<dd>' . self::esc(implode(', ', $sprachen)) . '</dd>';
         }
 
         $ort = self::ortVon($in_daten);
         if ($ort !== '') {
-            $html .= '<dt>Ort</dt><dd>' . self::esc($ort) . '</dd>';
+            $html .= '<dt>' . self::esc(I18n::t('standort.fakten.ort')) . '</dt>'
+                   . '<dd>' . self::esc($ort) . '</dd>';
         }
 
         return $html;
@@ -635,16 +660,19 @@ class LocationView
                                       ?array $in_anfrage = null): string
     {
         if ($in_eigen) {
-            return '<p class="loc__note">Den eigenen Standort fragt man nicht an. '
-                 . 'Was hier ansteht, sehen Sie unter '
-                 . '<a href="index.php?act=requests_page">Anfragen</a>; ob Sie gerade '
-                 . 'sofort anrufbar sind, entscheidet Ihr Bereitschaftsschalter in der '
-                 . 'Kopfleiste.</p>';
+            // Der Verweis steht MITTEN im Satz: der ganze Satz aus dem
+            // Katalog, das <a> als Platzhalter (ViewHelper::tHtml).
+            return '<p class="loc__note">'
+                 . ViewHelper::tHtml('standort.aktion.eigen', [
+                       'liste' => '<a href="index.php?act=requests_page">'
+                                   . self::esc(I18n::t('standort.aktion.anfragen')) . '</a>',
+                   ])
+                 . '</p>';
         }
 
         if ((int)$in_daten['blocked'] === 1) {
-            return '<p class="loc__note loc__note--danger">Dieser Standort ist gesperrt. '
-                 . 'Von hier aus lässt sich keine Führung anfragen.</p>';
+            return '<p class="loc__note loc__note--danger">'
+                 . self::esc(I18n::t('standort.aktion.gesperrt')) . '</p>';
         }
 
         if ($in_anfrage !== null) {
@@ -652,11 +680,13 @@ class LocationView
         }
 
         if (!$in_angemeldet || (int)$in_ziel_user_id < 1) {
-            return '<p class="loc__note">Für eine Anfrage brauchen Sie ein Konto – '
-                 . 'der Guide muss wissen, wem er zusagt.</p>'
+            return '<p class="loc__note">'
+                 . self::esc(I18n::t('standort.aktion.konto_noetig')) . '</p>'
                  . '<div class="app-actions">'
-                 . '<a class="btn btn-primary" href="index.php?act=login_page">Anmelden und anfragen</a>'
-                 . '<a class="btn btn-secondary" href="index.php?act=signup_page">Konto anlegen</a>'
+                 . '<a class="btn btn-primary" href="index.php?act=login_page">'
+                 .   self::esc(I18n::t('standort.aktion.anmelden')) . '</a>'
+                 . '<a class="btn btn-secondary" href="index.php?act=signup_page">'
+                 .   self::esc(I18n::t('standort.aktion.konto_anlegen')) . '</a>'
                  . '</div>';
         }
 
@@ -720,10 +750,10 @@ class LocationView
              .   '<button type="button" class="btn btn-secondary loc-ask__btn start-location-chat-btn"'
              .     ' data-locationid="' . (int)$in_daten['id'] . '"'
              .     ' data-guidename="' . self::esc($name) . '">'
-             .     'Frage an den Guide'
+             .     self::esc(I18n::t('standort.frage.knopf'))
              .   '</button>'
-             .   '<p class="loc-ask__note">Rückfragen zum Ort oder zu möglichen '
-             .   'Zeiten – der Guide antwortet Ihnen im Chat.</p>'
+             .   '<p class="loc-ask__note">'
+             .     self::esc(I18n::t('standort.frage.hinweis')) . '</p>'
              . '</div>';
     }
 
@@ -757,23 +787,24 @@ class LocationView
     public static function anfrageFormularHtml(array $in_daten): string
     {
         $zustand = (string)$in_daten['availability'];
-        $hinweis = $zustand === 'live'
-            ? 'Der Guide ist gerade bereit – „jetzt sofort“ hat gute Aussichten.'
-            : 'Gerade ist niemand vor Ort. Das ist kein Hindernis: Fragen Sie für '
-            . 'später an, und der Guide sagt zu oder ab.';
+        $hinweis = I18n::t($zustand === 'live'
+            ? 'standort.anfrage.hinweis_bereit'
+            : 'standort.anfrage.hinweis_offline');
 
         // Die Abstaende in Sekunden. Sie stehen hier und nicht im Skript,
-        // damit die Beschriftung und der Wert, der beim Server ankommt,
-        // nebeneinander stehen und nicht in zwei Dateien.
+        // damit der SCHLUESSEL der Beschriftung und der Wert, der beim
+        // Server ankommt, nebeneinander stehen und nicht in zwei Dateien.
+        // Die Beschriftung selbst kommt aus dem Katalog - sie haengt an der
+        // Sprache, der Abstand nicht.
         $vorgaben = [
-            0     => 'Jetzt sofort',
-            3600  => 'In 1 Stunde',
-            10800 => 'In 3 Stunden',
-            86400 => 'Morgen um diese Zeit',
+            0     => 'standort.anfrage.jetzt',
+            3600  => 'standort.anfrage.in_1h',
+            10800 => 'standort.anfrage.in_3h',
+            86400 => 'standort.anfrage.morgen',
         ];
 
         $knoepfe = '';
-        foreach ($vorgaben as $sekunden => $text) {
+        foreach ($vorgaben as $sekunden => $schluessel) {
             // Der erste ist vorgewaehlt: Ohne Vorauswahl waere der haeufigste
             // Fall ein zusaetzlicher Klick.
             $an = ($sekunden === 0);
@@ -781,21 +812,24 @@ class LocationView
                      .  ($an ? ' loc-req__preset--on' : '') . '"'
                      .  ' data-seconds="' . (int)$sekunden . '"'
                      .  ' aria-pressed="' . ($an ? 'true' : 'false') . '">'
-                     .  self::esc($text) . '</button>';
+                     .  self::esc(I18n::t($schluessel)) . '</button>';
         }
 
         return '<div class="loc-req" id="loc-request">'
              .   '<p class="loc__note">' . self::esc($hinweis) . '</p>'
-             .   '<div class="loc-req__presets" role="group" aria-label="Vorgaben für den Wunschzeitpunkt">'
+             .   '<div class="loc-req__presets" role="group" aria-label="'
+             .     self::esc(I18n::t('standort.anfrage.vorgaben')) . '">'
              .     $knoepfe
              .   '</div>'
              .   '<div class="loc-req__custom">'
-             .     '<label class="loc-req__label" for="loc-req-wish">Wunschzeitpunkt</label>'
+             .     '<label class="loc-req__label" for="loc-req-wish">'
+             .       self::esc(I18n::t('standort.anfrage.wunschzeit')) . '</label>'
              .     '<input type="datetime-local" id="loc-req-wish" class="form-control loc-req__field">'
              .   '</div>'
              .   '<p class="loc-req__hint" id="loc-req-hint" hidden></p>'
              .   '<button type="button" class="btn btn-success loc-req-submit"'
-             .     ' data-locationid="' . (int)$in_daten['id'] . '">Führung anfragen</button>'
+             .     ' data-locationid="' . (int)$in_daten['id'] . '">'
+             .     self::esc(I18n::t('standort.anfrage.absenden')) . '</button>'
              . '</div>';
     }
 
@@ -835,13 +869,22 @@ class LocationView
         $wann     = self::wunschzeitText($in_anfrage);
 
         if ($zustand === 'open') {
+            // Die Zeitangabe steht MITTEN im Satz und ist hervorgehoben -
+            // der ganze Satz kommt deshalb aus dem Katalog, das <strong>
+            // als Platzhalter (ViewHelper::tHtml). Zerlegt in "Ihre Anfrage
+            // für" + Zeit + "ist beim Guide" waere er in keiner zweiten
+            // Sprache mehr zusammenzusetzen.
             return '<div class="loc-req loc-req--state" id="loc-request">'
-                 .   '<span class="app-tag app-tag--warn">Anfrage offen</span>'
-                 .   '<p class="loc__note">Ihre Anfrage für <strong>' . self::esc($wann)
-                 .     '</strong> ist beim Guide. Sobald er antwortet, sehen Sie es hier '
-                 .     'und am Zähler in der Kopfleiste.</p>'
+                 .   '<span class="app-tag app-tag--warn">'
+                 .     self::esc(I18n::t('standort.anfrage.offen_marke')) . '</span>'
+                 .   '<p class="loc__note">'
+                 .     ViewHelper::tHtml('standort.anfrage.offen_text', [
+                           'wann' => '<strong>' . self::esc($wann) . '</strong>',
+                       ])
+                 .   '</p>'
                  .   '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
-                 .     ' data-id="' . (int)($in_anfrage['id'] ?? 0) . '">Anfrage zurückziehen</button>'
+                 .     ' data-id="' . (int)($in_anfrage['id'] ?? 0) . '">'
+                 .     self::esc(I18n::t('standort.anfrage.zurueckziehen')) . '</button>'
                  . '</div>';
         }
 
@@ -859,29 +902,34 @@ class LocationView
         $laeuft = !empty($in_anfrage['running']);
 
         if ($laeuft) {
-            $text = $anrufbar
-                ? 'Die Führung läuft noch – die Verbindung ist abgerissen. Sie können '
-                . 'wieder einsteigen; Ihr Guide beendet die Führung, wenn Sie fertig sind.'
-                : 'Die Führung läuft noch. Ihr Guide beendet sie, wenn Sie fertig sind.';
+            $text = I18n::t($anrufbar
+                ? 'standort.anfrage.laeuft_abgerissen'
+                : 'standort.anfrage.laeuft');
         } else {
+            // Der Wunschzeitpunkt steht als Platzhalter im Satz und wird
+            // nicht davorgesetzt: Im Englischen steht er an anderer Stelle.
             $text = $anrufbar
-                ? 'Der Guide hat zugesagt. Sie können jetzt starten – er wird angerufen.'
-                : 'Der Guide hat für ' . $wann . ' zugesagt. Kurz vorher lässt sich die '
-                . 'Führung von hier aus starten.';
+                ? I18n::t('standort.anfrage.startbereit')
+                : I18n::t('standort.anfrage.zugesagt', ['wann' => $wann]);
         }
 
         return '<div class="loc-req loc-req--state" id="loc-request">'
              .   '<span class="app-tag app-tag--live"><span class="app-dot"></span>'
-             .     ($laeuft ? 'Läuft' : 'Angenommen') . '</span>'
+             .     self::esc(I18n::t($laeuft
+                       ? 'standort.anfrage.marke_laeuft'
+                       : 'standort.anfrage.marke_angenommen')) . '</span>'
              .   '<p class="loc__note">' . self::esc($text) . '</p>'
              .   '<button type="button" class="btn ' . ($anrufbar ? 'btn-success' : 'btn-secondary')
              .     ' loc-call-btn"' . ($anrufbar ? '' : ' disabled aria-disabled="true"')
              .     ($anrufbar ? ' data-userid="' . (int)$in_ziel_user_id . '"'
                               . ' data-locationid="' . (int)$in_daten['id'] . '"' : '')
-             .     '>' . ($laeuft ? 'Wieder einsteigen' : 'Führung starten') . '</button>'
+             .     '>' . self::esc(I18n::t($laeuft
+                         ? 'standort.anfrage.einsteigen'
+                         : 'standort.anfrage.starten')) . '</button>'
              .   ($laeuft ? ''
                           : '<button type="button" class="btn btn-secondary btn-sm loc-req-cancel"'
-                          . ' data-id="' . (int)($in_anfrage['id'] ?? 0) . '">Absagen</button>')
+                          . ' data-id="' . (int)($in_anfrage['id'] ?? 0) . '">'
+                          . self::esc(I18n::t('standort.anfrage.absagen')) . '</button>')
              . '</div>';
     }
 
@@ -1140,7 +1188,7 @@ class LocationView
             $spanne = $a['von'] . '-' . $a['bis'];
             $kopf .= '<th scope="col"><button type="button" class="loc-grid__all"'
                   .  ' data-spalte="' . self::esc($kennung) . '"'
-                  .  ' title="Diesen Abschnitt an allen Tagen an- oder abwählen">'
+                  .  ' title="' . self::esc(I18n::t('standort.bearbeiten.raster_spalte')) . '">'
                   .  self::esc($a['kurz']) . '<span class="loc-grid__hours">'
                   .  self::esc($spanne) . '</span></button></th>';
         }
@@ -1151,7 +1199,7 @@ class LocationView
         foreach ($tage as $tag_kennung => $tag) {
             $zeilen .= '<tr><th scope="row"><button type="button" class="loc-grid__all"'
                     .  ' data-zeile="' . self::esc($tag_kennung) . '"'
-                    .  ' title="Diesen Tag ganz an- oder abwählen">'
+                    .  ' title="' . self::esc(I18n::t('standort.bearbeiten.raster_zeile')) . '">'
                     .  self::esc($tag['kurz']) . '</button></th>';
 
             $a = 0;
@@ -1165,7 +1213,10 @@ class LocationView
                 $zeilen .= '<td><label class="loc-grid__cell">'
                         .  '<input type="checkbox" name="availability[]"'
                         .  ' value="' . self::esc($wert) . '"'
-                        .  ' aria-label="' . self::esc($tag['lang'] . ' ' . $abschnitt['kurz']) . '"'
+                        .  ' aria-label="' . self::esc(I18n::t('standort.bearbeiten.raster_feld', [
+                               'tag'       => $tag['lang'],
+                               'abschnitt' => $abschnitt['kurz'],
+                           ])) . '"'
                         .  ($an ? ' checked' : '') . '>'
                         .  '<span class="loc-grid__box" aria-hidden="true"></span>'
                         .  '</label></td>';
@@ -1255,18 +1306,17 @@ class LocationView
     {
         if ($in_cover === null) {
             return '<p class="loc__empty" data-nocover>'
-                 . 'Noch kein Titelbild gewählt. Der Kopf der Seite zeigt so lange nur '
-                 . 'Titel und Ort. Wählen Sie unten eines Ihrer Bilder aus – am besten '
-                 . 'ein sehr breites mit ruhigen Flächen, auf denen die Schrift steht.'
+                 . self::esc(I18n::t('standort.bearbeiten.kein_titelbild'))
                  . '</p>';
         }
 
         $id = (int)$in_cover['id'];
         return '<div class="loc-edit__cover" data-imageid="' . $id . '">'
-             . '<img src="' . self::bildUrl($id, 'full') . '" alt="Titelbild">'
+             . '<img src="' . self::bildUrl($id, 'full') . '"'
+             . ' alt="' . self::esc(I18n::t('standort.bearbeiten.titelbild_alt')) . '">'
              . '<div class="loc-edit__coverActions">'
              . '<button type="button" class="btn btn-secondary btn-sm" id="loc-cover-clear">'
-             . 'Zurück in die Galerie</button>'
+             . self::esc(I18n::t('standort.bearbeiten.titelbild_zurueck')) . '</button>'
              . '</div>'
              . '</div>';
     }
@@ -1287,24 +1337,34 @@ class LocationView
     public static function bildverwaltungHtml(array $in_bilder): string
     {
         if ($in_bilder === []) {
-            return '<p class="loc__empty" data-empty>Noch keine Beispielbilder hochgeladen.</p>';
+            return '<p class="loc__empty" data-empty>'
+                 . self::esc(I18n::t('standort.bearbeiten.keine_bilder')) . '</p>';
         }
 
+        // DIE NUMMER STECKT IM SATZ und wird nicht davorgesetzt: "Bild 3
+        // löschen" und "Delete picture 3" stellen sie an verschiedene
+        // Stellen. Der ganze Satz kommt deshalb aus dem Katalog.
         $html = '';
         foreach ($in_bilder as $nr => $bild) {
-            $id = (int)$bild['id'];
+            $id   = (int)$bild['id'];
+            $werte = ['nr' => $nr + 1];
+
             $html .= '<li class="loc-edit__image" data-imageid="' . $id . '">'
-                  . '<img src="' . self::bildUrl($id, 'thumb') . '" alt="Bild ' . ($nr + 1) . '">'
+                  . '<img src="' . self::bildUrl($id, 'thumb') . '"'
+                  . ' alt="' . self::esc(I18n::t('standort.bearbeiten.bild_alt', $werte)) . '">'
                   . '<div class="loc-edit__imageActions">'
                   . '<button type="button" class="app-iconbtn app-iconbtn--cover loc-img-cover"'
-                  . ' aria-label="Bild ' . ($nr + 1) . ' als Titelbild verwenden"'
-                  . ' title="Als Titelbild"></button>'
+                  . ' aria-label="' . self::esc(I18n::t('standort.bearbeiten.bild_titelbild', $werte)) . '"'
+                  . ' title="' . self::esc(I18n::t('standort.bearbeiten.kurz_titelbild')) . '"></button>'
                   . '<button type="button" class="app-iconbtn app-iconbtn--up loc-img-up"'
-                  . ' aria-label="Bild ' . ($nr + 1) . ' nach vorne" title="Nach vorne"></button>'
+                  . ' aria-label="' . self::esc(I18n::t('standort.bearbeiten.bild_vor', $werte)) . '"'
+                  . ' title="' . self::esc(I18n::t('standort.bearbeiten.kurz_vor')) . '"></button>'
                   . '<button type="button" class="app-iconbtn app-iconbtn--down loc-img-down"'
-                  . ' aria-label="Bild ' . ($nr + 1) . ' nach hinten" title="Nach hinten"></button>'
+                  . ' aria-label="' . self::esc(I18n::t('standort.bearbeiten.bild_zurueck', $werte)) . '"'
+                  . ' title="' . self::esc(I18n::t('standort.bearbeiten.kurz_zurueck')) . '"></button>'
                   . '<button type="button" class="app-iconbtn app-iconbtn--delete app-iconbtn--danger loc-img-del"'
-                  . ' aria-label="Bild ' . ($nr + 1) . ' löschen" title="Löschen"></button>'
+                  . ' aria-label="' . self::esc(I18n::t('standort.bearbeiten.bild_loeschen', $werte)) . '"'
+                  . ' title="' . self::esc(I18n::t('standort.bearbeiten.kurz_loeschen')) . '"></button>'
                   . '</div>'
                   . '</li>';
         }

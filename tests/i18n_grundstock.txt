@@ -546,33 +546,6 @@ class/Controller/EmailVerificationController.php	<div class="app-result"> <div c
 class/Controller/EmailVerificationController.php	Es wurde bereits eine Bestätigungsmail verschickt. Bitte sehen Sie
 class/Controller/EmailVerificationController.php	auch im Spam-Ordner nach. Ein neuer Versand ist
 class/Controller/EmailVerificationController.php	konto
-class/Controller/GuideController.php	<div class="mt-3"><a href="index.php?act=home" class="link-secondary">Später entscheiden</a></div>
-class/Controller/GuideController.php	<p class="text-muted small mb-0">Die Bestätigung gilt ab sofort. An Ihren
-class/Controller/GuideController.php	<p class="text-muted small mb-0">Sie können diese Entscheidung jederzeit in
-class/Controller/GuideController.php	<p class="text-muted small mb-0">Solange Sie noch Standorte anbieten,
-class/Controller/GuideController.php	Bitte versuchen Sie es später erneut.
-class/Controller/GuideController.php	Die Guide-Rolle konnte nicht zurückgegeben werden.
-class/Controller/GuideController.php	Die Guide-Rolle konnte nicht übernommen werden.
-class/Controller/GuideController.php	Für diese Antwort ist Ihr Konto nicht im richtigen Zustand.
-class/Controller/GuideController.php	Guide-Rolle zurückgeben
-class/Controller/GuideController.php	Guide-Rolle zurückgeben.
-class/Controller/GuideController.php	Ihre Antwort konnte nicht gespeichert werden.
-class/Controller/GuideController.php	Ihren Einstellungen ändern.</p>
-class/Controller/GuideController.php	Ja, ich möchte Guide werden
-class/Controller/GuideController.php	Nein, ich möchte nur zuschauen
-class/Controller/GuideController.php	Neue Bedingungen bestätigen
-class/Controller/GuideController.php	Sie bieten noch Standorte an. Bitte löschen Sie diese zuerst
-class/Controller/GuideController.php	Sie sind <strong>Guide</strong> und können Standorte anbieten.
-class/Controller/GuideController.php	Sie sind <strong>Guide</strong>. Die Bedingungen haben sich
-class/Controller/GuideController.php	Sie sind <strong>Zuschauer</strong>. Sie können Führungen buchen,
-class/Controller/GuideController.php	aber keine Standorte anbieten.
-class/Controller/GuideController.php	bestehenden Standorten ändert sich dadurch nichts.</p>
-class/Controller/GuideController.php	bestehenden bleiben unberührt.
-class/Controller/GuideController.php	class="btn btn-outline-secondary">Zurück zu den Einstellungen</a>
-class/Controller/GuideController.php	geändert - bitte bestätigen Sie die neue Fassung. Bis dahin
-class/Controller/GuideController.php	in Ihren Einstellungen unter "Meine Locations" - danach können Sie die
-class/Controller/GuideController.php	können Sie keine weiteren Standorte anlegen; Ihre
-class/Controller/GuideController.php	lässt sich die Rolle nicht zurückgeben - löschen Sie diese zuerst unter
 class/Controller/GuideProfileController.php	&fehler=
 class/Controller/GuideProfileController.php	&gespeichert=1
 class/Controller/GuideProfileController.php	<a class="btn btn-primary" href="index.php?act=home">Zur Karte</a>
@@ -585,54 +558,15 @@ class/Controller/GuideProfileController.php	Das Profil konnte nicht gespeichert 
 class/Controller/GuideProfileController.php	oder es hat es nie gegeben.</p>
 class/Controller/LocationController.php	&edit=1&fehler=
 class/Controller/LocationController.php	&gespeichert=1
-class/Controller/LocationController.php	<a class="btn btn-primary" href="index.php?act=home">Zur Karte</a>
-class/Controller/LocationController.php	<h1 class="app-page-head__title">Standort nicht gefunden</h1>
-class/Controller/LocationController.php	<p class="app-page-head__sub">Dieser Standort wurde entfernt,
-class/Controller/LocationController.php	Bild nicht gefunden.
-class/Controller/LocationController.php	Bilder sind an einem Standort nicht moeglich.
-class/Controller/LocationController.php	Bitte einen Grund angeben.
-class/Controller/LocationController.php	Das Bild konnte nicht gespeichert werden.
-class/Controller/LocationController.php	Das Titelbild konnte nicht geändert werden.
-class/Controller/LocationController.php	Der Titel darf hoechstens
-class/Controller/LocationController.php	Der Titel muss mindestens
-class/Controller/LocationController.php	Die Aenderung konnte nicht gespeichert werden.
-class/Controller/LocationController.php	Die Dauer muss eine Zahl in Minuten sein.
-class/Controller/LocationController.php	Die Dauer muss zwischen
-class/Controller/LocationController.php	Die Kurzbeschreibung muss mindestens
-class/Controller/LocationController.php	Die Reihenfolge konnte nicht gespeichert werden.
-class/Controller/LocationController.php	Die ausfuehrliche Beschreibung darf hoechstens
-class/Controller/LocationController.php	Es wurde keine Datei geschickt.
-class/Controller/LocationController.php	Fehler beim Löschen.
-class/Controller/LocationController.php	Kein Standort angegeben.
-class/Controller/LocationController.php	Keine Location-ID übergeben!
-class/Controller/LocationController.php	Keine Reihenfolge angegeben.
-class/Controller/LocationController.php	Mehr als
-class/Controller/LocationController.php	Standort nicht gefunden.
-class/Controller/LocationController.php	Zeichen lang sein.
 class/Controller/LocationController.php	anfrage
 class/Controller/LocationController.php	fehler
 class/Controller/LocationController.php	gespeichert
-class/Controller/LocationController.php	gesperrt oder hat es nie gegeben.</p>
-class/Controller/LocationController.php	und
 class/Controller/LoginController.php	Benutzername oder Passwort falsch.
 class/Controller/LoginController.php	konto
 class/Controller/PasswordController.php	Das alte Passwort ist nicht korrekt!
 class/Controller/PasswordController.php	Der Link ist ungültig oder abgelaufen.
 class/Controller/PasswordController.php	Die Passwörter stimmen nicht überein oder sind zu kurz.
 class/Controller/PasswordController.php	Falls diese E-Mail in unserem System hinterlegt ist, erhältst du eine Nachricht zum Zurücksetzen.
-class/Controller/RequestController.php	Den eigenen Standort fragt man nicht an.
-class/Controller/RequestController.php	Die Anfrage konnte nicht gestellt werden.
-class/Controller/RequestController.php	Diese Anfrage lässt sich nicht mehr beantworten.
-class/Controller/RequestController.php	Diese Anfrage lässt sich nicht mehr zurücknehmen.
-class/Controller/RequestController.php	Diese Führung lässt sich nicht mehr beenden.
-class/Controller/RequestController.php	Dieser Standort nimmt keine Anfragen an.
-class/Controller/RequestController.php	Es fehlt der Standort.
-class/Controller/RequestController.php	Es fehlt die Anfrage.
-class/Controller/RequestController.php	Es fehlt die Führung.
-class/Controller/RequestController.php	Für diesen Standort läuft bereits eine Anfrage von Ihnen.
-class/Controller/RequestController.php	Nur per POST.
-class/Controller/RequestController.php	So weit im Voraus lässt sich eine Führung nicht anfragen.
-class/Controller/RequestController.php	Zu viele Anfragen in kurzer Zeit. Bitte
 class/Controller/RequestController.php	konto
 class/Controller/ReviewController.php	Bitte wählen Sie zwischen einem und fünf Sternen.
 class/Controller/ReviewController.php	Diese Bewertung lässt sich nicht entfernen.
@@ -644,36 +578,8 @@ class/Controller/ReviewController.php	Vielleicht haben Sie sie schon bewertet.
 class/Controller/ReviewController.php	Vielleicht ist sie es bereits.
 class/Controller/ReviewController.php	Zu viele Bewertungen in kurzer Zeit. Bitte
 class/Controller/ReviewController.php	konto
-class/Controller/SettingsController.php	<dt>E-Mail bestätigt</dt><dd>Bestätigt</dd>
-class/Controller/SettingsController.php	<dt>E-Mail bestätigt</dt><dd>Nicht bestätigt
-class/Controller/SettingsController.php	Das sieht ein Kunde, bevor er eine Führung anfragt: auf jeder Ihrer
-class/Controller/SettingsController.php	Ein Benutzername und ein farbiger Punkt sind keine Grundlage dafür,
-class/Controller/SettingsController.php	Farbprofil konnte nicht gespeichert werden.
-class/Controller/SettingsController.php	Guide werden
-class/Controller/SettingsController.php	Guide-Rolle ändern
-class/Controller/SettingsController.php	Neue Bedingungen bestätigen
-class/Controller/SettingsController.php	Nicht aktiv
-class/Controller/SettingsController.php	Nicht aktiviert
-class/Controller/SettingsController.php	Standortseiten und auf Ihrer eigenen Seite, die Sie weitergeben können.
-class/Controller/SettingsController.php	class="btn btn-outline-primary btn-sm">Bestätigungsmail senden</a></dd>
-class/Controller/SettingsController.php	einem Fremden Geld zu geben.
 class/Controller/SettingsController.php	fehler
 class/Controller/SettingsController.php	gespeichert
-class/Controller/SettingsController.php	Öffentliches Profil ansehen</a>
-class/Controller/SignupController.php	Benutzername oder E-Mail-Adresse wurde soeben vergeben.
-class/Controller/SignupController.php	Bitte gib eine gültige E-Mail-Adresse ein.
-class/Controller/SignupController.php	Bitte versuchen Sie es noch einmal.
-class/Controller/SignupController.php	Das Passwort muss mindestens 8 Zeichen lang sein.
-class/Controller/SignupController.php	Der Benutzername ist bereits vergeben.
-class/Controller/SignupController.php	Die E-Mail-Adresse ist bereits vergeben.
-class/Controller/SignupController.php	Die Passwörter stimmen nicht überein.
-class/Controller/SignupController.php	Dieser Benutzername gehört zu einem gelöschten Konto und lässt
-class/Controller/SignupController.php	Ein unbekannter Fehler ist aufgetreten.
-class/Controller/SignupController.php	Ungültiger Benutzername. Nur Buchstaben/Zahlen/Unterstrich, 3-20 Zeichen.
-class/Controller/SignupController.php	Zu dieser E-Mail-Adresse gab es bereits ein Konto, das gelöscht
-class/Controller/SignupController.php	nutzen Sie eine andere Adresse oder wenden Sie sich an den Betreiber.
-class/Controller/SignupController.php	sich nicht neu vergeben. Bitte wählen Sie einen anderen.
-class/Controller/SignupController.php	wurde. Sie lässt sich deshalb nicht erneut verwenden. Bitte
 class/Controller/SystemController.php	<option value=0> -- KEINE -- </option>
 class/Controller/TurnController.php	Der Anruf wird ohne Relay-Server aufgebaut.
 class/Controller/TurnController.php	Der TURN-Dienst hat keine verwertbaren Zugangsdaten geliefert.
@@ -710,63 +616,10 @@ class/Controller/WebRTCController.php	Fragen Sie die Führung auf der Standortse
 class/Controller/WebRTCController.php	Ungültige Signaling-Anfrage.
 class/Controller/WebRTCController.php	deshalb nicht angerufen werden.
 class/Controller/WebRTCController.php	mit einem Wunschzeitpunkt, der Ihnen beiden passt.
-class/Helper/AdminView.php	<h1 class="adm__title">Verwaltung</h1>
-class/Helper/AdminView.php	<nav class="adm__nav" aria-label="Verwaltung">
-class/Helper/AdminView.php	<p class="adm-vorrat__leer">Nichts offen: keine hängende Führung,
-class/Helper/AdminView.php	<p class="adm__sub">Konten, Standorte und Bewertungen der Plattform.</p>
-class/Helper/AdminView.php	<span class="adm-none">ohne Text</span>
-class/Helper/AdminView.php	<span class="adm-none">vollständig</span>
-class/Helper/AdminView.php	<span class="app-tag app-tag--danger">Konto gelöscht</span>
-class/Helper/AdminView.php	<span class="app-tag app-tag--warn">hängt</span>
-class/Helper/AdminView.php	<tr><td colspan="6" class="adm-empty">Keine Bewertungen.</td></tr>
-class/Helper/AdminView.php	<tr><td colspan="6" class="adm-empty">Nichts in dieser Ansicht.</td></tr>
-class/Helper/AdminView.php	<tr><td colspan="7" class="adm-empty">Keine Standorte.</td></tr>
-class/Helper/AdminView.php	Anfrage
-class/Helper/AdminView.php	Anfragen
-class/Helper/AdminView.php	Begonnen und von niemandem beendet. Solange das so bleibt, steht
-class/Helper/AdminView.php	Benutzer
-class/Helper/AdminView.php	Beschreibung oder ohne übliche Zeiten. Für den Guide sieht das
-class/Helper/AdminView.php	Bewertungen
-class/Helper/AdminView.php	Ein Vorgang, den jemand eröffnet hat und den jemand wieder
-class/Helper/AdminView.php	Führung hängt
-class/Helper/AdminView.php	Führungen
-class/Helper/AdminView.php	Führungen hängen
-class/Helper/AdminView.php	Gelöschte Konten
-class/Helper/AdminView.php	Konten hängen auf „online"
-class/Helper/AdminView.php	Konto hängt auf „online"
-class/Helper/AdminView.php	Ohne Nadel auf der Karte, ohne Bild, ohne Titel, ohne ausführliche
-class/Helper/AdminView.php	Ohne Titel
-class/Helper/AdminView.php	Seit über einer Viertelstunde kein Lebenszeichen, trotzdem nicht
-class/Helper/AdminView.php	Solange das so bleibt, steht in der Benutzerliste jedes Konto
-class/Helper/AdminView.php	Standort
-class/Helper/AdminView.php	Standorte
-class/Helper/AdminView.php	Tagen durchgeführt
-class/Helper/AdminView.php	Tagen. Der Kunde hat gewartet und nichts bekommen.
-class/Helper/AdminView.php	Verfallen, ohne dass der Guide zu- oder abgesagt hat – in den letzten
-class/Helper/AdminView.php	als erreichbar.
 class/Helper/AdminView.php	anfragen
-class/Helper/AdminView.php	aria-label="Chat mit
-class/Helper/AdminView.php	beim Kunden der Startknopf, und die Bewertung wird nicht fällig.
 class/Helper/AdminView.php	benutzer
 class/Helper/AdminView.php	bewertungen
-class/Helper/AdminView.php	fertig aus – er weiß ja, was er anbietet.
-class/Helper/AdminView.php	im Gespräch
-class/Helper/AdminView.php	keine Nadel
-class/Helper/AdminView.php	keine Zeiten
-class/Helper/AdminView.php	keine neuen in
-class/Helper/AdminView.php	keine unbeantwortete Anfrage, kein gesperrter Standort, kein
-class/Helper/AdminView.php	läuft seit
-class/Helper/AdminView.php	nicht da
-class/Helper/AdminView.php	noch kein Durchschnitt
-class/Helper/AdminView.php	offline gesetzt: cron/check_online_status.php läuft nicht.
-class/Helper/AdminView.php	ohne Antwort
-class/Helper/AdminView.php	ohne Grund
-class/Helper/AdminView.php	schließen muss – oder bestätigen.
 class/Helper/AdminView.php	standorte
-class/Helper/AdminView.php	unvollständig
-class/Helper/AdminView.php	unvollständiges Angebot – und der Aufräumjob läuft.</p>
-class/Helper/AdminView.php	verfügbar
-class/Helper/AdminView.php	Übersicht
 class/Helper/Availability.php	bis
 class/Helper/Availability.php	von
 class/Helper/Countries.php	Amerikanische Überseeinseln
@@ -803,121 +656,12 @@ class/Helper/Countries.php	Ägypten
 class/Helper/Countries.php	Äquatorialguinea
 class/Helper/Countries.php	Äthiopien
 class/Helper/Countries.php	Österreich
-class/Helper/GuideView.php	<a class="btn btn-secondary btn-sm" href="index.php?act=settings">Profil bearbeiten</a>
-class/Helper/GuideView.php	<button type="submit" class="btn btn-primary">Profil speichern</button>
-class/Helper/GuideView.php	<h2 class="guide__h2">Über mich</h2>
-class/Helper/GuideView.php	<label class="form-label" for="guide-about">Über mich</label>
-class/Helper/GuideView.php	<p class="form-text">Der Name, unter dem Kunden Sie sehen – auf Ihren
-class/Helper/GuideView.php	<p class="form-text">Die Sprachen, die Sie sprechen. Welche Sprachen für
-class/Helper/GuideView.php	<p class="form-text">Ein Bild von Ihnen, quadratisch zugeschnitten.
-class/Helper/GuideView.php	<p class="form-text">Ein paar Sätze über sich. Der ERSTE SATZ steht auf
-class/Helper/GuideView.php	<p class="guide-about__empty">Sie haben noch nichts über sich
-class/Helper/GuideView.php	<span class="app-tag app-tag--accent">Ihr Profil</span>
-class/Helper/GuideView.php	Bis zu
-class/Helper/GuideView.php	Dieser Guide bietet gerade keinen Standort an.
-class/Helper/GuideView.php	Führung
-class/Helper/GuideView.php	Guide seit
-class/Helper/GuideView.php	Ihr Guide
-class/Helper/GuideView.php	Ihr Profil
-class/Helper/GuideView.php	Ihre Standorte
-class/Helper/GuideView.php	MB. Ohne Bild stehen Ihre Initialen dort –
-class/Helper/GuideView.php	Sie bieten diese Führung an
-class/Helper/GuideView.php	Sie bieten noch keinen Standort an. Über "Standort anbieten" wird
-class/Helper/GuideView.php	Standortseiten, in der Standortliste und hier. Ihr Benutzername
-class/Helper/GuideView.php	aus diesem Profil ein Angebot.
-class/Helper/GuideView.php	bleibt davon unberührt; mit ihm melden Sie sich weiterhin an, und
-class/Helper/GuideView.php	das ist besser als ein leerer Kreis, aber schlechter als ein Gesicht.</p>
-class/Helper/GuideView.php	dass er allein schon etwas sagt.</p>
-class/Helper/GuideView.php	data-confirm="Das Bild wird gelöscht. Auf Ihren Standortseiten und
-class/Helper/GuideView.php	diese Orte zeigen, stehen auf jeder Ihrer Standortseiten – und sie
-class/Helper/GuideView.php	dort allerdings weiterhin.</p>
-class/Helper/GuideView.php	ein Kunde bekommt ihn nicht zu sehen. Ohne Anzeigenamen steht er
-class/Helper/GuideView.php	eine einzelne Führung gelten, steht weiterhin am Standort – das ist
-class/Helper/GuideView.php	geschrieben. Ein paar Sätze darüber, wer Sie sind und warum Sie
-class/Helper/GuideView.php	in Ihrem Profil stehen danach wieder Ihre Initialen. Ein neues Bild
-class/Helper/GuideView.php	jeder Ihrer Standortseiten neben Ihrem Bild – schreiben Sie ihn so,
-class/Helper/GuideView.php	können Sie jederzeit hochladen."
-class/Helper/GuideView.php	nicht dasselbe.</p>
-class/Helper/GuideView.php	sind das, was ein Kunde vor seiner Anfrage liest.</p>
-class/Helper/GuideView.php	zeigt Ihnen
-class/Helper/ImageStore.php	Das Bild ist zu gross - erlaubt sind bis zu
-class/Helper/ImageStore.php	Das Bild konnte nicht gelesen werden.
-class/Helper/ImageStore.php	Das Bild konnte nicht gespeichert werden.
-class/Helper/ImageStore.php	Das ist keine Bilddatei.
-class/Helper/ImageStore.php	Die Datei ist zu gross - erlaubt sind
-class/Helper/ImageStore.php	Die Datei ist zu gross.
-class/Helper/ImageStore.php	Die Datei konnte nicht empfangen werden.
-class/Helper/ImageStore.php	Dieses Bildformat wird nicht angenommen (JPEG, PNG oder WebP).
 class/Helper/Languages.php	Türkçe
-class/Helper/LocationView.php	">Anfrage zurückziehen</button>
-class/Helper/LocationView.php	">Führung anfragen</button>
-class/Helper/LocationView.php	</strong> ist beim Guide. Sobald er antwortet, sehen Sie es hier
-class/Helper/LocationView.php	<a class="btn btn-primary" href="index.php?act=login_page">Anmelden und anfragen</a>
-class/Helper/LocationView.php	<a class="btn btn-secondary" href="index.php?act=signup_page">Konto anlegen</a>
-class/Helper/LocationView.php	<a href="index.php?act=requests_page">Anfragen</a>; ob Sie gerade
-class/Helper/LocationView.php	<div class="loc-req__presets" role="group" aria-label="Vorgaben für den Wunschzeitpunkt">
-class/Helper/LocationView.php	<h2 class="loc__h2">Bilder vom Ort</h2>
-class/Helper/LocationView.php	<p class="loc-ask__note">Rückfragen zum Ort oder zu möglichen
-class/Helper/LocationView.php	<p class="loc__empty" data-empty>Noch keine Beispielbilder hochgeladen.</p>
-class/Helper/LocationView.php	<p class="loc__empty">Der Guide hat noch keine ausführliche
-class/Helper/LocationView.php	<p class="loc__note loc__note--danger">Dieser Standort ist gesperrt.
-class/Helper/LocationView.php	<p class="loc__note">Den eigenen Standort fragt man nicht an.
-class/Helper/LocationView.php	<p class="loc__note">Für eine Anfrage brauchen Sie ein Konto –
-class/Helper/LocationView.php	<p class="loc__note">Ihre Anfrage für <strong>
-class/Helper/LocationView.php	<p class="loc__note">Sie haben noch keine angegeben. Kunden sehen dann
-class/Helper/LocationView.php	<span class="app-tag app-tag--accent">Ihr Standort</span>
-class/Helper/LocationView.php	<span class="app-tag app-tag--live"><span class="app-dot"></span>Jetzt verfügbar</span>
-class/Helper/LocationView.php	<span class="app-tag app-tag--warn"><span class="app-dot"></span>Im Gespräch</span>
-class/Helper/LocationView.php	<span class="app-tag app-tag--warn">Anfrage offen</span>
-class/Helper/LocationView.php	<span class="app-tag">Kein Guide vor Ort</span>
-class/Helper/LocationView.php	<span class="loc-hours__title">Übliche Zeiten</span>
-class/Helper/LocationView.php	Beschreibung hinterlegt.</p>
-class/Helper/LocationView.php	Der Guide hat für
-class/Helper/LocationView.php	Der Guide hat zugesagt. Sie können jetzt starten – er wird angerufen.
-class/Helper/LocationView.php	Der Guide ist gerade bereit – „jetzt sofort“ hat gute Aussichten.
-class/Helper/LocationView.php	Die Führung läuft noch – die Verbindung ist abgerissen. Sie können
-class/Helper/LocationView.php	Die Führung läuft noch. Ihr Guide beendet sie, wenn Sie fertig sind.
-class/Helper/LocationView.php	Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.
-class/Helper/LocationView.php	Frage an den Guide
-class/Helper/LocationView.php	Führung in
-class/Helper/LocationView.php	Führung starten
-class/Helper/LocationView.php	Führung von hier aus starten.
-class/Helper/LocationView.php	Gerade ist niemand vor Ort. Das ist kein Hindernis: Fragen Sie für
-class/Helper/LocationView.php	Ihr Standort ist gesperrt und für andere Nutzer nicht sichtbar.
-class/Helper/LocationView.php	Jetzt sofort
-class/Helper/LocationView.php	Läuft
-class/Helper/LocationView.php	Morgen um diese Zeit
-class/Helper/LocationView.php	Noch kein Titelbild gewählt. Der Kopf der Seite zeigt so lange nur
-class/Helper/LocationView.php	Sie sind bereit – dieser Standort ist gerade anrufbar.
-class/Helper/LocationView.php	Sie sind nicht bereit – dieser Standort wird gedämpft angezeigt.
-class/Helper/LocationView.php	Standort
-class/Helper/LocationView.php	Titel und Ort. Wählen Sie unten eines Ihrer Bilder aus – am besten
-class/Helper/LocationView.php	Von hier aus lässt sich keine Führung anfragen.</p>
-class/Helper/LocationView.php	Was hier ansteht, sehen Sie unter
-class/Helper/LocationView.php	Wieder einsteigen
-class/Helper/LocationView.php	Zeiten – der Guide antwortet Ihnen im Chat.</p>
-class/Helper/LocationView.php	Zurück in die Galerie</button>
-class/Helper/LocationView.php	als Titelbild verwenden"
 class/Helper/LocationView.php	anfrage
 class/Helper/LocationView.php	bis
-class/Helper/LocationView.php	der Guide muss wissen, wem er zusagt.</p>
-class/Helper/LocationView.php	ein sehr breites mit ruhigen Flächen, auf denen die Schrift steht.
 class/Helper/LocationView.php	fehler
 class/Helper/LocationView.php	gespeichert
-class/Helper/LocationView.php	löschen" title="Löschen"></button>
-class/Helper/LocationView.php	nach hinten" title="Nach hinten"></button>
-class/Helper/LocationView.php	nach vorne" title="Nach vorne"></button>
-class/Helper/LocationView.php	nicht, wann sich eine Anfrage lohnt – über <em>Bearbeiten</em> lässt
-class/Helper/LocationView.php	sich das nachtragen.</p>
-class/Helper/LocationView.php	sofort anrufbar sind, entscheidet Ihr Bereitschaftsschalter in der
-class/Helper/LocationView.php	später an, und der Guide sagt zu oder ab.
-class/Helper/LocationView.php	title="Als Titelbild"></button>
-class/Helper/LocationView.php	title="Diesen Abschnitt an allen Tagen an- oder abwählen">
-class/Helper/LocationView.php	title="Diesen Tag ganz an- oder abwählen">
-class/Helper/LocationView.php	und am Zähler in der Kopfleiste.</p>
 class/Helper/LocationView.php	von
-class/Helper/LocationView.php	wieder einsteigen; Ihr Guide beendet die Führung, wenn Sie fertig sind.
-class/Helper/LocationView.php	zugesagt. Kurz vorher lässt sich die
 class/Helper/MailGate.php	<div class="alert alert-warning app-mailhint" role="status"> <strong>E-Mail-Adresse noch nicht bestätigt.</strong> Anfragen, Chat und das Hochladen von Bildern sind bis dahin gesperrt. <a href="index.php?act=send_email_verify" class="btn btn-outline-primary btn-sm"> Bestätigungsmail senden </a> </div>
 class/Helper/MailGate.php	Bitte bestätige zuerst deine E-Mail-Adresse.
 class/Helper/MailGate.php	Danach steht diese Funktion wieder zur Verfügung.
@@ -927,24 +671,6 @@ class/Helper/Permission.php	': keine Controller-Klasse.
 class/Helper/Permission.php	': keine Methode.
 class/Helper/Permission.php	Die Routing-Tabelle ist leer oder kein Array.
 class/Helper/Permission.php	Routenname ist kein nicht-leerer String.
-class/Helper/ReviewView.php	, eine davon bewertet.
-class/Helper/ReviewView.php	. Bis dahin steht hier keine Zahl:
-class/Helper/ReviewView.php	1 Bewertung
-class/Helper/ReviewView.php	Bewertet hat noch niemand. Ab
-class/Helper/ReviewView.php	Bewertungen
-class/Helper/ReviewView.php	Bewertungen steht hier ein Durchschnitt.
-class/Helper/ReviewView.php	Bewertungen – noch
-class/Helper/ReviewView.php	Ein Durchschnitt erscheint ab
-class/Helper/ReviewView.php	Eine Führung durchgeführt
-class/Helper/ReviewView.php	Eine einzelne Stimme sieht aus wie ein Urteil und ist keins.
-class/Helper/ReviewView.php	Führungen durchgeführt
-class/Helper/ReviewView.php	Für einen Durchschnitt sind es noch zu wenige – er erscheint ab
-class/Helper/ReviewView.php	Geschrieben hat darüber noch niemand.
-class/Helper/ReviewView.php	Hier hat noch keine Führung stattgefunden.
-class/Helper/ReviewView.php	Ihre Bewertungen
-class/Helper/ReviewView.php	Noch keine Bewertung
-class/Helper/ReviewView.php	Noch wenige Bewertungen
-class/Helper/ReviewView.php	von
 class/Helper/SecurityHeaders.php	aus
 class/Helper/Theme.php	); if (lokal && erlaubt.indexOf(lokal) !== -1) wahl = lokal; } } catch (e) { // localStorage kann fehlen oder gesperrt sein (privates Fenster, // Einstellung im Browser). Dann bleibt es bei der Systemvorgabe - // ein Fehler hier darf die Seite nicht aufhalten. } if (!wahl) { // Nie etwas gewaehlt: Was das Betriebssystem sagt. var dunkelGewuenscht = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; wahl = dunkelGewuenscht ?
 class/Helper/Theme.php	, konto); } else { var lokal = localStorage.getItem(
@@ -955,26 +681,7 @@ class/Helper/Theme.php	Die Vorgabe. Kühles Grau mit indigoblauem Akzent.
 class/Helper/Theme.php	Dunkle Flächen für Abende und dunkle Räume.
 class/Helper/Theme.php	Hell und freundlich, mit leicht blauer Grundfläche.
 class/Helper/Theme.php	Sehr zurückhaltend, ohne farbigen Akzent.
-class/Helper/ViewHelper.php	<a class="app-menu__item app-menu__item--danger" href="index.php?act=logout">Abmelden</a>
-class/Helper/ViewHelper.php	<a href='index.php?act=login_page' class='btn btn-secondary btn-sm'>Anmelden</a>
-class/Helper/ViewHelper.php	<div class="alert alert-success" role="alert">Gespeichert.</div>
-class/Helper/ViewHelper.php	<div class="app-menu__head">Angemeldet als <strong>
-class/Helper/ViewHelper.php	<span class="app-chats__text">Nachrichten</span>
-class/Helper/ViewHelper.php	<span class="app-requests__text">Anfragen</span>
-class/Helper/ViewHelper.php	Anfrage(n) warten auf Ihre Antwort
-class/Helper/ViewHelper.php	Bereit
-class/Helper/ViewHelper.php	Führung(en) sind noch nicht beendet
-class/Helper/ViewHelper.php	Ihre Anfragen
-class/Helper/ViewHelper.php	Ihre Nachrichten
-class/Helper/ViewHelper.php	Ihrer Anfragen wurde(n) angenommen
-class/Helper/ViewHelper.php	Interner Fehler. Bitte versuchen Sie es später erneut.
-class/Helper/ViewHelper.php	Mein Konto
-class/Helper/ViewHelper.php	Nicht bereit
-class/Helper/ViewHelper.php	Sie sind als Guide anrufbar. Klicken beendet die Bereitschaft.
-class/Helper/ViewHelper.php	Sie sind nicht anrufbar. Klicken stellt Sie auf bereit.
-class/Helper/ViewHelper.php	Verwaltung
 class/Helper/ViewHelper.php	sprache
-class/Helper/ViewHelper.php	ungelesene Nachricht(en)
 class/Model/AdminStats.php	bewertungen
 class/Model/AdminStats.php	standorte
 class/Model/Location.php	AS availability, -- Auch fuer den GAST. Eine Bewertung ist eine -- Auskunft ueber ein oeffentliches Angebot - sie -- steht auf der Standortseite, die ein Gast -- ebenfalls aufrufen darf, und sie verraet -- nichts ueber einzelne Konten: nur Zahlen zu -- einem Standort.
@@ -992,13 +699,9 @@ class/Model/RateLimit.php	(fenster_bis <= NOW() OR (gesperrt_bis IS NOT NULL AND
 class/Model/RateLimit.php	, 1, versuche + 1), fenster_bis = IF(
 class/Model/RateLimit.php	SECOND, IF(gesperrt_bis > NOW(), gesperrt_bis, NULL)), letzter_versuch = NOW()
 class/Model/RateLimit.php	SECOND, fenster_bis), gesperrt_bis = IF(versuche >=
-class/Model/RateLimit.php	gleich wieder
-class/Model/RateLimit.php	noch
 class/Model/TourRequest.php	AS callable, -- LAEUFT NOCH: begonnen und nicht beendet. Daran haengen der -- Wiedereinstieg auf beiden Seiten und der Knopf "Fuehrung -- beenden" beim Guide. Die Ansicht rechnet nichts nach.
 class/Model/TourRequest.php	AS running, -- Wie lange der Wiedereinstieg noch offen steht. Negativ oder -- NULL heisst: nicht mehr. Der Browser zeigt damit an, wie -- lange die Fuehrung noch zu retten ist, ohne selbst eine -- Frist zu kennen. CASE WHEN
 class/Model/TourRequest.php	alle
-class/Model/TourReview.php	Enttäuschend
-class/Model/TourReview.php	Großartig
 class/Model/TourReview.php	alle
 class/Model/User.php	Benutzer mit ID
 class/Model/User.php	Fehler beim Laden des Benutzers.

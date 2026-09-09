@@ -31,15 +31,17 @@ class SettingsController
 
         // Status für 2FA
         $is2fa = $user->getTotpEnabled();
-        $status2fa = $is2fa ? 'Aktiviert' : 'Nicht aktiviert';
+        $status2fa = ViewHelper::esc(I18n::t($is2fa ? 'konto.2fa.aktiv' : 'konto.2fa.inaktiv'));
 
         // Button für 2FA
         if ($is2fa) {
-            $twofaBtn = '<form action="index.php?act=2fa_disable" method="post" class="d-inline">
-                            <button type="submit" class="btn btn-outline-danger btn-sm">2FA deaktivieren</button>
-                        </form>';
+            $twofaBtn = '<form action="index.php?act=2fa_disable" method="post" class="d-inline">'
+                      . '<button type="submit" class="btn btn-outline-danger btn-sm">'
+                      . ViewHelper::esc(I18n::t('konto.2fa.deaktivieren')) . '</button>'
+                      . '</form>';
         } else {
-            $twofaBtn = "<a href='index.php?act=2fa_setup' class='btn btn-outline-primary btn-sm'>2FA einrichten</a>";
+            $twofaBtn = "<a href='index.php?act=2fa_setup' class='btn btn-outline-primary btn-sm'>"
+                      . ViewHelper::esc(I18n::t('konto.2fa.einrichten')) . "</a>";
         }
 
         // Guide-Rolle. Angezeigt wird die Rolle, geknuepft ist der Knopf an
@@ -56,23 +58,30 @@ class SettingsController
         // zu lassen.
         $isGuide     = Role::isGuide(Auth::roleId());
         $termsOpen   = $isGuide && GuideRole::needsDecision(Auth::userId(), Auth::roleId());
-        $guideStatus = $isGuide ? 'Aktiv' : 'Nicht aktiv';
+        $guideStatus = ViewHelper::esc(I18n::t($isGuide ? 'konto.guide.aktiv' : 'konto.guide.inaktiv'));
         if ($termsOpen) {
-            $guideStatus = 'Aktiv <span class="text-warning">&ndash; neue Bedingungen offen</span>';
+            // Der Zusatz steht MITTEN im Satz und traegt eine Auszeichnung -
+            // deshalb der ganze Satz aus dem Katalog und das <span> als
+            // Platzhalter (ViewHelper::tHtml).
+            $guideStatus = ViewHelper::tHtml('konto.guide.aktiv_offen', [
+                'zusatz' => '<span class="text-warning">'
+                          . ViewHelper::esc(I18n::t('konto.guide.offen_hinweis')) . '</span>',
+            ]);
         }
         $guideBtn    = '';
         if (Auth::can(Permission::USER_GUIDE_ROLE)) {
             if ($termsOpen) {
-                $guideLabel = 'Neue Bedingungen bestätigen';
+                $guideLabel = I18n::t('konto.guide.knopf_bestaetigen');
             } else {
-                $guideLabel = $isGuide ? 'Guide-Rolle ändern' : 'Guide werden';
+                $guideLabel = I18n::t($isGuide
+                    ? 'konto.guide.knopf_aendern' : 'konto.guide.knopf_werden');
             }
             // Der offene Punkt traegt den Akzent, der Normalfall nicht: Ein
             // Knopf, der etwas erledigen soll, muss sich von einem
             // unterscheiden, der nur eine Seite oeffnet.
             $guideCss   = $termsOpen ? 'btn-primary' : 'btn-outline-primary';
             $guideBtn   = "<a href='index.php?act=guide_role_page' class='btn $guideCss btn-sm'>"
-                        . $guideLabel . '</a>';
+                        . ViewHelper::esc($guideLabel) . '</a>';
         }
 
         // DER BESTAETIGUNGSSTAND DER ADRESSE - WIEDER IN BETRIEB.
@@ -90,11 +99,13 @@ class SettingsController
         // Anwendung gar nicht anbietet.
         $mailConfirm = '';
         if (MailGate::versandAktiv() || MailGate::bestaetigungPflicht()) {
+            $mailLabel   = '<dt>' . ViewHelper::esc(I18n::t('konto.mail.label')) . '</dt>';
             $mailConfirm = $user->getEmailVerified()
-                ? '<dt>E-Mail bestätigt</dt><dd>Bestätigt</dd>'
-                : '<dt>E-Mail bestätigt</dt><dd>Nicht bestätigt '
+                ? $mailLabel . '<dd>' . ViewHelper::esc(I18n::t('konto.mail.ja')) . '</dd>'
+                : $mailLabel . '<dd>' . ViewHelper::esc(I18n::t('konto.mail.nein')) . ' '
                   . '<a href="index.php?act=send_email_verify" '
-                  . 'class="btn btn-outline-primary btn-sm">Bestätigungsmail senden</a></dd>';
+                  . 'class="btn btn-outline-primary btn-sm">'
+                  . ViewHelper::esc(I18n::t('konto.mail.senden')) . '</a></dd>';
         }
 
         $out = ViewHelper::template('assets/html/settings.html');
@@ -150,16 +161,14 @@ class SettingsController
 
         return '<div class="app-panel" style="margin-top: var(--app-space-4);">'
              . '<div class="app-panel__head">'
-             .   '<h2 class="app-page-head__title">Mein Guide-Profil</h2>'
+             .   '<h2 class="app-page-head__title">'
+             .     ViewHelper::esc(I18n::t('konto.profil.titel')) . '</h2>'
              .   '<a class="btn btn-secondary btn-sm" href="index.php?act=guide&id=' . $user_id . '">'
-             .     'Öffentliches Profil ansehen</a>'
+             .     ViewHelper::esc(I18n::t('konto.profil.ansehen')) . '</a>'
              . '</div>'
              . '<div class="app-panel__body">'
              .   '<p class="app-page-head__sub" style="margin-top:0;">'
-             .     'Das sieht ein Kunde, bevor er eine Führung anfragt: auf jeder Ihrer '
-             .     'Standortseiten und auf Ihrer eigenen Seite, die Sie weitergeben können. '
-             .     'Ein Benutzername und ein farbiger Punkt sind keine Grundlage dafür, '
-             .     'einem Fremden Geld zu geben.'
+             .     ViewHelper::esc(I18n::t('konto.profil.hinweis'))
              .   '</p>'
              .   GuideView::formularHtml($profil, [
                      'name_max'  => GuideProfile::NAME_MAX,
@@ -306,14 +315,14 @@ class SettingsController
         // die Datenbank - und damit auch nie in das data-theme-Attribut.
         if (!Theme::isValid($profil)) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Unbekanntes Farbprofil.']);
+            echo json_encode(['success' => false, 'error' => I18n::t('konto.farbprofil.unbekannt')]);
             return;
         }
 
         $user = new User(Auth::userId());
         if (!$user->saveTheme($profil)) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => 'Farbprofil konnte nicht gespeichert werden.']);
+            echo json_encode(['success' => false, 'error' => I18n::t('konto.farbprofil.fehler')]);
             return;
         }
 

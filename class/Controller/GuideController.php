@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Helper\Role;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
@@ -68,24 +69,20 @@ class GuideController
             // GuideRole::accept() kann den Fall längst (es frischt bei einem
             // Guide nur das Profil auf und lässt die Rolle stehen), es fehlte
             // allein der Knopf.
-            $status  = 'Sie sind <strong>Guide</strong>. Die Bedingungen haben sich '
-                     . 'geändert - bitte bestätigen Sie die neue Fassung. Bis dahin '
-                     . 'können Sie keine weiteren Standorte anlegen; Ihre '
-                     . 'bestehenden bleiben unberührt.';
-            $actions = self::button('accept', 'Neue Bedingungen bestätigen', 'btn-success')
-                     . self::button('resign', 'Guide-Rolle zurückgeben', 'btn-outline-danger');
+            $status  = self::statusHtml('guide.rolle.status_bedingungen', 'guide.rolle.wort_guide');
+            $actions = self::button('accept', I18n::t('guide.rolle.bestaetigen'), 'btn-success')
+                     . self::button('resign', I18n::t('guide.rolle.zurueckgeben'), 'btn-outline-danger');
         } elseif ($is_guide) {
-            $status  = 'Sie sind <strong>Guide</strong> und können Standorte anbieten.';
-            $actions = self::button('resign', 'Guide-Rolle zurückgeben', 'btn-outline-danger');
+            $status  = self::statusHtml('guide.rolle.status_guide', 'guide.rolle.wort_guide');
+            $actions = self::button('resign', I18n::t('guide.rolle.zurueckgeben'), 'btn-outline-danger');
         } else {
-            $status  = 'Sie sind <strong>Zuschauer</strong>. Sie können Führungen buchen, '
-                     . 'aber keine Standorte anbieten.';
-            $actions = self::button('accept', 'Ja, ich möchte Guide werden', 'btn-success');
+            $status  = self::statusHtml('guide.rolle.status_zuschauer', 'guide.rolle.wort_zuschauer');
+            $actions = self::button('accept', I18n::t('guide.rolle.ja'), 'btn-success');
             if ($undecided) {
                 // Nur solange die Frage wirklich offen ist, gibt es ein
                 // ausdrückliches "Nein". Wer schon Zuschauer ist, hat es
                 // bereits gesagt.
-                $actions .= self::button('decline', 'Nein, ich möchte nur zuschauen', 'btn-outline-secondary');
+                $actions .= self::button('decline', I18n::t('guide.rolle.nein'), 'btn-outline-secondary');
             }
         }
 
@@ -93,7 +90,8 @@ class GuideController
         // Trial, und die Frage steht weiter in den Einstellungen und auf dem
         // Knopf der Kopfleiste. Der Dialog ist eine Frage, keine Sperre.
         $later = $undecided
-            ? '<div class="mt-3"><a href="index.php?act=home" class="link-secondary">Später entscheiden</a></div>'
+            ? '<div class="mt-3"><a href="index.php?act=home" class="link-secondary">'
+              . htmlspecialchars(I18n::t('guide.rolle.spaeter')) . '</a></div>'
             : '';
 
         $hint = self::hintFor($role, $terms_open);
@@ -167,8 +165,7 @@ class GuideController
                 // beide in App\Model\GuideRole - hier wird nur das Ergebnis
                 // ausgewertet.
                 if (!GuideRole::accept($user_id, $role)) {
-                    $this->outputError('Die Guide-Rolle konnte nicht übernommen werden. '
-                        . 'Bitte versuchen Sie es später erneut.');
+                    $this->outputError(I18n::t('guide.rolle.fehler.uebernehmen'));
                 }
                 Auth::refreshRole(Role::GUIDE);
 
@@ -189,11 +186,11 @@ class GuideController
                     // Ein Guide, der "nein" schickt, meint 'resign'. Dass das
                     // Formular so etwas nicht anbietet, heißt nicht, dass es
                     // nicht ankommen kann.
-                    $this->outputError('Für diese Antwort ist Ihr Konto nicht im richtigen Zustand.');
+                    $this->outputError(I18n::t('guide.rolle.fehler.zustand'));
                 }
                 $user = new User($user_id);
                 if (!$user->setRoleId(Role::USER) || !$user->save()) {
-                    $this->outputError('Ihre Antwort konnte nicht gespeichert werden.');
+                    $this->outputError(I18n::t('guide.rolle.fehler.antwort'));
                 }
                 Auth::refreshRole(Role::USER);
                 header('Location: index.php?act=home');
@@ -205,13 +202,11 @@ class GuideController
                     // einlösen kann. Gelöscht wird hier nichts - das bleibt
                     // eine ausdrückliche Handlung in der eigenen
                     // Standortliste.
-                    $this->outputError('Sie bieten noch Standorte an. Bitte löschen Sie diese zuerst '
-                        . 'in Ihren Einstellungen unter "Meine Locations" - danach können Sie die '
-                        . 'Guide-Rolle zurückgeben.');
+                    $this->outputError(I18n::t('guide.rolle.fehler.standorte',
+                        ['locations' => I18n::t('guide.rolle.locations')]));
                 }
                 if (!GuideRole::resign($user_id, $role)) {
-                    $this->outputError('Die Guide-Rolle konnte nicht zurückgegeben werden. '
-                        . 'Bitte versuchen Sie es später erneut.');
+                    $this->outputError(I18n::t('guide.rolle.fehler.zurueckgeben'));
                 }
                 Auth::refreshRole(Role::USER);
                 header('Location: index.php?act=settings');
@@ -237,7 +232,8 @@ class GuideController
 
         $out = str_replace('###GUIDE_STATUS###',  $box, $out);
         $out = str_replace('###GUIDE_ACTIONS###', '<a href="index.php?act=settings" '
-            . 'class="btn btn-outline-secondary">Zurück zu den Einstellungen</a>', $out);
+            . 'class="btn btn-outline-secondary">'
+            . htmlspecialchars(I18n::t('guide.rolle.zurueck')) . '</a>', $out);
         $out = str_replace('###GUIDE_LATER###',   '', $out);
         $out = str_replace('###GUIDE_HINT###',    '', $out);
 
@@ -254,16 +250,36 @@ class GuideController
     private static function hintFor($in_role, bool $in_terms_open = false): string
     {
         if ($in_terms_open) {
-            return '<p class="text-muted small mb-0">Die Bestätigung gilt ab sofort. An Ihren '
-                 . 'bestehenden Standorten ändert sich dadurch nichts.</p>';
+            return '<p class="text-muted small mb-0">'
+                 . htmlspecialchars(I18n::t('guide.rolle.hinweis_bedingungen')) . '</p>';
         }
         if (Role::isGuide($in_role)) {
-            return '<p class="text-muted small mb-0">Solange Sie noch Standorte anbieten, '
-                 . 'lässt sich die Rolle nicht zurückgeben - löschen Sie diese zuerst unter '
-                 . '"Meine Locations".</p>';
+            return '<p class="text-muted small mb-0">'
+                 . htmlspecialchars(I18n::t('guide.rolle.hinweis_guide',
+                       ['locations' => I18n::t('guide.rolle.locations')])) . '</p>';
         }
-        return '<p class="text-muted small mb-0">Sie können diese Entscheidung jederzeit in '
-             . 'Ihren Einstellungen ändern.</p>';
+        return '<p class="text-muted small mb-0">'
+             . htmlspecialchars(I18n::t('guide.rolle.hinweis_offen')) . '</p>';
+    }
+
+    /**
+     * Die Statuszeile - mit dem Rollenwort als Hervorhebung MITTEN im Satz.
+     *
+     * WARUM DER GANZE SATZ IM KATALOG STEHT und nicht "Sie sind " davor und
+     * " und können Standorte anbieten." dahinter: Im Englischen gehoert ein
+     * Artikel vor das Rollenwort ("You are a guide"), im Deutschen nicht.
+     * Wer den Satz im Code zusammensetzt, schreibt damit die deutsche
+     * Grammatik fest - und die naechste Sprache bekommt sie aufgezwungen.
+     *
+     * @param string $in_satz  Schluessel des ganzen Satzes
+     * @param string $in_rolle Schluessel des Rollenwortes
+     * @return string HTML
+     */
+    private static function statusHtml(string $in_satz, string $in_rolle): string
+    {
+        return ViewHelper::tHtml($in_satz, [
+            'rolle' => '<strong>' . ViewHelper::esc(I18n::t($in_rolle)) . '</strong>',
+        ]);
     }
 
     /**

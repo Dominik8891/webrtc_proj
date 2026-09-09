@@ -43,7 +43,7 @@ use App\Model\TourReview;
 class AdminView
 {
     /**
-     * Die Reiter des Bereichs: Adresse, Beschriftung, benoetigtes Recht.
+     * Die Reiter des Bereichs: Adresse, Katalogschluessel, benoetigtes Recht.
      *
      * DIE EINE LISTE. Sie steht hier und nicht in vier Vorlagen: Ein Reiter,
      * der auf einer Seite fehlt, waere eine Sackgasse, die niemandem auffaellt
@@ -54,11 +54,11 @@ class AdminView
      * Absage fuehrt.
      */
     private const REITER = [
-        'uebersicht'  => ['index.php?act=admin'          , 'Übersicht'   , Permission::SYSTEM_ADMIN],
-        'benutzer'    => ['index.php?act=list_user'      , 'Benutzer'    , Permission::USER_LIST],
-        'anfragen'    => ['index.php?act=admin_requests' , 'Anfragen'    , Permission::REQUEST_LIST_ALL],
-        'standorte'   => ['index.php?act=admin_locations', 'Standorte'   , Permission::LOCATION_BLOCK],
-        'bewertungen' => ['index.php?act=admin_reviews'  , 'Bewertungen' , Permission::REVIEW_REMOVE],
+        'uebersicht'  => ['index.php?act=admin'          , 'verwaltung.reiter.uebersicht' , Permission::SYSTEM_ADMIN],
+        'benutzer'    => ['index.php?act=list_user'      , 'verwaltung.reiter.benutzer'   , Permission::USER_LIST],
+        'anfragen'    => ['index.php?act=admin_requests' , 'verwaltung.reiter.anfragen'   , Permission::REQUEST_LIST_ALL],
+        'standorte'   => ['index.php?act=admin_locations', 'verwaltung.reiter.standorte'  , Permission::LOCATION_BLOCK],
+        'bewertungen' => ['index.php?act=admin_reviews'  , 'verwaltung.reiter.bewertungen', Permission::REVIEW_REMOVE],
     ];
 
     /**
@@ -78,8 +78,10 @@ class AdminView
         return '<div class="app-page app-page--wide adm">'
              .   '<header class="adm__head">'
              .     '<div>'
-             .       '<h1 class="adm__title">Verwaltung</h1>'
-             .       '<p class="adm__sub">Konten, Standorte und Bewertungen der Plattform.</p>'
+             .       '<h1 class="adm__title">'
+             .         ViewHelper::esc(I18n::t('verwaltung.titel')) . '</h1>'
+             .       '<p class="adm__sub">'
+             .         ViewHelper::esc(I18n::t('verwaltung.untertitel')) . '</p>'
              .     '</div>'
              .   '</header>'
              .   self::navHtml($in_aktiv)
@@ -107,15 +109,17 @@ class AdminView
     private static function navHtml(string $in_aktiv): string
     {
         $eintraege = '';
-        foreach (self::REITER as $schluessel => [$ziel, $titel, $recht]) {
+        foreach (self::REITER as $schluessel => [$ziel, $text, $recht]) {
             if (!Auth::can($recht)) continue;
 
+            $titel = ViewHelper::esc(I18n::t($text));
             $eintraege .= ($schluessel === $in_aktiv)
                 ? '<span class="adm__tab" aria-current="page">' . $titel . '</span>'
                 : '<a class="adm__tab" href="' . $ziel . '">' . $titel . '</a>';
         }
 
-        return '<nav class="adm__nav" aria-label="Verwaltung">' . $eintraege . '</nav>';
+        return '<nav class="adm__nav" aria-label="'
+             . ViewHelper::esc(I18n::t('verwaltung.nav')) . '">' . $eintraege . '</nav>';
     }
 
     // =================================================================
@@ -156,15 +160,20 @@ class AdminView
 
         $zeilen = '';
 
+        // DIE BESCHRIFTUNG WAEHLT IHRE FORM UEBER DEN KATALOG
+        // (I18n::plural) und nicht mehr ueber ein angehaengtes "n" im
+        // Code: "Anfrage" + "n" ist eine deutsche Regel, und die naechste
+        // Sprache bildet ihren Plural anders. Die ZAHL steht daneben in
+        // ihrer eigenen Spalte - deshalb traegt der Text kein {n}.
+        //
         // ZUERST DIE HAENGENDEN FUEHRUNGEN, weil sie als Einzige gerade
         // JEMANDEN aufhalten: Solange eine offen ist, steht beim Kunden der
         // Startknopf und die Bewertung wird nicht faellig.
         if ($haengend > 0) {
             $zeilen .= self::vorratZeileHtml(
                 $haengend,
-                $haengend === 1 ? 'Führung hängt' : 'Führungen hängen',
-                'Begonnen und von niemandem beendet. Solange das so bleibt, steht '
-                . 'beim Kunden der Startknopf, und die Bewertung wird nicht fällig.',
+                I18n::plural('verwaltung.vorrat.haengend', $haengend),
+                I18n::t('verwaltung.vorrat.haengend_text'),
                 'index.php?act=admin_requests&filter=haengend',
                 Permission::REQUEST_LIST_ALL
             );
@@ -173,9 +182,9 @@ class AdminView
         if ($unbeantwortet > 0) {
             $zeilen .= self::vorratZeileHtml(
                 $unbeantwortet,
-                'Anfrage' . ($unbeantwortet === 1 ? '' : 'n') . ' ohne Antwort',
-                'Verfallen, ohne dass der Guide zu- oder abgesagt hat – in den letzten '
-                . TourRequest::VORRAT_TAGE . ' Tagen. Der Kunde hat gewartet und nichts bekommen.',
+                I18n::plural('verwaltung.vorrat.unbeantwortet', $unbeantwortet),
+                I18n::t('verwaltung.vorrat.unbeantwortet_text',
+                        ['tage' => TourRequest::VORRAT_TAGE]),
                 'index.php?act=admin_requests&filter=unbeantwortet',
                 Permission::REQUEST_LIST_ALL
             );
@@ -184,9 +193,8 @@ class AdminView
         if ($gesperrt > 0) {
             $zeilen .= self::vorratZeileHtml(
                 $gesperrt,
-                'Standort' . ($gesperrt === 1 ? '' : 'e') . ' gesperrt',
-                'Ein Vorgang, den jemand eröffnet hat und den jemand wieder '
-                . 'schließen muss – oder bestätigen.',
+                I18n::plural('verwaltung.vorrat.gesperrt', $gesperrt),
+                I18n::t('verwaltung.vorrat.gesperrt_text'),
                 'index.php?act=admin_locations&filter=gesperrt',
                 Permission::LOCATION_BLOCK
             );
@@ -195,10 +203,8 @@ class AdminView
         if ($unvollstaendig > 0) {
             $zeilen .= self::vorratZeileHtml(
                 $unvollstaendig,
-                'Angebot' . ($unvollstaendig === 1 ? '' : 'e') . ' unvollständig',
-                'Ohne Nadel auf der Karte, ohne Bild, ohne Titel, ohne ausführliche '
-                . 'Beschreibung oder ohne übliche Zeiten. Für den Guide sieht das '
-                . 'fertig aus – er weiß ja, was er anbietet.',
+                I18n::plural('verwaltung.vorrat.unvollstaendig', $unvollstaendig),
+                I18n::t('verwaltung.vorrat.unvollstaendig_text'),
                 'index.php?act=admin_locations&filter=unvollstaendig',
                 Permission::LOCATION_BLOCK
             );
@@ -211,20 +217,16 @@ class AdminView
         if ($cron > 0) {
             $zeilen .= self::vorratZeileHtml(
                 $cron,
-                $cron === 1 ? 'Konto hängt auf „online"' : 'Konten hängen auf „online"',
-                'Seit über einer Viertelstunde kein Lebenszeichen, trotzdem nicht '
-                . 'offline gesetzt: cron/check_online_status.php läuft nicht. '
-                . 'Solange das so bleibt, steht in der Benutzerliste jedes Konto '
-                . 'als erreichbar.',
+                I18n::plural('verwaltung.vorrat.cron', $cron),
+                I18n::t('verwaltung.vorrat.cron_text'),
                 'index.php?act=list_user',
                 Permission::USER_LIST
             );
         }
 
         if ($zeilen === '') {
-            return '<p class="adm-vorrat__leer">Nichts offen: keine hängende Führung, '
-                 . 'keine unbeantwortete Anfrage, kein gesperrter Standort, kein '
-                 . 'unvollständiges Angebot – und der Aufräumjob läuft.</p>';
+            return '<p class="adm-vorrat__leer">'
+                 . ViewHelper::esc(I18n::t('verwaltung.vorrat.leer')) . '</p>';
         }
 
         return '<ul class="adm-vorrat">' . $zeilen . '</ul>';
@@ -302,38 +304,47 @@ class AdminView
 
         return '<div class="adm-tiles">'
              . self::kachelHtml(
-                 'Konten',
+                 I18n::t('verwaltung.kachel.konten'),
                  (int)($konten['gesamt'] ?? 0),
                  implode(' · ', $rollen),
                  $neu > 0
-                     ? $neu . ' neu in ' . AdminStats::NEU_TAGE . ' Tagen'
-                     : 'keine neuen in ' . AdminStats::NEU_TAGE . ' Tagen'
+                     ? I18n::t('verwaltung.kachel.konten_neu',
+                               ['n' => $neu, 'tage' => AdminStats::NEU_TAGE])
+                     : I18n::t('verwaltung.kachel.konten_keine_neuen',
+                               ['tage' => AdminStats::NEU_TAGE])
                )
              . self::kachelHtml(
-                 'Standorte',
+                 I18n::t('verwaltung.kachel.standorte'),
                  (int)($standorte['gesamt'] ?? 0),
-                 (int)($standorte['anbieter'] ?? 0) . ' Konten bieten an',
+                 I18n::plural('verwaltung.kachel.standorte_anbieter',
+                              (int)($standorte['anbieter'] ?? 0)),
                  // HIER STAND DIE SPERRE ALS VERWEIS UND MIT HERVORHEBUNG.
                  // Sie ist in den Arbeitsvorrat darueber gezogen, wo sie
                  // hingehoert: Eine Sperre ist eine Aufgabe und keine
                  // Bestandszahl. Genannt wird sie hier trotzdem - zum Bestand
                  // gehoert sie auch.
-                 (int)($standorte['gesperrt'] ?? 0) . ' davon gesperrt'
+                 I18n::t('verwaltung.kachel.standorte_gesperrt',
+                         ['n' => (int)($standorte['gesperrt'] ?? 0)])
                )
              . self::kachelHtml(
-                 'Führungen',
+                 I18n::t('verwaltung.kachel.fuehrungen'),
                  (int)($fuehrungen['zeitraum'] ?? 0),
-                 'in ' . AdminStats::ZEITRAUM_TAGE . ' Tagen durchgeführt',
-                 (int)($fuehrungen['gesamt'] ?? 0) . ' insgesamt · '
-                     . (int)($fuehrungen['offen'] ?? 0) . ' laufen gerade'
+                 I18n::t('verwaltung.kachel.fuehrungen_zeitraum',
+                         ['tage' => AdminStats::ZEITRAUM_TAGE]),
+                 I18n::t('verwaltung.kachel.fuehrungen_fuss', [
+                     'gesamt' => (int)($fuehrungen['gesamt'] ?? 0),
+                     'offen'  => (int)($fuehrungen['offen']  ?? 0),
+                 ])
                )
              . self::kachelHtml(
-                 'Bewertungen',
+                 I18n::t('verwaltung.kachel.bewertungen'),
                  (int)($bewertungen['sichtbar'] ?? 0),
                  $bewertungen['schnitt'] === null
-                     ? 'noch kein Durchschnitt'
-                     : 'Durchschnitt ' . self::zahl((float)$bewertungen['schnitt']),
-                 (int)($bewertungen['entfernt'] ?? 0) . ' entfernt'
+                     ? I18n::t('verwaltung.kachel.kein_schnitt')
+                     : I18n::t('verwaltung.kachel.schnitt',
+                               ['wert' => self::zahl((float)$bewertungen['schnitt'])]),
+                 I18n::t('verwaltung.kachel.entfernt',
+                         ['n' => (int)($bewertungen['entfernt'] ?? 0)])
                )
              . '</div>';
     }
@@ -364,7 +375,7 @@ class AdminView
     {
         return '<section class="adm-tile">'
              .   '<h2 class="adm-tile__title">' . ViewHelper::esc($in_titel) . '</h2>'
-             .   '<p class="adm-tile__value">' . number_format($in_zahl, 0, ',', '.') . '</p>'
+             .   '<p class="adm-tile__value">' . ViewHelper::ganzzahl($in_zahl) . '</p>'
              .   '<p class="adm-tile__note">' . ViewHelper::esc($in_zusatz) . '</p>'
              .   '<p class="adm-tile__foot">' . ViewHelper::esc($in_fuss) . '</p>'
              . '</section>';
@@ -415,7 +426,7 @@ class AdminView
              . ' href="' . $ziel . '"'
              . ' aria-pressed="' . ($in_an ? 'true' : 'false') . '">'
              .   '<span class="adm-toggle__box" aria-hidden="true"></span>'
-             .   'Gelöschte Konten'
+             .   ViewHelper::esc(I18n::t('verwaltung.geloescht_schalter'))
              . '</a>';
     }
 
@@ -444,7 +455,8 @@ class AdminView
     public static function standortZeilenHtml(array $in_zeilen): string
     {
         if ($in_zeilen === []) {
-            return '<tr><td colspan="7" class="adm-empty">Keine Standorte.</td></tr>';
+            return '<tr><td colspan="7" class="adm-empty">'
+                 . ViewHelper::esc(I18n::t('verwaltung.standorte.leer')) . '</td></tr>';
         }
 
         $html = '';
@@ -456,7 +468,7 @@ class AdminView
                             (string)($zeile['country_name'] ?? ''),
                         ])));
             $titel    = trim((string)($zeile['title'] ?? ''));
-            if ($titel === '') $titel = 'Ohne Titel';
+            if ($titel === '') $titel = I18n::t('verwaltung.ohne_titel');
 
             $html .= '<tr' . ($gesperrt ? ' class="adm-row--gesperrt"' : '') . '>'
                   .   '<td class="adm-num">' . $id . '</td>'
@@ -503,7 +515,8 @@ class AdminView
 
         if ($geloescht) {
             return '<span class="adm-none">' . $name . '</span>'
-                 . '<span class="app-tag app-tag--danger">Konto gelöscht</span>'
+                 . '<span class="app-tag app-tag--danger">'
+                 .   ViewHelper::esc(I18n::t('verwaltung.konto_geloescht')) . '</span>'
                  . '<span class="adm-sub">' . $konto . '</span>';
         }
 
@@ -528,11 +541,11 @@ class AdminView
     private static function zustandHtml(string $in_wert): string
     {
         $namen = [
-            'live' => 'verfügbar',
-            'busy' => 'im Gespräch',
-            'idle' => 'nicht da',
+            'live' => 'verwaltung.zustand.live',
+            'busy' => 'verwaltung.zustand.busy',
+            'idle' => 'verwaltung.zustand.idle',
         ];
-        $text = $namen[$in_wert] ?? $namen['idle'];
+        $text = ViewHelper::esc(I18n::t($namen[$in_wert] ?? $namen['idle']));
         $art  = $in_wert === 'live' ? 'online' : ($in_wert === 'busy' ? 'busy' : 'offline');
 
         return '<span class="app-state app-state--' . $art . '">'
@@ -563,23 +576,26 @@ class AdminView
     private static function maengelHtml(array $in_zeile): string
     {
         $marken = [
-            'fehlt_ort'    => 'keine Nadel',
-            'fehlt_bild'   => 'kein Bild',
-            'fehlt_titel'  => 'kein Titel',
-            'fehlt_text'   => 'kein Text',
-            'fehlt_zeiten' => 'keine Zeiten',
+            'fehlt_ort'    => 'verwaltung.mangel.ort',
+            'fehlt_bild'   => 'verwaltung.mangel.bild',
+            'fehlt_titel'  => 'verwaltung.mangel.titel',
+            'fehlt_text'   => 'verwaltung.mangel.text',
+            'fehlt_zeiten' => 'verwaltung.mangel.zeiten',
         ];
 
         $html = '';
-        foreach ($marken as $spalte => $wort) {
+        foreach ($marken as $spalte => $schluessel) {
             if (empty($in_zeile[$spalte])) continue;
-            $html .= '<span class="app-tag app-tag--warn">' . $wort . '</span>';
+            $html .= '<span class="app-tag app-tag--warn">'
+                   . ViewHelper::esc(I18n::t($schluessel)) . '</span>';
         }
 
         // Ein Strich und kein leeres Feld: In einer dichten Tabelle ist eine
         // leere Zelle nicht von einer fehlenden zu unterscheiden.
-        return $html !== '' ? '<span class="adm-marken">' . $html . '</span>'
-                            : '<span class="adm-none">vollständig</span>';
+        return $html !== ''
+            ? '<span class="adm-marken">' . $html . '</span>'
+            : '<span class="adm-none">'
+              . ViewHelper::esc(I18n::t('verwaltung.vollstaendig')) . '</span>';
     }
 
     /**
@@ -600,7 +616,8 @@ class AdminView
         $grund = trim($in_grund);
         $wann  = self::datum($in_wann);
 
-        return '<span class="app-tag app-tag--danger">gesperrt</span>'
+        return '<span class="app-tag app-tag--danger">'
+             . ViewHelper::esc(I18n::t('verwaltung.gesperrt')) . '</span>'
              . ($grund !== '' ? '<span class="adm-sub">' . ViewHelper::esc($grund) . '</span>' : '')
              . ($wann  !== '' ? '<span class="adm-sub">' . ViewHelper::esc($wann)  . '</span>' : '');
     }
@@ -626,9 +643,11 @@ class AdminView
 
         return $in_gesperrt
             ? '<button type="button" class="btn btn-secondary btn-sm adm-unblock"'
-              . ' data-id="' . $in_id . '" data-title="' . $name . '">Freigeben</button>'
+              . ' data-id="' . $in_id . '" data-title="' . $name . '">'
+              . ViewHelper::esc(I18n::t('verwaltung.freigeben')) . '</button>'
             : '<button type="button" class="btn btn-outline-danger btn-sm adm-block"'
-              . ' data-id="' . $in_id . '" data-title="' . $name . '">Sperren</button>';
+              . ' data-id="' . $in_id . '" data-title="' . $name . '">'
+              . ViewHelper::esc(I18n::t('verwaltung.sperren')) . '</button>';
     }
 
     // =================================================================
@@ -665,7 +684,8 @@ class AdminView
     public static function anfrageZeilenHtml(array $in_zeilen): string
     {
         if ($in_zeilen === []) {
-            return '<tr><td colspan="6" class="adm-empty">Nichts in dieser Ansicht.</td></tr>';
+            return '<tr><td colspan="6" class="adm-empty">'
+                 . ViewHelper::esc(I18n::t('verwaltung.anfragen.leer')) . '</td></tr>';
         }
 
         $namen = TourRequest::statusNames();
@@ -677,7 +697,7 @@ class AdminView
             $zustand  = (string)($zeile['status'] ?? '');
             $guide_id = (int)($zeile['guide_user_id'] ?? 0);
             $titel    = trim((string)($zeile['title'] ?? ''));
-            if ($titel === '') $titel = 'Ohne Titel';
+            if ($titel === '') $titel = I18n::t('verwaltung.ohne_titel');
 
             $ort = trim(implode(', ', array_filter([
                 (string)($zeile['city_name']    ?? ''),
@@ -728,7 +748,8 @@ class AdminView
                                                array $in_namen): string
     {
         if ($in_laeuft) {
-            return '<span class="app-tag app-tag--warn">hängt</span>';
+            return '<span class="app-tag app-tag--warn">'
+                 . ViewHelper::esc(I18n::t('verwaltung.anfragen.haengt')) . '</span>';
         }
 
         $wort = $in_namen[$in_status] ?? $in_status;
@@ -758,16 +779,23 @@ class AdminView
      */
     private static function anfrageZeitHtml(array $in_zeile): string
     {
+        // DIE ZEITANGABE STECKT IM SATZ und wird nicht davorgesetzt: Im
+        // Englischen steht "running for" vor der Spanne, "expired" vor dem
+        // Datum - dass beides im Deutschen zufaellig auch so ist, macht die
+        // Verkettung im Code nicht richtiger.
         if (!empty($in_zeile['running'])) {
             $seit = (int)($in_zeile['running_since'] ?? 0);
-            return ViewHelper::esc('läuft seit ' . self::dauer($seit));
+            return ViewHelper::esc(I18n::t('verwaltung.anfragen.laeuft_seit',
+                ['spanne' => self::dauer($seit)]));
         }
 
         if (($in_zeile['status'] ?? '') === TourRequest::STATUS_EXPIRED) {
-            return ViewHelper::esc('verfallen ' . self::datum($in_zeile['expires_at'] ?? null));
+            return ViewHelper::esc(I18n::t('verwaltung.anfragen.verfallen',
+                ['wann' => self::datum($in_zeile['expires_at'] ?? null)]));
         }
 
-        return ViewHelper::esc('Wunsch: ' . self::datum($in_zeile['wish_at'] ?? null));
+        return ViewHelper::esc(I18n::t('verwaltung.anfragen.wunsch',
+            ['wann' => self::datum($in_zeile['wish_at'] ?? null)]));
     }
 
     /**
@@ -787,13 +815,16 @@ class AdminView
     {
         if ($in_guide_id < 1) return '<span class="adm-none">–</span>';
 
-        $name = ViewHelper::esc($in_name !== '' ? $in_name : ('#' . $in_guide_id));
+        // Ohne Anzeigenamen die Kennung: Ein Vorleseprogramm liest sonst
+        // "Chat mit" und danach nichts.
+        $name = $in_name !== '' ? $in_name : ('#' . $in_guide_id);
 
         return '<div class="app-actions-cell">'
              . '<button type="button" class="app-iconbtn app-iconbtn--chat start-chat-btn"'
              . ' data-userid="' . $in_guide_id . '"'
-             . ' aria-label="Chat mit ' . $name . '"'
-             . ' title="Guide anschreiben"></button>'
+             . ' aria-label="' . ViewHelper::esc(I18n::t('verwaltung.chat_mit',
+                   ['name' => $name])) . '"'
+             . ' title="' . ViewHelper::esc(I18n::t('verwaltung.guide_anschreiben')) . '"></button>'
              . '</div>';
     }
 
@@ -822,7 +853,8 @@ class AdminView
     public static function bewertungsZeilenHtml(array $in_zeilen): string
     {
         if ($in_zeilen === []) {
-            return '<tr><td colspan="6" class="adm-empty">Keine Bewertungen.</td></tr>';
+            return '<tr><td colspan="6" class="adm-empty">'
+                 . ViewHelper::esc(I18n::t('verwaltung.bewertungen.leer')) . '</td></tr>';
         }
 
         $html = '';
@@ -838,11 +870,15 @@ class AdminView
                   .   '<td>'
                   .     ($text !== ''
                           ? '<span class="adm-text">' . ViewHelper::esc($text) . '</span>'
-                          : '<span class="adm-none">ohne Text</span>')
+                          : '<span class="adm-none">'
+                            . ViewHelper::esc(I18n::t('verwaltung.bewertungen.ohne_text')) . '</span>')
                   .     ($entfernt
-                          ? '<span class="adm-sub">Entfernt: '
-                            . ViewHelper::esc(trim((string)($zeile['removed_reason'] ?? '')) !== ''
-                                ? (string)$zeile['removed_reason'] : 'ohne Grund')
+                          ? '<span class="adm-sub">'
+                            . ViewHelper::esc(I18n::t('verwaltung.bewertungen.entfernt_grund', [
+                                  'grund' => trim((string)($zeile['removed_reason'] ?? '')) !== ''
+                                      ? (string)$zeile['removed_reason']
+                                      : I18n::t('verwaltung.bewertungen.ohne_grund'),
+                              ]))
                             . '</span>'
                           : '')
                   .   '</td>'
@@ -851,17 +887,21 @@ class AdminView
                           ? '<a href="index.php?act=location&id=' . (int)($zeile['location_id'] ?? 0) . '">'
                             . ViewHelper::esc($titel) . '</a>'
                           : '<span class="adm-none">–</span>')
-                  .     self::kontoZeileHtml('Guide', $zeile['guide_username'] ?? null,
+                  .     self::kontoZeileHtml(I18n::t('verwaltung.rolle.guide'),
+                                                 $zeile['guide_username'] ?? null,
                                                  !empty($zeile['guide_deleted']))
-                  .     self::kontoZeileHtml('Kunde', $zeile['customer_username'] ?? null,
+                  .     self::kontoZeileHtml(I18n::t('verwaltung.rolle.kunde'),
+                                                 $zeile['customer_username'] ?? null,
                                                  !empty($zeile['customer_deleted']))
                   .   '</td>'
                   .   '<td class="adm-date">' . ViewHelper::esc(self::datum($zeile['created_at'] ?? null)) . '</td>'
                   .   '<td>'
                   .     ($entfernt
-                          ? '<span class="app-tag app-tag--danger">entfernt</span>'
+                          ? '<span class="app-tag app-tag--danger">'
+                            . ViewHelper::esc(I18n::t('verwaltung.bewertungen.entfernt')) . '</span>'
                           : '<button type="button" class="btn btn-outline-danger btn-sm adm-review-remove"'
-                            . ' data-id="' . $id . '">Entfernen</button>')
+                            . ' data-id="' . $id . '">'
+                            . ViewHelper::esc(I18n::t('verwaltung.bewertungen.entfernen')) . '</button>')
                   .   '</td>'
                   . '</tr>';
         }
@@ -893,10 +933,14 @@ class AdminView
         $name = trim((string)($in_name ?? ''));
         if ($name === '') $name = '?';
 
-        return '<span class="adm-sub">' . ViewHelper::esc($in_rolle) . ': '
-             . ViewHelper::esc($name)
+        return '<span class="adm-sub">'
+             . ViewHelper::esc(I18n::t('verwaltung.bewertungen.konto', [
+                   'rolle' => $in_rolle,
+                   'name'  => $name,
+               ]))
              . ($in_geloescht
-                ? ' <span class="app-tag app-tag--danger">Konto gelöscht</span>'
+                ? ' <span class="app-tag app-tag--danger">'
+                  . ViewHelper::esc(I18n::t('verwaltung.konto_geloescht')) . '</span>'
                 : '')
              . '</span>';
     }
@@ -994,13 +1038,22 @@ class AdminView
     }
 
     /**
-     * Eine Kommazahl mit einer Nachkommastelle, deutsch geschrieben.
+     * Eine Kommazahl mit einer Nachkommastelle.
+     *
+     * Die Trennzeichen kommen aus dem Katalog (zahl.*): "4,3" auf einer
+     * deutschen Seite, "4.3" auf einer englischen. Fest eingetragen waere
+     * die deutsche Schreibweise auf einer englischen Seite eine ANDERE
+     * Zahl - und niemandem fiele es auf.
      *
      * @param float $in_wert
      * @return string
      */
     private static function zahl(float $in_wert): string
     {
-        return number_format($in_wert, 1, ',', '.');
+        return number_format(
+            $in_wert, 1,
+            I18n::t('zahl.dezimaltrenner'),
+            I18n::t('zahl.tausendertrenner')
+        );
     }
 }

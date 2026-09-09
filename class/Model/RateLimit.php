@@ -2,6 +2,7 @@
 
 namespace App\Model;
 
+use App\Helper\I18n;
 use PDO;
 
 /**
@@ -369,30 +370,40 @@ class RateLimit
     /**
      * Die Wartezeit als Satzteil fuer eine Fehlermeldung.
      *
-     * AN EINER STELLE, weil drei Controller sie brauchen und der Nutzer
+     * AN EINER STELLE, weil mehrere Controller sie brauchen und der Nutzer
      * ueberall dasselbe lesen soll. Gerundet wird nach oben: "noch 1 Minute"
      * bei 61 Sekunden ist eine Zusage, die nicht gehalten wird.
      *
      * Sekundengenau nur unter einer Minute - "noch 847 Sekunden" ist keine
      * Auskunft, mit der ein Mensch etwas anfangen kann.
      *
+     * DER TEXT KOMMT AUS DEM KATALOG (warten.*) und folgt der Sprache der
+     * Seite. Er ist ein SATZTEIL und keine Zahl mit Einheit: Der Aufrufer
+     * setzt ihn in einen fertigen Satz ein ("Bitte {warten} warten."), und
+     * wo in diesem Satz die Richtung steht, entscheidet die Sprache.
+     *
      * @param  int $sekunden Restsperre aus restsperre() oder verbuchen()
      * @return string z.B. "noch 15 Minuten"
      */
     public static function wartehinweis(int $sekunden): string
     {
+        // DER GANZE SATZTEIL KOMMT AUS DEM KATALOG, nicht nur die Einheit:
+        // Der Aufrufer setzt ihn in "Bitte {warten} warten." ein, und im
+        // Englischen heisst das "another 3 minutes" - ein vorangestelltes
+        // "noch" waere die deutsche Wortstellung im Code. Die Form waehlt
+        // I18n::plural und nicht mehr ein angehaengtes "n".
         if ($sekunden <= 0) {
-            return 'gleich wieder';
+            return I18n::t('warten.gleich');
         }
         if ($sekunden < 60) {
-            return 'noch ' . $sekunden . ' Sekunde' . ($sekunden === 1 ? '' : 'n');
+            return I18n::plural('warten.sekunden', $sekunden);
         }
         $minuten = (int)ceil($sekunden / 60);
         if ($minuten < 60) {
-            return 'noch ' . $minuten . ' Minute' . ($minuten === 1 ? '' : 'n');
+            return I18n::plural('warten.minuten', $minuten);
         }
         $stunden = (int)ceil($minuten / 60);
-        return 'noch ' . $stunden . ' Stunde' . ($stunden === 1 ? '' : 'n');
+        return I18n::plural('warten.stunden', $stunden);
     }
 
     /**

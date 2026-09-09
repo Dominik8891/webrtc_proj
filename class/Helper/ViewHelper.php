@@ -24,7 +24,7 @@ class ViewHelper
     public static function checkTemplate($out, $template) {
         if ($out === false) {
             error_log('Template konnte nicht geladen werden: ' . $template);
-            die('Interner Fehler. Bitte versuchen Sie es später erneut.');
+            die(I18n::t('allgemein.interner_fehler'));
         }
     }
 
@@ -150,6 +150,60 @@ class ViewHelper
     }
 
     /**
+     * Ein Katalogtext, in dem ein Platzhalter fertiges HTML traegt.
+     *
+     * WOZU ES DAS BRAUCHT
+     * -------------------
+     * Manche Saetze der Oberflaeche tragen eine Hervorhebung oder einen
+     * Verweis MITTEN DRIN: "Ihre Anfrage fuer <strong>morgen</strong> ist
+     * beim Guide." In den Katalog darf das Markup nicht - dort steht Text
+     * und kein HTML, und ein Test haelt das fest. Im Code darf der Satz
+     * aber auch nicht zerlegt werden: Aus "Ihre Anfrage fuer" + Zeit +
+     * "ist beim Guide" wird im Englischen kein Satz mehr, weil dort die
+     * Teile in anderer Reihenfolge stehen.
+     *
+     * DIE AUFLOESUNG: Der GANZE Satz steht im Katalog, die Stelle mit dem
+     * Markup ist ein Platzhalter. Maskiert wird der Katalogtext ZUERST -
+     * danach wird das fertige HTML eingesetzt und nicht mehr angefasst.
+     * Andersherum waere das eingesetzte <strong> selbst maskiert und
+     * stuende als Text auf der Seite.
+     *
+     * WAS DER AUFRUFER SCHULDET: Die Werte sind HTML. Was aus der
+     * Datenbank oder aus einer Anfrage darin steckt, geht durch esc() -
+     * diese Methode kann das nicht nachholen, denn sie soll ja gerade
+     * Markup durchlassen.
+     *
+     * @param string              $in_schluessel Katalogschluessel
+     * @param array<string,string> $in_werte     Platzhalter => fertiges HTML
+     * @return string HTML
+     */
+    public static function tHtml(string $in_schluessel, array $in_werte = []): string
+    {
+        return I18n::einsetzen(self::esc(I18n::t($in_schluessel)), $in_werte);
+    }
+
+    /**
+     * Eine ganze Zahl in der Schreibweise der aktiven Sprache.
+     *
+     * "1.234" auf einer deutschen Seite, "1,234" auf einer englischen. Die
+     * Trennzeichen stehen im Katalog (zahl.*) und nicht hier: Sie sind
+     * Technik wie datum.mit_uhrzeit, aendern sich aber mit der Sprache -
+     * und eine fest eingetragene deutsche Schreibweise liest sich auf einer
+     * englischen Seite als eine ANDERE Zahl.
+     *
+     * @param int $in_wert
+     * @return string
+     */
+    public static function ganzzahl(int $in_wert): string
+    {
+        return number_format(
+            $in_wert, 0,
+            I18n::t('zahl.dezimaltrenner'),
+            I18n::t('zahl.tausendertrenner')
+        );
+    }
+
+    /**
      * Die Rueckmeldung nach dem Speichern - Erfolg oder Fehler.
      *
      * BEIDE WERTE KOMMEN AUS DER ADRESSZEILE, und das ist Absicht: Nach dem
@@ -176,7 +230,8 @@ class ViewHelper
         }
 
         if ($in_gespeichert) {
-            return '<div class="alert alert-success" role="alert">Gespeichert.</div>';
+            return '<div class="alert alert-success" role="alert">'
+                 . self::esc(I18n::t('allgemein.gespeichert')) . '</div>';
         }
 
         return '';
@@ -219,15 +274,18 @@ class ViewHelper
         $name = htmlspecialchars($username);
 
         $eintraege = [
-            'index.php?act=settings' => 'Mein Konto',
+            'index.php?act=settings' => 'kopf.menue.konto',
         ];
         if (Auth::can(Permission::SYSTEM_ADMIN)) {
-            $eintraege['index.php?act=admin'] = 'Verwaltung';
+            $eintraege['index.php?act=admin'] = 'kopf.menue.verwaltung';
         }
 
+        // Die Liste traegt SCHLUESSEL und keine Beschriftungen: Der Text
+        // haengt an der Sprache dieser Anfrage, die Liste nicht.
         $links = '';
-        foreach ($eintraege as $ziel => $titel) {
-            $links .= '<a class="app-menu__item" href="' . $ziel . '">' . $titel . '</a>';
+        foreach ($eintraege as $ziel => $schluessel) {
+            $links .= '<a class="app-menu__item" href="' . $ziel . '">'
+                    . self::esc(I18n::t($schluessel)) . '</a>';
         }
 
         return '<details class="app-menu" id="user-menu">'
@@ -242,10 +300,17 @@ class ViewHelper
              .     '<span class="app-menu__caret" aria-hidden="true"></span>'
              .   '</summary>'
              .   '<div class="app-menu__list" role="menu">'
-             .     '<div class="app-menu__head">Angemeldet als <strong>' . $name . '</strong></div>'
+             // Der Name steht MITTEN im Satz und traegt eine Hervorhebung -
+             // deshalb der ganze Satz aus dem Katalog und das Markup als
+             // Platzhalter (siehe tHtml).
+             .     '<div class="app-menu__head">'
+             .       self::tHtml('kopf.menue.angemeldet_als',
+                                 ['name' => '<strong>' . $name . '</strong>'])
+             .     '</div>'
              .     $links
              .     '<div class="app-menu__sep"></div>'
-             .     '<a class="app-menu__item app-menu__item--danger" href="index.php?act=logout">Abmelden</a>'
+             .     '<a class="app-menu__item app-menu__item--danger" href="index.php?act=logout">'
+             .       self::esc(I18n::t('kopf.menue.abmelden')) . '</a>'
              .   '</div>'
              . '</details>';
     }
@@ -299,26 +364,32 @@ class ViewHelper
         // Der Titel sagt, WAS wartet - die Zahl allein sagt es nicht. Er wird
         // im Browser mit derselben Regel neu gebaut (requests.js), damit an
         // beiden Stellen dasselbe steht.
+        //
+        // DIE FORMEN KOMMEN AUS DEM KATALOG und nicht mehr aus einem
+        // "(n)" in der Klammer: Das war eine deutsche Notloesung fuer
+        // etwas, was I18n::plural() beantwortet - und im Englischen gaebe
+        // es die Klammer gar nicht erst.
         $teile = [];
         if ($eingehend > 0) {
-            $teile[] = $eingehend . ' Anfrage(n) warten auf Ihre Antwort';
+            $teile[] = I18n::plural('kopf.anfragen.eingehend', $eingehend);
         }
         if ($ausgehend > 0) {
-            $teile[] = $ausgehend . ' Ihrer Anfragen wurde(n) angenommen';
+            $teile[] = I18n::plural('kopf.anfragen.ausgehend', $ausgehend);
         }
         // Zuletzt, aber am dringendsten: Eine nicht beendete Fuehrung haelt
         // den Startknopf beim Kunden offen.
         if ($laufend > 0) {
-            $teile[] = $laufend . ' Führung(en) sind noch nicht beendet';
+            $teile[] = I18n::plural('kopf.anfragen.laufend', $laufend);
         }
-        $titel = $teile === [] ? 'Ihre Anfragen' : implode(', ', $teile);
+        $titel = $teile === [] ? I18n::t('kopf.anfragen.titel') : implode(', ', $teile);
 
         return '<a class="app-requests' . ($summe > 0 ? ' app-requests--on' : '') . '"'
              . ' id="requests-badge" href="index.php?act=requests_page"'
              . ' data-incoming="' . $eingehend . '" data-outgoing="' . $ausgehend . '"'
              . ' data-running="' . $laufend . '"'
              . ' title="' . htmlspecialchars($titel) . '">'
-             .   '<span class="app-requests__text">Anfragen</span>'
+             .   '<span class="app-requests__text">'
+             .     self::esc(I18n::t('kopf.anfragen.text')) . '</span>'
              .   '<span class="app-requests__count" id="requests-count"'
              .     ($summe > 0 ? '' : ' hidden') . '>' . $summe . '</span>'
              . '</a>';
@@ -369,14 +440,15 @@ class ViewHelper
         // im Browser mit derselben Regel neu gebaut (chat_badge.js), damit an
         // beiden Stellen dasselbe steht.
         $titel = $ungelesen > 0
-            ? $ungelesen . ' ungelesene Nachricht(en)'
-            : 'Ihre Nachrichten';
+            ? I18n::plural('kopf.nachrichten.ungelesen', $ungelesen)
+            : I18n::t('kopf.nachrichten.titel');
 
         return '<a class="app-chats' . ($ungelesen > 0 ? ' app-chats--on' : '') . '"'
              . ' id="chats-badge" href="index.php?act=get_all_chats"'
              . ' data-unread="' . $ungelesen . '"'
              . ' title="' . htmlspecialchars($titel) . '">'
-             .   '<span class="app-chats__text">Nachrichten</span>'
+             .   '<span class="app-chats__text">'
+             .     self::esc(I18n::t('kopf.nachrichten.text')) . '</span>'
              .   '<span class="app-chats__count" id="chats-count"'
              .     ($ungelesen > 0 ? '' : ' hidden') . '>' . $ungelesen . '</span>'
              . '</a>';
@@ -422,12 +494,12 @@ class ViewHelper
              . ' id="availability-toggle"'
              . ' aria-pressed="' . ($bereit ? 'true' : 'false') . '"'
              . ' data-seconds="' . $sekunden . '"'
-             . ' title="' . ($bereit
-                 ? 'Sie sind als Guide anrufbar. Klicken beendet die Bereitschaft.'
-                 : 'Sie sind nicht anrufbar. Klicken stellt Sie auf bereit.') . '">'
+             . ' title="' . self::esc(I18n::t($bereit
+                 ? 'kopf.bereit.titel_an'
+                 : 'kopf.bereit.titel_aus')) . '">'
              .   '<span class="app-ready__dot" aria-hidden="true"></span>'
              .   '<span class="app-ready__text" id="availability-text">'
-             .     ($bereit ? 'Bereit' : 'Nicht bereit')
+             .     self::esc(I18n::t($bereit ? 'kopf.bereit.an' : 'kopf.bereit.aus'))
              .   '</span>'
              .   '<span class="app-ready__rest" id="availability-rest"></span>'
              . '</button>';
@@ -521,7 +593,8 @@ class ViewHelper
         // Registrierung den Akzent und nicht die Live-Farbe.
         $sign      = "<a href='index.php?act=signup_page' class='btn btn-primary btn-sm'>Registrieren</a>";
         $user_txt  = "";
-        $text      = "<a href='index.php?act=login_page' class='btn btn-secondary btn-sm'>Anmelden</a>";
+        $text      = "<a href='index.php?act=login_page' class='btn btn-secondary btn-sm'>"
+                   . self::esc(I18n::t('kopf.anmelden')) . "</a>";
         $menu_html = "";
         $call      = "";
         $inner_call= "";

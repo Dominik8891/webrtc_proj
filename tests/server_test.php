@@ -113,6 +113,7 @@ use App\Helper\MailGate;
 use App\Model\Email;
 use App\Helper\I18n;
 use App\Helper\ViewHelper;
+use App\Helper\AdminView;
 use App\Helper\Url;
 use App\Controller\ChatController;
 use App\Controller\SystemController;
@@ -6698,8 +6699,12 @@ check(strpos($profilCode, 'Permission::') === false,
 $viewCode = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
 check(strpos($viewCode, "'Benutzerliste'") === false,
     'die Benutzerliste steht weiterhin einzeln im Kontomenue');
-check(strpos($viewCode, "\$eintraege['index.php?act=admin'] = 'Verwaltung';") !== false,
+// Der Eintrag traegt seit dem Umzug der Seitentexte den KATALOGSCHLUESSEL
+// und nicht mehr die Beschriftung - der Weg ist derselbe geblieben.
+check(strpos($viewCode, "\$eintraege['index.php?act=admin'] = 'kopf.menue.verwaltung';") !== false,
     'der Weg in den Verwaltungsbereich fehlt im Kontomenue');
+check(I18n::t('kopf.menue.verwaltung') !== 'kopf.menue.verwaltung',
+    'der Eintrag hat keinen Text im Katalog');
 check(strpos($viewCode, 'Permission::SYSTEM_ADMIN') !== false,
     'der Menueeintrag haengt nicht am Recht system.admin');
 
@@ -8124,9 +8129,17 @@ foreach (['username_geloescht', 'email_geloescht', 'vergeben_rennen'] as $fall) 
 }
 // Die Meldung zur Adresse nennt als einzige den Betreiber: Einen Namen sucht
 // man sich neu aus, eine E-Mail-Adresse hat man nur die eine.
+// Geprueft wird jetzt IM KATALOG und nicht mehr im Rumpf der Methode: Seit
+// dem Umzug der Seitentexte steht dort ein Schluessel, und der Satz steht in
+// lang/de.php und lang/en.php. Beide muessen den Ausweg nennen - eine
+// Uebersetzung, die ihn weglaesst, ist derselbe Fehler.
 $meldungen = methodenRumpf($signupQuelle, 'outputSignupError');
-check(strpos($meldungen, 'Betreiber') !== false,
-    'die Meldung zur geloeschten Adresse nennt keinen Ausweg');
+check(strpos($meldungen, 'registrierung.fehler.email_geloescht') !== false,
+    'die Meldung zur geloeschten Adresse kommt nicht aus dem Katalog');
+check(mb_stripos(I18n::tIn('de', 'registrierung.fehler.email_geloescht'), 'Betreiber') !== false,
+    'die deutsche Meldung zur geloeschten Adresse nennt keinen Ausweg');
+check(mb_stripos(I18n::tIn('en', 'registrierung.fehler.email_geloescht'), 'operator') !== false,
+    'die englische Meldung zur geloeschten Adresse nennt keinen Ausweg');
 ok('vier Faelle, vier Meldungen - und ein Ausweg, wo der Nutzer keinen hat');
 
 // ---------------------------------------------------------------------
@@ -9049,6 +9062,178 @@ foreach (['class/Controller/PasswordController.php'      => 'mail.passwort',
         "$datei holt die Sprache des Kontos nicht aus der Datenbank");
 }
 ok('die beiden Mails kommen in der Sprache des Empfaengers an');
+
+I18n::zuruecksetzen();
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDie Texte der Seiten kommen aus dem Katalog\n");
+
+// WOZU DIESER ABSCHNITT
+// ---------------------
+// Die Stufe davor hat die Kataloge und Formate umgezogen - Monatsnamen,
+// Dauern, Zustandswoerter. Diese hier zieht die SAETZE der Seiten nach, die
+// PHP erzeugt: Standortseite, Guide-Profil, Bewertungsblock, Verwaltung,
+// Kopfleiste, dazu die Meldungen der Controller.
+//
+// GEPRUEFT WIRD AM ERGEBNIS und nicht am Quelltext: Ob ein Satz aus dem
+// Katalog kommt, sieht man daran, dass er sich mit der Sprache aendert. Eine
+// Pruefung auf "steht I18n::t im Code" ginge auch dann durch, wenn der
+// Aufrufer den Rueckgabewert wegwuerfe.
+
+$loc = [
+    'id' => 7, 'title' => '', 'city_name' => 'Lissabon', 'country_name' => 'Portugal',
+    'blocked' => 0, 'availability' => 'live', 'description' => '', 'description_long' => '',
+    'duration_minutes' => 90, 'languages' => 'de,en', 'latitude' => 1, 'longitude' => 1,
+    'availability_slots' => null, 'timezone' => 'Europe/Lisbon', 'user_id' => 3,
+    'username' => 'tom', 'display_name' => 'Tom', 'about' => '', 'avatar_file' => null,
+    'iso2' => 'PT',
+];
+
+// Je Stueck Oberflaeche eine Probe: dasselbe Argument, zwei Sprachen, zwei
+// verschiedene Ergebnisse - und keines davon der blosse Schluessel.
+$proben = [
+    'die Ueberschrift der Standortseite' =>
+        fn() => LocationView::titelVon($loc),
+    'die Zustandsmarke der Standortseite' =>
+        fn() => LocationView::zustandHtml($loc, false),
+    'der Aktionsbereich fuer den Gast' =>
+        fn() => LocationView::aktionHtml($loc, false, false, null, null),
+    'der Guide-Streifen' =>
+        fn() => GuideView::streifenHtml($loc, false),
+    'die Ueberschrift der Angebote' =>
+        fn() => GuideView::angeboteHtml([], 'Tom', false),
+    'der Satz anstelle eines Durchschnitts' =>
+        fn() => ReviewView::jungText(2, 5, true),
+    'die Zahl der Bewertungen' =>
+        fn() => ReviewView::anzahlText(7),
+    'der Arbeitsvorrat der Verwaltung' =>
+        fn() => AdminView::vorratHtml(['haengend' => 2]),
+    'die leere Standortliste' =>
+        fn() => AdminView::standortZeilenHtml([]),
+    'die Meldung des Bildspeichers' =>
+        fn() => I18n::t('bild.fehler.kein_bild'),
+    'die Rueckmeldung nach dem Speichern' =>
+        fn() => ViewHelper::hinweisHtml('', true),
+];
+
+foreach ($proben as $was => $bauen) {
+    I18n::setzen('de');
+    $de = $bauen();
+    I18n::setzen('en');
+    $en = $bauen();
+
+    check($de !== $en, "$was steht in beiden Sprachen gleich da");
+    // Der Schluessel selbst als Ausgabe heisst: Der Katalog kennt ihn nicht.
+    // Das faellt im Betrieb niemandem auf - hier schon.
+    check(strpos($en, '.') === false || preg_match('/(^|>)[a-z_]+\.[a-z_.]+(<|$)/', $en) !== 1,
+        "$was zeigt einen Schluessel statt eines Textes: $en");
+}
+ok('jedes Stueck Oberflaeche antwortet in der Sprache der Seite');
+
+// --- Zusammengesetztes: ganze Saetze, keine Satzteile ---------------------
+//
+// DAS IST DER EIGENTLICHE PUNKT DIESER STUFE. Ein Satz, der im Code aus
+// Stuecken entsteht ("Ihre Anfrage für " . $wann . " ist beim Guide"), traegt
+// die deutsche Wortstellung im Code - und laesst sich in keiner zweiten
+// Sprache mehr richtig zusammensetzen. Geprueft wird deshalb, dass die
+// beweglichen Teile PLATZHALTER im Katalog sind.
+$zusammengesetzt = [
+    'standort.titel.fuehrung_in'        => ['{ort}'],
+    'standort.anfrage.offen_text'       => ['{wann}'],
+    'standort.anfrage.zugesagt'         => ['{wann}'],
+    'standort.sperre.grund'             => ['{grund}'],
+    'standort.bilder.alt'               => ['{titel}', '{nr}'],
+    'standort.fehler.dauer_bereich'     => ['{min}', '{max}'],
+    'guide.meta.seit'                   => ['{monat}'],
+    'guide.meta.spricht'                => ['{sprachen}'],
+    'guide.angebote.fremd'              => ['{name}'],
+    'guide.rolle.status_guide'          => ['{rolle}'],
+    'bewertung.sterne.label'            => ['{wert}', '{max}'],
+    'bewertung.jung.wenige_eigen'       => ['{min}', '{fehlend}'],
+    'verwaltung.anfragen.laeuft_seit'   => ['{spanne}'],
+    'verwaltung.kachel.fuehrungen_fuss' => ['{gesamt}', '{offen}'],
+    'anfrage.fehler.zu_viele'           => ['{warten}'],
+    'registrierung.fehler.gesperrt'     => ['{warten}'],
+    'kopf.menue.angemeldet_als'         => ['{name}'],
+];
+foreach ($zusammengesetzt as $schluessel => $platzhalter) {
+    foreach (['de', 'en'] as $sprache) {
+        $text = I18n::tIn($sprache, $schluessel);
+        check($text !== $schluessel, "$schluessel fehlt in lang/$sprache.php");
+        foreach ($platzhalter as $p) {
+            check(strpos($text, $p) !== false,
+                "$schluessel ($sprache) hat $p verloren - der Satz wird wieder im Code gebaut");
+        }
+    }
+}
+ok('was beweglich ist, ist ein Platzhalter im Satz und keine Verkettung im Code');
+
+// --- Gezaehltes waehlt seine Form ueber den Katalog -----------------------
+//
+// "Anfrage(n)" war die deutsche Notloesung fuer ein Problem, das plural()
+// loest. Sie darf nicht zurueckkommen - und die beiden Formen muessen sich
+// unterscheiden, sonst ist der Eintrag nur der Form nach zaehlbar.
+foreach (['kopf.anfragen.eingehend', 'kopf.anfragen.ausgehend', 'kopf.anfragen.laufend',
+          'kopf.nachrichten.ungelesen', 'bewertung.anzahl', 'warten.minuten',
+          'verwaltung.vorrat.haengend'] as $schluessel) {
+    foreach (['de', 'en'] as $sprache) {
+        I18n::setzen($sprache);
+        $eins  = I18n::plural($schluessel, 1);
+        $viele = I18n::plural($schluessel, 4);
+        check($eins !== $viele, "$schluessel ($sprache) hat fuer 1 und 4 denselben Text");
+        check(strpos($eins, '(n)') === false && strpos($viele, '(n)') === false,
+            "$schluessel ($sprache) traegt wieder eine Klammerform");
+    }
+}
+ok('Gezaehltes waehlt seine Form ueber den Katalog, nicht ueber eine Klammer');
+
+// --- tHtml: der Satz wird maskiert, das Markup nicht ----------------------
+//
+// Der Weg fuer Saetze mit einer Hervorhebung mittendrin. Beides muss stimmen:
+// Das Markup ueberlebt, und ein Katalogtext kann trotzdem kein Element
+// aufmachen.
+I18n::setzen('de');
+$mitMarkup = ViewHelper::tHtml('kopf.menue.angemeldet_als', ['name' => '<strong>a&b</strong>']);
+check(strpos($mitMarkup, '<strong>a&b</strong>') !== false,
+    'tHtml maskiert das eingesetzte Markup mit');
+check(strpos($mitMarkup, '{name}') === false, 'tHtml setzt den Platzhalter nicht ein');
+// Und der Katalogtext selbst geht durch esc() - beide Bauverfahren dieser
+// Anwendung bleiben damit dicht (Rauten und Marker).
+check(ViewHelper::tHtml('kopf.menue.abmelden') === ViewHelper::esc(I18n::t('kopf.menue.abmelden')),
+    'tHtml laesst den Katalogtext unmaskiert durch');
+ok('tHtml maskiert den Satz und laesst das Markup stehen');
+
+// --- Zahlen folgen der Sprache -------------------------------------------
+//
+// "1.234" und "1,234" sind dieselbe Zahl in zwei Sprachen - und in der
+// jeweils anderen eine ganz andere. Das Trennzeichen steht deshalb im
+// Katalog und nicht im Code.
+I18n::setzen('de');
+check(ViewHelper::ganzzahl(1234) === '1.234', 'die deutsche Tausendertrennung fehlt');
+I18n::setzen('en');
+check(ViewHelper::ganzzahl(1234) === '1,234', 'die englische Tausendertrennung fehlt');
+check(ReviewView::zahl(4.25) === '4.3', 'die englische Kommastelle fehlt');
+I18n::setzen('de');
+check(ReviewView::zahl(4.25) === '4,3', 'die deutsche Kommastelle fehlt');
+// Und "5" bleibt "5": Die Nachkommastelle sagt nur etwas, wenn dort etwas steht.
+check(ReviewView::zahl(5.0) === '5', 'eine glatte Zahl bekommt eine Null angehaengt');
+ok('Tausender- und Dezimaltrennung kommen aus dem Katalog');
+
+// --- Die Wartezeit einer Bremse ------------------------------------------
+//
+// Sie ist ein SATZTEIL und wird in einen fertigen Satz eingesetzt. Beides
+// muss aus dem Katalog kommen, sonst steht die Richtung ("noch", "another")
+// im Code - und im Englischen an der falschen Stelle.
+foreach (['de' => 'noch', 'en' => 'another'] as $sprache => $wort) {
+    I18n::setzen($sprache);
+    check(mb_stripos(RateLimit::wartehinweis(120), $wort) !== false,
+        "die Wartezeit steht in $sprache nicht in der Sprache der Seite");
+}
+I18n::setzen('de');
+check(strpos(I18n::t('anfrage.fehler.zu_viele',
+        ['warten' => RateLimit::wartehinweis(120)]), 'noch 2 Minuten') !== false,
+    'die Wartezeit kommt im Satz nicht an');
+ok('die Wartezeit einer Bremse folgt der Sprache - als Satzteil im Satz');
 
 I18n::zuruecksetzen();
 

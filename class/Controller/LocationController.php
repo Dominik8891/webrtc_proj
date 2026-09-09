@@ -7,6 +7,7 @@ use App\Model\TourRequest;
 use App\Model\TourReview;
 use App\Helper\Auth;
 use App\Helper\Availability;
+use App\Helper\I18n;
 use App\Helper\ImageStore;
 use App\Helper\Languages;
 use App\Helper\LocationView;
@@ -453,25 +454,25 @@ class LocationController
         // lang fuer varchar(120), obwohl er 70 Zeichen hat.
         if (mb_strlen($titel) < self::TITEL_MIN) {
             return self::inhaltFehler('3',
-                'Der Titel muss mindestens ' . self::TITEL_MIN . ' Zeichen lang sein.');
+                I18n::t('standort.fehler.titel_kurz', ['n' => self::TITEL_MIN]));
         }
         if (mb_strlen($titel) > self::TITEL_MAX) {
             return self::inhaltFehler('3',
-                'Der Titel darf hoechstens ' . self::TITEL_MAX . ' Zeichen lang sein.');
+                I18n::t('standort.fehler.titel_lang', ['n' => self::TITEL_MAX]));
         }
 
         if (mb_strlen($kurz) < self::KURZ_MIN) {
             return self::inhaltFehler('0',
-                'Die Kurzbeschreibung muss mindestens ' . self::KURZ_MIN . ' Zeichen lang sein.');
+                I18n::t('standort.fehler.kurz_kurz', ['n' => self::KURZ_MIN]));
         }
         if (mb_strlen($kurz) > self::KURZ_MAX) {
             return self::inhaltFehler('0',
-                'Die Kurzbeschreibung darf hoechstens ' . self::KURZ_MAX . ' Zeichen lang sein.');
+                I18n::t('standort.fehler.kurz_lang', ['n' => self::KURZ_MAX]));
         }
 
         if (mb_strlen($lang) > self::LANG_MAX) {
             return self::inhaltFehler('6',
-                'Die ausfuehrliche Beschreibung darf hoechstens ' . self::LANG_MAX . ' Zeichen lang sein.');
+                I18n::t('standort.fehler.lang_lang', ['n' => self::LANG_MAX]));
         }
 
         // Die Dauer darf fehlen. Ein leeres Feld heisst "nicht angegeben"
@@ -480,12 +481,14 @@ class LocationController
         $minuten = null;
         if ($dauer !== '') {
             if (!ctype_digit($dauer)) {
-                return self::inhaltFehler('7', 'Die Dauer muss eine Zahl in Minuten sein.');
+                return self::inhaltFehler('7', I18n::t('standort.fehler.dauer_zahl'));
             }
             $minuten = (int)$dauer;
             if ($minuten < self::DAUER_MIN || $minuten > self::DAUER_MAX) {
-                return self::inhaltFehler('7', 'Die Dauer muss zwischen '
-                    . self::DAUER_MIN . ' und ' . self::DAUER_MAX . ' Minuten liegen.');
+                return self::inhaltFehler('7', I18n::t('standort.fehler.dauer_bereich', [
+                    'min' => self::DAUER_MIN,
+                    'max' => self::DAUER_MAX,
+                ]));
             }
         }
 
@@ -674,7 +677,7 @@ class LocationController
         $user_id     = Auth::userId();
 
         if (!$location_id) {
-            self::json(['success' => false, 'error' => 'Keine Location-ID übergeben!']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.keine_id')]);
         }
 
         try {
@@ -696,10 +699,10 @@ class LocationController
             // Kein Treffer heißt: gibt es nicht oder gehört jemand anderem.
             // Beides ergibt dieselbe Antwort.
             error_log("deleteLocation: kein eigener Standort #$location_id fuer Benutzer #$user_id");
-            self::json(['success' => false, 'error' => 'Standort nicht gefunden.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.nicht_gefunden')]);
         } catch (\Exception $e) {
             error_log("Fehler beim Löschen der Location #$location_id: " . $e->getMessage());
-            self::json(['success' => false, 'error' => 'Fehler beim Löschen.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.loeschen')]);
         }
     }
 
@@ -719,12 +722,12 @@ class LocationController
         $reason      = trim(Request::g('reason'));
 
         if (!$location_id) {
-            self::json(['success' => false, 'error' => 'Keine Location-ID übergeben!']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.keine_id')]);
         }
         if ($reason === '') {
             // Der Guide bekommt den Grund angezeigt - ohne Grund ist die
             // Sperre für ihn nicht nachvollziehbar.
-            self::json(['success' => false, 'error' => 'Bitte einen Grund angeben.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.grund_fehlt')]);
         }
         if (mb_strlen($reason) > 255) {
             $reason = mb_substr($reason, 0, 255);
@@ -734,7 +737,7 @@ class LocationController
         if ($location->block($location_id, Auth::userId(), $reason)) {
             self::json(['success' => true]);
         }
-        self::json(['success' => false, 'error' => 'Standort nicht gefunden.']);
+        self::json(['success' => false, 'error' => I18n::t('standort.fehler.nicht_gefunden')]);
     }
 
     /**
@@ -747,14 +750,14 @@ class LocationController
         $location_id = (int)Request::g('id');
 
         if (!$location_id) {
-            self::json(['success' => false, 'error' => 'Keine Location-ID übergeben!']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.keine_id')]);
         }
 
         $location = new Location();
         if ($location->unblock($location_id)) {
             self::json(['success' => true]);
         }
-        self::json(['success' => false, 'error' => 'Standort nicht gefunden.']);
+        self::json(['success' => false, 'error' => I18n::t('standort.fehler.nicht_gefunden')]);
     }
 
     // =================================================================
@@ -944,7 +947,7 @@ class LocationController
         $zustand     = (new Location())->availabilityOf($location_id);
 
         if ($zustand === null) {
-            self::json(['success' => false, 'error' => 'Standort nicht gefunden.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.nicht_gefunden')]);
         }
 
         // MIT DER EIGENEN ANFRAGE, aus demselben Grund, aus dem es diese
@@ -1053,7 +1056,7 @@ class LocationController
     {
         http_response_code(404);
         header('Content-Type: text/plain; charset=utf-8');
-        echo 'Bild nicht gefunden.';
+        echo I18n::t('standort.bild.nicht_gefunden');
         exit;
     }
 
@@ -1068,11 +1071,13 @@ class LocationController
         ViewHelper::output(
             '<div class="app-page app-page--narrow">'
           . '<div class="app-panel"><div class="app-panel__body">'
-          . '<h1 class="app-page-head__title">Standort nicht gefunden</h1>'
-          . '<p class="app-page-head__sub">Dieser Standort wurde entfernt, '
-          . 'gesperrt oder hat es nie gegeben.</p>'
+          . '<h1 class="app-page-head__title">'
+          .   ViewHelper::esc(I18n::t('standort.fehlseite.titel')) . '</h1>'
+          . '<p class="app-page-head__sub">'
+          .   ViewHelper::esc(I18n::t('standort.fehlseite.text')) . '</p>'
           . '<div class="app-actions">'
-          . '<a class="btn btn-primary" href="index.php?act=home">Zur Karte</a>'
+          . '<a class="btn btn-primary" href="index.php?act=home">'
+          .   ViewHelper::esc(I18n::t('standort.fehlseite.karte')) . '</a>'
           . '</div></div></div></div>'
         );
     }
@@ -1146,7 +1151,7 @@ class LocationController
 
         if (!$location->updateLocation($user_id)) {
             header('Location: ' . $zurueck . '&edit=1&fehler='
-                . rawurlencode('Die Aenderung konnte nicht gespeichert werden.'));
+                . rawurlencode(I18n::t('standort.fehler.nicht_gespeichert')));
             exit;
         }
 
@@ -1182,7 +1187,7 @@ class LocationController
         $vorhanden = LocationImage::countForLocation($location['id']);
         if ($vorhanden >= $grenze) {
             self::json(['success' => false, 'error' =>
-                'Mehr als ' . $grenze . ' Bilder sind an einem Standort nicht moeglich.']);
+                I18n::t('standort.bild.zu_viele', ['n' => $grenze])]);
         }
 
         // Genau ein Feld, genau eine Datei je Aufruf. Mehrere Dateien
@@ -1192,7 +1197,7 @@ class LocationController
         // einzeln.
         $datei = $_FILES['image'] ?? null;
         if (!is_array($datei)) {
-            self::json(['success' => false, 'error' => 'Es wurde keine Datei geschickt.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.keine_datei')]);
         }
 
         $abgelegt = ImageStore::store($datei, $location['id']);
@@ -1219,7 +1224,7 @@ class LocationController
             // Sonst bliebe eine Datei, auf die nichts mehr zeigt und die
             // niemand je wiederfindet.
             ImageStore::delete($location['id'], $abgelegt['name']);
-            self::json(['success' => false, 'error' => 'Das Bild konnte nicht gespeichert werden.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.nicht_gespeichert')]);
         }
 
         self::json([
@@ -1252,14 +1257,14 @@ class LocationController
         $user_id  = Auth::userId();
 
         if ($image_id < 1) {
-            self::json(['success' => false, 'error' => 'Kein Bild angegeben.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.keine_id')]);
         }
 
         $geloescht = LocationImage::deleteOwned($image_id, $user_id);
         if ($geloescht === null) {
             // "Gibt es nicht" und "gehoert jemand anderem" ergeben dieselbe
             // Antwort.
-            self::json(['success' => false, 'error' => 'Bild nicht gefunden.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.nicht_gefunden')]);
         }
 
         ImageStore::delete($geloescht['location_id'], $geloescht['file_name']);
@@ -1285,7 +1290,7 @@ class LocationController
 
         $roh = trim((string)Request::g('order'));
         if ($roh === '') {
-            self::json(['success' => false, 'error' => 'Keine Reihenfolge angegeben.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.keine_reihenfolge')]);
         }
 
         $ids = [];
@@ -1294,11 +1299,11 @@ class LocationController
             if ($id > 0) $ids[] = $id;
         }
         if ($ids === []) {
-            self::json(['success' => false, 'error' => 'Keine Reihenfolge angegeben.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.keine_reihenfolge')]);
         }
 
         if (!LocationImage::reorder($location['id'], $user_id, $ids)) {
-            self::json(['success' => false, 'error' => 'Die Reihenfolge konnte nicht gespeichert werden.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.reihenfolge_fehler')]);
         }
         self::json(['success' => true]);
     }
@@ -1323,14 +1328,14 @@ class LocationController
         $user_id  = Auth::userId();
 
         if ($image_id < 1) {
-            self::json(['success' => false, 'error' => 'Kein Bild angegeben.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.keine_id')]);
         }
 
         if (!LocationImage::setCover($image_id, $user_id)) {
             // "Gibt es nicht" und "gehoert jemand anderem" ergeben dieselbe
             // Antwort - sonst liessen sich ueber diese Route fremde
             // Bildkennungen abklopfen.
-            self::json(['success' => false, 'error' => 'Bild nicht gefunden.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.nicht_gefunden')]);
         }
         self::json(['success' => true]);
     }
@@ -1350,7 +1355,7 @@ class LocationController
         $location = self::eigenerStandortAusAnfrage();
 
         if (!LocationImage::clearCover($location['id'], $user_id)) {
-            self::json(['success' => false, 'error' => 'Das Titelbild konnte nicht geändert werden.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.bild.titelbild_fehler')]);
         }
         self::json(['success' => true]);
     }
@@ -1374,19 +1379,19 @@ class LocationController
         $user_id     = Auth::userId();
 
         if ($location_id < 1) {
-            self::json(['success' => false, 'error' => 'Kein Standort angegeben.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.keine_id')]);
         }
 
         try {
             $location = new Location($location_id);
         } catch (\Exception $e) {
             error_log('eigenerStandortAusAnfrage: ' . $e->getMessage());
-            self::json(['success' => false, 'error' => 'Standort nicht gefunden.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.nicht_gefunden')]);
         }
 
         if (!$location->belongsToUser($user_id)) {
             error_log("Bildaktion: Standort #$location_id gehoert nicht zu Benutzer #$user_id");
-            self::json(['success' => false, 'error' => 'Standort nicht gefunden.']);
+            self::json(['success' => false, 'error' => I18n::t('standort.fehler.nicht_gefunden')]);
         }
 
         return ['id' => (int)$location->getId()];

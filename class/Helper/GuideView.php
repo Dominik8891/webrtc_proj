@@ -168,7 +168,8 @@ class GuideView
              .   Avatar::html($name, self::avatarUrl($in_daten, 'thumb'), 'loc-guide__avatar')
              .   '<span class="loc-guide__text">'
              .     '<span class="loc-guide__label">'
-             .       ($in_eigen ? 'Sie bieten diese Führung an' : 'Ihr Guide')
+             .       self::esc(I18n::t($in_eigen
+                         ? 'guide.streifen.eigen' : 'guide.streifen.fremd'))
              .     '</span>'
              .     '<span class="loc-guide__name">' . self::esc($name) . '</span>'
              .     ($satz !== ''
@@ -176,7 +177,8 @@ class GuideView
                     : '')
              .   '</span>'
              .   '<span class="loc-guide__more">'
-             .     ($in_eigen ? 'Ihr Profil' : 'Profil ansehen')
+             .     self::esc(I18n::t($in_eigen
+                       ? 'guide.streifen.mehr_eigen' : 'guide.streifen.mehr'))
              .   '</span>'
              . '</a>';
     }
@@ -279,14 +281,20 @@ class GuideView
         $teile = [];
 
         $seit = self::dabeiSeit($in_profil['joined_at'] ?? null);
-        if ($seit !== '') $teile[] = 'Guide seit ' . $seit;
+        // Der ganze Satzteil aus dem Katalog: Im Englischen steht die
+        // Zeitangabe an anderer Stelle als im Deutschen.
+        if ($seit !== '') $teile[] = I18n::t('guide.meta.seit', ['monat' => $seit]);
 
         // namesInline: Der Streifen setzt die Namen mit Kommas in einen
         // Satz und den Satz danach mit " · " neben andere. Ein
         // rechtslaeufiger Name braucht dort seine Klammer, sonst wandern die
         // Trennzeichen. Siehe App\Helper\Languages::namesInline.
         $sprachen = Languages::namesInline($in_profil['languages'] ?? '');
-        if ($sprachen !== []) $teile[] = 'Spricht ' . implode(', ', $sprachen);
+        if ($sprachen !== []) {
+            $teile[] = I18n::t('guide.meta.spricht', [
+                'sprachen' => implode(', ', $sprachen),
+            ]);
+        }
 
         if ($teile === []) return '';
 
@@ -355,10 +363,8 @@ class GuideView
         if ($text === '') {
             if (!$in_eigen) return '';
             return '<section class="app-panel guide-about"><div class="app-panel__body">'
-                 . '<p class="guide-about__empty">Sie haben noch nichts über sich '
-                 . 'geschrieben. Ein paar Sätze darüber, wer Sie sind und warum Sie '
-                 . 'diese Orte zeigen, stehen auf jeder Ihrer Standortseiten – und sie '
-                 . 'sind das, was ein Kunde vor seiner Anfrage liest.</p>'
+                 . '<p class="guide-about__empty">'
+                 . self::esc(I18n::t('guide.ueber.leer')) . '</p>'
                  . '</div></section>';
         }
 
@@ -373,7 +379,7 @@ class GuideView
         }
 
         return '<section class="app-panel guide-about"><div class="app-panel__body">'
-             . '<h2 class="guide__h2">Über mich</h2>'
+             . '<h2 class="guide__h2">' . self::esc(I18n::t('guide.ueber.titel')) . '</h2>'
              . '<div class="guide-about__text">' . $html . '</div>'
              . '</div></section>';
     }
@@ -397,16 +403,20 @@ class GuideView
      */
     public static function angeboteHtml(array $in_standorte, string $in_name, bool $in_eigen): string
     {
+        // DER NAME STECKT IM SATZ und wird nicht davorgeklebt: Im
+        // Englischen steht er an anderer Stelle ("What X shows you").
         $kopf = '<h2 class="guide__h2">'
-              . ($in_eigen ? 'Ihre Standorte'
-                           : self::esc($in_name) . ' zeigt Ihnen')
+              . ($in_eigen
+                 ? self::esc(I18n::t('guide.angebote.eigen'))
+                 : self::esc(I18n::t('guide.angebote.fremd', ['name' => $in_name])))
               . '</h2>';
 
         if ($in_standorte === []) {
             $text = $in_eigen
-                ? 'Sie bieten noch keinen Standort an. Über "Standort anbieten" wird '
-                . 'aus diesem Profil ein Angebot.'
-                : 'Dieser Guide bietet gerade keinen Standort an.';
+                ? I18n::t('guide.angebote.leer_eigen', [
+                      'anbieten' => I18n::t('guide.angebote.anbieten'),
+                  ])
+                : I18n::t('guide.angebote.leer_fremd');
             return '<section class="guide-offers">' . $kopf
                  . '<p class="guide-offers__empty">' . self::esc($text) . '</p>'
                  . '</section>';
@@ -439,7 +449,7 @@ class GuideView
 
         // Ohne Titel steht der Ort in der Ueberschrift. Eine Kachel ohne
         // jede Beschriftung waere ein Verweis, den niemand anklickt.
-        if ($titel === '') $titel = $ort !== '' ? $ort : 'Führung';
+        if ($titel === '') $titel = $ort !== '' ? $ort : I18n::t('guide.angebot.ohne_titel');
 
         $cover_id = (int)($in_standort['cover_image_id'] ?? 0);
         $bild = $cover_id > 0
@@ -456,7 +466,8 @@ class GuideView
         // gebaut von derselben Methode, damit "verfuegbar" ueberall dasselbe
         // heisst und gleich aussieht.
         $zustand = (int)($in_standort['blocked'] ?? 0) === 1
-            ? '<span class="app-tag app-tag--danger">Gesperrt</span>'
+            ? '<span class="app-tag app-tag--danger">'
+              . self::esc(I18n::t('guide.angebot.gesperrt')) . '</span>'
             : LocationView::zustandHtml([
                   'blocked'      => 0,
                   'availability' => $in_standort['availability'] ?? 'idle',
@@ -496,8 +507,10 @@ class GuideView
         if (!$in_eigen) return '';
 
         return '<div class="guide-head__tools">'
-             . '<span class="app-tag app-tag--accent">Ihr Profil</span>'
-             . '<a class="btn btn-secondary btn-sm" href="index.php?act=settings">Profil bearbeiten</a>'
+             . '<span class="app-tag app-tag--accent">'
+             .   self::esc(I18n::t('guide.werkzeuge.marke')) . '</span>'
+             . '<a class="btn btn-secondary btn-sm" href="index.php?act=settings">'
+             .   self::esc(I18n::t('guide.werkzeuge.bearbeiten')) . '</a>'
              . '</div>';
     }
 
@@ -579,7 +592,8 @@ class GuideView
         // warum es nicht andersherum geht.
         $entfernen = $hat_bild
             ? '<button type="submit" form="guide-avatar-delete"'
-              . ' class="btn btn-secondary btn-sm guide-form__remove">Bild entfernen</button>'
+              . ' class="btn btn-secondary btn-sm guide-form__remove">'
+              . self::esc(I18n::t('guide.formular.bild_entfernen')) . '</button>'
             : '';
 
         // Leer, und das ist richtig: Es traegt keine Eingabe, sondern nur die
@@ -589,11 +603,10 @@ class GuideView
         $entfernenFormular = $hat_bild
             ? '<form id="guide-avatar-delete" action="index.php?act=guide_avatar_delete"'
               . ' method="post"'
-              . ' data-confirm-title="Profilbild entfernen?"'
-              . ' data-confirm="Das Bild wird gelöscht. Auf Ihren Standortseiten und'
-              . ' in Ihrem Profil stehen danach wieder Ihre Initialen. Ein neues Bild'
-              . ' können Sie jederzeit hochladen."'
-              . ' data-confirm-ok="Entfernen" data-confirm-danger="1"></form>'
+              . ' data-confirm-title="' . self::esc(I18n::t('guide.formular.bild_entfernen_titel')) . '"'
+              . ' data-confirm="' . self::esc(I18n::t('guide.formular.bild_entfernen_frage')) . '"'
+              . ' data-confirm-ok="' . self::esc(I18n::t('guide.formular.bild_entfernen_ok')) . '"'
+              . ' data-confirm-danger="1"></form>'
             : '';
 
         return '<form action="index.php?act=guide_profile_save" method="post"'
@@ -603,51 +616,57 @@ class GuideView
              . '<div class="guide-form__portrait">'
              .   $vorschau
              .   '<div class="guide-form__portraitText">'
-             .     '<label class="form-label" for="guide-avatar">Bild</label>'
+             .     '<label class="form-label" for="guide-avatar">'
+             .       self::esc(I18n::t('guide.formular.bild')) . '</label>'
              .     '<input type="file" id="guide-avatar" name="avatar" class="form-control"'
              .            ' accept="' . self::esc((string)($in_grenzen['accept'] ?? 'image/*')) . '">'
-             .     '<p class="form-text">Ein Bild von Ihnen, quadratisch zugeschnitten. '
-             .       'Bis zu ' . $mb . ' MB. Ohne Bild stehen Ihre Initialen dort – '
-             .       'das ist besser als ein leerer Kreis, aber schlechter als ein Gesicht.</p>'
+             .     '<p class="form-text">'
+             .       self::esc(I18n::t('guide.formular.bild_hinweis', ['mb' => $mb])) . '</p>'
              .     $entfernen
              .   '</div>'
              . '</div>'
 
              // --- Anzeigename --------------------------------------------
              . '<div class="guide-form__field">'
-             .   '<label class="form-label" for="guide-display-name">Anzeigename</label>'
+             .   '<label class="form-label" for="guide-display-name">'
+             .     self::esc(I18n::t('guide.formular.anzeigename')) . '</label>'
              .   '<input type="text" id="guide-display-name" name="display_name"'
              .          ' class="form-control" maxlength="' . $name_max . '"'
              .          ' value="' . self::esc($name) . '">'
-             .   '<p class="form-text">Der Name, unter dem Kunden Sie sehen – auf Ihren '
-             .     'Standortseiten, in der Standortliste und hier. Ihr Benutzername '
-             .     ($user !== '' ? '<strong>' . self::esc($user) . '</strong> ' : '')
-             .     'bleibt davon unberührt; mit ihm melden Sie sich weiterhin an, und '
-             .     'ein Kunde bekommt ihn nicht zu sehen. Ohne Anzeigenamen steht er '
-             .     'dort allerdings weiterhin.</p>'
+             // Der Benutzername steht MITTEN im Satz und ist hervorgehoben.
+             // Der Platzhalter bringt sein Leerzeichen selbst mit: Ein Konto
+             // ohne Benutzernamen soll keine doppelte Luecke hinterlassen.
+             .   '<p class="form-text">'
+             .     ViewHelper::tHtml('guide.formular.anzeigename_hinweis', [
+                       'name' => $user !== ''
+                           ? ' <strong>' . self::esc($user) . '</strong>'
+                           : '',
+                   ])
+             .   '</p>'
              . '</div>'
 
              // --- Selbstbeschreibung -------------------------------------
              . '<div class="guide-form__field">'
-             .   '<label class="form-label" for="guide-about">Über mich</label>'
+             .   '<label class="form-label" for="guide-about">'
+             .     self::esc(I18n::t('guide.formular.ueber')) . '</label>'
              .   '<textarea id="guide-about" name="about" class="form-control" rows="5"'
              .             ' maxlength="' . $about_max . '">' . self::esc($about) . '</textarea>'
-             .   '<p class="form-text">Ein paar Sätze über sich. Der ERSTE SATZ steht auf '
-             .     'jeder Ihrer Standortseiten neben Ihrem Bild – schreiben Sie ihn so, '
-             .     'dass er allein schon etwas sagt.</p>'
+             .   '<p class="form-text">'
+             .     self::esc(I18n::t('guide.formular.ueber_hinweis')) . '</p>'
              . '</div>'
 
              // --- Sprachen -----------------------------------------------
              . '<div class="guide-form__field">'
-             .   '<span class="form-label">Sprachen</span>'
+             .   '<span class="form-label">'
+             .     self::esc(I18n::t('guide.formular.sprachen')) . '</span>'
              .   '<div class="guide-choices">' . self::sprachauswahlHtml($in_profil['languages'] ?? '') . '</div>'
-             .   '<p class="form-text">Die Sprachen, die Sie sprechen. Welche Sprachen für '
-             .     'eine einzelne Führung gelten, steht weiterhin am Standort – das ist '
-             .     'nicht dasselbe.</p>'
+             .   '<p class="form-text">'
+             .     self::esc(I18n::t('guide.formular.sprachen_hinweis')) . '</p>'
              . '</div>'
 
              . '<div class="app-actions">'
-             .   '<button type="submit" class="btn btn-primary">Profil speichern</button>'
+             .   '<button type="submit" class="btn btn-primary">'
+             .     self::esc(I18n::t('guide.formular.speichern')) . '</button>'
              . '</div>'
              . '</form>'
 

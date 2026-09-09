@@ -78,7 +78,8 @@ class ReviewView
         return '<section class="app-panel rev-block">'
              .   '<div class="app-panel__body">'
              .     '<h2 class="rev-block__title">'
-             .       ($eigen ? 'Ihre Bewertungen' : 'Bewertungen')
+             .       self::esc(I18n::t($eigen
+                         ? 'bewertung.block.titel_eigen' : 'bewertung.block.titel'))
              .     '</h2>'
              .     self::zusammenfassungHtml($in_summary, $eigen)
              .     self::listeHtml($in_bewertungen, $in_ansicht)
@@ -122,7 +123,9 @@ class ReviewView
         }
 
         return '<div class="rev-summary rev-summary--young">'
-             .   '<span class="app-tag">' . ($anzahl > 0 ? 'Noch wenige Bewertungen' : 'Noch keine Bewertung') . '</span>'
+             .   '<span class="app-tag">'
+             .     self::esc(I18n::t($anzahl > 0
+                       ? 'bewertung.marke.wenige' : 'bewertung.marke.keine')) . '</span>'
              .   '<p class="rev-summary__note">'
              .     self::esc(self::jungText($anzahl, $touren, $in_eigen))
              .   '</p>'
@@ -150,40 +153,47 @@ class ReviewView
     {
         $fehlend = max(1, TourReview::MIN_FOR_AVERAGE - $in_anzahl);
 
+        // ZWEI GANZE SAETZE, NICHT MEHR VIER STUECKE. Vorher entstand
+        // dieser Text aus einer Kette: "durchgeführt" + ", eine davon
+        // bewertet. " + "Ab 3 Bewertungen ...". Jedes Stueck war fuer sich
+        // uebersetzbar, der Satz als Ganzes nicht - im Englischen stehen
+        // Zahl, Einheit und Zusatz in anderer Reihenfolge. Jetzt steht
+        // jeder Satz vollstaendig im Katalog, und die Zahlen sind
+        // Platzhalter.
+        $saetze = [];
+
         // Die Fuehrungen zuerst: Sie sind die Auskunft, die es hier wirklich
         // gibt. Bei null Fuehrungen bleibt sie weg - "0 Führungen" ist keine
         // Auskunft, sondern eine Verlegenheit.
-        $satz = '';
         if ($in_touren > 0) {
-            $satz = ($in_touren === 1
-                    ? 'Eine Führung durchgeführt'
-                    : $in_touren . ' Führungen durchgeführt')
-                  . ($in_anzahl > 0
-                     ? ($in_anzahl === 1 ? ', eine davon bewertet. ' : ', ' . $in_anzahl . ' davon bewertet. ')
-                     : '. ');
+            $saetze[] = $in_anzahl > 0
+                ? I18n::plural('bewertung.jung.fuehrungen_bewertet', $in_touren, [
+                      'bewertet' => I18n::plural('bewertung.jung.davon_bewertet', $in_anzahl),
+                  ])
+                : I18n::plural('bewertung.jung.fuehrungen', $in_touren);
         }
 
         // ZWEI VERSCHIEDENE AUSSAGEN, und sie duerfen nicht denselben Satz
         // bekommen: "noch zu wenige" ist bei null Bewertungen keine Auskunft,
         // sondern eine Ausrede fuer etwas, das gar nicht da ist.
         if ($in_anzahl === 0) {
-            $satz .= $in_eigen
-                ? 'Bewertet hat noch niemand. Ab ' . TourReview::MIN_FOR_AVERAGE
-                . ' Bewertungen steht hier ein Durchschnitt.'
+            $saetze[] = $in_eigen
+                ? I18n::t('bewertung.jung.keine_eigen', ['min' => TourReview::MIN_FOR_AVERAGE])
                 : ($in_touren > 0
-                   ? 'Geschrieben hat darüber noch niemand.'
-                   : 'Hier hat noch keine Führung stattgefunden.');
-            return $satz;
+                   ? I18n::t('bewertung.jung.keine_texte')
+                   : I18n::t('bewertung.jung.keine_fuehrung'));
+        } else {
+            $saetze[] = $in_eigen
+                ? I18n::t('bewertung.jung.wenige_eigen', [
+                      'min'     => TourReview::MIN_FOR_AVERAGE,
+                      'fehlend' => $fehlend,
+                  ])
+                : I18n::t('bewertung.jung.wenige_fremd', [
+                      'min' => TourReview::MIN_FOR_AVERAGE,
+                  ]);
         }
 
-        $satz .= $in_eigen
-            ? 'Ein Durchschnitt erscheint ab ' . TourReview::MIN_FOR_AVERAGE
-            . ' Bewertungen – noch ' . $fehlend . '. Bis dahin steht hier keine Zahl: '
-            . 'Eine einzelne Stimme sieht aus wie ein Urteil und ist keins.'
-            : 'Für einen Durchschnitt sind es noch zu wenige – er erscheint ab '
-            . TourReview::MIN_FOR_AVERAGE . ' Bewertungen.';
-
-        return $satz;
+        return implode(' ', $saetze);
     }
 
     /**
@@ -239,8 +249,10 @@ class ReviewView
         // Der Titel des Standorts kann fehlen: Die Bewertung ueberlebt seine
         // Loeschung (die Tabelle hat bewusst keine Fremdschluessel).
         $titel = trim((string)($in_bewertung['title'] ?? ''));
+        // Auch die Anfuehrungszeichen stehen im Katalog: Sie sehen im
+        // Englischen anders aus als im Deutschen.
         $ort   = (!empty($in_ansicht['mit_ort']) && $titel !== '')
-               ? 'Zu „' . $titel . '“'
+               ? I18n::t('bewertung.eintrag.zu', ['titel' => $titel])
                : '';
 
         $meta = implode(' · ', array_filter([$ort, $monat], static fn($t) => $t !== ''));
@@ -295,7 +307,10 @@ class ReviewView
         $klassen = 'rev-stars' . ($in_klasse !== '' ? ' ' . $in_klasse : '');
 
         return '<span class="' . $klassen . '" role="img" aria-label="'
-             . self::esc(self::zahl($wert) . ' von ' . TourReview::STARS_MAX . ' Sternen')
+             . self::esc(I18n::t('bewertung.sterne.label', [
+                   'wert' => self::zahl($wert),
+                   'max'  => TourReview::STARS_MAX,
+               ]))
              . '">' . $sterne . '</span>';
     }
 
@@ -307,14 +322,16 @@ class ReviewView
      */
     public static function anzahlText(int $in_anzahl): string
     {
-        return $in_anzahl === 1 ? '1 Bewertung' : $in_anzahl . ' Bewertungen';
+        return I18n::plural('bewertung.anzahl', $in_anzahl);
     }
 
     /**
-     * Eine Zahl mit Komma statt Punkt - und ohne ",0".
+     * Eine Zahl mit dem Trennzeichen der Sprache - und ohne die glatte Null.
      *
-     * "4,3" auf einer deutschen Seite, und "5" statt "5,0": Die
-     * Nachkommastelle sagt nur dann etwas, wenn dort etwas steht.
+     * "4,3" auf einer deutschen Seite, "4.3" auf einer englischen - das
+     * Trennzeichen kommt aus dem Katalog (zahl.dezimaltrenner). Und "5"
+     * statt "5,0": Die Nachkommastelle sagt nur dann etwas, wenn dort
+     * etwas steht.
      *
      * @param float $in_wert
      * @return string
@@ -324,7 +341,7 @@ class ReviewView
         $gerundet = round($in_wert, 1);
         return $gerundet == (int)$gerundet
              ? (string)(int)$gerundet
-             : number_format($gerundet, 1, ',', '');
+             : number_format($gerundet, 1, I18n::t('zahl.dezimaltrenner'), '');
     }
 
     /**

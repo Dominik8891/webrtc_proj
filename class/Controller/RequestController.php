@@ -6,6 +6,7 @@ use App\Model\TourRequest;
 use App\Model\User;
 use App\Model\RateLimit;
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Helper\Permission;
 use App\Helper\Role;
 use App\Helper\ViewHelper;
@@ -64,7 +65,7 @@ class RequestController
     public function create()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            self::json(['success' => false, 'error' => 'Nur per POST.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.post')]);
         }
 
         $daten       = self::body();
@@ -88,14 +89,18 @@ class RequestController
         if ($rest > 0) {
             self::json([
                 'success' => false,
-                'error'   => 'Zu viele Anfragen in kurzer Zeit. Bitte '
-                           . RateLimit::wartehinweis($rest) . ' warten.',
+                // Der GANZE Satz kommt aus dem Katalog, die Wartezeit ist
+                // ein Platzhalter darin - im Englischen steht sie am Ende
+                // ("Please wait another 3 minutes.").
+                'error'   => I18n::t('anfrage.fehler.zu_viele', [
+                                 'warten' => RateLimit::wartehinweis($rest),
+                             ]),
             ]);
         }
         RateLimit::verbuchen('request_create', $teile);
 
         if ($location_id < 1) {
-            self::json(['success' => false, 'error' => 'Es fehlt der Standort.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.standort_fehlt')]);
         }
 
         // Der Wunschzeitpunkt muss in der Zukunft liegen - aber ein paar
@@ -108,7 +113,7 @@ class RequestController
         if ($wunsch > (int)$config['lead_time_max']) {
             self::json([
                 'success' => false,
-                'error'   => 'So weit im Voraus lässt sich eine Führung nicht anfragen.',
+                'error'   => I18n::t('anfrage.fehler.zu_weit'),
             ]);
         }
 
@@ -117,15 +122,15 @@ class RequestController
             // Ein gesperrter Standort ist aus der Uebersicht genommen; ueber
             // ihn beginnt keine Fuehrung mehr - dieselbe Antwort wie fuer
             // einen, den es nicht gibt.
-            self::json(['success' => false, 'error' => 'Dieser Standort nimmt keine Anfragen an.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.keine_anfragen')]);
         }
 
         $guide_id = (int)$standort['user_id'];
         if ($guide_id === $customer_id) {
-            self::json(['success' => false, 'error' => 'Den eigenen Standort fragt man nicht an.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.eigener_standort')]);
         }
         if (!self::offersLocations($guide_id)) {
-            self::json(['success' => false, 'error' => 'Dieser Standort nimmt keine Anfragen an.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.keine_anfragen')]);
         }
 
         // EINE LAUFENDE ANFRAGE JE STANDORT. Eine zweite waehrend die erste
@@ -136,14 +141,14 @@ class RequestController
         if ($laufend !== null) {
             self::json([
                 'success' => false,
-                'error'   => 'Für diesen Standort läuft bereits eine Anfrage von Ihnen.',
+                'error'   => I18n::t('anfrage.fehler.bereits_offen'),
                 'request' => $laufend,
             ]);
         }
 
         $id = TourRequest::create($location_id, $guide_id, $customer_id, $wunsch);
         if ($id === null) {
-            self::json(['success' => false, 'error' => 'Die Anfrage konnte nicht gestellt werden.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.nicht_gestellt')]);
         }
 
         self::json([
@@ -182,7 +187,7 @@ class RequestController
     private function antwort(bool $in_annehmen)
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            self::json(['success' => false, 'error' => 'Nur per POST.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.post')]);
         }
 
         $daten    = self::body();
@@ -190,7 +195,7 @@ class RequestController
         $guide_id = Auth::userId();
 
         if ($id < 1) {
-            self::json(['success' => false, 'error' => 'Es fehlt die Anfrage.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.anfrage_fehlt')]);
         }
 
         $erfolg = $in_annehmen
@@ -205,7 +210,7 @@ class RequestController
                 . $guide_id . ' nicht beantwortet werden.');
             self::json([
                 'success' => false,
-                'error'   => 'Diese Anfrage lässt sich nicht mehr beantworten.',
+                'error'   => I18n::t('anfrage.fehler.nicht_beantwortbar'),
             ]);
         }
 
@@ -224,7 +229,7 @@ class RequestController
     public function cancel()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            self::json(['success' => false, 'error' => 'Nur per POST.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.post')]);
         }
 
         $daten   = self::body();
@@ -232,7 +237,7 @@ class RequestController
         $user_id = Auth::userId();
 
         if ($id < 1) {
-            self::json(['success' => false, 'error' => 'Es fehlt die Anfrage.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.anfrage_fehlt')]);
         }
 
         if (!TourRequest::cancel($id, $user_id)) {
@@ -240,7 +245,7 @@ class RequestController
                 . $user_id . ' nicht zurueckgenommen werden.');
             self::json([
                 'success' => false,
-                'error'   => 'Diese Anfrage lässt sich nicht mehr zurücknehmen.',
+                'error'   => I18n::t('anfrage.fehler.nicht_zuruecknehmbar'),
             ]);
         }
 
@@ -272,7 +277,7 @@ class RequestController
     public function finish()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            self::json(['success' => false, 'error' => 'Nur per POST.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.post')]);
         }
 
         $daten    = self::body();
@@ -280,7 +285,7 @@ class RequestController
         $guide_id = Auth::userId();
 
         if ($id < 1) {
-            self::json(['success' => false, 'error' => 'Es fehlt die Führung.']);
+            self::json(['success' => false, 'error' => I18n::t('anfrage.fehler.fuehrung_fehlt')]);
         }
 
         if (!TourRequest::finish($id, $guide_id)) {
@@ -291,7 +296,7 @@ class RequestController
                 . $guide_id . ' nicht beendet werden.');
             self::json([
                 'success' => false,
-                'error'   => 'Diese Führung lässt sich nicht mehr beenden.',
+                'error'   => I18n::t('anfrage.fehler.nicht_beendbar'),
             ]);
         }
 

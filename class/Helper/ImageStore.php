@@ -278,7 +278,7 @@ class ImageStore
         $verzeichnis = self::locationDir($in_location_id, true);
         if ($verzeichnis === null) {
             imagedestroy($quelle);
-            return self::fehler('Das Bild konnte nicht gespeichert werden.');
+            return self::fehler(I18n::t('bild.fehler.nicht_gespeichert'));
         }
 
         return self::schreibe($quelle, $verzeichnis, [
@@ -320,7 +320,7 @@ class ImageStore
         $verzeichnis = self::guideDir($in_user_id, true);
         if ($verzeichnis === null) {
             imagedestroy($quelle);
-            return self::fehler('Das Bild konnte nicht gespeichert werden.');
+            return self::fehler(I18n::t('bild.fehler.nicht_gespeichert'));
         }
 
         $kante  = max(1, (int)($config['avatar_edge']  ?? 512));
@@ -351,24 +351,24 @@ class ImageStore
 
         $fehler = isset($in_file['error']) ? (int)$in_file['error'] : UPLOAD_ERR_NO_FILE;
         if ($fehler === UPLOAD_ERR_INI_SIZE || $fehler === UPLOAD_ERR_FORM_SIZE) {
-            return self::fehler('Die Datei ist zu gross.');
+            return self::fehler(I18n::t('bild.fehler.zu_gross'));
         }
         if ($fehler !== UPLOAD_ERR_OK) {
             error_log('ImageStore: Upload-Fehlercode ' . $fehler);
-            return self::fehler('Die Datei konnte nicht empfangen werden.');
+            return self::fehler(I18n::t('bild.fehler.nicht_empfangen'));
         }
 
         $tmp = $in_file['tmp_name'] ?? '';
         if (!is_string($tmp) || $tmp === '' || !is_uploaded_file($tmp)) {
             error_log('ImageStore: tmp_name ist keine hochgeladene Datei.');
-            return self::fehler('Die Datei konnte nicht empfangen werden.');
+            return self::fehler(I18n::t('bild.fehler.nicht_empfangen'));
         }
 
         $bytes = (int)@filesize($tmp);
         $grenze = (int)$config['max_file_bytes'];
         if ($bytes < 1 || $bytes > $grenze) {
-            return self::fehler('Die Datei ist zu gross - erlaubt sind '
-                . round($grenze / 1048576) . ' MB.');
+            return self::fehler(I18n::t('bild.fehler.grenze',
+                ['mb' => round($grenze / 1048576)]));
         }
 
         // getimagesize() liest den Kopf der Datei und liefert Typ UND Masse
@@ -376,22 +376,21 @@ class ImageStore
         // .jpg kommt hier als false zurueck.
         $info = @getimagesize($tmp);
         if ($info === false || empty($info['mime'])) {
-            return self::fehler('Das ist keine Bilddatei.');
+            return self::fehler(I18n::t('bild.fehler.kein_bild'));
         }
         if (!in_array($info['mime'], $config['accepted_mime'], true)) {
-            return self::fehler('Dieses Bildformat wird nicht angenommen (JPEG, PNG oder WebP).');
+            return self::fehler(I18n::t('bild.fehler.format'));
         }
 
         [$breite, $hoehe] = $info;
         $maxKante = (int)$config['max_source_edge'];
         if ($breite < 1 || $hoehe < 1 || $breite > $maxKante || $hoehe > $maxKante) {
-            return self::fehler('Das Bild ist zu gross - erlaubt sind bis zu '
-                . $maxKante . ' Punkte Kantenlaenge.');
+            return self::fehler(I18n::t('bild.fehler.masse', ['kante' => $maxKante]));
         }
 
         $quelle = self::readImage($tmp, $info['mime']);
         if ($quelle === null) {
-            return self::fehler('Das Bild konnte nicht gelesen werden.');
+            return self::fehler(I18n::t('bild.fehler.nicht_lesbar'));
         }
 
         // Die Drehung steht bei einem Handyfoto NUR im EXIF-Block, und der
@@ -440,7 +439,7 @@ class ImageStore
                 $pfad = $in_verzeichnis . '/' . $name . $endung;
                 if (is_file($pfad)) @unlink($pfad);
             }
-            return self::fehler('Das Bild konnte nicht gespeichert werden.');
+            return self::fehler(I18n::t('bild.fehler.nicht_gespeichert'));
         }
 
         return ['ok' => true, 'name' => $name];

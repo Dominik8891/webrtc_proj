@@ -19,16 +19,26 @@ namespace App\Helper;
  *
  * WIE WEIT DER UMZUG IST
  * ----------------------
- * Das Fundament steht, und die KATALOGE UND FORMATE sind umgezogen:
+ * Das Fundament steht. Umgezogen sind die KATALOGE UND FORMATE -
  * Laendernamen (App\Helper\Countries), Monatsnamen, Wochentage und
  * Tagesabschnitte (App\Helper\Availability), die Zustaende einer Anfrage
  * (App\Model\TourRequest), Dauern, relative Zeitangaben und die beiden
- * E-Mails. Das sind die Texte, die ZUSAMMENGESETZT werden - und wer sie im
- * Code zusammensetzt, schreibt dabei die deutsche Grammatik fest.
+ * E-Mails - und seitdem die TEXTE, DIE PHP ERZEUGT: die Standortseite
+ * (App\Helper\LocationView), das Guide-Profil (App\Helper\GuideView), der
+ * Bewertungsblock (App\Helper\ReviewView), der Verwaltungsbereich
+ * (App\Helper\AdminView), die Kopfleiste (App\Helper\ViewHelper), der
+ * Bildspeicher (App\Helper\ImageStore) und die Meldungen der Controller.
  *
- * Der Bestand der SEITEN ist weiterhin deutsch und zieht Schluessel fuer
- * Schluessel nach. Dass dabei nichts Neues dazukommt, haelt die Ratsche fest
+ * NOCH DEUTSCH sind die Vorlagen unter assets/html und die Meldungen des
+ * Browsers unter assets/js; sie ziehen in den naechsten Stufen nach. Dass
+ * dabei nichts Neues dazukommt, haelt die Ratsche fest
  * (tests/i18n_scan.php).
+ *
+ * NICHT UMGEZOGEN WERDEN Logmeldungen und die Texte geworfener Ausnahmen:
+ * Sie werden geloggt und nie angezeigt, richten sich also an den Betreiber
+ * und nicht an den Benutzer. Ebenso wenig die Meldung in
+ * App\Model\PdoConnect - sie ist der Notausgang und darf von keiner
+ * weiteren Klasse abhaengen; dort steht, warum.
  *
  * WOHER DIE SPRACHE BEIM SEITENAUFBAU KOMMT
  * -----------------------------------------

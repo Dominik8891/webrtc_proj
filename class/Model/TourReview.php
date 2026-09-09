@@ -2,6 +2,8 @@
 
 namespace App\Model;
 
+use App\Helper\I18n;
+
 /**
  * Die Bewertung einer Fuehrung: abgeben, zaehlen, anzeigen, entfernen.
  *
@@ -117,19 +119,25 @@ class TourReview
      *
      * WOZU: "3 von 5" heisst fuer jeden etwas anderes. Die Woerter stehen am
      * Formular neben den Sternen und in der Beschriftung einer abgegebenen
-     * Bewertung - an beiden Stellen dieselben, weil sie hier stehen.
+     * Bewertung - an beiden Stellen dieselben, weil sie hier zusammenkommen.
+     *
+     * DIE WOERTER SELBST kommen aus dem Sprachkatalog (bewertung.stern.*);
+     * diese Methode legt nur fest, DASS es fuenf sind und welche Zahl zu
+     * welchem Wort gehoert.
      *
      * @return array<int,string>
      */
     public static function starNames(): array
     {
-        return [
-            1 => 'Enttäuschend',
-            2 => 'Weniger gut',
-            3 => 'In Ordnung',
-            4 => 'Gut',
-            5 => 'Großartig',
-        ];
+        // Aus dem Sprachkatalog und nicht aus dieser Liste: Die Stufen
+        // stehen im Bewertungsformular und in der Verwaltung, und sie
+        // gehoeren zur Sprache der SEITE. Der Schluessel traegt die Zahl -
+        // sie ist die Kennung, das Wort ist die Beschriftung.
+        $namen = [];
+        for ($stern = 1; $stern <= self::STARS_MAX; $stern++) {
+            $namen[$stern] = I18n::t('bewertung.stern.' . $stern);
+        }
+        return $namen;
     }
 
     /**

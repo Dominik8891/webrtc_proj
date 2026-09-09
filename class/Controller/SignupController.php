@@ -5,6 +5,7 @@ use App\Model\User;
 use App\Model\Email;
 use App\Model\PdoConnect;
 use App\Model\RateLimit;
+use App\Helper\I18n;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 use App\Helper\LogHelper;
@@ -15,6 +16,16 @@ use App\Controller\EmailVerificationController;
  */
 class SignupController
 {
+    /**
+     * Wie kurz ein Passwort sein darf.
+     *
+     * Sie stand zweimal da: als Zahl in der Pruefung und ausgeschrieben in
+     * der Meldung daneben. Wer die eine aenderte, bekam eine Meldung, die
+     * etwas anderes behauptet als die Pruefung tut - und beim Umzug in den
+     * Katalog waere die Zahl in beiden Sprachen festgeschrieben worden.
+     */
+    public const PASSWORT_MIN = 8;
+
     /**
      * Zeigt das Registrierungsformular an.
      * @return void
@@ -97,7 +108,7 @@ class SignupController
                 $error = "username_invalid";
             } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $error = "email_invalid";
-            } elseif (strlen($pwd) < 8) {
+            } elseif (strlen($pwd) < self::PASSWORT_MIN) {
                 $error = "pwd_short";
             } else {
                 $user = new User();
@@ -229,8 +240,8 @@ class SignupController
         // Fehlerfall: Formular mit Fehler anzeigen
         $html = ViewHelper::template('assets/html/signup.html');
         switch ($error) {
-            case "username":         $msg = "Der Benutzername ist bereits vergeben."; break;
-            case "email":            $msg = "Die E-Mail-Adresse ist bereits vergeben."; break;
+            case "username":         $msg = I18n::t('registrierung.fehler.benutzername_vergeben'); break;
+            case "email":            $msg = I18n::t('registrierung.fehler.email_vergeben'); break;
             // DIE BEIDEN MELDUNGEN ZUM GELOESCHTEN KONTO SIND VERSCHIEDEN,
             // weil der Nutzer verschieden viel dagegen tun kann.
             //
@@ -245,30 +256,32 @@ class SignupController
             // sie hierher verlinkt - bis dahin waere eine erfundene Adresse
             // schlechter als der allgemeine Hinweis.
             case "username_geloescht":
-                $msg = "Dieser Benutzername gehört zu einem gelöschten Konto und lässt "
-                     . "sich nicht neu vergeben. Bitte wählen Sie einen anderen.";
+                $msg = I18n::t('registrierung.fehler.benutzername_geloescht');
                 break;
             case "email_geloescht":
-                $msg = "Zu dieser E-Mail-Adresse gab es bereits ein Konto, das gelöscht "
-                     . "wurde. Sie lässt sich deshalb nicht erneut verwenden. Bitte "
-                     . "nutzen Sie eine andere Adresse oder wenden Sie sich an den Betreiber.";
+                $msg = I18n::t('registrierung.fehler.email_geloescht');
                 break;
             // Der Rennfall: Zwischen Pruefung und Anlage hat sich jemand
             // anderes die Angabe gesichert. Nicht "Fehler", sondern "gleich
             // noch einmal" - beim zweiten Versuch greift die Vorabpruefung und
             // sagt genau, welche der beiden Angaben es war.
             case "vergeben_rennen":
-                $msg = "Benutzername oder E-Mail-Adresse wurde soeben vergeben. "
-                     . "Bitte versuchen Sie es noch einmal.";
+                $msg = I18n::t('registrierung.fehler.rennen');
                 break;
-            case "pw":               $msg = "Die Passwörter stimmen nicht überein."; break;
-            case "username_invalid": $msg = "Ungültiger Benutzername. Nur Buchstaben/Zahlen/Unterstrich, 3-20 Zeichen."; break;
-            case "email_invalid":    $msg = "Bitte gib eine gültige E-Mail-Adresse ein."; break;
-            case "pwd_short":        $msg = "Das Passwort muss mindestens 8 Zeichen lang sein."; break;
+            case "pw":               $msg = I18n::t('registrierung.fehler.passwoerter'); break;
+            case "username_invalid": $msg = I18n::t('registrierung.fehler.benutzername_ungueltig'); break;
+            case "email_invalid":    $msg = I18n::t('registrierung.fehler.email_ungueltig'); break;
+            // Die Mindestlaenge steht als Platzhalter im Satz und nicht im
+            // Text: Sie ist eine Pruefregel und keine Formulierung.
+            case "pwd_short":        $msg = I18n::t('registrierung.fehler.passwort_kurz',
+                                         ['n' => self::PASSWORT_MIN]); break;
             // Nicht "zu viele Konten von deiner Adresse": Das erklaert dem,
             // der es darauf anlegt, woran die Bremse haengt.
-            case "gesperrt":         $msg = "Zu viele Registrierungsversuche. Bitte " . $warten . " warten."; break;
-            default:                 $msg = "Ein unbekannter Fehler ist aufgetreten.";
+            // Der GANZE Satz aus dem Katalog, die Wartezeit als Platzhalter:
+            // Im Englischen steht sie am Ende.
+            case "gesperrt":         $msg = I18n::t('registrierung.fehler.gesperrt',
+                                         ['warten' => $warten]); break;
+            default:                 $msg = I18n::t('registrierung.fehler.unbekannt');
         }
         $html = str_replace('###ERROR###', $msg, $html);
         ViewHelper::output($html);

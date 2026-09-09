@@ -2343,6 +2343,69 @@ denen ein Guide *führen* kann — als **Endonyme**: `Deutsch`, `Français`,
 einer Führung auf Russisch sucht, sucht nach `Русский` und nicht nach
 „Russian". Es gibt hier nichts zu übersetzen.
 
+### Die Texte der Seiten
+
+**Die Stufe nach den Katalogen und Formaten.** Umgezogen ist jetzt, was **PHP
+selbst an Text erzeugt** — rund 300 Stellen:
+
+| Wo | Was | Schlüsselraum |
+|---|---|---|
+| `App\Helper\LocationView` | Die Standortseite: Zustandsmarken, Sperrhinweis, Anfrageformular, Anfragezustand, Bearbeitungsformular | `standort.*` |
+| `App\Helper\GuideView` | Guide-Streifen, Profil, Angebote, Profilformular | `guide.*` |
+| `App\Helper\ReviewView` | Bewertungsblock, Sternreihe, der Satz statt eines Durchschnitts | `bewertung.*` |
+| `App\Helper\AdminView` | Der Verwaltungsbereich: Reiter, Arbeitsvorrat, Kacheln, drei Listen | `verwaltung.*` |
+| `App\Helper\ViewHelper` | Die Kopfleiste: Kontomenü, beide Zähler, Bereitschaftsschalter | `kopf.*` |
+| `App\Helper\ImageStore` | Die Meldungen beim Hochladen | `bild.*` |
+| Die Controller | `Location`, `Request`, `Signup`, `Settings`, `Guide` | `standort.*`, `anfrage.*`, `registrierung.*`, `konto.*`, `guide.rolle.*` |
+| Die Modelle | Sternnamen (`TourReview`), Wartezeit einer Bremse (`RateLimit`) | `bewertung.stern.*`, `warten.*` |
+
+**Ganze Sätze mit Platzhaltern, keine Zusammensetzungen aus Satzteilen.** Das
+ist die Regel, um die es in dieser Stufe geht. Vorher stand etwa im
+Bewertungsblock:
+
+```php
+$satz = ($touren === 1 ? 'Eine Führung durchgeführt' : $touren . ' Führungen durchgeführt')
+      . ($anzahl === 1 ? ', eine davon bewertet. ' : ', ' . $anzahl . ' davon bewertet. ');
+```
+
+Jedes Stück ist für sich übersetzbar, der Satz als Ganzes nicht: Im Englischen
+stehen Zahl, Einheit und Zusatz in anderer Reihenfolge. Jetzt steht der ganze
+Satz im Katalog, und beweglich ist nur, was ein Platzhalter trägt — geprüft
+wird das in `tests/server_test.php`.
+
+**`ViewHelper::tHtml()`** ist der Weg für Sätze mit einer Hervorhebung
+*mittendrin* — „Ihre Anfrage für **morgen** ist beim Guide." In den Katalog
+darf kein Markup (ein Test hält das fest), zerlegen darf man den Satz nicht:
+
+```php
+ViewHelper::tHtml('standort.anfrage.offen_text', [
+    'wann' => '<strong>' . self::esc($wann) . '</strong>',
+]);
+```
+
+Maskiert wird der **Katalogtext zuerst**, eingesetzt wird das fertige HTML
+danach. Andersherum stünde das `<strong>` als Text auf der Seite.
+
+**Gezähltes wählt seine Form über den Katalog.** `Anfrage(n)` war die deutsche
+Notlösung für ein Problem, das `I18n::plural()` löst — im Englischen gäbe es
+die Klammer gar nicht erst.
+
+**Zahlen sind sprachabhängig.** `1.234` und `1,234` sind dieselbe Zahl in zwei
+Sprachen und in der jeweils anderen eine ganz andere. Die Trennzeichen stehen
+deshalb im Katalog (`zahl.dezimaltrenner`, `zahl.tausendertrenner`) und werden
+über `ViewHelper::ganzzahl()` gezogen.
+
+**Was ausdrücklich nicht umzieht:** Logmeldungen und die Texte geworfener
+Ausnahmen (`throw new \Exception('Location mit ID … nicht gefunden.')`). Sie
+werden geloggt und nie angezeigt — dieselbe Grenze, die auch der Scanner zieht.
+Ebenso die Meldung in `App\Model\PdoConnect`: Sie ist der Notausgang, wenn die
+Datenbank fehlt, und darf von keiner weiteren Klasse abhängen. Ein Startpfad,
+der `PdoConnect` lädt und `I18n` nicht, endete sonst mit einem Fatal Error
+statt mit einer Meldung.
+
+**Noch nicht umgezogen** sind die Vorlagen unter `assets/html` und die
+Meldungen des Browsers unter `assets/js`.
+
 ### Die Ratsche gegen neue deutsche Literale
 
 **Der wichtigste Posten des ganzen Fundaments.** Ein Sprachkatalog ist schnell

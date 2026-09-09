@@ -72,6 +72,13 @@ class PdoConnect
         } catch (PDOException $e) {
             error_log('DB_Verbindung fehlgeschlagen: ' . $e->getMessage());
             http_response_code(500);
+            // DIESE MELDUNG BLEIBT EIN LITERAL, und zwar mit Absicht: Sie
+            // ist die letzte, die ein Besucher zu sehen bekommt, wenn nichts
+            // mehr geht. Sie aus dem Sprachkatalog zu holen hiesse, den
+            // Notausgang von einer weiteren Klasse abhaengig zu machen - und
+            // ein Startpfad, der diese hier laedt und App\Helper\I18n nicht,
+            // endet dann statt mit einer Meldung mit einem Fatal Error
+            // (tests/server_test.php stellt genau diesen Pfad nach).
             die('Interner Serverfehler. Bitte später erneut versuchen.');
         }
     }
