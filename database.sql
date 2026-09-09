@@ -46,6 +46,31 @@ INSERT IGNORE INTO `usertype` (`id`, `name`) VALUES
 -- --------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `country` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+
+  -- ACHTUNG: `country_name` WIRD VOM ANWENDUNGSCODE NICHT MEHR GELESEN.
+  --
+  -- Die Namen stehen in App\Helper\Countries, deutsch und englisch, nach
+  -- iso2 geschluesselt. Die Abfragen holen die Spalte noch mit, und
+  -- Countries::zeilenNamenSetzen() ueberschreibt den Wert, bevor die Zeile
+  -- irgendwohin geht - deshalb steht in JSON-Antworten und Ansichten
+  -- weiterhin ein Feld `country_name`, nur eben mit dem Namen aus dem
+  -- Katalog.
+  --
+  -- WARUM: In dieser Spalte lag Mojibake aus einem Import mit falscher
+  -- Codepage. "Österreich" stand dort als "├ûsterreich" - die UTF-8-Bytes
+  -- C3 96 waren als CP437 gelesen und als deren Zeichen (U+251C, U+00FB)
+  -- neu gespeichert worden. Auf der Seite stand vor jedem Umlaut ein
+  -- senkrechter Strich. Betroffen war jeder Name mit einem Zeichen
+  -- ausserhalb ASCII, und nur der.
+  --
+  -- Ein Name in einer Datenspalte ist ausserdem eine Uebersetzung an der
+  -- falschen Stelle: Er laesst sich nicht in zwei Sprachen halten, ohne die
+  -- Tabelle zu verdoppeln, und er kann beim naechsten Import wieder kippen.
+  --
+  -- DIE SPALTE BLEIBT LIEGEN und behaelt ihre Werte - es geht nichts
+  -- verloren, und ein Bestand mit kaputten Namen laesst sich immer noch
+  -- ansehen. Sie zu loeschen waere eine eigene Entscheidung. Wer sie wieder
+  -- lesen will, findet in ihr NICHT die Wahrheit: die steht im Katalog.
   `country_name` varchar(255) NOT NULL,
 
   -- Laendercode nach ISO 3166-1 alpha-2, z.B. 'DE'.

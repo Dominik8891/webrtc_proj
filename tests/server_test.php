@@ -25,6 +25,7 @@ require_once $ROOT . '/class/Model/Location.php';
 require_once $ROOT . '/class/Model/LocationImage.php';
 require_once $ROOT . '/class/Helper/ImageStore.php';
 require_once $ROOT . '/class/Helper/Languages.php';
+require_once $ROOT . '/class/Helper/Countries.php';
 require_once $ROOT . '/class/Helper/Availability.php';
 require_once $ROOT . '/class/Helper/LocationView.php';
 require_once $ROOT . '/class/Model/GuideRole.php';
@@ -85,6 +86,7 @@ use App\Model\LocationImage;
 use App\Model\User;
 use App\Helper\ImageStore;
 use App\Helper\Languages;
+use App\Helper\Countries;
 use App\Helper\Availability;
 use App\Helper\LocationView;
 use App\Model\GuideRole;
@@ -1489,8 +1491,14 @@ sort($spalten);
 // NULL) und die Zahl der durchgefuehrten Fuehrungen. Ueber einzelne Konten
 // steht darin nichts, und dieselben Zahlen stehen auf der Standortseite, die
 // ein Gast ebenfalls aufrufen darf.
+//
+// iso2 seit der Umstellung der Laendernamen: Er ist der Schluessel, mit dem
+// App\Helper\Countries den Namen setzt - country_name kommt aus der Abfrage
+// mit dem kaputten Wert der Spalte und wird vor der Ausgabe ersetzt. Der
+// Code sagt dasselbe wie der Name daneben ("AT" zu "Österreich") und ueber
+// eine Person gar nichts.
 $erlaubt = ['availability', 'city_name', 'country_name', 'description', 'id',
-            'latitude', 'longitude', 'title',
+            'iso2', 'latitude', 'longitude', 'title',
             'review_count', 'review_average', 'review_tours'];
 sort($erlaubt);
 check($spalten === $erlaubt,
@@ -2883,6 +2891,95 @@ foreach (['assets/html/location_edit.html', 'assets/html/set_location.html',
         "$datei fuehrt eine eigene Sprachliste");
 }
 ok('die Sprachen stehen einmal im Katalog, nicht in jeder Vorlage');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDie Laendernamen stehen im Code, nicht in der Datenbank\n");
+
+// DER BEFUND: In country.country_name lag Mojibake aus einem Import mit
+// falscher Codepage - "Österreich" stand dort als "├ûsterreich" (UTF-8 C3 96
+// als CP437 gelesen und als U+251C/U+00FB neu gespeichert). Auf der Seite
+// stand vor jedem Umlaut ein senkrechter Strich. Die Namen kommen deshalb
+// aus App\Helper\Countries.
+check(count(Countries::all()) === 248, 'der Katalog fuehrt nicht 248 Laender');
+check(Countries::name('AT') === 'Österreich', 'AT ergibt nicht Österreich');
+check(Countries::name('AT', 'en') === 'Austria', 'AT ergibt auf Englisch nicht Austria');
+check(Countries::name('cw') === 'Curaçao', 'Kleinschreibung wird nicht angehoben');
+check(Countries::name(' de ') === 'Deutschland', 'Leerzeichen werden nicht abgeschnitten');
+// Unbekannt ergibt den Code selbst - dieselbe Entscheidung wie bei
+// Languages::name(). Eine Luecke waere keine Auskunft.
+check(Countries::name('XY') === 'XY', 'ein unbekannter Code ergibt nicht sich selbst');
+check(Countries::name(42) === '', 'aus Unfug wird kein Name');
+ok('der Katalog antwortet auf Code, Schreibweise und Unfug');
+
+// JEDER Eintrag muss JEDE Sprache haben - sonst faellt beim Umschalten auf
+// Englisch die Haelfte auf Deutsch zurueck, und niemand merkt es.
+$fehlend = [];
+foreach (Countries::SPRACHEN as $sprache) {
+    foreach (Countries::all($sprache) as $code => $name) {
+        if (trim((string)$name) === '') $fehlend[] = "$code/$sprache";
+    }
+}
+check($fehlend === [], 'im Katalog fehlen Namen: ' . implode(', ', array_slice($fehlend, 0, 10)));
+// Und die deutsche Fassung darf nicht heimlich die englische sein: Bei
+// mindestens den Laendern, die sich unterscheiden, muessen sie es auch tun.
+check(Countries::name('FR') !== Countries::name('FR', 'en')
+   && Countries::name('IT') !== Countries::name('IT', 'en'),
+    'deutsche und englische Namen sind dieselben - eine Sprache ist eine Kopie');
+ok('beide Sprachen sind vollstaendig und verschieden');
+
+// KEIN NAME DARF KAPUTT SEIN. Das ist die Pruefung, die den Befund
+// dauerhaft fernhaelt: gueltiges UTF-8, und kein Zeichen aus dem Block der
+// Rahmenzeichen (U+2500-U+257F), aus dem das "├" kam.
+$kaputt = [];
+foreach (Countries::SPRACHEN as $sprache) {
+    foreach (Countries::all($sprache) as $code => $name) {
+        if (!mb_check_encoding($name, 'UTF-8')) { $kaputt[] = "$code/$sprache (kein UTF-8)"; continue; }
+        if (preg_match('/[\x{2500}-\x{257F}\x{0000}-\x{001F}\x{007F}-\x{009F}]/u', $name)) {
+            $kaputt[] = "$code/$sprache ($name)";
+        }
+    }
+}
+check($kaputt === [], 'kaputte Namen im Katalog: ' . implode(', ', array_slice($kaputt, 0, 10)));
+ok('kein Rahmenzeichen und kein Steuerzeichen im Katalog');
+
+// Die Zeilen bekommen ihren Namen aus dem Katalog - das ist die Stelle, an
+// der der kaputte Wert der Spalte ersetzt wird.
+$zeilen = Countries::zeilenNamenSetzen([
+    ['iso2' => 'AT', 'country_name' => '├ûsterreich'],
+    ['iso2' => 'XY', 'country_name' => 'Unbekanntland'],
+    ['country_name' => 'ohne iso2'],
+]);
+check($zeilen[0]['country_name'] === 'Österreich', 'der kaputte Wert wird nicht ersetzt');
+check($zeilen[1]['country_name'] === 'Unbekanntland',
+    'ein unbekannter Code ueberschreibt den vorhandenen Wert');
+check($zeilen[2]['country_name'] === 'ohne iso2',
+    'ohne iso2 wird der vorhandene Wert angetastet');
+ok('zeilenNamenSetzen ersetzt genau dort, wo es einen Code gibt');
+
+// Sortiert wird nach dem Namen, der ANGEZEIGT wird - und Umlaute stehen
+// dabei bei ihrem Grundbuchstaben. strcmp allein setzte Österreich hinter
+// Zypern.
+$sortiert = array_column(Countries::sortiereNachName([
+    ['country_name' => 'Zypern'], ['country_name' => 'Österreich'],
+    ['country_name' => 'Ägypten'], ['country_name' => 'Afghanistan'],
+]), 'country_name');
+check($sortiert === ['Afghanistan', 'Ägypten', 'Österreich', 'Zypern'],
+    'die Reihenfolge stimmt nicht: ' . implode(', ', $sortiert));
+ok('Ä zaehlt wie A, Ö wie O');
+
+// Und die Abfragen muessen den Code mitholen, sonst greift die Ersetzung
+// nicht. Jede Abfrage mit country_name braucht country.iso2.
+foreach (['class/Model/Location.php', 'class/Model/TourRequest.php'] as $datei) {
+    foreach (preg_split('/\R/', (string)file_get_contents($ROOT . '/' . $datei)) as $nr => $zeile) {
+        if (strpos($zeile, 'country.country_name') === false) continue;
+        // Kommentare (// und --) und die ORDER-BY-Zeile sind keine Auswahl.
+        if (preg_match('~^\s*(//|--|\*)~', $zeile)) continue;
+        if (strpos($zeile, 'ORDER BY') !== false) continue;
+        check(strpos($zeile, 'country.iso2') !== false,
+            "$datei Zeile " . ($nr + 1) . " holt country_name ohne country.iso2: " . trim($zeile));
+    }
+}
+ok('jede Abfrage mit dem Laendernamen holt auch den Code');
 
 // --- Die Abfrage der Standortseite -----------------------------------------
 $seiteDb = new FakeConnection();

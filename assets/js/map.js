@@ -58,6 +58,80 @@ window.webrtcApp.locationMap = {
     NOMINATIM_SPRACHE: 'en',
 
     /**
+     * Der Abstand zwischen zwei Anfragen an Nominatim, in Millisekunden.
+     *
+     * Die Nutzungsregeln nennen ein absolutes Maximum von EINER Anfrage je
+     * Sekunde, und zwar fuer alle Nutzer dieser Anwendung zusammen. Diese
+     * Zahl ist also keine, an der man dreht, um die Suche flotter wirken zu
+     * lassen: Darunter wird die Anwendung abgewiesen, und der Nutzer sieht
+     * eine Suche, die manchmal nichts findet.
+     */
+    NOMINATIM_TAKT: 1000,
+
+    /**
+     * Wie viele Suchergebnisse gemerkt werden.
+     *
+     * Genug fuer das Tippen an einem Formular - wer eine Stadt sucht,
+     * probiert eine Handvoll Schreibweisen. Es ist keine Ablage auf Dauer:
+     * Mit dem Neuladen der Seite ist der Inhalt weg, und das ist richtig so.
+     */
+    STAEDTE_SPEICHER_MAX: 50,
+
+    /** Suchbegriff => Ergebnisliste. Map, weil sie die Reihenfolge kennt. */
+    staedteSpeicher: new Map(),
+
+    /**
+     * Der Schluessel, unter dem eine Suche gemerkt wird.
+     *
+     * Das Land gehoert hinein: "Valencia" in Spanien und "Valencia" in
+     * Venezuela sind zwei Antworten, und ohne das Land bekaeme die zweite
+     * Suche die erste zurueck.
+     *
+     * @param {string} in_iso2
+     * @param {string} in_query
+     * @returns {string}
+     */
+    staedteSchluessel(in_iso2, in_query) {
+        return String(in_iso2).toUpperCase() + '\n' + String(in_query).trim().toLowerCase();
+    },
+
+    /**
+     * Was zu dieser Suche schon bekannt ist.
+     *
+     * @param {string} in_iso2
+     * @param {string} in_query
+     * @returns {Array|null} null heisst "noch nie gefragt" - eine LEERE
+     *                       Liste heisst "gefragt, nichts gefunden" und ist
+     *                       eine gueltige Antwort
+     */
+    staedteAusSpeicher(in_iso2, in_query) {
+        const schluessel = this.staedteSchluessel(in_iso2, in_query);
+        return this.staedteSpeicher.has(schluessel)
+            ? this.staedteSpeicher.get(schluessel)
+            : null;
+    },
+
+    /**
+     * Merkt sich das Ergebnis einer Suche.
+     *
+     * Laeuft der Speicher voll, faellt der aelteste Eintrag heraus - eine
+     * Map gibt ihre Schluessel in der Reihenfolge des Einfuegens zurueck,
+     * der erste ist also der aelteste.
+     *
+     * @param {string} in_iso2
+     * @param {string} in_query
+     * @param {Array}  in_treffer
+     * @returns {void}
+     */
+    staedteMerken(in_iso2, in_query, in_treffer) {
+        this.staedteSpeicher.set(this.staedteSchluessel(in_iso2, in_query), in_treffer);
+
+        while (this.staedteSpeicher.size > this.STAEDTE_SPEICHER_MAX) {
+            this.staedteSpeicher.delete(this.staedteSpeicher.keys().next().value);
+        }
+    },
+
+    /**
      * Baut eine Nominatim-Adresse.
      *
      * DIE EINE STELLE, an der accept-language gesetzt wird. Sechs Aufrufe
@@ -585,26 +659,68 @@ window.webrtcApp.locationMap = {
             allowClear: true,
             minimumInputLength: 3,
             ajax: {
-                delay: 300,
+                // EINE SEKUNDE, UND DAS IST KEINE BEQUEMLICHKEIT.
+                // Die Nutzungsregeln von Nominatim nennen ein absolutes
+                // Maximum von EINER Anfrage je Sekunde - und zwar fuer alle
+                // Nutzer dieser Anwendung zusammen, nicht je Person. Hier
+                // standen 300 ms: Wer "rhede" tippt, loeste damit nach "rhe",
+                // "rhed" und "rhede" drei Anfragen in gut einer halben
+                // Sekunde aus. Die mittlere lief in die Sperre - deshalb fand
+                // "rhed" nichts, waehrend "rhe" und "rhede" richtig
+                // antworteten.
+                delay: self.NOMINATIM_TAKT,
                 transport: (params, success, failure) => {
-                    let countryIso2 = $('#countrySelect option:selected').data('iso2');
+                    const countryIso2 = $('#countrySelect option:selected').data('iso2');
                     if (!countryIso2) return success({ results: [] });
-                    let query = params.data.q;
+
+                    const query = params.data.q;
+
+                    // Der Zwischenspeicher. Die Nutzungsregeln verlangen ihn
+                    // ausdruecklich ("results must be cached on your side"),
+                    // und er ist auch fuer den Nutzer besser: Wer ein Zeichen
+                    // loescht und wieder tippt, bekommt die Liste sofort und
+                    // ohne neue Anfrage.
+                    const gemerkt = self.staedteAusSpeicher(countryIso2, query);
+                    if (gemerkt) return success({ results: gemerkt });
+
                     // namedetails=1 liefert die Namensvarianten des Ortes
                     // (name:de, name:en, ...). Sie sind der Grund, warum ein
                     // deutsch getippter Name eine englische Antwort noch
                     // findet - siehe passtZumSuchbegriff().
+                    //
+                    // limit=40 und nicht 15: Nominatim wendet die Grenze VOR
+                    // dem Entfernen von Dubletten an und liefert danach
+                    // weniger. Ein kurzes Bruchstueck trifft viele Strassen;
+                    // bei 15 fiel die gesuchte Kleinstadt aus dem Fenster,
+                    // noch bevor die Auswertung sie sehen konnte.
                     fetch(self.nominatimUrl('search', {
                         q: query,
                         countrycodes: countryIso2,
                         addressdetails: 1,
                         namedetails: 1,
-                        limit: 15
+                        limit: 40
                     }))
-                        .then(r => r.json())
+                        .then(r => {
+                            // Ohne diese Pruefung wird eine Fehlerseite oder
+                            // eine Absage wegen zu vieler Anfragen (429) in
+                            // r.json() zu einem Syntaxfehler - und der landet
+                            // im selben catch wie ein Netzausfall.
+                            if (!r.ok) throw new Error('HTTP ' + r.status);
+                            return r.json();
+                        })
                         .then(data => {
-                            success({ results: self.formatCityResults(data, query) });
-                        }).catch(failure);
+                            const treffer = self.formatCityResults(data, query);
+                            self.staedteMerken(countryIso2, query, treffer);
+                            success({ results: treffer });
+                        })
+                        .catch(fehler => {
+                            // HIER STAND NUR "failure". Damit zeigte select2
+                            // seine englische Vorgabe, und eine gescheiterte
+                            // Anfrage sah aus wie "keine Stadt gefunden" -
+                            // zwei sehr verschiedene Auskuenfte in einem Satz.
+                            console.error('Staedtesuche fehlgeschlagen:', fehler);
+                            failure(fehler);
+                        });
                 },
                 processResults: data => ({ results: data.results }),
             },
@@ -622,7 +738,16 @@ window.webrtcApp.locationMap = {
                     return iso2
                         ? 'Keine Stadt gefunden.'
                         : 'Bitte zuerst ein Land wählen.';
-                }
+                },
+                // Ohne diese Zeile stand hier select2s englisches "The
+                // results could not be loaded." - und eine gescheiterte
+                // Anfrage sah damit fast so aus wie "nichts gefunden". Das
+                // sind zwei verschiedene Auskuenfte: Bei der einen gibt es
+                // die Stadt nicht, bei der anderen weiss die Anwendung es
+                // nicht. Der Hinweis auf das Warten steht dabei, weil die
+                // haeufigste Ursache die Sperre wegen zu vieler Anfragen ist.
+                errorLoading: () => 'Die Städtesuche ist gerade nicht erreichbar. '
+                    + 'Bitte einen Moment warten und noch einmal tippen.'
             }
         });
 

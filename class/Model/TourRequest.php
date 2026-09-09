@@ -2,6 +2,8 @@
 
 namespace App\Model;
 
+use App\Helper\Countries;
+
 /**
  * Die Anfrage einer Fuehrung - und der Datensatz ueber die Fuehrung selbst.
  *
@@ -609,7 +611,7 @@ class TourRequest
         try {
             $query = "SELECT " . self::spalten('r') . ",
                              l.title, l.description,
-                             city.city_name, country.country_name,
+                             city.city_name, country.country_name, country.iso2,
                              partner.username AS partner_name,
                              -- DIE BEWERTUNG DIESER FUEHRUNG, falls es eine
                              -- gibt. Sie steht hier, weil die Anfragenseite
@@ -639,7 +641,7 @@ class TourRequest
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':id', $user_id, \PDO::PARAM_INT);
             $stmt->execute();
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            return Countries::zeilenNamenSetzen($stmt->fetchAll(\PDO::FETCH_ASSOC));
         } catch (\PDOException $e) {
             error_log('Fehler beim Laden der Anfragen: ' . $e->getMessage());
             return [];
@@ -876,7 +878,7 @@ class TourRequest
                              -- normal, eine seit drei Stunden nicht.
                              TIMESTAMPDIFF(SECOND, r.started_at, NOW()) AS running_since,
                              l.title,
-                             city.city_name, country.country_name,
+                             city.city_name, country.country_name, country.iso2,
                              g.username AS guide_username,
                              k.username AS customer_username,
                              COALESCE(NULLIF(gp.display_name, ''), g.username)
@@ -892,7 +894,7 @@ class TourRequest
                      ORDER BY $order
                      LIMIT $limit";
             $stmt = PdoConnect::$connection->query($query);
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+            return Countries::zeilenNamenSetzen($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: []);
         } catch (\PDOException $e) {
             error_log('TourRequest::allForAdmin: ' . $e->getMessage());
             return [];

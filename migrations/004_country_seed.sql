@@ -17,6 +17,23 @@
 --   Anlegen eines Standorts selbst (Location::insertCityName,
 --   Location.php:248).
 --
+-- NACHTRAG: DIE NAMEN AUS DIESER DATEI WERDEN NICHT MEHR ANGEZEIGT
+--   Auf mindestens einer Installation ist dieser Block mit einer falschen
+--   Codepage eingespielt worden (CP437/CP850 statt UTF-8). Aus "Österreich"
+--   wurde dabei "├ûsterreich", und die Anwendung zeigte vor jedem Umlaut
+--   einen senkrechten Strich. In DIESER DATEI sind die Namen richtig - kaputt
+--   war nur, was davon in der Datenbank ankam.
+--
+--   Angezeigt werden die Namen seither aus App\Helper\Countries (nach iso2,
+--   deutsch und englisch). Dieser Block bleibt trotzdem noetig: Er fuellt die
+--   Tabelle mit den ISO-Codes, und die sind der Schluessel, ohne den weder
+--   die Laenderauswahl noch die Staedtesuche etwas findet.
+--
+--   Wer ihn heute einspielt, achte trotzdem auf die Kodierung - die Namen
+--   sind zwar nicht mehr die Anzeige, aber eine Tabelle mit lesbaren Werten
+--   ist beim Nachsehen mehr wert als eine mit Zeichensalat:
+--       mariadb --default-character-set=utf8mb4 -u <user> -p <db> < diese_datei
+--
 -- VORAUSSETZUNG
 --   Migration 003 muss gelaufen sein. Fehlt die Spalte iso2, bricht diese
 --   Datei mit einer Fehlermeldung ab und aendert nichts.

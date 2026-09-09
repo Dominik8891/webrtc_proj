@@ -857,6 +857,66 @@ function ackLastMove(status = 'executed', reason) {
         ok('jeder Name einmal, und kein Absturz an einer unerwarteten Antwort');
     }
 
+    console.error('\n26c) Die Staedtesuche haelt sich an die Nutzungsregeln');
+    {
+        // DER BEFUND: "rhed" fand nichts, "rhe" und "rhede" richtig. Im Code
+        // gibt es keine Laengenbedingung - was es gab, war ein Takt von
+        // 300 ms. Nominatim erlaubt EINE Anfrage je Sekunde, fuer alle Nutzer
+        // der Anwendung zusammen. Wer "rhede" tippt, loeste drei Anfragen in
+        // gut einer halben Sekunde aus; die mittlere lief in die Sperre.
+        const karte = app.locationMap;
+
+        assert.ok(karte.NOMINATIM_TAKT >= 1000,
+            'der Takt liegt unter einer Sekunde: ' + karte.NOMINATIM_TAKT);
+        ok('zwischen zwei Anfragen liegt mindestens eine Sekunde');
+
+        // Der Zwischenspeicher. Die Nutzungsregeln verlangen ihn
+        // ausdruecklich, und er nimmt dem Takt die Haerte: Wer ein Zeichen
+        // loescht und wieder tippt, wartet nicht.
+        karte.staedteSpeicher.clear();
+        assert.strictEqual(karte.staedteAusSpeicher('DE', 'rhed'), null,
+            'eine ungefragte Suche gilt als bekannt');
+
+        karte.staedteMerken('DE', 'Rhed', [{ text: 'Rhede' }]);
+        assert.deepStrictEqual(karte.staedteAusSpeicher('DE', ' rhed '), [{ text: 'Rhede' }],
+            'Gross-/Kleinschreibung oder Leerzeichen machen einen neuen Eintrag');
+        assert.strictEqual(karte.staedteAusSpeicher('AT', 'rhed'), null,
+            'der Speicher unterscheidet die Laender nicht - "Valencia" gibt es zweimal');
+
+        // Eine leere Trefferliste ist eine gueltige Antwort und muss gemerkt
+        // werden: Sonst fragt jede Wiederholung derselben erfolglosen Suche
+        // erneut, und genau das fuehrt laut Nutzungsregeln zur Sperre.
+        karte.staedteMerken('DE', 'gibtesnicht', []);
+        assert.deepStrictEqual(karte.staedteAusSpeicher('DE', 'gibtesnicht'), [],
+            'ein leeres Ergebnis wird nicht gemerkt');
+        ok('der Speicher trennt nach Land und antwortet auch mit "nichts gefunden"');
+
+        // Und er waechst nicht unbegrenzt.
+        for (let i = 0; i < karte.STAEDTE_SPEICHER_MAX + 10; i++) {
+            karte.staedteMerken('DE', 'suche' + i, []);
+        }
+        assert.strictEqual(karte.staedteSpeicher.size, karte.STAEDTE_SPEICHER_MAX,
+            'der Speicher haelt seine Grenze nicht ein: ' + karte.staedteSpeicher.size);
+        assert.strictEqual(karte.staedteAusSpeicher('DE', 'rhed'), null,
+            'der aelteste Eintrag faellt nicht heraus');
+        karte.staedteSpeicher.clear();
+        ok('der aelteste Eintrag faellt heraus, der Speicher bleibt begrenzt');
+
+        // Die Anfrage selbst: limit=40, weil Nominatim die Grenze VOR dem
+        // Entfernen von Dubletten anwendet - bei 15 fiel die gesuchte
+        // Kleinstadt aus dem Fenster, bevor die Auswertung sie sah.
+        const quelle = require('fs').readFileSync(
+            require('path').join(__dirname, '..', 'assets', 'js', 'map.js'), 'utf8');
+        assert.ok(/limit:\s*40/.test(quelle), 'die Staedtesuche holt nicht 40 Treffer');
+        assert.ok(!/delay:\s*\d/.test(quelle),
+            'der Takt steht wieder als Zahl im Aufruf statt in NOMINATIM_TAKT');
+        // Und eine gescheiterte Anfrage sagt das auf Deutsch, statt wie
+        // "nichts gefunden" auszusehen.
+        assert.ok(quelle.includes('errorLoading'),
+            'die gescheiterte Anfrage hat keine eigene Meldung');
+        ok('40 Treffer, der Takt an einer Stelle, und ein eigener Text fuer den Fehlschlag');
+    }
+
     console.error('\n27) Die Wahl wird auch im Browser gemerkt');
     {
         // Ohne das gilt das Profil erst nach der Anmeldung - Login,

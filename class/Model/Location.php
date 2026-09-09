@@ -3,6 +3,7 @@
 namespace App\Model;
 
 use App\Helper\Availability;
+use App\Helper\Countries;
 
 /**
  * Klasse zur Verwaltung von Locations (Orte) in der Datenbank.
@@ -119,6 +120,10 @@ class Location
                 $result = $stmt->fetch(\PDO::FETCH_ASSOC);
 
                 if ($result) {
+                    // Der Laendername kommt aus dem Katalog und nicht aus
+                    // der Spalte - siehe App\Helper\Countries.
+                    $result = Countries::zeileNamenSetzen($result);
+
                     $this->id             = $result['id'];
                     // Eigentuemer mitladen: Ohne ihn liesse sich hier gar
                     // nicht pruefen, wem der Standort gehoert.
@@ -411,7 +416,7 @@ class Location
         try {
             $stmt = PdoConnect::$connection->prepare("SELECT * FROM country");
             $stmt->execute();
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            return Countries::zeilenNamenSetzen($stmt->fetchAll(\PDO::FETCH_ASSOC));
         } catch (\PDOException $e) {
             error_log('Fehler beim Laden der Länder: ' . $e->getMessage());
             return [];
@@ -459,7 +464,7 @@ class Location
                              COALESCE(NULLIF(guide_profile.display_name, ''), user.username)
                                  AS guide_name,
                              " . self::AVAILABILITY_SQL . " AS availability,
-                             country.country_name, city.city_name, location.id,
+                             country.country_name, country.iso2, city.city_name, location.id,
                              location.latitude, location.longitude,
                              location.title, location.description,
                              location.blocked, location.blocked_reason,
@@ -491,7 +496,7 @@ class Location
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt ->bindParam(":user_id", $in_user_id);
             $stmt->execute();
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            return Countries::zeilenNamenSetzen($stmt->fetchAll(\PDO::FETCH_ASSOC));
         } catch (\PDOException $e) {
             error_log('Fehler beim Laden aller Locations: ' . $e->getMessage());
             return [];
@@ -536,7 +541,7 @@ class Location
     {
         try {
             $query = "SELECT location.id,
-                             country.country_name,
+                             country.country_name, country.iso2,
                              city.city_name,
                              location.latitude,
                              location.longitude,
@@ -559,7 +564,7 @@ class Location
                         AND " . User::activeSql('user');
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->execute();
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            return Countries::zeilenNamenSetzen($stmt->fetchAll(\PDO::FETCH_ASSOC));
         } catch (\PDOException $e) {
             error_log('Fehler beim Laden der oeffentlichen Karte: ' . $e->getMessage());
             return [];
@@ -731,7 +736,7 @@ class Location
                              COALESCE(NULLIF(guide_profile.display_name, ''), user.username)
                                  AS guide_name,
                              " . self::AVAILABILITY_SQL . " AS availability,
-                             country.country_name, city.city_name,
+                             country.country_name, country.iso2, city.city_name,
                              -- WAS AN DIESEM ANGEBOT FEHLT - immer mitgeliefert
                              -- und nicht nur im Filter: Ein Standort kann
                              -- gesperrt UND unvollstaendig sein, und wer die
@@ -747,7 +752,7 @@ class Location
                       ORDER BY location.blocked DESC, location.id DESC
                       LIMIT $limit";
             $stmt = PdoConnect::$connection->query($query);
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            return Countries::zeilenNamenSetzen($stmt->fetchAll(\PDO::FETCH_ASSOC));
         } catch (\PDOException $e) {
             error_log('Location::selectAllForAdmin: ' . $e->getMessage());
             return [];
@@ -768,7 +773,7 @@ class Location
             // ist, sieht ihn auf der Karte niemand - er ist nicht auf bereit.
             $query = "SELECT user.id AS user_id, user.username,
                              " . self::AVAILABILITY_SQL . " AS availability,
-                             country.country_name, city.city_name, location.id,
+                             country.country_name, country.iso2, city.city_name, location.id,
                              location.latitude, location.longitude,
                              location.title, location.description,
                              location.blocked, location.blocked_reason,
@@ -787,7 +792,7 @@ class Location
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt ->bindParam(":user_id", $in_user_id);
             $stmt->execute();
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            return Countries::zeilenNamenSetzen($stmt->fetchAll(\PDO::FETCH_ASSOC));
         } catch (\PDOException $e) {
             error_log('Fehler beim Laden der User-Locations: ' . $e->getMessage());
             return [];
@@ -837,7 +842,7 @@ class Location
             $query = "SELECT location.id, location.title, location.description,
                              location.duration_minutes, location.languages,
                              location.blocked,
-                             country.country_name, city.city_name,
+                             country.country_name, country.iso2, city.city_name,
                              cover.id AS cover_image_id,
                              " . self::AVAILABILITY_SQL . " AS availability
                       FROM location
@@ -852,11 +857,27 @@ class Location
                       -- einer Seite, die jeder aufrufen kann.
                       WHERE location.user_id = :user_id
                         AND " . User::activeSql('user') . $blocked_filter . "
+                      -- Nach Land, Stadt, Kennung - aber siehe unten: die
+                      -- Reihenfolge der LAENDER wird danach noch einmal
+                      -- gemacht.
                       ORDER BY country.country_name ASC, city.city_name ASC, location.id ASC";
             $stmt = PdoConnect::$connection->prepare($query);
             $stmt->bindParam(':user_id', $user_id, \PDO::PARAM_INT);
             $stmt->execute();
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+            $zeilen = Countries::zeilenNamenSetzen($stmt->fetchAll(\PDO::FETCH_ASSOC) ?: []);
+
+            // NACHSORTIEREN, und zwar nach dem Namen, der auch angezeigt
+            // wird. Die Datenbank sortiert nach country.country_name - der
+            // Spalte, die nicht mehr gelesen wird und in der der kaputte Wert
+            // steht ("├ûsterreich" statt "Österreich"). Danach zu sortieren
+            // und etwas anderes anzuzeigen ergaebe eine Liste, deren
+            // Reihenfolge sich niemandem erschliesst.
+            //
+            // Die Sortierung der Datenbank bleibt trotzdem stehen: Sie ordnet
+            // Stadt und Kennung, und usort ist stabil - was hier gleich
+            // heisst, behaelt die Reihenfolge von dort.
+            return Countries::sortiereNachName($zeilen);
         } catch (\PDOException $e) {
             error_log('Fehler beim Laden der Standorte eines Guides: ' . $e->getMessage());
             return [];
@@ -939,7 +960,7 @@ class Location
             $stmt->bindParam(':id', $id, \PDO::PARAM_INT);
             $stmt->execute();
             $zeile = $stmt->fetch(\PDO::FETCH_ASSOC);
-            return $zeile ?: null;
+            return $zeile ? Countries::zeileNamenSetzen($zeile) : null;
         } catch (\PDOException $e) {
             error_log('Fehler beim Laden der Standortseite: ' . $e->getMessage());
             return null;
