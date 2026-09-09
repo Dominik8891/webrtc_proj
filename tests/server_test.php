@@ -52,6 +52,9 @@ require_once $ROOT . '/class/Helper/SecurityHeaders.php';
 require_once $ROOT . '/class/Helper/MailGate.php';
 require_once $ROOT . '/class/Helper/LogHelper.php';
 require_once $ROOT . '/class/Model/Email.php';
+// Die Sprache der Oberflaeche. VOR ViewHelper gebraucht - template() loest
+// dort die Textmarker {{t:...}} auf, und esc() macht sie unschaedlich.
+require_once $ROOT . '/class/Helper/I18n.php';
 require_once $ROOT . '/class/Helper/ViewHelper.php';
 require_once $ROOT . '/class/Helper/Auth.php';
 // Der Verwaltungsbereich. Nach ViewHelper und Auth, weil er beide benutzt:
@@ -61,6 +64,9 @@ require_once $ROOT . '/class/Model/AdminStats.php';
 require_once $ROOT . '/class/Helper/AdminView.php';
 require_once $ROOT . '/class/Controller/AdminController.php';
 require_once $ROOT . '/class/Helper/Request.php';
+// Die Startseite und der Sprachumschalter. Nach ViewHelper und I18n, weil er
+// beide benutzt.
+require_once $ROOT . '/class/Controller/SystemController.php';
 require_once $ROOT . '/class/Helper/Url.php';
 require_once $ROOT . '/class/Model/Chat.php';
 require_once $ROOT . '/class/Model/ChatMessage.php';
@@ -101,9 +107,11 @@ use App\Helper\Permission;
 use App\Helper\Theme;
 use App\Helper\MailGate;
 use App\Model\Email;
+use App\Helper\I18n;
 use App\Helper\ViewHelper;
 use App\Helper\Url;
 use App\Controller\ChatController;
+use App\Controller\SystemController;
 
 $passed = 0;
 function ok($name) { global $passed; fwrite(STDERR, "  ok  $name\n"); $passed++; }
@@ -710,10 +718,17 @@ ok('die drei ungeschuetzten Endpunkte haengen jetzt an einem Recht');
 // Bild, Selbstbeschreibung, Sprachen und die angebotenen Standorte - keinen
 // Benutzernamen, keine E-Mail-Adresse und nichts, womit sich jemand anmelden
 // koennte.
+//
+// system.language ist der vierte Eintrag dieser Art und der harmloseste:
+// In welcher Sprache jemand liest, ist keine Befugnis. Es steht trotzdem als
+// Recht da und ist nicht weggelassen, weil index.php eine Route ohne Recht
+// als Konfigurationsfehler abweist (siehe Abschnitt oben) - ein Recht, das
+// jede Rolle hat, ist der ausgeschriebene Satz "hier wird nichts geprueft".
 $oeffentlich = [Permission::SYSTEM_HOME, Permission::AUTH_LOGIN, Permission::AUTH_SIGNUP,
                 Permission::AUTH_PASSWORD_RESET, Permission::AUTH_EMAIL_VERIFY,
                 Permission::AUTH_TWOFACTOR_VERIFY, Permission::LOCATION_MAP_PUBLIC,
-                Permission::LOCATION_VIEW, Permission::GUIDE_VIEW];
+                Permission::LOCATION_VIEW, Permission::GUIDE_VIEW,
+                Permission::SYSTEM_LANGUAGE];
 sort($oeffentlich);
 $gast = Permission::rightsOf(Permission::GUEST);
 sort($gast);
@@ -6327,7 +6342,9 @@ $bau = '$R = ' . var_export($ROOT, true) . '; chdir($R);'
      // Seite ist null Zeichen lang. Env steht davor, weil MailGate seine
      // beiden Schalter von dort holt.
      . 'foreach (["Helper/Role","Helper/Permission","Helper/Auth","Helper/Theme",'
-     . '"Helper/Url","Helper/Env","Helper/MailGate","Helper/ViewHelper"] as $k) { require_once "$R/class/$k.php"; }'
+     // I18n steht VOR ViewHelper: template() loest dort die Textmarker auf,
+     // und output() legt Sprache und Katalog ins Dokument.
+     . '"Helper/Url","Helper/Env","Helper/MailGate","Helper/I18n","Helper/ViewHelper"] as $k) { require_once "$R/class/$k.php"; }'
      . 'App\\Helper\\ViewHelper::output('
      . 'App\\Helper\\ViewHelper::template("$R/assets/html/requests_page.html"));';
 $ausgeliefert = (string)shell_exec(
@@ -8536,6 +8553,361 @@ foreach (['BACKUP_PATH', 'BACKUP_KEEP_DAYS'] as $name) {
     check(strpos($backupQuelle, $name) !== false, "$name wird vom Skript nicht ausgewertet");
 }
 ok('alle ' . (count($gefunden) + 2) . ' Schluessel sind dokumentiert');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDie Sprache der Oberflaeche\n");
+
+// --- Gueltigkeit und Rueckfall -------------------------------------------
+check(I18n::isValid('de') && I18n::isValid('en'), 'de und en sind gueltig');
+check(I18n::isValid('xx') === false, 'ein unbekanntes Kuerzel ist nicht gueltig');
+check(I18n::isValid('') === false && I18n::isValid(null) === false,
+    'Leerstring und null sind keine Sprache');
+check(I18n::normalize('xx') === I18n::DEFAULT, 'Unbekanntes faellt auf die Vorgabe');
+check(I18n::normalize(null) === 'en', 'die Vorgabe ist Englisch');
+ok('gueltig ist, was einen Katalog hat - alles andere wird zur Vorgabe');
+
+// --- Die Aufloesungsreihenfolge ------------------------------------------
+//
+// DER KERN DER GANZEN KLASSE: vier Quellen, die erste mit einer Antwort
+// gewinnt. Geprueft wird jede Stufe einzeln UND dass eine hoehere Stufe eine
+// niedrigere ueberstimmt - sonst koennte die Reihenfolge stimmen und
+// trotzdem die falsche Quelle gewinnen.
+I18n::zuruecksetzen();
+check(I18n::aufloesen('de', 'en', 'en-US') === 'de', 'das Konto gewinnt');
+check(I18n::aufloesen(null, 'de', 'en-US') === 'de', 'ohne Konto gewinnt das Cookie');
+check(I18n::aufloesen(null, null, 'de-AT,de;q=0.9') === 'de',
+    'ohne Cookie entscheidet Accept-Language');
+check(I18n::aufloesen(null, null, null) === 'en', 'sonst die Vorgabe');
+// Und der Fall, der im Betrieb entsteht, wenn ein Katalog entfaellt: In
+// Konto oder Cookie steht ein Kuerzel, das es nicht mehr gibt. Es darf die
+// naechste Quelle nicht blockieren.
+check(I18n::aufloesen('xx', 'de', null) === 'de',
+    'ein unbekanntes Kontokuerzel blockiert das Cookie nicht');
+check(I18n::aufloesen(null, 'xx', 'de') === 'de',
+    'ein unbekanntes Cookie blockiert den Browser nicht');
+ok('Konto, Cookie, Browser, Vorgabe - in dieser Reihenfolge');
+
+// --- Accept-Language ------------------------------------------------------
+check(I18n::ausAcceptLanguage('de-DE,de;q=0.9,en;q=0.8') === 'de', 'der uebliche Header');
+check(I18n::ausAcceptLanguage('de-CH') === 'de', 'das Land faellt weg');
+// Nach GEWICHT und nicht nach Reihenfolge. Der Header ist zulaessig, und
+// genau hier wuerde ein Verfahren "nimm den ersten Treffer" falsch liegen.
+check(I18n::ausAcceptLanguage('en;q=0.5,de;q=0.9') === 'de',
+    'das hoehere Gewicht gewinnt, auch wenn es hinten steht');
+check(I18n::ausAcceptLanguage('de;q=0,en') === 'en', 'q=0 heisst ausdruecklich nicht');
+check(I18n::ausAcceptLanguage('*') === null, 'ein Stern ist keine Antwort');
+check(I18n::ausAcceptLanguage('fr,ja,zh') === null, 'unbekannte Sprachen ergeben nichts');
+check(I18n::ausAcceptLanguage('') === null, 'ein leerer Header ergibt nichts');
+// Gleiches Gewicht: die Reihenfolge entscheidet. Ohne diese Regel haenge das
+// Ergebnis von der Sortierfunktion ab und waere nicht vorhersagbar.
+check(I18n::ausAcceptLanguage('en,de') === 'en', 'bei gleichem Gewicht der erste');
+check(I18n::ausAcceptLanguage('de,en') === 'de', 'und umgekehrt genauso');
+ok('Accept-Language wird nach Gewicht ausgewertet, nicht nach Reihenfolge');
+
+// --- Die Kataloge ---------------------------------------------------------
+//
+// BEIDE KATALOGE HABEN DIESELBEN SCHLUESSEL. Das ist die Pruefung, ohne die
+// ein fehlender Text erst dem Nutzer auffaellt - in PHP faellt er still auf
+// die Vorgabe zurueck und sieht deshalb im Betrieb wie ein Treffer aus.
+$katalogDe = require $ROOT . '/lang/de.php';
+$katalogEn = require $ROOT . '/lang/en.php';
+check(is_array($katalogDe) && $katalogDe !== [], 'lang/de.php liefert einen Katalog');
+check(is_array($katalogEn) && $katalogEn !== [], 'lang/en.php liefert einen Katalog');
+
+$nurDe = array_diff(array_keys($katalogDe), array_keys($katalogEn));
+$nurEn = array_diff(array_keys($katalogEn), array_keys($katalogDe));
+check($nurDe === [], 'nur in lang/de.php: ' . implode(', ', $nurDe));
+check($nurEn === [], 'nur in lang/en.php: ' . implode(', ', $nurEn));
+
+// UND DIESELBEN FORMEN. Ein Schluessel, der in der einen Sprache zaehlbar ist
+// und in der anderen nicht, faellt beim Schluesselvergleich oben nicht auf -
+// plural() liefert dann in einer der beiden Sprachen immer denselben Satz.
+foreach ($katalogDe as $schluessel => $wert) {
+    $gegen = $katalogEn[$schluessel];
+    check(is_array($wert) === is_array($gegen),
+        "$schluessel ist nur in einer Sprache zaehlbar");
+    if (is_array($wert)) {
+        $formenDe = array_keys($wert);
+        $formenEn = array_keys($gegen);
+        sort($formenDe);
+        sort($formenEn);
+        check($formenDe === $formenEn,
+            "$schluessel hat verschiedene Formen: " . implode('/', $formenDe)
+            . ' gegen ' . implode('/', $formenEn));
+    }
+}
+
+// Kein HTML in den Katalogen: Markup gehoert in die Vorlage, der Text in den
+// Katalog. Ein Katalogtext wird nicht maskiert - stuende dort ein Element,
+// waere die Grenze zwischen Text und Markup weg, und die naechste
+// Uebersetzung braechte ein <script> mit.
+foreach ([$katalogDe, $katalogEn] as $katalog) {
+    foreach ($katalog as $schluessel => $wert) {
+        foreach ((array)$wert as $text) {
+            check(strpos((string)$text, '<') === false,
+                "$schluessel enthaelt Markup - das gehoert in die Vorlage");
+        }
+    }
+}
+ok('beide Kataloge haben dieselben Schluessel, dieselben Formen und kein Markup');
+
+// --- t(), plural() und die Platzhalter ------------------------------------
+I18n::zuruecksetzen();
+I18n::setzen('de');
+check(I18n::t('sprache.titel') === 'Sprache', 'der deutsche Text');
+I18n::setzen('en');
+check(I18n::t('sprache.titel') === 'Language', 'der englische Text');
+
+// DIE KETTE: Sprache, Vorgabe, Schluessel. Der dritte Fall ist der wichtige -
+// ein fehlender Text soll SICHTBAR fehlen und keine Luecke hinterlassen.
+check(I18n::t('gibt.es.nicht') === 'gibt.es.nicht',
+    'ein unbekannter Schluessel steht als er selbst da');
+
+// Platzhalter.
+I18n::setzen('de');
+check(I18n::t('sprache.wechseln_zu', ['sprache' => 'English'])
+    === 'Oberfläche auf English umstellen', 'der Platzhalter wird gefuellt');
+// Was niemand uebergibt, bleibt stehen - aus demselben Grund wie oben.
+check(I18n::t('sprache.wechseln_zu') === 'Oberfläche auf {sprache} umstellen',
+    'ein nicht uebergebener Platzhalter bleibt sichtbar');
+check(I18n::einsetzen('{a} und {b}', ['a' => 1, 'b' => 2]) === '1 und 2',
+    'mehrere Platzhalter');
+check(I18n::einsetzen('kein Platzhalter', ['a' => 1]) === 'kein Platzhalter',
+    'ein Text ohne Platzhalter bleibt unveraendert');
+
+// Plural. n geht mit und ist immer als {n} verfuegbar.
+check(I18n::plural('sprache.anzahl', 1) === '1 Sprache', 'eine');
+check(I18n::plural('sprache.anzahl', 2) === '2 Sprachen', 'zwei');
+check(I18n::plural('sprache.anzahl', 0) === '0 Sprachen', 'null nimmt die Mehrzahl');
+I18n::setzen('en');
+check(I18n::plural('sprache.anzahl', 1) === '1 language', 'englisch: eine');
+check(I18n::plural('sprache.anzahl', 3) === '3 languages', 'englisch: drei');
+check(I18n::plural('gibt.es.nicht', 1) === 'gibt.es.nicht',
+    'ein unbekannter zaehlbarer Schluessel steht als er selbst da');
+// Der Betrag: "-1 Sprache" ist dieselbe Form wie "1 Sprache".
+check(I18n::pluralForm('de', -1) === 'one', 'gerechnet wird mit dem Betrag');
+check(I18n::pluralForm('en', 1) === 'one' && I18n::pluralForm('en', 5) === 'other',
+    'beide Sprachen teilen dieselbe Regel');
+ok('t(), plural() und die Platzhalter tun, was sie sollen');
+
+// --- Der Marker in den Vorlagen -------------------------------------------
+//
+// AUFGELOEST WIRD BEIM LADEN DER VORLAGE - also bevor irgendein Controller
+// Fremdeingabe einsetzt. Das ist die eigentliche Absicherung; die zweite
+// steht in esc() weiter unten.
+I18n::setzen('de');
+check(I18n::marker('<h2>{{t:sprache.titel}}</h2>') === '<h2>Sprache</h2>',
+    'der Marker wird aufgeloest');
+I18n::setzen('en');
+check(I18n::marker('<h2>{{t:sprache.titel}}</h2>') === '<h2>Language</h2>',
+    'und zwar in der aktiven Sprache');
+check(I18n::marker('{{t:gibt.es.nicht}}') === 'gibt.es.nicht',
+    'ein unbekannter Schluessel steht sichtbar da');
+// Was nicht in das Muster passt, ist kein Marker und bleibt unangetastet.
+check(I18n::marker('{{t: mit leerzeichen}}') === '{{t: mit leerzeichen}}',
+    'ein Leerzeichen macht daraus keinen Marker');
+check(I18n::marker('{{sprache.titel}}') === '{{sprache.titel}}',
+    'ohne das t: ist es kein Marker');
+check(I18n::marker('nichts zu tun') === 'nichts zu tun', 'Text ohne Marker bleibt');
+
+// UND DER WEG DURCH template(). Die echte Vorlage, nicht eine erfundene:
+// Ein Test, der seine eigene Zeichenkette prueft, sagt ueber die Anwendung
+// nichts aus.
+$konto = ViewHelper::template($ROOT . '/assets/html/settings.html');
+check(strpos($konto, '{{t:') === false,
+    'in der geladenen Kontoseite steht noch ein unaufgeloester Marker');
+check(strpos($konto, 'Language') !== false,
+    'der Text aus dem Katalog steht nicht in der geladenen Kontoseite');
+ok('template() loest die Marker beim Laden auf');
+
+// --- esc() macht den Marker unschaedlich ----------------------------------
+//
+// DIE ZWEITE VORKEHRUNG. Sie ist heute nicht noetig, weil template() beim
+// LADEN aufloest und Fremdeingabe erst danach hineinkommt - und genau
+// deshalb steht sie hier: Wer spaeter einmal einen Marker ueber das fertige
+// Dokument laufen laesst, so wie output() es mit den Rauten tut, soll keine
+// Luecke bauen, ohne sie zu bemerken.
+$fremd = ViewHelper::esc('{{t:sprache.titel}}');
+check(strpos($fremd, '{{') === false,
+    'esc() laesst die Doppelklammer stehen - Fremdeingabe wuerde zum Schluessel');
+check(I18n::marker($fremd) === $fremd,
+    'der maskierte Text loest keine Ersetzung mehr aus');
+check(html_entity_decode($fremd, ENT_QUOTES, 'UTF-8') === '{{t:sprache.titel}}',
+    'im Browser steht wieder derselbe Text');
+// Und die alte Regel gilt unveraendert weiter.
+check(strpos(ViewHelper::esc('###USER###'), '###') === false,
+    'esc() maskiert weiterhin die Rauten');
+ok('esc() entschaerft beide Bauverfahren - Rauten und Marker');
+
+// --- Der Weg in den Browser -----------------------------------------------
+I18n::setzen('de');
+$boot = I18n::bootScript();
+check(strpos($boot, '<script>window.appI18n = ') === 0, 'das Skript beginnt richtig');
+check(strpos($boot, '###') === false,
+    'im Katalogskript steht eine Raute - output() liefe darueber');
+preg_match('/window\.appI18n = (\{.*\});/s', $boot, $treffer);
+$daten = json_decode($treffer[1] ?? '', true);
+check(is_array($daten), 'das Katalogskript enthaelt kein lesbares JSON');
+check($daten['lang'] === 'de', 'die Sprache geht mit');
+check($daten['default'] === 'en', 'und die Vorgabe');
+check(isset($daten['catalog']['sprache.titel']), 'der Katalog geht mit');
+// Der Vorgabekatalog geht mit, damit die Kette im Browser dieselbe ist wie
+// in PHP. In der Vorgabesprache selbst waere er eine Kopie - dann ist er leer.
+check(isset($daten['fallback']['sprache.titel']), 'der Vorgabekatalog geht mit');
+I18n::setzen('en');
+$bootEn = I18n::bootScript();
+preg_match('/window\.appI18n = (\{.*\});/s', $bootEn, $treffer);
+$datenEn = json_decode($treffer[1] ?? '', true);
+check(($datenEn['fallback'] ?? null) === [],
+    'in der Vorgabesprache waere der zweite Katalog eine Kopie und bleibt leer');
+ok('Sprache und Katalog gehen als Skript mit ins Dokument');
+
+// --- Das lang-Attribut und die Vary-Kopfzeile -----------------------------
+//
+// Das Attribut steht als Platzhalter in der Vorlage und wird in
+// ViewHelper::output() gesetzt. Fest verdrahtetes lang="de" auf einer
+// englischen Seite ist schlimmer als gar keines: Vorleseprogramme waehlen
+// daran ihre Aussprache.
+$layout = file_get_contents($ROOT . '/assets/html/index.html');
+check(strpos($layout, 'lang="###LANG###"') !== false,
+    'das html-Element traegt kein dynamisches lang-Attribut');
+check(preg_match('/<html[^>]*lang="de"/', $layout) !== 1,
+    'im Layout steht noch ein fest verdrahtetes lang="de"');
+$viewQuelle = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
+foreach (['###LANG###', '###I18N_BOOT###', '###LANGSWITCH###'] as $platzhalter) {
+    check(substr_count($layout, $platzhalter) === 1,
+        "$platzhalter steht nicht genau einmal im Layout");
+    check(strpos($viewQuelle, $platzhalter) !== false,
+        "$platzhalter wird von ViewHelper nicht ersetzt");
+}
+check(strpos(file_get_contents($ROOT . '/class/Helper/I18n.php'),
+    "header('Vary: Accept-Language, Cookie'") !== false,
+    'die Vary-Kopfzeile fehlt - ein Zwischenspeicher gaebe die Sprache des Vorigen weiter');
+ok('lang-Attribut, Katalogskript, Umschalter und Vary sind verdrahtet');
+
+// --- Der Rueckweg des Umschalters -----------------------------------------
+//
+// "back" kommt aus der Anfrage und ist damit Fremdeingabe. Eine
+// Weiterleitung, die einen Aufrufer irgendwohin bringt, ist die klassische
+// offene Weiterleitung - und sie faellt niemandem auf, weil sie ja
+// funktioniert.
+check(SystemController::rueckweg('act=settings') === 'index.php?act=settings',
+    'ein einfaches Ziel bleibt erhalten');
+check(SystemController::rueckweg('act=location&id=42') === 'index.php?act=location&id=42',
+    'die Kennung geht mit - sonst fuehrte der Rueckweg ins Leere');
+check(SystemController::rueckweg('') === 'index.php?act=home', 'ohne Angabe die Startseite');
+foreach ([
+    'act=home&id=x',                       // keine Zahl
+    'act=home&fremd=wert',                 // unbekannter Parameter
+    'act=set_lang&lang=de',                // der Umschalter selbst
+    'https://boese.example/',              // eine fremde Adresse
+    '//boese.example/',                    // ohne Schema
+    "act=home\r\nLocation: https://boese", // Header-Injektion
+] as $angriff) {
+    $ziel = SystemController::rueckweg($angriff);
+    check(strpos($ziel, 'index.php?act=') === 0,
+        'der Rueckweg verlaesst die Anwendung: ' . var_export($ziel, true));
+    check(strpos($ziel, 'boese') === false,
+        'eine fremde Adresse hat den Rueckweg ueberlebt: ' . var_export($ziel, true));
+    check(strpbrk($ziel, "\r\n") === false,
+        'im Rueckweg steht ein Zeilenumbruch: ' . var_export($ziel, true));
+}
+check(SystemController::rueckweg('act=home&id=x') === 'index.php?act=home',
+    'eine unbrauchbare Kennung faellt weg, das Ziel bleibt');
+ok('der Rueckweg fuehrt nur in diese Anwendung - Ziel und Kennung, sonst nichts');
+
+I18n::zuruecksetzen();
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nKeine neuen deutschen Literale im Code\n");
+
+// DER WICHTIGSTE POSTEN DES SPRACHFUNDAMENTS.
+//
+// Ein Sprachkatalog ist schnell gebaut. Was ihn kaputt macht, ist der ganz
+// gewoehnliche Alltag: Jemand ergaenzt einen Knopf, schreibt "Speichern"
+// hinein, und niemandem faellt es auf - der Test war ja gruen. Nach einem
+// halben Jahr sind es zweihundert solcher Stellen, und die Anwendung ist
+// wieder halb deutsch.
+//
+// Deshalb eine RATSCHE: Was heute deutsch ist, steht in
+// tests/i18n_grundstock.txt und darf bleiben. Was NEU dazukommt, laesst
+// diesen Test fehlschlagen.
+//
+// ENTFALLENE ZEILEN SIND KEIN FEHLER, sondern der Fortschritt, um den es
+// geht - sie werden nur gemeldet. Wuerden sie den Test brechen, muesste jede
+// Uebersetzung zugleich den Grundstock anfassen, und er waere ein Hindernis
+// statt einer Bremse.
+//
+// Wie der Fund zustande kommt, steht in tests/i18n_scan.php.
+require_once $ROOT . '/tests/i18n_scan.php';
+
+$befund     = i18n_befund($ROOT);
+$grundstock = i18n_grundstock($ROOT);
+check($grundstock !== [], 'der Grundstock ist leer - tests/i18n_grundstock.txt fehlt?');
+
+$neu = array_values(array_diff($befund, $grundstock));
+if ($neu !== []) {
+    fwrite(STDERR, "\nNeue deutsche Literale im Code:\n");
+    foreach ($neu as $zeile) fwrite(STDERR, '  ' . str_replace("\t", '  ->  ', $zeile) . "\n");
+    fwrite(STDERR, "\nEntweder in lang/de.php und lang/en.php aufnehmen und ueber\n"
+        . "{{t:schluessel}} bzw. App\\Helper\\I18n::t() ausgeben - oder, wenn Texte\n"
+        . "umgezogen sind, den Grundstock neu schreiben:\n"
+        . "    php tests/i18n_scan.php --schreiben\n");
+}
+check($neu === [], count($neu) . ' neue deutsche Literale - siehe oben');
+
+// Die Gegenprobe: Der Sucher findet ueberhaupt etwas. Ein kaputter Sucher
+// faende nichts, und dieser Test waere dann fuer immer gruen - die
+// gefaehrlichste Art, in der ein Test verschwinden kann.
+check(count($befund) > 500, 'der Sucher findet nur ' . count($befund)
+    . ' Stellen - er ist vermutlich kaputt');
+// Und er findet einen frisch hingeschriebenen Satz. Geprueft an der
+// Erkennung selbst, denn eine Datei anzulegen waere ein Seiteneffekt.
+check(i18n_istDeutsch('Bitte geben Sie eine gültige Adresse ein.'),
+    'ein deutscher Satz mit Umlaut wird nicht erkannt');
+check(i18n_istDeutsch('Der Standort wurde gespeichert.'),
+    'ein deutscher Satz ohne Umlaut wird nicht erkannt');
+check(i18n_istDeutsch('Speichern'), 'ein einzelnes Wort der Oberflaeche wird nicht erkannt');
+// Und er meldet nicht, was Technik ist - sonst waere der Grundstock Laerm.
+foreach (['app-panel__body', 'user.settings', 'index.php?act=home',
+          'https://example.org/pfad', '###USER###', 'de,en', 'utf8mb4'] as $technik) {
+    check(i18n_istDeutsch($technik) === false, "faelschlich als deutsch gemeldet: $technik");
+}
+// Englische Saetze sind kein Fund: Sie sind das Ziel, nicht das Problem.
+check(i18n_istDeutsch('The location has been saved.') === false,
+    'ein englischer Satz wird als deutsch gemeldet');
+
+// UND DIE LOGMELDUNGEN BLEIBEN AUSSEN VOR. Ein Logeintrag richtet sich an
+// den Betreiber und nicht an den Benutzer; er wird nie uebersetzt. Stuende
+// er im Fund, waere die Ratsche gegen die eigene Hausordnung gerichtet -
+// jede neue deutsche Fehlermeldung im Log liesse den Test scheitern, der
+// Grundstock wuerde routinemaessig neu geschrieben, und damit waere er keine
+// Bremse mehr.
+//
+// Geprueft wird an BEIDEN Sammlern und mit jeweils einem Gegenbeispiel
+// daneben: Ein Ausschluss, der zu viel wegnimmt, waere schlimmer als keiner.
+$probePhp = "<?php\n"
+          . "error_log('Der Standort konnte nicht gespeichert werden.');\n"
+          . "error_log('Erster Teil der Meldung: ' . \$x . ' und der zweite Teil');\n"
+          . "\$a = 'Der Standort wurde gespeichert.';\n";
+$gefunden = array_values(array_filter(i18n_literalePhp($probePhp), 'i18n_istDeutsch'));
+check($gefunden === ['Der Standort wurde gespeichert.'],
+    'PHP: der Logausschluss trifft das Falsche - ' . var_export($gefunden, true));
+
+$probeJs = "console.warn('Die Verbindung ist weg.');\n"
+         . "const t = 'Die Verbindung wurde getrennt.';\n";
+$gefundenJs = array_values(array_filter(i18n_literaleJs($probeJs), 'i18n_istDeutsch'));
+check($gefundenJs === ['Die Verbindung wurde getrennt.'],
+    'JS: der Logausschluss trifft das Falsche - ' . var_export($gefundenJs, true));
+
+$entfallen = array_values(array_diff($grundstock, $befund));
+if ($entfallen !== []) {
+    fwrite(STDERR, '  Hinweis: ' . count($entfallen) . " Eintraege des Grundstocks gibt es\n"
+        . "  nicht mehr. Kein Fehler - wer Texte umzieht, darf den Grundstock mit\n"
+        . "  'php tests/i18n_scan.php --schreiben' verkleinern.\n");
+}
+ok('kein neues deutsches Literal (' . count($befund) . ' bekannte Stellen, '
+    . count($entfallen) . ' entfallen)');
 
 PdoConnect::$connection = new FakeConnection();
 

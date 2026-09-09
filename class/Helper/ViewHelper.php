@@ -57,6 +57,25 @@ class ViewHelper
      * mitten im Markup ist eine bewusste Anmerkung an Ort und Stelle und
      * bleibt stehen.
      *
+     * UND HIER WERDEN DIE TEXTMARKER AUFGELOEST: {{t:schluessel}} wird zu dem
+     * Satz aus lang/<sprache>.php (App\Helper\I18n).
+     *
+     * DER ZEITPUNKT IST DER PUNKT. Aufgeloest wird beim LADEN der Datei -
+     * also bevor irgendein Controller Fremdeingabe in die Vorlage einsetzt.
+     * Was danach in die Seite kommt, wird gar nicht mehr nach Markern
+     * durchsucht; ein Benutzername "{{t:sprache.titel}}" kann deshalb keine
+     * Ersetzung des Servers ausloesen.
+     *
+     * Verlassen wird sich darauf trotzdem nicht: esc() weiter unten macht die
+     * beiden Klammern zusaetzlich unschaedlich. Zwei Vorkehrungen, aus
+     * demselben Grund wie bei den Rauten - eine einzelne faellt beim
+     * naechsten Umbau weg, ohne dass es jemand merkt.
+     *
+     * NACH DEM KOMMENTARBLOCK, nicht davor: Die Vorlagen beschreiben ihre
+     * Marker in ihrem Kopfkommentar, und dort steht {{t:...}} dann als
+     * Beispiel. Aufgeloest wird nur, was uebrig bleibt - genau derselbe
+     * Grund, aus dem der Kommentar ueberhaupt entfernt wird.
+     *
      * @param string $pfad Pfad zur Vorlage, z. B. 'assets/html/login.html'
      * @return string Der Inhalt ohne den einleitenden Kommentarblock
      */
@@ -68,7 +87,9 @@ class ViewHelper
         // ^\s*(<!--...-->\s*)+ : ein oder mehrere Kommentarbloecke am Anfang.
         // Das "U" macht .* genuegsam, sonst reichte der Treffer bis zum
         // letzten "-->" der Datei.
-        return ltrim(preg_replace('/^\s*(?:<!--.*-->\s*)+/Us', '', $roh));
+        $ohneKommentar = ltrim(preg_replace('/^\s*(?:<!--.*-->\s*)+/Us', '', $roh));
+
+        return I18n::marker($ohneKommentar);
     }
 
     /**
@@ -94,6 +115,24 @@ class ViewHelper
      *    wieder "###USER###", im Dokument aber nicht mehr das Muster, auf
      *    das str_replace anspringt.
      *
+     * 3. Zwei geschweifte Klammern werden ebenso unschaedlich gemacht. DER
+     *    GLEICHE FEHLER, NUR MIT DEM ZWEITEN BAUVERFAHREN: Seit es
+     *    Sprachkataloge gibt, loest template() den Marker {{t:schluessel}}
+     *    auf (App\Helper\I18n). Ein Text, in dem jemand
+     *    "{{t:sprache.titel}}" schreibt, waere damit Fremdeingabe, die einen
+     *    Katalogschluessel bestimmt - und der naechste Schritt waere ein
+     *    Aufrufer, der Katalogtexte als HTML einsetzt.
+     *
+     *    HEUTE KANN DAS NICHT PASSIEREN, weil template() beim LADEN der
+     *    Datei aufloest und Fremdeingabe erst danach hineinkommt. Genau
+     *    darauf soll sich aber niemand verlassen muessen: Wer spaeter einmal
+     *    einen Marker ueber das fertige Dokument laufen laesst - so wie
+     *    output() es mit den Rauten tut -, hat sonst eine Luecke gebaut,
+     *    ohne diese Zeile je gesehen zu haben.
+     *
+     *    Ersetzt wird nur die OEFFNENDE Doppelklammer: Ohne sie gibt es kein
+     *    Muster mehr, und "}}" allein ist harmlos.
+     *
      * DIE EINE FASSUNG DIESER REGEL. App\Helper\LocationView::esc() und
      * App\Helper\GuideView::esc() rufen sie auf, statt sie nachzubauen -
      * eine zweite Fassung waere eine zweite Gelegenheit, den zweiten Teil zu
@@ -106,7 +145,8 @@ class ViewHelper
     {
         $text = is_scalar($in_wert) ? (string)$in_wert : '';
         $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-        return str_replace('###', '&#35;&#35;&#35;', $text);
+        $text = str_replace('###', '&#35;&#35;&#35;', $text);
+        return str_replace('{{', '&#123;&#123;', $text);
     }
 
     /**
@@ -394,6 +434,62 @@ class ViewHelper
     }
 
     /**
+     * Der Sprachumschalter der Fusszeile - fuer Gaeste.
+     *
+     * WARUM VERWEISE UND KEIN AUFKLAPPMENUE MIT JAVASCRIPT
+     * ----------------------------------------------------
+     * Weil der Text vom SERVER kommt. Eine Sprachwahl im Browser koennte
+     * hoechstens nachtraeglich austauschen, was schon dasteht - und muesste
+     * dafuer jeden Satz der Seite ein zweites Mal kennen. Ein Verweis holt
+     * die Seite neu, und sie kommt fertig in der neuen Sprache. Das ist
+     * zugleich der Grund, warum das hier ohne JavaScript funktioniert.
+     *
+     * WARUM DIE AKTIVE SPRACHE ALS TEXT UND NICHT ALS VERWEIS DASTEHT
+     * ---------------------------------------------------------------
+     * Ein Verweis auf das, was ohnehin gilt, tut beim Anklicken nichts. Er
+     * saehe aber genauso aus wie der, der etwas tut - und wer die Sprache
+     * nicht liest, koennte die beiden nicht unterscheiden. aria-current sagt
+     * einem Vorleseprogramm dasselbe.
+     *
+     * WOHIN ES ZURUECKGEHT: auf die Seite, auf der der Umschalter stand. Die
+     * Adresse dafuer geht als "back" mit und wird im Controller geprueft -
+     * siehe App\Controller\SystemController::setLanguage(). Ohne sie landete
+     * jeder Sprachwechsel auf der Startseite, und wer auf einer Standortseite
+     * umschaltet, verloere den Standort.
+     *
+     * @return string HTML
+     */
+    private static function languageSwitch(): string
+    {
+        $aktiv = I18n::aktiv();
+        $back  = isset($_SERVER['QUERY_STRING']) && is_scalar($_SERVER['QUERY_STRING'])
+               ? (string)$_SERVER['QUERY_STRING']
+               : '';
+
+        $eintraege = '';
+        foreach (I18n::SPRACHEN as $kuerzel => $name) {
+            if ($kuerzel === $aktiv) {
+                $eintraege .= '<span class="app-footer__lang app-footer__lang--on"'
+                            . ' aria-current="true"'
+                            . ' title="' . self::esc(I18n::t('sprache.aktiv', ['sprache' => $name])) . '">'
+                            . self::esc($name) . '</span>';
+                continue;
+            }
+
+            $ziel = 'index.php?act=set_lang&lang=' . rawurlencode($kuerzel);
+            if ($back !== '') $ziel .= '&back=' . rawurlencode($back);
+
+            $eintraege .= '<a class="app-footer__lang" href="' . self::esc($ziel) . '"'
+                        . ' hreflang="' . self::esc($kuerzel) . '"'
+                        . ' title="' . self::esc(I18n::t('sprache.wechseln_zu', ['sprache' => $name])) . '">'
+                        . self::esc($name) . '</a>';
+        }
+
+        return '<nav class="app-footer__langs" aria-label="'
+             . self::esc(I18n::t('sprache.titel')) . '">' . $eintraege . '</nav>';
+    }
+
+    /**
      * Ersetzt die ###CONTENT###-Platzhalter im Hauptlayout mit dem übergebenen Content und gibt das HTML aus.
      * Ergänzt außerdem Benutzerstatus, Login/Logout-Links, Call- und Mediensteuerung sowie User-Infos.
      *
@@ -670,6 +766,28 @@ class ViewHelper
         // waere zu spaet: Der Nutzer saehe die helle Seite aufblitzen.
         $out = str_replace("###THEME###"     , $theme ?? Theme::DEFAULT      , $out);
         $out = str_replace("###THEME_BOOT###", Theme::bootScript($theme)     , $out);
+
+        // DIE SPRACHE. Drei Stellen, und jede hat einen eigenen Grund:
+        //
+        //   ###LANG###        das lang-Attribut am <html>-Element. Es ist
+        //                     keine Zierde: Vorleseprogramme waehlen daran
+        //                     ihre Aussprache, Browser ihre Silbentrennung
+        //                     und ihr Uebersetzungsangebot. Fest verdrahtetes
+        //                     lang="de" auf einer englischen Seite ist
+        //                     schlimmer als gar keines.
+        //   ###I18N_BOOT###   Sprache und Katalog fuer das JavaScript, damit
+        //                     eine Meldung des Browsers dieselbe Sprache
+        //                     spricht wie die Seite darunter
+        //                     (App\Helper\I18n::bootScript).
+        //   ###LANGSWITCH###  der Umschalter in der Fusszeile - NUR FUER
+        //                     GAESTE. Angemeldet steht die Wahl auf der
+        //                     Kontoseite neben dem Farbprofil: Dort wird sie
+        //                     am Konto gespeichert, und zwei Umschalter fuer
+        //                     dieselbe Einstellung waeren zwei Antworten auf
+        //                     die Frage, wo man sie aendert.
+        $out = str_replace("###LANG###"      , I18n::aktiv()                 , $out);
+        $out = str_replace("###I18N_BOOT###" , I18n::bootScript()            , $out);
+        $out = str_replace("###LANGSWITCH###", Auth::isLoggedIn() ? '' : self::languageSwitch(), $out);
 
         // Ausgabe und Script-Beendigung
         die($out); 

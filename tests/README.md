@@ -27,7 +27,7 @@ verändern nichts — sie sind gefahrlos jederzeit ausführbar.
 
 | Datei | Inhalt |
 |---|---|
-| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `navigator.mediaDevices`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Die Medien-Attrappe schreibt mit, welche Spuren angefordert wurden, kennt eine Geräteliste (`__devices`) samt `enumerateDevices` und `getSettings().deviceId` und lässt sich über `__mediaError` (alles) oder `__mediaErrorFor.video` / `.audio` (eine Spurart) zu einer Ablehnung zwingen. Die PeerConnection-Attrappe bildet Transceiver samt Richtung nach: `setRemoteDescription` eines Angebots legt sie als `recvonly` an, und `replaceTrack` weist eine Spur der falschen Art mit `TypeError` ab — so wie der Browser. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. `navigator` wird über `Object.defineProperty` gesetzt: Node bringt seit Version 21 ein eigenes mit, und das ist ein Getter ohne Setter — eine einfache Zuweisung lief still ins Leere. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `media.js`, `signaling.js`, `chat.js` und `ui.js` aus `assets/js`. Allein nicht ausführbar. |
+| `client_harness.js` | Stub-Umgebung für den Client: `document`, `fetch`, `alert`, `navigator.mediaDevices`, `RTCPeerConnection` und `RTCDataChannel` als Attrappen. Die Medien-Attrappe schreibt mit, welche Spuren angefordert wurden, kennt eine Geräteliste (`__devices`) samt `enumerateDevices` und `getSettings().deviceId` und lässt sich über `__mediaError` (alles) oder `__mediaErrorFor.video` / `.audio` (eine Spurart) zu einer Ablehnung zwingen. Die PeerConnection-Attrappe bildet Transceiver samt Richtung nach: `setRemoteDescription` eines Angebots legt sie als `recvonly` an, und `replaceTrack` weist eine Spur der falschen Art mit `TypeError` ab — so wie der Browser. Der DOM-Stub schreibt angehängte Kinder mit, damit prüfbar ist, dass eine verworfene Nachricht *nicht* im Chatlog landet; abgespielte Signaltöne werden ebenfalls mitgeschrieben. `navigator` wird über `Object.defineProperty` gesetzt: Node bringt seit Version 21 ein eigenes mit, und das ist ein Getter ohne Setter — eine einfache Zuweisung lief still ins Leere. Lädt danach `app.js`, `protocol.js`, `rtc.js`, `control.js`, `media.js`, `signaling.js`, `chat.js`, `ui.js` und `i18n.js` aus `assets/js`. Allein nicht ausführbar. |
 | `client_test.js` | Die eigentlichen Client-Prüfungen. |
 
 Für den Bereitschaftsschalter kommt im Harness dazu: `classList.toggle` mit
@@ -48,12 +48,14 @@ Schleife. Ob das Skript auf der Anfragenseite steht, entscheidet
 Seite, auf der jemand dieselbe `id` vergibt.
 
 | `server_test.php` | Die Serverprüfungen. Ersetzt `PdoConnect::$connection` durch eine Attrappe, die abgesetzte SQL-Statements nur mitschreibt statt sie auszuführen. |
+| `i18n_scan.php` | Der Sucher für nackte deutsche Literale. Bibliothek für `server_test.php` **und** eigenes Werkzeug: `php tests/i18n_scan.php` meldet nur, `--schreiben` erzeugt den Grundstock neu. PHP wird über `token_get_all()` zerlegt, damit Kommentare draußen bleiben; JavaScript zeichenweise gelesen, weil ein `//` *innerhalb* einer Zeichenkette kein Kommentarbeginn ist. |
+| `i18n_grundstock.txt` | Der Grundstock: eine Zeile je bekanntem Fund, Format `pfad<TAB>text`. Neue Zeilen lassen den Testlauf fehlschlagen — das ist der Zweck der Datei. |
 
 Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (173 Prüfungen)
+## Was `client_test.js` prüft (187 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -417,7 +419,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (367 Prüfungen)
+## Was `server_test.php` prüft (385 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1737,6 +1739,66 @@ einer von Hand gepflegten Liste. Jeder so gefundene Schlüssel muss in
 `.env.example` **und** in der README vorkommen; dazu die beiden Schlüssel des
 Backup-Skripts, die der PHP-Code gar nicht liest. Ein Schalter, den der Code
 liest und den niemand dokumentiert, ist ein Schalter, den niemand findet.
+
+### Die Sprache der Oberfläche (`App\Helper\I18n`)
+
+- **Die Auflösungsreihenfolge**, und zwar jede Stufe einzeln *und* die Frage,
+  ob eine höhere eine niedrigere überstimmt: Konto → Cookie → `Accept-Language`
+  → `en`. Dazu der Fall, der im Betrieb entsteht, wenn ein Katalog entfällt —
+  ein unbekanntes Kürzel in Konto oder Cookie darf die nächste Quelle nicht
+  blockieren.
+- **`Accept-Language` nach `q`-Gewicht**, nicht nach Reihenfolge:
+  `en;q=0.5,de;q=0.9` ergibt Deutsch. `q=0` heißt ausdrücklich *nicht*, `*` ist
+  keine Antwort, `de-CH` ist Deutsch. Bei gleichem Gewicht entscheidet die
+  Reihenfolge — sonst hinge das Ergebnis von der Sortierfunktion ab.
+- **Beide Kataloge haben dieselben Schlüssel** und dieselben Pluralformen, und
+  keiner enthält Markup. Der Schlüsselvergleich allein genügt nicht: Ein
+  Schlüssel, der nur in einer Sprache zählbar ist, fällt dort nicht auf, und
+  `plural()` lieferte in der anderen immer denselben Satz.
+- **`t()`, `plural()` und die Platzhalter.** Ein unbekannter Schlüssel kommt als
+  er selbst zurück, ein nicht übergebener Platzhalter bleibt sichtbar stehen.
+  Beides ist Absicht und wird deshalb festgehalten: Eine Lücke fiele niemandem
+  auf — und damit fiele auch nicht auf, dass ein Text fehlt.
+- **`template()` löst `{{t:…}}` beim Laden auf** — geprüft an der echten
+  Kontoseite und nicht an einer erfundenen Zeichenkette.
+- **`esc()` entschärft beide Bauverfahren.** Die Rauten wie bisher, und jetzt
+  auch die öffnende Doppelklammer: Sonst bestimmte Fremdeingabe, welcher
+  Katalogschlüssel gezogen wird. Heute kann das nicht passieren, weil
+  `template()` beim *Laden* auflöst — und genau deshalb steht die Prüfung da.
+- **Sprache und Katalog gehen als Skript mit ins Dokument**, ohne eine Raute
+  darin (`ViewHelper::output()` läuft danach über das ganze Dokument). In der
+  Vorgabesprache bleibt der zweite Katalog leer, weil er eine Kopie wäre.
+- **`lang`-Attribut, Katalogskript und Umschalter sind verdrahtet**: Jeder der
+  drei Platzhalter steht genau einmal im Layout und wird von `ViewHelper`
+  ersetzt; ein fest verdrahtetes `lang="de"` gibt es nicht mehr. Dazu die
+  `Vary`-Kopfzeile — ohne sie gäbe ein Zwischenspeicher dem nächsten Besucher
+  die Sprache des vorigen.
+- **Der Rückweg des Umschalters führt nur in diese Anwendung.** `back` kommt
+  aus der Anfrage und wird zerlegt statt übernommen: `act` und eine numerische
+  `id`, sonst nichts. Geprüft gegen eine fremde Adresse, eine schemalose
+  (`//boese.example/`), einen Zeilenumbruch im Wert und den Umschalter selbst.
+
+### Keine neuen deutschen Literale im Code
+
+Der wichtigste Posten des Sprachfundaments — die **Ratsche**. `i18n_scan.php`
+durchsucht `class/`, `assets/js/` und `assets/html/`; was es heute gibt, steht
+in `i18n_grundstock.txt`. **Neue** Funde lassen den Testlauf fehlschlagen,
+**entfallene** werden nur gemeldet (sonst müsste jede Übersetzung zugleich den
+Grundstock anfassen, und er wäre ein Hindernis statt einer Bremse).
+
+Mitgeprüft wird der Sucher selbst, denn ein kaputter Sucher fände nichts und
+wäre damit für immer grün — die gefährlichste Art, in der ein Test verschwinden
+kann:
+
+- Er findet mehr als 500 Stellen.
+- Er erkennt einen Satz mit Umlaut, einen ohne und ein einzelnes Wort der
+  Oberfläche („Speichern").
+- Er meldet **nicht**, was Technik ist (`app-panel__body`, `user.settings`,
+  `index.php?act=home`, `###USER###`) und keinen englischen Satz.
+- Er überspringt die Argumente von `error_log()` und `console.warn()` — samt
+  Verkettungen darin —, aber nur diese: Das Literal in der Zeile *daneben* wird
+  weiterhin gefunden. Ein Ausschluss, der zu viel wegnimmt, wäre schlimmer als
+  keiner.
 
 ## Grenzen
 

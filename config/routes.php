@@ -208,6 +208,18 @@ return [
     // geladen wird - das Profil wirkt sofort ueber data-theme am <html>.
     'set_theme'             => [SettingsController::class           , 'setTheme'                , Permission::USER_SETTINGS          , 'json'],
 
+    // SPRACHE UMSTELLEN. Anders als das Farbprofil daneben, und zwar in
+    // beiden Punkten:
+    //
+    //   'html' und nicht 'json': Der Text kommt vom Server und steht bereits
+    //   fertig in der Seite - es muss ohnehin neu geladen werden. Also eine
+    //   gewoehnliche Weiterleitung, die auch ohne JavaScript funktioniert.
+    //
+    //   system.language und nicht user.settings: Auch ein Gast muss die
+    //   Sprache wechseln koennen. Wer das Anmeldeformular nicht versteht,
+    //   kann sich nicht anmelden, um dann die Sprache umzustellen.
+    'set_lang'              => [SystemController::class             , 'setLanguage'             , Permission::SYSTEM_LANGUAGE        , 'html'],
+
     // Guide-Rolle: die Frage stellen und beantworten.
     //
     // Zwei Routen mit demselben Recht: Die Seite zeigt die Frage, die zweite

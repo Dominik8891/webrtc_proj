@@ -69,9 +69,10 @@ mariadb -u <user> -p <datenbank> < migrations/018_bremse.sql
 mariadb -u <user> -p <datenbank> < migrations/019_standort_chat.sql
 mariadb -u <user> -p <datenbank> < migrations/020_username_eindeutig.sql
 mariadb -u <user> -p <datenbank> < migrations/021_stadt_je_land_eindeutig.sql
+mariadb -u <user> -p <datenbank> < migrations/022_sprache.sql
 ```
 
-`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)), `017` ergänzt `tour_request.closed_at`: Der Guide **beendet die Führung ausdrücklich**, statt dass das Auflegen sie abschließt (siehe [Auflegen ist nicht beenden](#auflegen-ist-nicht-beenden)), `018` legt die Tabelle `rate_limit` an — die **serverseitigen Versuchszähler**, die vorher in der Session des Aufrufers lagen, `019` gibt dem Chat seine **Herkunft** (`chat.location_id`) und nimmt ihm die **Einladung** (siehe [Der Chat](#-der-chat-über-einen-standort)), `020` macht den **Benutzernamen eindeutig** (Index auf `user.username`), `021` macht eine **Stadt je Land eindeutig** (Index auf `city(city_name, country_id)`). Alle sind idempotent.
+`005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)), `017` ergänzt `tour_request.closed_at`: Der Guide **beendet die Führung ausdrücklich**, statt dass das Auflegen sie abschließt (siehe [Auflegen ist nicht beenden](#auflegen-ist-nicht-beenden)), `018` legt die Tabelle `rate_limit` an — die **serverseitigen Versuchszähler**, die vorher in der Session des Aufrufers lagen, `019` gibt dem Chat seine **Herkunft** (`chat.location_id`) und nimmt ihm die **Einladung** (siehe [Der Chat](#-der-chat-über-einen-standort)), `020` macht den **Benutzernamen eindeutig** (Index auf `user.username`), `021` macht eine **Stadt je Land eindeutig** (Index auf `city(city_name, country_id)`), `022` ergänzt `user.lang` — die **Sprache der Oberfläche je Konto** (siehe [Sprache](#-sprache-das-fundament)). Alle sind idempotent.
 
 **Nach `011` braucht die Anwendung ein Ablageverzeichnis für Bilder**, sonst lässt sich kein Bild hochladen; alles andere läuft unverändert weiter. Siehe [Bilder](#bilder-ablage-formate-größen).
 
@@ -2182,6 +2183,143 @@ Guide wird man **auf Nachfrage, nicht nebenbei**. Früher genügte das Anlegen e
 
 ---
 
+## 🌍 Sprache: das Fundament
+
+**Stufe 0.** Es gibt einen Weg, wie ein Text zu seiner Sprache kommt — aber
+noch keine Übersetzung. Der Bestand der Anwendung ist weiterhin deutsch, und
+das ist Absicht: Ein Umzug, bei dem Fundament und Texte gleichzeitig entstehen,
+entscheidet an drei Stellen gleichzeitig, wie Sprache funktioniert.
+
+### Woher die Sprache kommt
+
+Vier Quellen, die **erste mit einer Antwort gewinnt** — dieselbe Bauart wie
+beim [Farbprofil](#-der-standort-und-seine-seite) und derselbe Aufbau in
+`App\Helper\I18n`:
+
+| # | Quelle | Gilt für | Warum an dieser Stelle |
+|---|--------|----------|------------------------|
+| 1 | `user.lang` | angemeldet | Die einzige Quelle, die der Nutzer bewusst gesetzt hat **und** die ihm über Geräte hinweg folgt. |
+| 2 | Cookie `webrtcapp_lang` | alle | Gilt in diesem Browser und überlebt das Abmelden. |
+| 3 | `Accept-Language` | alle | Trifft beim **ersten** Aufruf schon oft richtig. Ausgewertet nach `q`-Gewicht, nicht nach Reihenfolge; `de-AT` ist Deutsch. |
+| 4 | `en` | alle | Die Vorgabe gilt für jeden, dessen Browser nichts Bekanntes meldet — also gerade für die, deren Sprache die Anwendung nicht kennt. |
+
+**Ein Cookie und nicht `localStorage`** — das ist der Unterschied zum
+Farbprofil, und er ist keine Geschmacksfrage. Das Farbprofil setzt der
+*Browser* (ein Attribut am `<html>`, den Rest machen CSS-Variablen). Den Text
+setzt der *Server*: Er liefert die Seite fertig aus. Was nur im `localStorage`
+steht, kennt er beim Bauen nicht — die erste Seite käme in der falschen
+Sprache und würde anschließend per JavaScript überschrieben. Ein Cookie geht
+mit **jeder** Anfrage mit, auch mit der allerersten.
+
+Weil dieselbe Adresse damit je nach Cookie und Browser verschiedenen Text
+liefert, schickt `I18n::start()` ein `Vary: Accept-Language, Cookie`. Ohne
+diese Zeile gäbe ein Zwischenspeicher dem nächsten Besucher die Sprache des
+vorigen.
+
+### Wie ein Text an seinen Ort kommt
+
+**In PHP** über `App\Helper\I18n`:
+
+```php
+I18n::t('sprache.titel');                              // "Sprache" / "Language"
+I18n::t('sprache.wechseln_zu', ['sprache' => 'English']);
+I18n::plural('chat.neu', $anzahl);                     // wählt one/other, {n} ist gesetzt
+```
+
+**In HTML-Vorlagen** über den Marker `{{t:schluessel}}`:
+
+```html
+<h2 class="app-page-head__title">{{t:sprache.titel}}</h2>
+```
+
+Aufgelöst wird er in `ViewHelper::template()`, also **beim Laden der Datei** —
+und damit *bevor* ein Controller Fremdeingabe einsetzt. Das ist die eigentliche
+Absicherung; die zweite steht in `ViewHelper::esc()`, das die öffnende
+Doppelklammer unschädlich macht. Genau wie bei den `###PLATZHALTERN###` gilt:
+Fremdeingabe darf keine Ersetzung des Servers auslösen — sonst bestimmte ein
+Benutzername, welcher Katalogschlüssel gezogen wird. Zwei Vorkehrungen und
+nicht eine, weil eine einzelne beim nächsten Umbau wegfällt, ohne dass es
+jemand merkt.
+
+**Im Browser** über `webrtcApp.t()` und `webrtcApp.plural()`. Der Katalog kommt
+als `window.appI18n` mit dem Dokument — dasselbe Muster wie
+`window.locationPage` und `window.reviewScale`. Dort stehen nur die Sätze, die
+es beim Ausliefern noch gar nicht gab: „Anruf abgelehnt", „Datei zu groß".
+
+### Die Kataloge
+
+`lang/de.php` und `lang/en.php`, einfache PHP-Arrays. Drei Regeln:
+
+* **Beide haben dieselben Schlüssel** und dieselben Pluralformen. Ein Test hält
+  das fest — in PHP fällt ein fehlender Schlüssel still auf die Vorgabe zurück
+  und sieht im Betrieb deshalb wie ein Treffer aus.
+* **Der Schlüssel beschreibt den Ort, nicht den Text.** `sprache.titel`, nicht
+  `sprache_waehlen`. Sonst heißt ein Schlüssel nach einer Formulierung, die es
+  nicht mehr gibt.
+* **Kein HTML im Katalog.** Markup gehört in die Vorlage, der Text in den
+  Katalog; Katalogtexte werden nicht maskiert.
+
+Ein **fehlender Schlüssel** durchläuft: gewählte Sprache → `en` → *der
+Schlüssel selbst*. Der letzte Schritt ist Absicht: `konto.titel` steht dann
+sichtbar auf der Seite. Eine Lücke fiele niemandem auf — und damit fiele auch
+nicht auf, dass ein Text fehlt.
+
+### Der Umschalter
+
+Zwei Orte, ein Mechanismus (`index.php?act=set_lang`, Recht
+`system.language`):
+
+* **Fußzeile** — nur für Gäste. Wer das Anmeldeformular nicht versteht, kann
+  sich nicht anmelden, um dann die Sprache zu wechseln.
+* **Kontoseite**, neben dem Farbprofil — für Angemeldete. Dort wird die Wahl
+  zusätzlich am Konto gespeichert und gilt auf jedem Gerät.
+
+Beide sind **Verweise und keine Knöpfe mit JavaScript**: Den Text hat der
+Server gesetzt, es muss ohnehin neu geladen werden. Damit funktioniert die
+Sprachwahl auch ohne JavaScript. Das Ziel der Rückkehr (`back`) kommt aus der
+Anfrage und wird deshalb nicht übernommen, sondern zerlegt — übrig bleiben
+`act` und eine numerische `id`, alles andere fällt weg
+(`SystemController::rueckweg`). Eine Weiterleitung, die einen Aufrufer
+irgendwohin bringt, ist die klassische offene Weiterleitung, und sie fällt
+niemandem auf, weil sie ja funktioniert.
+
+Das `<html lang="…">` wird mitgesetzt. Es ist keine Zierde: Vorleseprogramme
+wählen daran ihre Aussprache, Browser ihre Silbentrennung. Fest verdrahtetes
+`lang="de"` auf einer englischen Seite ist schlimmer als gar keines.
+
+### Die Ratsche gegen neue deutsche Literale
+
+**Der wichtigste Posten des ganzen Fundaments.** Ein Sprachkatalog ist schnell
+gebaut; was ihn kaputt macht, ist der Alltag: Jemand ergänzt einen Knopf,
+schreibt „Speichern" hinein, und niemandem fällt es auf — der Test war ja grün.
+Nach einem halben Jahr sind es zweihundert solcher Stellen, und die Anwendung
+ist wieder halb deutsch.
+
+`tests/i18n_scan.php` durchsucht `class/`, `assets/js/` und `assets/html/` nach
+nackten deutschen Texten. Was es **heute** schon gibt, steht in
+`tests/i18n_grundstock.txt` und darf bleiben. Was **neu** dazukommt, lässt
+`tests/server_test.php` fehlschlagen.
+
+```bash
+php tests/i18n_scan.php              # nur melden
+php tests/i18n_scan.php --schreiben  # Grundstock neu schreiben
+```
+
+Der Grundstock darf neu geschrieben werden, **wenn Texte umgezogen sind** — und
+ausdrücklich nicht, um einen neuen deutschen Satz durchzulassen. Wer das tut,
+sieht es im Diff: Dort steht dann eine Zeile **mehr**. Entfallene Einträge
+brechen den Test nicht, sie werden nur gemeldet: Sonst müsste jede Übersetzung
+zugleich den Grundstock anfassen, und er wäre ein Hindernis statt einer Bremse.
+
+**Nicht durchsucht** werden Kommentare (PHP wird dafür über `token_get_all()`
+zerlegt und nicht mit einer Regex überflogen), `lang/` — dort *gehören*
+deutsche Sätze hin — und die Argumente von `error_log()`, `trigger_error()` und
+`console.warn()`. Ein Logeintrag richtet sich an den Betreiber und wird nie
+übersetzt; stünde er im Fund, wäre die Ratsche gegen die eigene Hausordnung
+gerichtet.
+
+---
+
 ## 🧪 Tests
 
 Zwei Pruefskripte fuer die Verbindungsstabilitaet und das Steuerprotokoll der WebRTC-Funktion:
@@ -2189,6 +2327,14 @@ Zwei Pruefskripte fuer die Verbindungsstabilitaet und das Steuerprotokoll der We
 ```bash
 node tests/client_test.js     # Client-Logik (assets/js)
 php  tests/server_test.php    # Serverlogik (class/)
+```
+
+Der zweite Lauf enthaelt die **Sprachratsche**: Ein neues deutsches Literal in
+`class/`, `assets/js/` oder `assets/html/` laesst ihn fehlschlagen — siehe
+[Sprache](#-sprache-das-fundament). Zum Nachsehen ohne den ganzen Testlauf:
+
+```bash
+php tests/i18n_scan.php       # meldet neue deutsche Literale
 ```
 
 Ohne Test-Framework, ohne Datenbank, ohne Netzwerk - beide sind gefahrlos

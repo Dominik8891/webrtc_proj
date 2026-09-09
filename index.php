@@ -25,11 +25,13 @@ require_once __DIR__ . '/config/session.php';
 
 use App\Helper\Auth;
 use App\Helper\Https;
+use App\Helper\I18n;
 use App\Helper\MailGate;
 use App\Helper\Permission;
 use App\Helper\Request;
 use App\Helper\SecurityHeaders;
 use App\Model\PdoConnect;
+use App\Model\User;
 
 // ---------------------------------------------------------------------------
 // HTTPS UND DIE SICHERHEITSKOPFZEILEN. Beides ganz am Anfang, und in dieser
@@ -116,6 +118,21 @@ if ($route_errors !== []) {
 // und Sitzungen geloeschter Konten auch nicht. Das FRAGT DIE DATENBANK und
 // steht deshalb hinter PdoConnect::sicherstellen() weiter oben.
 Auth::discardOutdatedSession();
+
+// ---------------------------------------------------------------------------
+// DIE SPRACHE DIESER ANTWORT. Genau eine Stelle, und sie liegt hier.
+//
+// SIE STEHT HINTER discardOutdatedSession(): Erst dort steht fest, ob die
+// Sitzung ueberhaupt noch gilt. Eine Sprache aus dem Konto einer verworfenen
+// Sitzung waere die Sprache eines Abgemeldeten.
+//
+// SIE STEHT VOR DEM CONTROLLER, weil der bereits Text baut - und vor jeder
+// Ausgabe, weil start() eine Vary-Kopfzeile schickt (siehe App\Helper\I18n).
+//
+// Die Kontospalte kostet eine Abfrage auf EINE Spalte und nur, wenn jemand
+// angemeldet ist; User::lang() laedt bewusst nicht den ganzen Datensatz.
+// ---------------------------------------------------------------------------
+I18n::start(Auth::isLoggedIn() ? User::lang(Auth::userId()) : null);
 
 // Liest den 'act'-Parameter aus der Request (GET/POST) aus
 $act = Request::g('act');

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de" data-theme="###THEME###">
+<html lang="###LANG###" data-theme="###THEME###">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +9,16 @@
          aus App\Helper\Theme::bootScript(); dort steht auch, warum das
          Skript ausnahmsweise im Dokument steht und nicht in einer Datei. -->
     ###THEME_BOOT###
+
+    <!-- Sprache und Katalog fuer das JavaScript. Der Inhalt kommt aus
+         App\Helper\I18n::bootScript(); im <head>, damit ein Modul, das beim
+         Laden schon etwas meldet, den Text bereits vorfindet.
+
+         DER TEXT DER SEITE HAENGT NICHT DARAN - den setzt der Server beim
+         Bauen ein. Hier stehen die Saetze, die erst durch ein Ereignis
+         entstehen: "Anruf abgelehnt", "Datei zu gross", "Nicht
+         gespeichert". -->
+    ###I18N_BOOT###
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
 
@@ -63,6 +73,10 @@
          (locations_table.js, map.js, home_map.js, location_page.js) - dort
          steht die Adresse nicht mehr, sie kommt von hier. -->
     <script src="assets/js/map_tiles.js"></script>
+    <!-- Die Texte. VOR notify.js und damit vor allem, was eine Meldung
+         ausgeben kann - ein Modul, das seinen Satz nicht findet, zeigt den
+         Schluessel an (assets/js/i18n.js). -->
+    <script src="assets/js/i18n.js"></script>
     <!-- Meldungen und Rueckfragen. Frueh geladen, weil fast jedes andere
          Modul darauf zurueckgreift. -->
     <script src="assets/js/notify.js"></script>
@@ -214,6 +228,11 @@
             <a href="#">Datenschutz</a>
             <a href="#">Kontakt</a>
         </nav>
+        <!-- Der Sprachumschalter - nur fuer Gaeste. Wer angemeldet ist,
+             findet die Wahl auf der Kontoseite neben dem Farbprofil: Dort
+             wird sie am Konto gespeichert und gilt auf jedem Geraet.
+             Gebaut wird er von App\Helper\ViewHelper. -->
+        ###LANGSWITCH###
     </footer>
 
     ###INNER_CALL_CONTROLL###

@@ -756,6 +756,45 @@ a:hover {
 
 .app-footer__links a:hover { color: var(--app-accent-strong); }
 
+/* Der Sprachumschalter - nur fuer Gaeste (App\Helper\ViewHelper).
+
+   ER STEHT IN DER FUSSZEILE UND NICHT IN DER KOPFLEISTE, obwohl er dort
+   auffaelliger waere. Genau deshalb: Die Sprache stellt man einmal um und
+   danach nie wieder. Die Kopfleiste ist fuer das da, was man staendig
+   braucht. Wer sie sucht, sucht sie unten - dort steht sie auf fast jeder
+   Seite im Netz.
+
+   Die aktive Sprache ist kein Verweis, sondern Text. Sie traegt trotzdem
+   dieselbe Groesse und denselben Abstand: Nebeneinander sollen es zwei
+   gleichrangige Angebote sein und nicht ein Knopf neben einer Beschriftung. */
+.app-footer__langs {
+    display: flex;
+    gap: var(--app-space-3);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.app-footer__lang {
+    color: var(--app-text-muted);
+    text-decoration: none;
+    padding: 2px var(--app-space-2);
+    border-radius: var(--app-radius-sm);
+}
+
+.app-footer__lang:hover {
+    color: var(--app-accent-strong);
+    text-decoration: underline;
+}
+
+/* Die aktive Sprache. Kraeftiger und ohne Unterstreichung - sie ist eine
+   Aussage und kein Angebot. */
+.app-footer__lang--on {
+    color: var(--app-text);
+    font-weight: var(--app-weight-medium);
+    background: var(--app-accent-tint);
+    cursor: default;
+}
+
 /* Inhaltsbereich. Seiten bringen ihre eigenen Karten mit; dieser Bereich
    sorgt nur fuer Breite und Aussenabstand. */
 .app-main {
@@ -2826,6 +2865,35 @@ table.dataTable td.dataTables_empty {
     font-size: var(--app-text-xs);
     color: var(--app-text-muted);
     line-height: var(--app-leading-tight);
+}
+
+/* ---------------------------------------------------------------------------
+   DIE SPRACHAUSWAHL DER KONTOSEITE.
+
+   Sie benutzt dieselben Karten wie die Farbprofile darueber, weil es
+   dieselbe Art von Einstellung ist - aber sie sind VERWEISE und keine
+   Radioknoepfe: Den Text setzt der Server, es muss also neu geladen werden
+   (App\Controller\SettingsController::languageChoices).
+
+   Daraus folgt genau eine Abweichung: Die Auswahl kann sich nicht auf
+   input:checked stuetzen, weil es kein input gibt. Die aktive Karte traegt
+   deshalb eine eigene Klasse - und sieht aus wie die ausgewaehlte oben, denn
+   fuer den Betrachter ist es dasselbe.
+   --------------------------------------------------------------------------- */
+
+.app-swatch--lang {
+    text-decoration: none;
+    /* Ohne Farbmuster steht der Text allein - sonst klebte er am Rand. */
+    padding: var(--app-space-3) var(--app-space-4);
+}
+
+.app-swatch--lang:hover .app-swatch__name { color: var(--app-accent-strong); }
+
+.app-swatch--on {
+    border-color: var(--app-accent);
+    box-shadow: inset 0 0 0 1px var(--app-accent);
+    background: var(--app-accent-tint);
+    cursor: default;
 }
 
 /* ---------------------------------------------------------------------------

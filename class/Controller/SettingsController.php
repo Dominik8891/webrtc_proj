@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Helper\Auth;
 use App\Helper\GuideView;
+use App\Helper\I18n;
 use App\Helper\ImageStore;
 use App\Helper\MailGate;
 use App\Helper\Permission;
@@ -105,6 +106,7 @@ class SettingsController
         $out = str_replace('###GUIDEBTN###', $guideBtn, $out);
         $out = str_replace('###MAILCONFIRM###', $mailConfirm, $out);
         $out = str_replace('###THEMES###', self::themeChoices($user->getTheme()), $out);
+        $out = str_replace('###LANGS###', self::languageChoices($user->getLang()), $out);
 
         // Die Rueckmeldung nach dem Speichern des Guide-Profils. Sie reist in
         // der Adresse mit (Post/Redirect/Get) und wird maskiert wieder
@@ -212,6 +214,76 @@ class SettingsController
                    .   '</span>'
                    . '</label>';
         }
+        return $html;
+    }
+
+    /**
+     * Baut die Sprachauswahl der Kontoseite.
+     *
+     * SIE SIEHT AUS WIE DIE FARBPROFILE DANEBEN, ARBEITET ABER ANDERS - und
+     * genau das ist hier die Entscheidung:
+     *
+     *   Das Farbprofil sind Radioknoepfe, die ein Skript abfaengt. Es wirkt
+     *   sofort, weil der Browser nur ein Attribut am <html> setzen muss.
+     *
+     *   Die Sprache sind VERWEISE. Den Text hat der Server gesetzt; er steht
+     *   fertig in der Seite. Umstellen heisst also in jedem Fall neu laden -
+     *   und dann ist ein Verweis das ehrlichere Element als ein Knopf, der
+     *   so tut, als geschaehe es an Ort und Stelle. Nebenbei funktioniert es
+     *   damit auch ohne JavaScript, und der Umschalter der Fusszeile
+     *   (App\Helper\ViewHelper::languageSwitch) ist derselbe Mechanismus.
+     *
+     * DIE AKTIVE SPRACHE IST KEIN VERWEIS, sondern Text - ein Verweis, der
+     * beim Anklicken nichts tut, saehe genauso aus wie einer, der etwas tut.
+     *
+     * WAS MARKIERT WIRD: die Sprache, in der diese Seite gerade dasteht -
+     * nicht der Wert aus user.lang. Beides faellt zusammen, sobald einmal
+     * gewaehlt wurde; davor gilt Cookie oder Browser, und markiert gehoert
+     * das, was der Nutzer vor sich sieht.
+     *
+     * DER UNTERSCHIED WIRD TROTZDEM GESAGT: Solange das Konto nichts
+     * festhaelt, steht unter der markierten Sprache der Hinweis, dass sie
+     * aus dem Browser kommt. Sonst hielte jemand fuer gespeichert, was beim
+     * naechsten Geraet wieder anders ist.
+     *
+     * @param string|null $in_gewaehlt Roher Wert aus user.lang
+     * @return string HTML
+     */
+    private static function languageChoices($in_gewaehlt): string
+    {
+        $aktiv = I18n::aktiv();
+        // Haelt das Konto ueberhaupt etwas fest? Der rohe Wert und nicht
+        // I18n::normalize() - dessen Rueckfall auf die Vorgabe wuerde
+        // "nichts gewaehlt" und "Englisch gewaehlt" ununterscheidbar machen.
+        $imKonto = I18n::isValid($in_gewaehlt);
+        $html    = '';
+
+        foreach (I18n::SPRACHEN as $kuerzel => $name) {
+            $eigen = ($kuerzel === $aktiv);
+            $klasse = 'app-swatch app-swatch--lang' . ($eigen ? ' app-swatch--on' : '');
+
+            // Zurueck auf die Kontoseite - dorthin, wo umgestellt wurde.
+            $ziel = 'index.php?act=set_lang&lang=' . rawurlencode($kuerzel)
+                  . '&back=' . rawurlencode('act=settings');
+
+            // Der Satz unter dem Namen sagt, was ein Klick bewirkt bzw. was
+            // gerade gilt - und die markierte Sprache eines Kontos ohne
+            // eigene Wahl sagt, dass sie nur aus diesem Browser stammt.
+            $satz = ($eigen && !$imKonto)
+                  ? I18n::t('sprache.gast')
+                  : I18n::t('sprache.konto');
+
+            $innen = '<span class="app-swatch__text">'
+                   .   '<span class="app-swatch__name">' . ViewHelper::esc($name) . '</span>'
+                   .   '<span class="app-swatch__desc">' . ViewHelper::esc($satz) . '</span>'
+                   . '</span>';
+
+            $html .= $eigen
+                ? '<span class="' . $klasse . '" aria-current="true">' . $innen . '</span>'
+                : '<a class="' . $klasse . '" href="' . ViewHelper::esc($ziel) . '"'
+                  . ' hreflang="' . ViewHelper::esc($kuerzel) . '">' . $innen . '</a>';
+        }
+
         return $html;
     }
 

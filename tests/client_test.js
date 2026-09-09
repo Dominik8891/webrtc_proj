@@ -3224,6 +3224,94 @@ function ackLastMove(status = 'executed', reason) {
         global.__confirms.length = 0;
     }
 
+    // -----------------------------------------------------------------
+    console.error('\n46) Die Texte im Browser: webrtcApp.t() und plural()');
+    // -----------------------------------------------------------------
+    //
+    // Den allergroessten Teil der Seite setzt der Server zusammen. Hier
+    // stehen die Saetze, die es beim Ausliefern noch gar nicht gab - eine
+    // abgelehnte Verbindung, eine zu grosse Datei. Der Katalog dafuer kommt
+    // als window.appI18n mit dem Dokument (App\Helper\I18n::bootScript).
+    {
+        const vorher = global.window.appI18n;
+
+        // OHNE KATALOG. Der erste Fall, und der wichtigste: Wenn das Skript
+        // im <head> fehlt oder eine Seite ohne es ausgeliefert wurde, muss
+        // jede Meldung ihren Schluessel zeigen. Eine leere Meldung faellt
+        // niemandem auf - und damit faellt auch nicht auf, dass etwas fehlt.
+        delete global.window.appI18n;
+        assert.strictEqual(app.t('call.abgelehnt'), 'call.abgelehnt',
+            'ohne Katalog kommt kein Schluessel zurueck');
+        assert.strictEqual(app.plural('chat.neu', 3), 'chat.neu',
+            'ohne Katalog kommt auch bei plural kein Schluessel zurueck');
+        ok('ohne Katalog steht der Schluessel da - sichtbar und nicht leer');
+
+        global.window.appI18n = {
+            lang: 'de',
+            default: 'en',
+            catalog: {
+                'test.einfach': 'Ein Satz.',
+                'test.platz':   'Hallo {name}, {tag} Nachrichten.',
+                'test.anzahl':  { one: '{n} Nachricht', other: '{n} Nachrichten' },
+                'test.ohneForm': 'Kein Formenobjekt'
+            },
+            fallback: {
+                'test.einfach':  'A sentence.',
+                'test.nurDort':  'Only in the default catalog.'
+            }
+        };
+
+        assert.strictEqual(app.t('test.einfach'), 'Ein Satz.', 'der eigene Katalog gewinnt');
+        // DIE KETTE: Sprache, Vorgabe, Schluessel - dieselbe wie in
+        // App\Helper\I18n::t(). Zwei verschiedene Ketten waeren zwei
+        // Antworten auf dieselbe Frage.
+        assert.strictEqual(app.t('test.nurDort'), 'Only in the default catalog.',
+            'der Vorgabekatalog wird nicht befragt');
+        assert.strictEqual(app.t('test.fehlt'), 'test.fehlt',
+            'ein unbekannter Schluessel steht als er selbst da');
+        ok('Sprache, dann Vorgabe, dann der Schluessel - wie in PHP');
+
+        // Platzhalter.
+        assert.strictEqual(app.t('test.platz', { name: 'Anna', tag: 3 }),
+            'Hallo Anna, 3 Nachrichten.', 'die Platzhalter werden gefuellt');
+        // Was niemand uebergibt, bleibt SICHTBAR stehen - aus demselben
+        // Grund wie der Schluessel oben.
+        assert.strictEqual(app.t('test.platz', { name: 'Anna' }),
+            'Hallo Anna, {tag} Nachrichten.',
+            'ein nicht uebergebener Platzhalter verschwindet stillschweigend');
+        assert.strictEqual(app.t('test.einfach', { name: 'Anna' }), 'Ein Satz.',
+            'ein Text ohne Platzhalter wird veraendert');
+        ok('Platzhalter werden gefuellt, und was fehlt, bleibt sichtbar');
+
+        // Plural. n geht mit und ist immer als {n} da.
+        assert.strictEqual(app.plural('test.anzahl', 1), '1 Nachricht', 'eine');
+        assert.strictEqual(app.plural('test.anzahl', 2), '2 Nachrichten', 'zwei');
+        assert.strictEqual(app.plural('test.anzahl', 0), '0 Nachrichten',
+            'null nimmt die Mehrzahl');
+        assert.strictEqual(app.plural('test.anzahl', -1), '-1 Nachricht',
+            'gerechnet wird mit dem Betrag');
+        // Ein Schluessel ohne Formen: Der Satz soll trotzdem da sein.
+        assert.strictEqual(app.plural('test.ohneForm', 5), 'Kein Formenobjekt',
+            'ein Schluessel ohne Formen verliert seinen Satz');
+        assert.strictEqual(app.plural('test.fehlt', 1), 'test.fehlt',
+            'ein unbekannter zaehlbarer Schluessel steht als er selbst da');
+        ok('plural() waehlt die Form und stellt {n} bereit');
+
+        // DIESELBE REGEL WIE IN PHP. Sie steht an zwei Stellen, weil sie an
+        // zwei Stellen gebraucht wird - dass beide dasselbe sagen, ist keine
+        // Selbstverstaendlichkeit und wird deshalb festgehalten. Die
+        // PHP-Seite prueft ihre Haelfte in tests/server_test.php.
+        const i18n = app.i18n;
+        assert.strictEqual(i18n.pluralForm('de', 1), 'one', 'de: eins ist Einzahl');
+        assert.strictEqual(i18n.pluralForm('de', 0), 'other', 'de: null ist Mehrzahl');
+        assert.strictEqual(i18n.pluralForm('en', 1), 'one', 'en: eins ist Einzahl');
+        assert.strictEqual(i18n.pluralForm('xx', 1), 'one',
+            'eine unbekannte Sprache faellt nicht auf die Zweiformenregel zurueck');
+        ok('die Pluralregel sagt dasselbe wie die in PHP');
+
+        global.window.appI18n = vorher;
+    }
+
     console.error('\n' + passed + ' Pruefungen bestanden.');
     process.exit(0);
 })().catch(e => { console.error('\nFEHLGESCHLAGEN:', e.message, '\n', e.stack); process.exit(1); });

@@ -418,6 +418,15 @@ CREATE TABLE IF NOT EXISTS `user` (
   -- braucht.
   `theme` varchar(20) DEFAULT NULL,
 
+  -- DIE SPRACHE DER OBERFLAECHE (Migration 022). NULL heisst wieder "noch
+  -- nichts gewaehlt" - und hier ist der Unterschied zum Farbprofil wichtig:
+  -- Solche Konten bekommen NICHT die Vorgabe, sondern die naechste Quelle
+  -- der Kette (Cookie, dann Accept-Language, dann 'en'). Ein DEFAULT 'en' in
+  -- dieser Spalte hiesse "hat sich fuer Englisch entschieden" und wuerde den
+  -- Browser eines deutschen Nutzers ueberstimmen. Welche Sprachen es gibt,
+  -- steht in App\Helper\I18n - deshalb varchar und kein ENUM.
+  `lang` varchar(5) DEFAULT NULL,
+
   `totp_secret` varchar(255) DEFAULT NULL,
   `totp_enabled` tinyint(4) DEFAULT 0,
   `deleted` tinyint(4) DEFAULT 0,

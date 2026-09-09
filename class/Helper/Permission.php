@@ -43,6 +43,20 @@ class Permission
     public const SYSTEM_HOME = 'system.home';
     /** Adminbereich. */
     public const SYSTEM_ADMIN = 'system.admin';
+    /**
+     * Die Sprache der Oberflaeche umstellen.
+     *
+     * JEDE ROLLE HAT ES, die Rolle Gast eingeschlossen - und das ist die
+     * Aussage dieses Rechts: In welcher Sprache jemand liest, ist keine
+     * Befugnis. Wer das Anmeldeformular nicht versteht, kann sich nicht
+     * anmelden, um dann die Sprache zu wechseln.
+     *
+     * Es steht trotzdem hier und ist nicht einfach weggelassen: index.php
+     * lehnt eine Route ohne Recht ab (siehe config/routes.php). Ein Recht,
+     * das alle haben, ist der ausgeschriebene Satz "hier wird nichts
+     * geprueft" - und damit etwas anderes als eine vergessene Zeile.
+     */
+    public const SYSTEM_LANGUAGE = 'system.language';
 
     /** Anmeldeformular und Anmeldung. */
     public const AUTH_LOGIN = 'auth.login';
@@ -407,6 +421,7 @@ class Permission
         // -------------------------------------------------------------
         self::GUEST => [
             self::SYSTEM_HOME,
+            self::SYSTEM_LANGUAGE,
             // Die Startseite ist eine Karte. Ohne dieses Recht waere sie
             // fuer einen Gast leer - und das Angebot damit unsichtbar,
             // bevor er sich ueberhaupt entscheiden kann.
@@ -442,6 +457,7 @@ class Permission
         // -------------------------------------------------------------
         Role::TRIAL => [
             self::SYSTEM_HOME,
+            self::SYSTEM_LANGUAGE,
             self::AUTH_LOGOUT,
             self::AUTH_PASSWORD_CHANGE,
             self::AUTH_EMAIL_VERIFY_SEND,
@@ -484,6 +500,7 @@ class Permission
         // -------------------------------------------------------------
         Role::USER => [
             self::SYSTEM_HOME,
+            self::SYSTEM_LANGUAGE,
             self::AUTH_LOGOUT,
             self::AUTH_PASSWORD_CHANGE,
             self::AUTH_EMAIL_VERIFY_SEND,
@@ -526,6 +543,7 @@ class Permission
         // -------------------------------------------------------------
         Role::GUIDE => [
             self::SYSTEM_HOME,
+            self::SYSTEM_LANGUAGE,
             self::AUTH_LOGOUT,
             self::AUTH_PASSWORD_CHANGE,
             self::AUTH_EMAIL_VERIFY_SEND,
@@ -581,6 +599,7 @@ class Permission
         // -------------------------------------------------------------
         Role::ADMIN => [
             self::SYSTEM_HOME,
+            self::SYSTEM_LANGUAGE,
             self::SYSTEM_ADMIN,
             self::AUTH_LOGOUT,
             self::AUTH_PASSWORD_CHANGE,

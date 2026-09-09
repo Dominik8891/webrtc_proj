@@ -483,6 +483,12 @@ for (const f of ['app.js', 'protocol.js', 'rtc.js', 'control.js', 'media.js', 's
     // und die reinen Baumethoden der Liste. init() laeuft nur ueber
     // DOMContentLoaded, und das loest hier niemand aus.
     eval(fs.readFileSync(path.join(ROOT, 'requests.js'), 'utf8'));
+
+    // i18n.js: webrtcApp.t() und webrtcApp.plural(). Die Datei ruft beim
+    // Laden nichts auf und braucht kein DOM - sie liest window.appI18n, und
+    // das legt die Pruefung selbst hin. Ohne einen solchen Katalog liefert
+    // sie den Schluessel zurueck, und genau das ist eine der Pruefungen.
+    eval(fs.readFileSync(path.join(ROOT, 'i18n.js'), 'utf8'));
 }
 
 // Module, die von rtc.js benutzt werden, aber hier nicht geladen sind

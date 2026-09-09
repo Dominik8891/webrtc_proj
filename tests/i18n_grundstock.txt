@@ -1,0 +1,1031 @@
+# Der Grundstock: deutsche Literale, die es beim Bau des
+# Sprachfundaments schon gab. Geschrieben von
+#     php tests/i18n_scan.php --schreiben
+#
+# Eine Zeile je Fund, Format:  pfad<TAB>text
+#
+# NEUE Zeilen lassen tests/server_test.php fehlschlagen - das ist
+# der Zweck dieser Datei. Wer einen Text in lang/ umzieht, darf sie
+# neu schreiben; wer einen neuen deutschen Satz in den Code
+# schreibt, sieht im Diff eine Zeile MEHR.
+assets/html/admin_locations.html	Standort
+assets/html/admin_locations.html	Standorte
+assets/html/admin_requests.html	Anfragen
+assets/html/admin_requests.html	Führung
+assets/html/admin_reviews.html	Bewertungen
+assets/html/admin_reviews.html	Führung
+assets/html/call_controll.html	Anruf der Administration
+assets/html/call_controll.html	Das ist keine Führung – es wird nicht gesteuert. Ton und Bild laufen in beide Richtungen.
+assets/html/change_pw.html	Abbrechen
+assets/html/change_pw.html	Altes Passwort
+assets/html/change_pw.html	Angemeldet als
+assets/html/change_pw.html	Neues Passwort
+assets/html/change_pw.html	Neues Passwort wiederholen
+assets/html/change_pw.html	Passwort ändern
+assets/html/email_verified.html	E-Mail-Adresse bestätigt
+assets/html/email_verified.html	Sie können sich jetzt anmelden.
+assets/html/email_verified.html	Zur Anmeldung
+assets/html/email_verified_error.html	Der Bestätigungslink lässt sich nicht mehr einlösen. Bestätigungslinks haben eine begrenzte Gültigkeit.
+assets/html/email_verified_error.html	Link ungültig oder abgelaufen
+assets/html/email_verified_error.html	Zur Anmeldung
+assets/html/forgot_pw.html	Passwort vergessen
+assets/html/forgot_pw.html	Wir schicken Ihnen einen Link an die hinterlegte Adresse.
+assets/html/forgot_pw.html	Zurück zur Anmeldung
+assets/html/guide_role.html	. Er sagt Ihnen über ein Steuerkreuz, wohin Sie gehen und wohin Sie schauen sollen. Sie entscheiden dabei jederzeit selbst, ob Sie einem Befehl folgen, und können die Steuerung im laufenden Call sperren.
+assets/html/guide_role.html	Als
+assets/html/guide_role.html	Führungen sind derzeit kostenlos. Sie werden künftig kostenpflichtig - Zuschauer zahlen für eine Führung, Guides erhalten dafür eine Vergütung. Bevor das in Kraft tritt, legen wir Ihnen die dann geltenden Bedingungen erneut zur Zustimmung vor. Ohne Ihre Zustimmung entstehen weder Kosten noch Ansprüche.
+assets/html/guide_role.html	Hinweis zu späteren Kosten:
+assets/html/guide_role.html	Möchten Sie Guide werden?
+assets/html/guide_role.html	Was ein Guide macht
+assets/html/guide_role.html	Was ein Zuschauer macht
+assets/html/guide_role.html	bieten Sie Standorte an: Orte, an denen Sie sich auskennen und an denen Sie unterwegs sein können. Bucht jemand eine Führung, sind Sie mit Kamera und Ton vor Ort - und
+assets/html/guide_role.html	die Regie hat der Zuschauer
+assets/html/guide_role.html	suchen Sie sich einen Standort auf der Karte aus und lassen sich von einem Guide vor Ort herumführen. Dafür brauchen Sie nichts anzubieten und Ihre eigene Position spielt keine Rolle.
+assets/html/home.html	Als Guide tragen Sie einen Ort ein, an dem Sie sich auskennen. Wenn Sie online sind, erscheint er hervorgehoben auf dieser Karte – und Sie werden angerufen.
+assets/html/home.html	Anmelden
+assets/html/home.html	Auf der Karte sehen Sie, wo gerade ein Guide bereitsteht.
+assets/html/home.html	Der Server hat nicht geantwortet. Das liegt meist an der Verbindung und ist nach einem erneuten Versuch behoben.
+assets/html/home.html	Die Standorte sind gerade nicht abrufbar.
+assets/html/home.html	Ein Klick auf die Nadel startet das Gespräch. Ton und Bild kommen direkt von unterwegs.
+assets/html/home.html	Es sind bislang keine Standorte eingetragen. So funktioniert es, sobald jemand einen anbietet – und Sie können der Erste sein.
+assets/html/home.html	Führen
+assets/html/home.html	Guide im Gespräch
+assets/html/home.html	Guide jetzt verfügbar
+assets/html/home.html	Guide werden
+assets/html/home.html	Hier ist noch niemand unterwegs.
+assets/html/home.html	Ihr Standort
+assets/html/home.html	Jemand geht für Sie los.
+assets/html/home.html	Karte der angebotenen Standorte
+assets/html/home.html	Karte nicht geladen
+assets/html/home.html	Konto anlegen
+assets/html/home.html	Live geführt statt vorbeigescrollt
+assets/html/home.html	Mit den Pfeiltasten geben Sie die Richtung vor. Der Guide hört und sieht Ihren Wunsch und geht dorthin.
+assets/html/home.html	Noch nichts auf der Karte
+assets/html/home.html	Ort wählen
+assets/html/home.html	Schließen
+assets/html/home.html	Sie sind selbst irgendwo, das andere sehen wollen? Nach der Anmeldung können Sie Ihren Standort anbieten und Führungen geben.
+assets/html/home.html	Standort ohne Guide
+assets/html/home.html	Standorte werden geladen …
+assets/html/home.html	Wie eine Straßenansicht – nur in echt und in diesem Moment. Ein Mensch vor Ort überträgt sein Bild, Sie sagen ihm, wo es langgeht. Melden Sie sich an, um zu sehen, wer gerade unterwegs ist.
+assets/html/home.html	Wie funktioniert das?
+assets/html/home.html	Wohin möchten Sie heute?
+assets/html/home.html	Wählen Sie einen Ort auf der Karte. Ein Guide vor Ort nimmt Sie mit – live, und Sie sagen, wohin.
+assets/html/home.html	Zur Listenansicht
+assets/html/inner_call_controll.html	Anruf der Administration
+assets/html/inner_call_controll.html	Blick nach oben
+assets/html/inner_call_controll.html	Blick nach unten
+assets/html/inner_call_controll.html	Chat schließen
+assets/html/inner_call_controll.html	Geräte
+assets/html/inner_call_controll.html	Kamera an/aus
+assets/html/inner_call_controll.html	Kamera aus
+assets/html/inner_call_controll.html	Keine Führung – es wird nicht gesteuert.
+assets/html/inner_call_controll.html	Mikrofon an/aus
+assets/html/inner_call_controll.html	Nach links
+assets/html/inner_call_controll.html	Nach rechts
+assets/html/inner_call_controll.html	Nachricht
+assets/html/inner_call_controll.html	Rückwärts
+assets/html/inner_call_controll.html	Steuerung gesperrt – der Guide hat sie angehalten.
+assets/html/inner_call_controll.html	Steuerung sperren
+assets/html/inner_call_controll.html	Ungelesene Nachrichten
+assets/html/inner_call_controll.html	Vorwärts
+assets/html/list_chat.html	Letzte Nachricht
+assets/html/list_chat.html	Unterhaltungen aus vergangenen und laufenden Führungen.
+assets/html/list_user.html	Anrufen und schreiben lässt sich, wer gerade online ist.
+assets/html/list_user.html	Benutzer
+assets/html/list_user.html	Benutzername
+assets/html/list_user.html	Nachricht
+assets/html/location_edit.html	Abbrechen
+assets/html/location_edit.html	Ausführliche Beschreibung
+assets/html/location_edit.html	Bearbeiten
+assets/html/location_edit.html	Bild hinzufügen
+assets/html/location_edit.html	Bilder vom Ort
+assets/html/location_edit.html	Bis zu ###E_MAXIMAGES### Bilder insgesamt, Titelbild mitgezählt – derzeit ###E_IMAGECOUNT###.
+assets/html/location_edit.html	Diese Zeile sehen andere im Kartenfenster und in der Standortliste. Der ausführliche Text steht nur hier.
+assets/html/location_edit.html	Eine Zeile – sie steht auf der Karte und in der Liste
+assets/html/location_edit.html	Grobe Orientierung für Kunden – keine feste Zusage. Anfragen zu anderen Zeiten bleiben möglich.
+assets/html/location_edit.html	Ihr Standort
+assets/html/location_edit.html	Ihre Zeiten gelten am Ort der Führung. Kunden in anderen Zeitzonen sehen beides. Vorbelegt ist die Zone, die sich aus Land und Koordinaten ergibt.
+assets/html/location_edit.html	Leer lassen, wenn es keine übliche Dauer gibt.
+assets/html/location_edit.html	Speichern
+assets/html/location_edit.html	Sprachen, in denen Sie führen
+assets/html/location_edit.html	Typische Dauer (Minuten)
+assets/html/location_edit.html	Wann sind Sie üblicherweise unterwegs?
+assets/html/location_edit.html	Worum geht es bei dieser Führung?
+assets/html/location_edit.html	Zeitzone des Ortes
+assets/html/location_page.html	Nächstes Bild
+assets/html/location_page.html	Schließen
+assets/html/location_page.html	Zurück zur Übersicht
+assets/html/locations_table.html	Alle Standorte
+assets/html/locations_table.html	Beschreibung
+assets/html/locations_table.html	Bewertung
+assets/html/locations_table.html	Dieselben Standorte wie auf der Karte, hier zum Durchsuchen und Sortieren.
+assets/html/locations_table.html	Schließen
+assets/html/login.html	Anmelden
+assets/html/login.html	Benutzername
+assets/html/login.html	Jetzt registrieren
+assets/html/login.html	Noch kein Konto?
+assets/html/login.html	Passwort
+assets/html/login.html	Weiter zu Ihren Führungen.
+assets/html/manage_user.html	Abbrechen
+assets/html/manage_user.html	Benutzer ###USER_INFO###
+assets/html/manage_user.html	Benutzername
+assets/html/manage_user.html	Passwort
+assets/html/manage_user.html	Speichern
+assets/html/requests_page.html	An meine Standorte
+assets/html/requests_page.html	Anfragen
+assets/html/requests_page.html	Die Anfragen konnten nicht geladen werden. Das liegt meist an der Verbindung.
+assets/html/requests_page.html	Hier ist gerade nichts offen. Sobald jemand eine Führung an einem Ihrer Standorte anfragt, steht sie hier – und der Zähler in der Kopfleiste sagt es Ihnen.
+assets/html/requests_page.html	Meine Anfragen
+assets/html/requests_page.html	Sie haben noch keine Führung angefragt. Suchen Sie sich auf der Karte einen Ort aus – auf seiner Seite fragen Sie die Führung mit Ihrem Wunschzeitpunkt an.
+assets/html/requests_page.html	Was an Ihre Standorte gerichtet ist – und was Sie selbst angefragt haben.
+assets/html/reset_pw.html	Neues Passwort
+assets/html/reset_pw.html	Neues Passwort setzen
+assets/html/reset_pw.html	Neues Passwort wiederholen
+assets/html/reset_pw.html	Passwort ändern
+assets/html/set_location.html	Abbrechen
+assets/html/set_location.html	Aktuellen Standort verwenden
+assets/html/set_location.html	Ausführliche Beschreibung
+assets/html/set_location.html	Der Ort, an dem Sie führen. Er erscheint auf der Karte – hervorgehoben, sobald Sie online sind.
+assets/html/set_location.html	Diese Zeile sehen andere im Kartenfenster und in der Standortliste. Der ausführliche Text steht auf der Standortseite.
+assets/html/set_location.html	Eine Zeile – sie steht auf der Karte und in der Liste
+assets/html/set_location.html	Kann auch später ergänzt werden – auf der Standortseite.
+assets/html/set_location.html	Land wählen...
+assets/html/set_location.html	Leer lassen, wenn es keine übliche Dauer gibt.
+assets/html/set_location.html	Längengrad
+assets/html/set_location.html	Punkt auf der Karte
+assets/html/set_location.html	Sprachen, in denen Sie führen
+assets/html/set_location.html	Stadt wählen...
+assets/html/set_location.html	Standort anbieten
+assets/html/set_location.html	Standort speichern
+assets/html/set_location.html	Typische Dauer (Minuten)
+assets/html/set_location.html	Worum geht es bei dieser Führung?
+assets/html/settings.html	Angaben
+assets/html/settings.html	Anmeldedaten, Sicherheit und die eigenen Standorte.
+assets/html/settings.html	Benutzername
+assets/html/settings.html	Beschreibung
+assets/html/settings.html	Bewertung
+assets/html/settings.html	Gilt für dieses Konto und ist beim nächsten Anmelden wieder da. Die Farben der Kartennadeln bleiben in jedem Profil gleich.
+assets/html/settings.html	Mein Konto
+assets/html/settings.html	Meine Standorte
+assets/html/settings.html	Nur für die Anmeldung. Kunden sehen Ihren Anzeigenamen aus dem Guide-Profil.
+assets/html/settings.html	Passwort ändern
+assets/html/settings.html	Schließen
+assets/html/settings.html	Standort anbieten
+assets/html/settings.html	Zwei-Faktor-Anmeldung
+assets/html/show_chat.html	Zurück zu allen Chats
+assets/html/signup.html	Anmelden
+assets/html/signup.html	Benutzername
+assets/html/signup.html	Danach können Sie Führungen buchen – und selbst welche anbieten.
+assets/html/signup.html	Konto anlegen
+assets/html/signup.html	Passwort
+assets/html/signup.html	Passwort wiederholen
+assets/html/signup.html	Schon registriert?
+assets/html/signup_complete.html	Ihr Konto wurde angelegt. Wir haben Ihnen eine E-Mail zur Bestätigung Ihrer Adresse geschickt — bitte sehen Sie auch im Spam-Ordner nach. Anmelden können Sie sich sofort.
+assets/html/signup_complete.html	Registrierung erfolgreich
+assets/html/signup_complete.html	Zur Anmeldung
+assets/html/verify_sent.html	Bestätigungsmail verschickt
+assets/html/verify_sent.html	Bitte klicken Sie auf den Link in der E-Mail. Der Link ist 24 Stunden gültig; sehen Sie auch im Spam-Ordner nach.
+assets/html/verify_sent.html	Zur Startseite
+assets/js/admin.js	Bewertung entfernen?
+assets/js/admin.js	Das hat nicht geklappt.
+assets/js/admin.js	Die Bewertung verschwindet von der Standortseite und vom Profil des
+assets/js/admin.js	Freigeben
+assets/js/admin.js	Gelöscht wird nichts.
+assets/js/admin.js	Guides und zählt nicht mehr im Durchschnitt. Gelöscht wird sie nicht –
+assets/js/admin.js	Keine Verbindung. Bitte erneut versuchen.
+assets/js/admin.js	Ohne Grund ist die Sperre für den Guide nicht nachvollziehbar.
+assets/js/admin.js	Sperren
+assets/js/admin.js	Standort sperren
+assets/js/admin.js	Warum wird gesperrt?
+assets/js/admin.js	bekommt diesen Text in seiner Standortliste zu sehen.
+assets/js/admin.js	danach nicht erneut bewerten.
+assets/js/admin.js	sie bleibt hier nachvollziehbar stehen. Der Kunde kann diese Führung
+assets/js/admin.js	“ erscheint danach wieder auf der Karte und in der Liste.
+assets/js/admin.js	“ verschwindet aus Karte und Liste. Der Guide
+assets/js/availability.js	Bereit
+assets/js/availability.js	Bereitschaft beendet. Ihre Standorte sind nicht mehr anrufbar.
+assets/js/availability.js	Die Bereitschaft konnte nicht geändert werden. Bitte erneut versuchen.
+assets/js/availability.js	Ihre Bereitschaft ist abgelaufen – Sie sind nicht mehr anrufbar.
+assets/js/availability.js	Nicht bereit
+assets/js/availability.js	Sie sind als Guide anrufbar (
+assets/js/availability.js	Sie sind jetzt als Guide anrufbar –
+assets/js/availability.js	Sie sind nicht anrufbar. Klicken stellt Sie auf bereit.
+assets/js/availability.js	Zum Weiterführen wieder auf „Bereit“ stellen.
+assets/js/availability.js	nicht bereit
+assets/js/availability.js	noch
+assets/js/chat.js	Nachricht nicht gesendet – sie ist zu lang.
+assets/js/chat.js	Nachricht nicht gesendet – Übertragungsfehler.
+assets/js/chat_badge.js	Ihre Nachrichten
+assets/js/chat_badge.js	Neue Nachricht.
+assets/js/chat_badge.js	ungelesene Nachricht(en)
+assets/js/control.js	Befehl war eine Wiederholung.
+assets/js/control.js	Befehl wurde als ungültig abgewiesen.
+assets/js/control.js	Der Guide hat die Steuerung gesperrt.
+assets/js/control.js	Der Guide hat die Steuerung wieder freigegeben.
+assets/js/control.js	Die Gegenseite kennt ihre Rolle nicht.
+assets/js/control.js	Keine Bestätigung für den Steuerbefehl erhalten.
+assets/js/control.js	Sperre konnte nicht übermittelt werden.
+assets/js/control.js	Steuerbefehl nicht gesendet – Verbindung ist gerade nicht stabil.
+assets/js/control.js	Steuerbefehl nicht gesendet – Übertragungsfehler.
+assets/js/control.js	Steuerbefehl verworfen – Verbindung war unterbrochen.
+assets/js/control.js	Steuerung freigeben
+assets/js/control.js	Steuerung ist gesperrt – der Guide hat sie angehalten.
+assets/js/control.js	Steuerung sperren
+assets/js/control.js	VORWÄRTS
+assets/js/control.js	Verbindung war nicht stabil.
+assets/js/control.js	ZURÜCK
+assets/js/home_map.js	${alle} Standorte
+assets/js/home_map.js	${gesperrt} <p class="home-popup__note">${sichtbar}</p> <div class="home-popup__action"> <a class="btn btn-secondary" href="${ziel}">Standort ansehen und bearbeiten</a> </div>
+assets/js/home_map.js	${live} Guides verfügbar
+assets/js/home_map.js	1 Guide verfügbar
+assets/js/home_map.js	1 Standort
+assets/js/home_map.js	<div class="home-popup__action"> <a class="btn ${item.status === 'live' ? 'btn-success' : 'btn-secondary'}" href="${ziel}"> ${item.status === 'live' ? 'Führung ansehen' : 'Standort ansehen'} </a> </div> ${hinweis ?
+assets/js/home_map.js	<p class="home-popup__note home-popup__note--danger">Gesperrt${item.blockedReason ? ': ' + this.esc(item.blockedReason) : ''}. Der Standort ist für andere nicht sichtbar.</p>
+assets/js/home_map.js	<span class="app-tag app-tag--accent">Ihr Standort</span>
+assets/js/home_map.js	<span class="app-tag app-tag--live"><span class="app-dot"></span>Jetzt verfügbar</span>
+assets/js/home_map.js	<span class="app-tag app-tag--warn"><span class="app-dot"></span>Im Gespräch</span>
+assets/js/home_map.js	<span class="app-tag">Kein Guide vor Ort</span>
+assets/js/home_map.js	Der Guide ist gerade in einer anderen Führung.
+assets/js/home_map.js	Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.
+assets/js/home_map.js	Gerade ist niemand vor Ort. Der Standort bleibt buchbar, sobald der Guide bereit ist.
+assets/js/home_map.js	Sie sind bereit – für andere ist dieser Standort gerade hervorgehoben.
+assets/js/home_map.js	Solange Sie nicht bereit sind, wird dieser Standort gedämpft angezeigt.
+assets/js/home_map.js	Standort
+assets/js/location_page.js	">Anfrage zurückziehen</button>
+assets/js/location_page.js	">Führung anfragen</button>
+assets/js/location_page.js	). Anfragen können Sie trotzdem –
+assets/js/location_page.js	</strong> ist beim Guide. Sobald er antwortet, sehen Sie es hier
+assets/js/location_page.js	<div class="loc-req__presets" role="group" aria-label="Vorgaben für den Wunschzeitpunkt">
+assets/js/location_page.js	<p class="loc__empty" data-empty>Noch keine Beispielbilder hochgeladen.</p>
+assets/js/location_page.js	<p class="loc__note">Ihre Anfrage für <strong>
+assets/js/location_page.js	<span class="app-tag app-tag--live"><span class="app-dot"></span>Jetzt verfügbar</span>
+assets/js/location_page.js	<span class="app-tag app-tag--warn"><span class="app-dot"></span>Im Gespräch</span>
+assets/js/location_page.js	<span class="app-tag app-tag--warn">Anfrage offen</span>
+assets/js/location_page.js	<span class="app-tag">Kein Guide vor Ort</span>
+assets/js/location_page.js	>Führung starten</button>
+assets/js/location_page.js	Anfrage gestellt. Der Guide antwortet – Sie sehen es hier und am Zähler oben.
+assets/js/location_page.js	Anfrage zurückgezogen.
+assets/js/location_page.js	Anfrage zurückziehen?
+assets/js/location_page.js	Bearbeiten
+assets/js/location_page.js	Bild hinzugefügt.
+assets/js/location_page.js	Bild löschen?
+assets/js/location_page.js	Bildern ist erreicht (Titelbild mitgezählt).
+assets/js/location_page.js	Bildern möglich, Titelbild mitgezählt.
+assets/js/location_page.js	Bitte einen Wunschzeitpunkt wählen – "Jetzt sofort" ist auch einer.
+assets/js/location_page.js	Das Bild konnte nicht gelöscht werden.
+assets/js/location_page.js	Das Bild konnte nicht gespeichert werden.
+assets/js/location_page.js	Das Bild verschwindet von der Standortseite. Das lässt sich nicht rückgängig machen.
+assets/js/location_page.js	Das Titelbild konnte nicht gesetzt werden.
+assets/js/location_page.js	Das Titelbild konnte nicht geändert werden.
+assets/js/location_page.js	Das hat nicht geklappt.
+assets/js/location_page.js	Das ist <strong>
+assets/js/location_page.js	Das liegt außerhalb der üblichen Zeiten (
+assets/js/location_page.js	Der Guide hat für
+assets/js/location_page.js	Der Guide hat zugesagt. Sie können jetzt starten – er wird angerufen.
+assets/js/location_page.js	Der Guide ist gerade bereit – „jetzt sofort“ hat gute Aussichten.
+assets/js/location_page.js	Der Guide sieht dann, dass die Führung nicht stattfindet.
+assets/js/location_page.js	Die Anfrage konnte nicht gestellt werden.
+assets/js/location_page.js	Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.
+assets/js/location_page.js	Die Datei ist zu groß – erlaubt sind
+assets/js/location_page.js	Die Obergrenze von
+assets/js/location_page.js	Die Reihenfolge konnte nicht gespeichert werden.
+assets/js/location_page.js	Dieses Bildformat wird nicht angenommen (JPEG, PNG oder WebP).
+assets/js/location_page.js	Führung von hier aus starten.
+assets/js/location_page.js	Gerade ist niemand vor Ort. Das ist kein Hindernis: Fragen Sie für
+assets/js/location_page.js	Ihre Anfrage ist nicht mehr offen. Was daraus geworden ist, steht unter "Anfragen".
+assets/js/location_page.js	Jetzt sofort
+assets/js/location_page.js	Keine Verbindung. Bitte erneut versuchen.
+assets/js/location_page.js	Löschen
+assets/js/location_page.js	Morgen um diese Zeit
+assets/js/location_page.js	Noch
+assets/js/location_page.js	Schließen
+assets/js/location_page.js	Zurückziehen
+assets/js/location_page.js	als Titelbild verwenden" title="Als Titelbild"></button>
+assets/js/location_page.js	als bei Ihnen
+assets/js/location_page.js	den vereinbarten Zeitpunkt
+assets/js/location_page.js	der Guide entscheidet.
+assets/js/location_page.js	früher
+assets/js/location_page.js	jetzt
+assets/js/location_page.js	keine
+assets/js/location_page.js	löschen" title="Löschen"></button>
+assets/js/location_page.js	nach hinten" title="Nach hinten"></button>
+assets/js/location_page.js	nach vorne" title="Nach vorne"></button>
+assets/js/location_page.js	später
+assets/js/location_page.js	später an, und der Guide sagt zu oder ab.
+assets/js/location_page.js	und am Zähler in der Kopfleiste.</p>
+assets/js/location_page.js	von
+assets/js/location_page.js	vor
+assets/js/location_page.js	zugesagt. Kurz vorher lässt sich die
+assets/js/location_page.js	· dort ist es
+assets/js/locations_table.js	">Fehler beim Laden der Daten.</td></tr>
+assets/js/locations_table.js	(gefiltert aus _MAX_)
+assets/js/locations_table.js	<tr><td colspan="${vorhanden || 1}">Diese Tabelle ist falsch konfiguriert.</td></tr>
+assets/js/locations_table.js	Der Standort konnte nicht gelöscht werden.
+assets/js/locations_table.js	Der Standort konnte nicht zugeordnet werden.
+assets/js/locations_table.js	Der Standort verschwindet von der Karte und aus allen Listen. Das lässt sich nicht rückgängig machen.
+assets/js/locations_table.js	Im Gespräch
+assets/js/locations_table.js	Keine Einträge
+assets/js/locations_table.js	Keine Standorte vorhanden.
+assets/js/locations_table.js	Löschen
+assets/js/locations_table.js	Nicht verfügbar
+assets/js/locations_table.js	Nichts gefunden.
+assets/js/locations_table.js	Standort
+assets/js/locations_table.js	Standort gelöscht.
+assets/js/locations_table.js	Standort löschen?
+assets/js/locations_table.js	Suchen
+assets/js/locations_table.js	Verfügbar
+assets/js/locations_table.js	Weiter
+assets/js/locations_table.js	Zurück
+assets/js/locations_table.js	_MENU_ Einträge
+assets/js/locations_table.js	_START_–_END_ von _TOTAL_
+assets/js/locations_table.js	löschen
+assets/js/main.js	Bitte mindestens Ton oder Video auswählen, um den Anruf anzunehmen.
+assets/js/main.js	Der Standort konnte nicht gespeichert werden.
+assets/js/main.js	Nicht gespeichert: Bitte den Standort auf der Karte auswählen.
+assets/js/main.js	Nicht gespeichert: Bitte einen Titel angeben.
+assets/js/main.js	Nicht gespeichert: Die Kurzbeschreibung ist zu kurz oder zu lang.
+assets/js/main.js	Nicht gespeichert: Die angegebene Dauer liegt außerhalb des erlaubten Bereichs.
+assets/js/main.js	Nicht gespeichert: Die ausführliche Beschreibung ist zu lang.
+assets/js/main.js	Passwort geändert.
+assets/js/main.js	Registrierung erfolgreich.
+assets/js/map.js	<option value="">Land wählen...</option>
+assets/js/map.js	Bitte einen Moment warten und noch einmal tippen.
+assets/js/map.js	Bitte zuerst ein Land wählen
+assets/js/map.js	Bitte zuerst ein Land wählen.
+assets/js/map.js	Die Auswahlfelder konnten nicht geladen werden, weil eine
+assets/js/map.js	Die Länderliste konnte nicht geladen werden. Bitte die
+assets/js/map.js	Die Städtesuche ist gerade nicht erreichbar.
+assets/js/map.js	Es fehlt der Punkt auf der Karte. Bitte in die Karte klicken,
+assets/js/map.js	Es konnten keine Länder geladen werden. Ohne Land ist
+assets/js/map.js	Für dieses Land steht keine Kartenansicht zur Verfügung.
+assets/js/map.js	Ihr Browser unterstützt keine Standortbestimmung.
+assets/js/map.js	Internetverbindung oder ein Werbeblocker die Ursache.
+assets/js/map.js	Keine Stadt gefunden.
+assets/js/map.js	Land wählen...
+assets/js/map.js	Seite neu laden. Besteht das Problem weiter, ist der
+assets/js/map.js	Server antwortete mit Status
+assets/js/map.js	Server nicht erreichbar oder die Datenbank nicht verfügbar.
+assets/js/map.js	Stadt wählen...
+assets/js/map.js	Standort gespeichert.
+assets/js/map.js	Standort konnte nicht ermittelt werden:
+assets/js/map.js	benötigte Bibliothek (select2) fehlt. Bitte die Seite neu
+assets/js/map.js	dann lässt sich der Standort speichern.
+assets/js/map.js	eine Stadt wählen oder "Aktuellen Standort verwenden" - erst
+assets/js/map.js	keine Stadt am Standort
+assets/js/map.js	keine Städtesuche möglich. Bitte an den Administrator
+assets/js/map.js	laden. Besteht das Problem weiter, ist vermutlich die
+assets/js/map.js	wenden - die Länderdaten fehlen in der Datenbank.
+assets/js/media.js	Das Gerät liess sich nicht übernehmen:
+assets/js/media.js	Das Gerät lässt sich noch nicht auswählen. Bitte erlauben Sie den Zugriff
+assets/js/media.js	Das Mikrofon ist stumm. Die Auswahl gilt, sobald Sie es einschalten.
+assets/js/media.js	Das Mikrofon liess sich nicht einschalten:
+assets/js/media.js	Das Mikrofon liess sich nicht stummschalten:
+assets/js/media.js	Der Anruf läuft ohne eigenen Ton weiter; der Chat bleibt nutzbar.
+assets/js/media.js	Die Kamera ist aus. Die Auswahl gilt, sobald Sie sie einschalten.
+assets/js/media.js	Die Kamera liess sich nicht abschalten:
+assets/js/media.js	Die Kamera liess sich nicht einschalten:
+assets/js/media.js	Es ist kein Mikrofonkanal ausgehandelt.
+assets/js/media.js	Für die Kamera wurde beim Verbindungsaufbau kein Kanal ausgehandelt.
+assets/js/media.js	Für dieses Gerät ist kein Kanal ausgehandelt.
+assets/js/media.js	auf Kamera und Mikrofon und öffnen Sie die Geräteliste erneut.
+assets/js/media.js	unbekannter Fehler
+assets/js/notify.js	Abbrechen
+assets/js/notify.js	Bitte etwas eintragen.
+assets/js/notify.js	Hinweis
+assets/js/notify.js	Hinweis schließen
+assets/js/notify.js	Sind Sie sicher?
+assets/js/notify.js	Speichern
+assets/js/protocol.js	" darf nur der
+assets/js/protocol.js	" gehoert auf Kanal "
+assets/js/protocol.js	", kam auf "
+assets/js/protocol.js	Feld "v" fehlt oder ist keine Ganzzahl
+assets/js/protocol.js	Frame ist kein Text
+assets/js/protocol.js	groesser als
+assets/js/protocol.js	kleiner als
+assets/js/protocol.js	laenger als
+assets/js/protocol.js	muss eine Zahl sein
+assets/js/protocol.js	muss eine Zeichenkette sein
+assets/js/protocol.js	muss ganzzahlig sein
+assets/js/protocol.js	muss true oder false sein
+assets/js/protocol.js	senden, Gegenseite ist
+assets/js/requests.js	">Führung beenden</button>
+assets/js/requests.js	">Führung bewerten</button>
+assets/js/requests.js	">Wieder einsteigen</button>
+assets/js/requests.js	<span class="app-tag app-tag--live"><span class="app-dot"></span>Läuft</span>
+assets/js/requests.js	<span class="req-item__done">Nichts mehr zu tun.</span>
+assets/js/requests.js	Anfrage(n) warten auf Ihre Antwort
+assets/js/requests.js	Angefragt von
+assets/js/requests.js	Angenommen. Der Kunde startet die Führung zum vereinbarten Zeitpunkt –
+assets/js/requests.js	Das hat nicht geklappt.
+assets/js/requests.js	Der Wiedereinstieg ist abgelaufen.
+assets/js/requests.js	Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.
+assets/js/requests.js	Führung
+assets/js/requests.js	Führung in
+assets/js/requests.js	Führung starten
+assets/js/requests.js	Führung(en) sind noch nicht beendet
+assets/js/requests.js	Ihr Guide:
+assets/js/requests.js	Ihre Anfrage wurde angenommen.
+assets/js/requests.js	Ihre Anfragen
+assets/js/requests.js	Ihre Bewertung:
+assets/js/requests.js	Ihrer Anfragen wurde(n) angenommen
+assets/js/requests.js	Keine Verbindung. Bitte erneut versuchen.
+assets/js/requests.js	Läuft noch. Beenden Sie sie, wenn Sie fertig sind.
+assets/js/requests.js	Neue Anfrage für eine Ihrer Führungen.
+assets/js/requests.js	Sie werden dann angerufen.
+assets/js/requests.js	Wieder einsteigen
+assets/js/requests.js	Wiedereinstieg noch
+assets/js/requests.js	Zurückziehen
+assets/js/requests.js	durchgeführt
+assets/js/requests.js	jetzt
+assets/js/requests.js	vor
+assets/js/review.js	, eine Bewertung
+assets/js/review.js	<button type="button" class="app-ask__close" aria-label="Schließen">×</button>
+assets/js/review.js	<button type="button" class="btn btn-primary btn-sm rev-ask__send" disabled>Absenden</button>
+assets/js/review.js	<label class="rev-ask__label" for="rev-ask-text">Wenn Sie mögen, ein paar Sätze</label>
+assets/js/review.js	<p class="app-ask__foot">Ihr Name steht nicht dabei. Der Guide kann die
+assets/js/review.js	<p class="app-ask__lead">Wie war die Führung mit <strong>
+assets/js/review.js	Abbrechen
+assets/js/review.js	Bewertung nicht ändern und nicht löschen.</p>
+assets/js/review.js	Bewertungen
+assets/js/review.js	Bitte wählen Sie zuerst die Sterne.
+assets/js/review.js	Danke – Ihre Bewertung steht beim Guide.
+assets/js/review.js	Die Bewertung konnte nicht gespeichert werden.
+assets/js/review.js	Führung bewerten
+assets/js/review.js	Führungen
+assets/js/review.js	Ihrem Guide
+assets/js/review.js	Keine Verbindung. Bitte erneut versuchen.
+assets/js/review.js	Später
+assets/js/review.js	eine Führung
+assets/js/review.js	von
+assets/js/rtc.js	Anruf mit
+assets/js/rtc.js	Antwort des Servers war kein gültiges JSON.
+assets/js/rtc.js	Antwort enthielt keine ICE-Server-Liste.
+assets/js/rtc.js	Bitte einmal auf das Bild tippen, damit Ton und Bild starten.
+assets/js/rtc.js	Das Mikrofon
+assets/js/rtc.js	Der Anruf ist nicht mehr da.
+assets/js/rtc.js	Der Anruf konnte nicht aufgebaut werden:
+assets/js/rtc.js	Der Anruf konnte nicht zugestellt werden. Bitte später erneut versuchen.
+assets/js/rtc.js	Der Anruf läuft ohne Bild weiter.
+assets/js/rtc.js	Der Anruf läuft ohne Ton weiter; der Chat bleibt nutzbar.
+assets/js/rtc.js	Der Anruf wurde nicht angenommen.
+assets/js/rtc.js	Der Zugriff auf
+assets/js/rtc.js	Der andere Teilnehmer hat die Verbindung beendet.
+assets/js/rtc.js	Die Verbindung konnte nicht aufgebaut werden.
+assets/js/rtc.js	Die Verbindung konnte nicht aufgebaut werden:
+assets/js/rtc.js	Die Verbindung zum Gesprächspartner konnte nicht wiederhergestellt werden.
+assets/js/rtc.js	Die Verbindung zum Gesprächspartner wurde beendet.
+assets/js/rtc.js	Die Verbindungsdaten konnten nicht geladen werden.
+assets/js/rtc.js	Es wurde kein Mikrofon gefunden. Ohne Mikrofon lässt sich kein Gespräch führen.
+assets/js/rtc.js	Es wurde keine Kamera gefunden. Ohne Kamera lässt sich kein Bild übertragen.
+assets/js/rtc.js	Hinweis: Es ist kein TURN-Server verfügbar. Der Anruf klappt nur, wenn
+assets/js/rtc.js	Server antwortete mit HTTP
+assets/js/rtc.js	Verbindung wird aufgebaut
+assets/js/rtc.js	beide Seiten in einfachen Netzen sind.
+assets/js/rtc.js	das Mikrofon
+assets/js/rtc.js	gerade ein anderes Programm.
+assets/js/rtc.js	in den Einstellungen des Browsers und versuchen Sie es erneut.
+assets/js/rtc.js	konnte nicht verwendet werden:
+assets/js/rtc.js	lässt sich nicht öffnen. Vermutlich benutzt
+assets/js/rtc.js	unbekannter Fehler
+assets/js/rtc.js	wurde abgelehnt. Bitte erlauben Sie ihn
+assets/js/signaling.js	Der Anruf konnte nicht gestartet werden.n
+assets/js/signaling.js	Die Gegenseite hat weder Ton noch Bild ausgewählt.
+assets/js/signaling.js	Die Verbindung ließ sich nicht aufbauen.
+assets/js/signaling.js	Signaling-Abruf fehlgeschlagen: HTTP
+assets/js/theme_switch.js	Farbprofil gespeichert.
+assets/js/theme_switch.js	Farbprofil konnte nicht gespeichert werden.
+assets/js/theme_switch.js	Farbprofil konnte nicht gespeichert werden. Bitte später erneut versuchen.
+assets/js/tour.js	">Führung beenden</button>
+assets/js/tour.js	<button type="button" class="app-ask__close" aria-label="Schließen">×</button>
+assets/js/tour.js	<button type="button" class="btn btn-secondary btn-sm tour-ask__later">Später</button>
+assets/js/tour.js	<p class="app-ask__foot">Erst nach dem Beenden ist die Führung abgeschlossen.
+assets/js/tour.js	<p class="app-ask__lead">Ihre Führung mit <strong>
+assets/js/tour.js	<p class="tour-ask__note">Aufgelegt heißt nicht beendet: Solange die Führung
+assets/js/tour.js	>Wieder einsteigen</button>
+assets/js/tour.js	Bewertung gefragt.</p>
+assets/js/tour.js	Danach ist die Führung abgeschlossen: Sie und Ihr Kunde können nicht
+assets/js/tour.js	Das hat nicht geklappt.
+assets/js/tour.js	Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.
+assets/js/tour.js	Führung beenden?
+assets/js/tour.js	Führung beendet.
+assets/js/tour.js	Ihr Kunde kann sie dann nicht mehr neu starten und wird nach einer
+assets/js/tour.js	Ihrem Kunden
+assets/js/tour.js	Keine Verbindung. Bitte erneut versuchen.
+assets/js/tour.js	Laufende Führung
+assets/js/tour.js	eine Stunde
+assets/js/tour.js	einer Bewertung gefragt. Rückgängig geht das nicht.
+assets/js/tour.js	ist noch nicht beendet.</p>
+assets/js/tour.js	mehr einsteigen, der Startknopf verschwindet, und Ihr Kunde wird nach
+assets/js/tour.js	noch etwa
+assets/js/tour.js	noch etwa eine Minute
+assets/js/tour.js	noch weniger als eine Minute
+assets/js/tour.js	offen ist, können Sie und Ihr Kunde wieder einsteigen
+assets/js/ui.js	<a href="index.php?act=show_locations_page" class="btn btn-secondary btn-sm">Alle Standorte</a>
+assets/js/ui.js	Das lässt sich nicht rückgängig machen.
+assets/js/ui.js	Datensatz löschen?
+assets/js/ui.js	Jetzt Tour-Guide werden!
+assets/js/ui.js	Löschen
+assets/js/ui.js	Neue Bedingungen bestätigen
+assets/js/ui.js	Neue Lokation hinzufügen
+assets/js/ui.js	Sind Sie sicher?
+assets/js/ui_chat.js	<div class="chat-pop chat-popup-tab${minimized ? ' minimized attention' : ''}" id="${tabId}" data-partner-id="${this.esc(partnerId)}" data-partner-name="${nameEsc}"> <div class="chat-pop__head chat-tab-header"> <span class="chat-pop__avatar" aria-hidden="true">${this.initials(partnerName)}</span> <span class="chat-pop__who"> <span class="chat-pop__title">${nameEsc}</span> <span class="chat-pop__sub">Chat</span> </span> <button class="chat-pop__close close-chat-tab" title="Schließen" aria-label="Chat schließen">&times;</button> </div> <div class="chat-popup-content" style="display:none;"> <div class="chat-pop__body chat-popup-messages"></div> <div class="chat-pop__foot"> <div class="chat-pop__compose chat-popup-actions"> <input type="text" class="form-control chat-popup-input" placeholder="Nachricht"> <button class="chat-pop__send chat-popup-send" type="button" title="Senden" aria-label="Senden"> <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.6 21.4 23 12 2.6 2.6l-.1 7.3L17 12 2.5 14.1z"/></svg> </button> </div> </div> </div> </div>
+assets/js/ui_chat.js	Der Chat konnte nicht gestartet werden.
+assets/js/ui_chat.js	Dieser Chat existiert nicht mehr.
+class/Controller/AdminController.php	Alle
+class/Controller/AdminController.php	Hängende Führungen
+class/Controller/AdminController.php	Ohne Antwort
+class/Controller/AdminController.php	Unvollständige
+class/Controller/AdminController.php	alle
+class/Controller/AdminController.php	anfragen
+class/Controller/AdminController.php	bewertungen
+class/Controller/AdminController.php	standorte
+class/Controller/ChatController.php	Chat konnte nicht erstellt werden
+class/Controller/ChatController.php	Chat nicht gefunden.
+class/Controller/ChatController.php	Das ist Ihr eigener Standort.
+class/Controller/ChatController.php	Dieses Konto gibt es nicht mehr.
+class/Controller/ChatController.php	Dieses Konto gibt es nicht mehr. Der Verlauf bleibt erhalten.
+class/Controller/ChatController.php	Mit sich selbst chattet niemand.
+class/Controller/ChatController.php	Zu diesem Standort ist kein Chat möglich.
+class/Controller/ChatController.php	Zu viele Nachrichten in kurzer Zeit. Bitte
+class/Controller/ChatController.php	anzeigen"
+class/Controller/ChatController.php	aria-label="Verlauf mit
+class/Controller/ChatController.php	konto
+class/Controller/ChatController.php	title="Verlauf anzeigen"></a>
+class/Controller/EmailVerificationController.php	</p> <div class="app-actions app-actions--center"> <a href="index.php?act=home" class="btn btn-primary">Zur Startseite</a> </div> </div> </div> </div>
+class/Controller/EmailVerificationController.php	<div class="app-result"> <div class="app-panel"> <div class="app-panel__body"> <div class="app-result__mark app-result__mark--danger" aria-hidden="true">!</div> <h1 class="app-auth__title">Keine neue Mail verschickt</h1> <p class="app-result__text">
+class/Controller/EmailVerificationController.php	E-Mail-Adresse bestätigen
+class/Controller/EmailVerificationController.php	Es wurde bereits eine Bestätigungsmail verschickt. Bitte sehen Sie
+class/Controller/EmailVerificationController.php	Hallo,\n\nBitte bestätige deine E-Mail durch Klick auf diesen Link:\n\n
+class/Controller/EmailVerificationController.php	\n\nDieser Link ist 24 Stunden gültig.
+class/Controller/EmailVerificationController.php	auch im Spam-Ordner nach. Ein neuer Versand ist
+class/Controller/EmailVerificationController.php	konto
+class/Controller/GuideController.php	<div class="mt-3"><a href="index.php?act=home" class="link-secondary">Später entscheiden</a></div>
+class/Controller/GuideController.php	<p class="text-muted small mb-0">Die Bestätigung gilt ab sofort. An Ihren
+class/Controller/GuideController.php	<p class="text-muted small mb-0">Sie können diese Entscheidung jederzeit in
+class/Controller/GuideController.php	<p class="text-muted small mb-0">Solange Sie noch Standorte anbieten,
+class/Controller/GuideController.php	Bitte versuchen Sie es später erneut.
+class/Controller/GuideController.php	Die Guide-Rolle konnte nicht zurückgegeben werden.
+class/Controller/GuideController.php	Die Guide-Rolle konnte nicht übernommen werden.
+class/Controller/GuideController.php	Für diese Antwort ist Ihr Konto nicht im richtigen Zustand.
+class/Controller/GuideController.php	Guide-Rolle zurückgeben
+class/Controller/GuideController.php	Guide-Rolle zurückgeben.
+class/Controller/GuideController.php	Ihre Antwort konnte nicht gespeichert werden.
+class/Controller/GuideController.php	Ihren Einstellungen ändern.</p>
+class/Controller/GuideController.php	Ja, ich möchte Guide werden
+class/Controller/GuideController.php	Nein, ich möchte nur zuschauen
+class/Controller/GuideController.php	Neue Bedingungen bestätigen
+class/Controller/GuideController.php	Sie bieten noch Standorte an. Bitte löschen Sie diese zuerst
+class/Controller/GuideController.php	Sie sind <strong>Guide</strong> und können Standorte anbieten.
+class/Controller/GuideController.php	Sie sind <strong>Guide</strong>. Die Bedingungen haben sich
+class/Controller/GuideController.php	Sie sind <strong>Zuschauer</strong>. Sie können Führungen buchen,
+class/Controller/GuideController.php	aber keine Standorte anbieten.
+class/Controller/GuideController.php	bestehenden Standorten ändert sich dadurch nichts.</p>
+class/Controller/GuideController.php	bestehenden bleiben unberührt.
+class/Controller/GuideController.php	class="btn btn-outline-secondary">Zurück zu den Einstellungen</a>
+class/Controller/GuideController.php	geändert - bitte bestätigen Sie die neue Fassung. Bis dahin
+class/Controller/GuideController.php	in Ihren Einstellungen unter "Meine Locations" - danach können Sie die
+class/Controller/GuideController.php	können Sie keine weiteren Standorte anlegen; Ihre
+class/Controller/GuideController.php	lässt sich die Rolle nicht zurückgeben - löschen Sie diese zuerst unter
+class/Controller/GuideProfileController.php	&fehler=
+class/Controller/GuideProfileController.php	&gespeichert=1
+class/Controller/GuideProfileController.php	<a class="btn btn-primary" href="index.php?act=home">Zur Karte</a>
+class/Controller/GuideProfileController.php	<h1 class="app-page-head__title">Guide nicht gefunden</h1>
+class/Controller/GuideProfileController.php	<p class="app-page-head__sub">Dieses Profil gibt es nicht mehr,
+class/Controller/GuideProfileController.php	Bild nicht gefunden.
+class/Controller/GuideProfileController.php	Das Bild konnte nicht entfernt werden.
+class/Controller/GuideProfileController.php	Das Bild konnte nicht gespeichert werden.
+class/Controller/GuideProfileController.php	Das Profil konnte nicht gespeichert werden.
+class/Controller/GuideProfileController.php	oder es hat es nie gegeben.</p>
+class/Controller/LocationController.php	&edit=1&fehler=
+class/Controller/LocationController.php	&gespeichert=1
+class/Controller/LocationController.php	<a class="btn btn-primary" href="index.php?act=home">Zur Karte</a>
+class/Controller/LocationController.php	<h1 class="app-page-head__title">Standort nicht gefunden</h1>
+class/Controller/LocationController.php	<p class="app-page-head__sub">Dieser Standort wurde entfernt,
+class/Controller/LocationController.php	Bild nicht gefunden.
+class/Controller/LocationController.php	Bilder sind an einem Standort nicht moeglich.
+class/Controller/LocationController.php	Bitte einen Grund angeben.
+class/Controller/LocationController.php	Das Bild konnte nicht gespeichert werden.
+class/Controller/LocationController.php	Das Titelbild konnte nicht geändert werden.
+class/Controller/LocationController.php	Der Titel darf hoechstens
+class/Controller/LocationController.php	Der Titel muss mindestens
+class/Controller/LocationController.php	Die Aenderung konnte nicht gespeichert werden.
+class/Controller/LocationController.php	Die Dauer muss eine Zahl in Minuten sein.
+class/Controller/LocationController.php	Die Dauer muss zwischen
+class/Controller/LocationController.php	Die Kurzbeschreibung muss mindestens
+class/Controller/LocationController.php	Die Reihenfolge konnte nicht gespeichert werden.
+class/Controller/LocationController.php	Die ausfuehrliche Beschreibung darf hoechstens
+class/Controller/LocationController.php	Es wurde keine Datei geschickt.
+class/Controller/LocationController.php	Fehler beim Löschen.
+class/Controller/LocationController.php	Kein Standort angegeben.
+class/Controller/LocationController.php	Keine Location-ID übergeben!
+class/Controller/LocationController.php	Keine Reihenfolge angegeben.
+class/Controller/LocationController.php	Mehr als
+class/Controller/LocationController.php	Standort nicht gefunden.
+class/Controller/LocationController.php	Zeichen lang sein.
+class/Controller/LocationController.php	anfrage
+class/Controller/LocationController.php	fehler
+class/Controller/LocationController.php	gespeichert
+class/Controller/LocationController.php	gesperrt oder hat es nie gegeben.</p>
+class/Controller/LocationController.php	und
+class/Controller/LoginController.php	Benutzername oder Passwort falsch.
+class/Controller/LoginController.php	konto
+class/Controller/PasswordController.php	Das alte Passwort ist nicht korrekt!
+class/Controller/PasswordController.php	Der Link ist ungültig oder abgelaufen.
+class/Controller/PasswordController.php	Die Passwörter stimmen nicht überein oder sind zu kurz.
+class/Controller/PasswordController.php	Falls diese E-Mail in unserem System hinterlegt ist, erhältst du eine Nachricht zum Zurücksetzen.
+class/Controller/PasswordController.php	Hallo,\n\nKlicke auf den folgenden Link, um dein Passwort zu ändern:\n\n
+class/Controller/PasswordController.php	Passwort zurücksetzen
+class/Controller/PasswordController.php	\n\nDieser Link ist 1 Stunde gültig.
+class/Controller/RequestController.php	Den eigenen Standort fragt man nicht an.
+class/Controller/RequestController.php	Die Anfrage konnte nicht gestellt werden.
+class/Controller/RequestController.php	Diese Anfrage lässt sich nicht mehr beantworten.
+class/Controller/RequestController.php	Diese Anfrage lässt sich nicht mehr zurücknehmen.
+class/Controller/RequestController.php	Diese Führung lässt sich nicht mehr beenden.
+class/Controller/RequestController.php	Dieser Standort nimmt keine Anfragen an.
+class/Controller/RequestController.php	Es fehlt der Standort.
+class/Controller/RequestController.php	Es fehlt die Anfrage.
+class/Controller/RequestController.php	Es fehlt die Führung.
+class/Controller/RequestController.php	Für diesen Standort läuft bereits eine Anfrage von Ihnen.
+class/Controller/RequestController.php	Nur per POST.
+class/Controller/RequestController.php	So weit im Voraus lässt sich eine Führung nicht anfragen.
+class/Controller/RequestController.php	Zu viele Anfragen in kurzer Zeit. Bitte
+class/Controller/RequestController.php	konto
+class/Controller/ReviewController.php	Bitte wählen Sie zwischen einem und fünf Sternen.
+class/Controller/ReviewController.php	Diese Bewertung lässt sich nicht entfernen.
+class/Controller/ReviewController.php	Diese Führung lässt sich nicht bewerten.
+class/Controller/ReviewController.php	Es fehlt die Bewertung.
+class/Controller/ReviewController.php	Es fehlt die Führung.
+class/Controller/ReviewController.php	Nur per POST.
+class/Controller/ReviewController.php	Vielleicht haben Sie sie schon bewertet.
+class/Controller/ReviewController.php	Vielleicht ist sie es bereits.
+class/Controller/ReviewController.php	Zu viele Bewertungen in kurzer Zeit. Bitte
+class/Controller/ReviewController.php	konto
+class/Controller/SettingsController.php	<dt>E-Mail bestätigt</dt><dd>Bestätigt</dd>
+class/Controller/SettingsController.php	<dt>E-Mail bestätigt</dt><dd>Nicht bestätigt
+class/Controller/SettingsController.php	Das sieht ein Kunde, bevor er eine Führung anfragt: auf jeder Ihrer
+class/Controller/SettingsController.php	Ein Benutzername und ein farbiger Punkt sind keine Grundlage dafür,
+class/Controller/SettingsController.php	Farbprofil konnte nicht gespeichert werden.
+class/Controller/SettingsController.php	Guide werden
+class/Controller/SettingsController.php	Guide-Rolle ändern
+class/Controller/SettingsController.php	Neue Bedingungen bestätigen
+class/Controller/SettingsController.php	Nicht aktiv
+class/Controller/SettingsController.php	Nicht aktiviert
+class/Controller/SettingsController.php	Standortseiten und auf Ihrer eigenen Seite, die Sie weitergeben können.
+class/Controller/SettingsController.php	class="btn btn-outline-primary btn-sm">Bestätigungsmail senden</a></dd>
+class/Controller/SettingsController.php	einem Fremden Geld zu geben.
+class/Controller/SettingsController.php	fehler
+class/Controller/SettingsController.php	gespeichert
+class/Controller/SettingsController.php	Öffentliches Profil ansehen</a>
+class/Controller/SignupController.php	Benutzername oder E-Mail-Adresse wurde soeben vergeben.
+class/Controller/SignupController.php	Bitte gib eine gültige E-Mail-Adresse ein.
+class/Controller/SignupController.php	Bitte versuchen Sie es noch einmal.
+class/Controller/SignupController.php	Das Passwort muss mindestens 8 Zeichen lang sein.
+class/Controller/SignupController.php	Der Benutzername ist bereits vergeben.
+class/Controller/SignupController.php	Die E-Mail-Adresse ist bereits vergeben.
+class/Controller/SignupController.php	Die Passwörter stimmen nicht überein.
+class/Controller/SignupController.php	Dieser Benutzername gehört zu einem gelöschten Konto und lässt
+class/Controller/SignupController.php	Ein unbekannter Fehler ist aufgetreten.
+class/Controller/SignupController.php	Ungültiger Benutzername. Nur Buchstaben/Zahlen/Unterstrich, 3-20 Zeichen.
+class/Controller/SignupController.php	Zu dieser E-Mail-Adresse gab es bereits ein Konto, das gelöscht
+class/Controller/SignupController.php	nutzen Sie eine andere Adresse oder wenden Sie sich an den Betreiber.
+class/Controller/SignupController.php	sich nicht neu vergeben. Bitte wählen Sie einen anderen.
+class/Controller/SignupController.php	wurde. Sie lässt sich deshalb nicht erneut verwenden. Bitte
+class/Controller/SystemController.php	<option value=0> -- KEINE -- </option>
+class/Controller/TurnController.php	Der Anruf wird ohne Relay-Server aufgebaut.
+class/Controller/TurnController.php	Der TURN-Dienst hat keine verwertbaren Zugangsdaten geliefert.
+class/Controller/TurnController.php	Der TURN-Server ist derzeit nicht erreichbar.
+class/Controller/TurnController.php	konto
+class/Controller/TwoFactorController.php	" alt="QR-Code für die Authenticator-App"> </div> <form action="index.php?act=2fa_activate" method="post" autocomplete="off"> <div class="app-field"> <label for="2fa_code" class="form-label">Code aus der App</label> <input type="text" name="2fa_code" id="2fa_code" class="form-control app-code-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus> </div> <div class="app-actions app-actions--stretch"> <button type="submit" class="btn btn-primary">Aktivieren</button> </div> </form> </div> </div> </div> </div>
+class/Controller/TwoFactorController.php	</p> <div class="app-actions app-actions--center"> <a href="index.php?act=login_page" class="btn btn-primary">Zur Anmeldung</a> </div> </div> </div> </div>
+class/Controller/TwoFactorController.php	<div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;"> <h4 class="alert-heading mb-0">2FA ist bereits aktiviert!</h4> </div>
+class/Controller/TwoFactorController.php	<div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;"> <h4 class="alert-heading mb-3">2FA erfolgreich aktiviert!</h4> <a href="index.php?act=home" class="btn btn-outline-primary btn-sm">Zurück</a> </div>
+class/Controller/TwoFactorController.php	<div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;"> <h4 class="alert-heading mb-3">2FA wurde deaktiviert.</h4> <a href="index.php?act=settings" class="btn btn-outline-primary btn-sm">Zurück zu den Einstellungen</a> </div>
+class/Controller/TwoFactorController.php	<div class="app-auth"> <div class="app-auth__card"> <div class="app-panel"> <div class="app-panel__body"> <div class="app-auth__head"> <h1 class="app-auth__title">Bestätigungscode</h1> <p class="app-auth__sub">Der sechsstellige Code aus Ihrer Authenticator-App.</p> </div> <form action="index.php?act=2fa_verify" method="post" autocomplete="off"> <div class="app-field"> <label for="2fa_code" class="form-label">Code</label> <input type="text" name="2fa_code" id="2fa_code" class="form-control app-code-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus> </div> <div class="app-actions app-actions--stretch"> <button type="submit" class="btn btn-primary">Anmelden</button> </div> </form> </div> </div> </div> </div>
+class/Controller/TwoFactorController.php	<div class="app-auth"> <div class="app-auth__card"> <div class="app-panel"> <div class="app-panel__body"> <div class="app-auth__head"> <h1 class="app-auth__title">Zwei-Faktor-Anmeldung einrichten</h1> <p class="app-auth__sub"> QR-Code mit der Authenticator-App scannen und den angezeigten sechsstelligen Code eintragen. </p> </div> <div class="app-qr"> <img src="
+class/Controller/TwoFactorController.php	<div class="app-result"> <div class="app-panel"> <div class="app-panel__body"> <div class="app-result__mark app-result__mark--danger" aria-hidden="true">!</div> <h1 class="app-auth__title">Anmeldung nicht abgeschlossen</h1> <p class="app-result__text">
+class/Controller/TwoFactorController.php	Fehler beim 2FA-Login.
+class/Controller/TwoFactorController.php	Fehler: Bitte QR-Code erneut scannen.
+class/Controller/TwoFactorController.php	Ungültiger Code. Bitte erneut versuchen.
+class/Controller/TwoFactorController.php	Ungültiger Code. Versuche es erneut.
+class/Controller/TwoFactorController.php	konto
+class/Controller/TwoFactorController.php	warten und dann neu anmelden.
+class/Controller/UserController.php	" class="app-iconbtn app-iconbtn--edit" aria-label="Benutzer
+class/Controller/UserController.php	'); return false;" class="app-iconbtn app-iconbtn--delete app-iconbtn--danger" aria-label="Benutzer
+class/Controller/UserController.php	) bearbeiten
+class/Controller/UserController.php	<a href="index.php?act=manage_user" class="btn btn-primary btn-sm">Neuer Benutzer</a>
+class/Controller/UserController.php	<span class="app-tag app-tag--danger">Konto gelöscht</span>
+class/Controller/UserController.php	<span class="app-tag app-tag--ready" title="Hat sich auf bereit gestellt">Bereit</span>
+class/Controller/UserController.php	Im Gespräch
+class/Controller/UserController.php	aria-label="Chat mit
+class/Controller/UserController.php	bearbeiten" title="Bearbeiten"></a> <a href="#" onclick="window.webrtcApp.ui.confirmDelete('index.php?act=delete_user&user_id=
+class/Controller/UserController.php	benutzer
+class/Controller/UserController.php	löschen" title="Löschen"></a> </div> </td>
+class/Controller/WebRTCController.php	Dieser Benutzer bietet keine Führungen an und kann
+class/Controller/WebRTCController.php	Dieser Guide ist gerade nicht bereit für eine Führung.
+class/Controller/WebRTCController.php	Fragen Sie die Führung auf der Standortseite an –
+class/Controller/WebRTCController.php	Ungültige Signaling-Anfrage.
+class/Controller/WebRTCController.php	deshalb nicht angerufen werden.
+class/Controller/WebRTCController.php	mit einem Wunschzeitpunkt, der Ihnen beiden passt.
+class/Helper/AdminView.php	<h1 class="adm__title">Verwaltung</h1>
+class/Helper/AdminView.php	<nav class="adm__nav" aria-label="Verwaltung">
+class/Helper/AdminView.php	<p class="adm-vorrat__leer">Nichts offen: keine hängende Führung,
+class/Helper/AdminView.php	<p class="adm__sub">Konten, Standorte und Bewertungen der Plattform.</p>
+class/Helper/AdminView.php	<span class="adm-none">ohne Text</span>
+class/Helper/AdminView.php	<span class="adm-none">vollständig</span>
+class/Helper/AdminView.php	<span class="app-tag app-tag--danger">Konto gelöscht</span>
+class/Helper/AdminView.php	<span class="app-tag app-tag--warn">hängt</span>
+class/Helper/AdminView.php	<tr><td colspan="6" class="adm-empty">Keine Bewertungen.</td></tr>
+class/Helper/AdminView.php	<tr><td colspan="6" class="adm-empty">Nichts in dieser Ansicht.</td></tr>
+class/Helper/AdminView.php	<tr><td colspan="7" class="adm-empty">Keine Standorte.</td></tr>
+class/Helper/AdminView.php	Anfrage
+class/Helper/AdminView.php	Anfragen
+class/Helper/AdminView.php	Begonnen und von niemandem beendet. Solange das so bleibt, steht
+class/Helper/AdminView.php	Benutzer
+class/Helper/AdminView.php	Beschreibung oder ohne übliche Zeiten. Für den Guide sieht das
+class/Helper/AdminView.php	Bewertungen
+class/Helper/AdminView.php	Ein Vorgang, den jemand eröffnet hat und den jemand wieder
+class/Helper/AdminView.php	Führung hängt
+class/Helper/AdminView.php	Führungen
+class/Helper/AdminView.php	Führungen hängen
+class/Helper/AdminView.php	Gelöschte Konten
+class/Helper/AdminView.php	Konten hängen auf „online"
+class/Helper/AdminView.php	Konto hängt auf „online"
+class/Helper/AdminView.php	Ohne Nadel auf der Karte, ohne Bild, ohne Titel, ohne ausführliche
+class/Helper/AdminView.php	Ohne Titel
+class/Helper/AdminView.php	Seit über einer Viertelstunde kein Lebenszeichen, trotzdem nicht
+class/Helper/AdminView.php	Solange das so bleibt, steht in der Benutzerliste jedes Konto
+class/Helper/AdminView.php	Standort
+class/Helper/AdminView.php	Standorte
+class/Helper/AdminView.php	Tagen durchgeführt
+class/Helper/AdminView.php	Tagen. Der Kunde hat gewartet und nichts bekommen.
+class/Helper/AdminView.php	Verfallen, ohne dass der Guide zu- oder abgesagt hat – in den letzten
+class/Helper/AdminView.php	als erreichbar.
+class/Helper/AdminView.php	anfragen
+class/Helper/AdminView.php	aria-label="Chat mit
+class/Helper/AdminView.php	beim Kunden der Startknopf, und die Bewertung wird nicht fällig.
+class/Helper/AdminView.php	benutzer
+class/Helper/AdminView.php	bewertungen
+class/Helper/AdminView.php	fertig aus – er weiß ja, was er anbietet.
+class/Helper/AdminView.php	im Gespräch
+class/Helper/AdminView.php	keine Nadel
+class/Helper/AdminView.php	keine Zeiten
+class/Helper/AdminView.php	keine neuen in
+class/Helper/AdminView.php	keine unbeantwortete Anfrage, kein gesperrter Standort, kein
+class/Helper/AdminView.php	läuft seit
+class/Helper/AdminView.php	nicht da
+class/Helper/AdminView.php	noch kein Durchschnitt
+class/Helper/AdminView.php	offline gesetzt: cron/check_online_status.php läuft nicht.
+class/Helper/AdminView.php	ohne Antwort
+class/Helper/AdminView.php	ohne Grund
+class/Helper/AdminView.php	schließen muss – oder bestätigen.
+class/Helper/AdminView.php	standorte
+class/Helper/AdminView.php	unvollständig
+class/Helper/AdminView.php	unvollständiges Angebot – und der Aufräumjob läuft.</p>
+class/Helper/AdminView.php	verfügbar
+class/Helper/AdminView.php	Übersicht
+class/Helper/Availability.php	bis
+class/Helper/Availability.php	von
+class/Helper/Countries.php	Amerikanische Überseeinseln
+class/Helper/Countries.php	Antigua und Barbuda
+class/Helper/Countries.php	Bonaire, Sint Eustatius und Saba
+class/Helper/Countries.php	Bosnien und Herzegowina
+class/Helper/Countries.php	Dänemark
+class/Helper/Countries.php	Elfenbeinküste
+class/Helper/Countries.php	Französisch-Guayana
+class/Helper/Countries.php	Französisch-Polynesien
+class/Helper/Countries.php	Französische Südgebiete
+class/Helper/Countries.php	Färöer
+class/Helper/Countries.php	Grönland
+class/Helper/Countries.php	Heard und McDonaldinseln
+class/Helper/Countries.php	Nördliche Marianen
+class/Helper/Countries.php	Palästina
+class/Helper/Countries.php	Rumänien
+class/Helper/Countries.php	Saint-Pierre und Miquelon
+class/Helper/Countries.php	St. Helena, Ascension und Tristan da Cunha
+class/Helper/Countries.php	St. Kitts und Nevis
+class/Helper/Countries.php	St. Vincent und die Grenadinen
+class/Helper/Countries.php	Svalbard und Jan Mayen
+class/Helper/Countries.php	São Tomé und Príncipe
+class/Helper/Countries.php	Südafrika
+class/Helper/Countries.php	Südgeorgien und die Südlichen Sandwichinseln
+class/Helper/Countries.php	Südsudan
+class/Helper/Countries.php	Trinidad und Tobago
+class/Helper/Countries.php	Turks- und Caicosinseln
+class/Helper/Countries.php	Türkei
+class/Helper/Countries.php	Türkiye
+class/Helper/Countries.php	Vereinigtes Königreich
+class/Helper/Countries.php	Wallis und Futuna
+class/Helper/Countries.php	Ägypten
+class/Helper/Countries.php	Äquatorialguinea
+class/Helper/Countries.php	Äthiopien
+class/Helper/Countries.php	Österreich
+class/Helper/GuideView.php	<a class="btn btn-secondary btn-sm" href="index.php?act=settings">Profil bearbeiten</a>
+class/Helper/GuideView.php	<button type="submit" class="btn btn-primary">Profil speichern</button>
+class/Helper/GuideView.php	<h2 class="guide__h2">Über mich</h2>
+class/Helper/GuideView.php	<label class="form-label" for="guide-about">Über mich</label>
+class/Helper/GuideView.php	<p class="form-text">Der Name, unter dem Kunden Sie sehen – auf Ihren
+class/Helper/GuideView.php	<p class="form-text">Die Sprachen, die Sie sprechen. Welche Sprachen für
+class/Helper/GuideView.php	<p class="form-text">Ein Bild von Ihnen, quadratisch zugeschnitten.
+class/Helper/GuideView.php	<p class="form-text">Ein paar Sätze über sich. Der ERSTE SATZ steht auf
+class/Helper/GuideView.php	<p class="guide-about__empty">Sie haben noch nichts über sich
+class/Helper/GuideView.php	<span class="app-tag app-tag--accent">Ihr Profil</span>
+class/Helper/GuideView.php	Bis zu
+class/Helper/GuideView.php	Dieser Guide bietet gerade keinen Standort an.
+class/Helper/GuideView.php	Führung
+class/Helper/GuideView.php	Guide seit
+class/Helper/GuideView.php	Ihr Guide
+class/Helper/GuideView.php	Ihr Profil
+class/Helper/GuideView.php	Ihre Standorte
+class/Helper/GuideView.php	MB. Ohne Bild stehen Ihre Initialen dort –
+class/Helper/GuideView.php	März
+class/Helper/GuideView.php	Sie bieten diese Führung an
+class/Helper/GuideView.php	Sie bieten noch keinen Standort an. Über "Standort anbieten" wird
+class/Helper/GuideView.php	Standortseiten, in der Standortliste und hier. Ihr Benutzername
+class/Helper/GuideView.php	aus diesem Profil ein Angebot.
+class/Helper/GuideView.php	bleibt davon unberührt; mit ihm melden Sie sich weiterhin an, und
+class/Helper/GuideView.php	das ist besser als ein leerer Kreis, aber schlechter als ein Gesicht.</p>
+class/Helper/GuideView.php	dass er allein schon etwas sagt.</p>
+class/Helper/GuideView.php	data-confirm="Das Bild wird gelöscht. Auf Ihren Standortseiten und
+class/Helper/GuideView.php	diese Orte zeigen, stehen auf jeder Ihrer Standortseiten – und sie
+class/Helper/GuideView.php	dort allerdings weiterhin.</p>
+class/Helper/GuideView.php	ein Kunde bekommt ihn nicht zu sehen. Ohne Anzeigenamen steht er
+class/Helper/GuideView.php	eine einzelne Führung gelten, steht weiterhin am Standort – das ist
+class/Helper/GuideView.php	geschrieben. Ein paar Sätze darüber, wer Sie sind und warum Sie
+class/Helper/GuideView.php	in Ihrem Profil stehen danach wieder Ihre Initialen. Ein neues Bild
+class/Helper/GuideView.php	jeder Ihrer Standortseiten neben Ihrem Bild – schreiben Sie ihn so,
+class/Helper/GuideView.php	können Sie jederzeit hochladen."
+class/Helper/GuideView.php	nicht dasselbe.</p>
+class/Helper/GuideView.php	sind das, was ein Kunde vor seiner Anfrage liest.</p>
+class/Helper/GuideView.php	zeigt Ihnen
+class/Helper/ImageStore.php	Das Bild ist zu gross - erlaubt sind bis zu
+class/Helper/ImageStore.php	Das Bild konnte nicht gelesen werden.
+class/Helper/ImageStore.php	Das Bild konnte nicht gespeichert werden.
+class/Helper/ImageStore.php	Das ist keine Bilddatei.
+class/Helper/ImageStore.php	Die Datei ist zu gross - erlaubt sind
+class/Helper/ImageStore.php	Die Datei ist zu gross.
+class/Helper/ImageStore.php	Die Datei konnte nicht empfangen werden.
+class/Helper/ImageStore.php	Dieses Bildformat wird nicht angenommen (JPEG, PNG oder WebP).
+class/Helper/Languages.php	Türkçe
+class/Helper/LocationView.php	">Anfrage zurückziehen</button>
+class/Helper/LocationView.php	">Führung anfragen</button>
+class/Helper/LocationView.php	</strong> ist beim Guide. Sobald er antwortet, sehen Sie es hier
+class/Helper/LocationView.php	<a class="btn btn-primary" href="index.php?act=login_page">Anmelden und anfragen</a>
+class/Helper/LocationView.php	<a class="btn btn-secondary" href="index.php?act=signup_page">Konto anlegen</a>
+class/Helper/LocationView.php	<a href="index.php?act=requests_page">Anfragen</a>; ob Sie gerade
+class/Helper/LocationView.php	<div class="loc-req__presets" role="group" aria-label="Vorgaben für den Wunschzeitpunkt">
+class/Helper/LocationView.php	<h2 class="loc__h2">Bilder vom Ort</h2>
+class/Helper/LocationView.php	<p class="loc-ask__note">Rückfragen zum Ort oder zu möglichen
+class/Helper/LocationView.php	<p class="loc__empty" data-empty>Noch keine Beispielbilder hochgeladen.</p>
+class/Helper/LocationView.php	<p class="loc__empty">Der Guide hat noch keine ausführliche
+class/Helper/LocationView.php	<p class="loc__note loc__note--danger">Dieser Standort ist gesperrt.
+class/Helper/LocationView.php	<p class="loc__note">Den eigenen Standort fragt man nicht an.
+class/Helper/LocationView.php	<p class="loc__note">Für eine Anfrage brauchen Sie ein Konto –
+class/Helper/LocationView.php	<p class="loc__note">Ihre Anfrage für <strong>
+class/Helper/LocationView.php	<p class="loc__note">Sie haben noch keine angegeben. Kunden sehen dann
+class/Helper/LocationView.php	<span class="app-tag app-tag--accent">Ihr Standort</span>
+class/Helper/LocationView.php	<span class="app-tag app-tag--live"><span class="app-dot"></span>Jetzt verfügbar</span>
+class/Helper/LocationView.php	<span class="app-tag app-tag--warn"><span class="app-dot"></span>Im Gespräch</span>
+class/Helper/LocationView.php	<span class="app-tag app-tag--warn">Anfrage offen</span>
+class/Helper/LocationView.php	<span class="app-tag">Kein Guide vor Ort</span>
+class/Helper/LocationView.php	<span class="loc-hours__title">Übliche Zeiten</span>
+class/Helper/LocationView.php	Beschreibung hinterlegt.</p>
+class/Helper/LocationView.php	Der Guide hat für
+class/Helper/LocationView.php	Der Guide hat zugesagt. Sie können jetzt starten – er wird angerufen.
+class/Helper/LocationView.php	Der Guide ist gerade bereit – „jetzt sofort“ hat gute Aussichten.
+class/Helper/LocationView.php	Die Führung läuft noch – die Verbindung ist abgerissen. Sie können
+class/Helper/LocationView.php	Die Führung läuft noch. Ihr Guide beendet sie, wenn Sie fertig sind.
+class/Helper/LocationView.php	Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.
+class/Helper/LocationView.php	Frage an den Guide
+class/Helper/LocationView.php	Führung in
+class/Helper/LocationView.php	Führung starten
+class/Helper/LocationView.php	Führung von hier aus starten.
+class/Helper/LocationView.php	Gerade ist niemand vor Ort. Das ist kein Hindernis: Fragen Sie für
+class/Helper/LocationView.php	Ihr Standort ist gesperrt und für andere Nutzer nicht sichtbar.
+class/Helper/LocationView.php	Jetzt sofort
+class/Helper/LocationView.php	Läuft
+class/Helper/LocationView.php	Morgen um diese Zeit
+class/Helper/LocationView.php	Noch kein Titelbild gewählt. Der Kopf der Seite zeigt so lange nur
+class/Helper/LocationView.php	Sie sind bereit – dieser Standort ist gerade anrufbar.
+class/Helper/LocationView.php	Sie sind nicht bereit – dieser Standort wird gedämpft angezeigt.
+class/Helper/LocationView.php	Standort
+class/Helper/LocationView.php	Titel und Ort. Wählen Sie unten eines Ihrer Bilder aus – am besten
+class/Helper/LocationView.php	Von hier aus lässt sich keine Führung anfragen.</p>
+class/Helper/LocationView.php	Was hier ansteht, sehen Sie unter
+class/Helper/LocationView.php	Wieder einsteigen
+class/Helper/LocationView.php	Zeiten – der Guide antwortet Ihnen im Chat.</p>
+class/Helper/LocationView.php	Zurück in die Galerie</button>
+class/Helper/LocationView.php	als Titelbild verwenden"
+class/Helper/LocationView.php	anfrage
+class/Helper/LocationView.php	bis
+class/Helper/LocationView.php	den vereinbarten Zeitpunkt
+class/Helper/LocationView.php	der Guide muss wissen, wem er zusagt.</p>
+class/Helper/LocationView.php	ein sehr breites mit ruhigen Flächen, auf denen die Schrift steht.
+class/Helper/LocationView.php	fehler
+class/Helper/LocationView.php	gespeichert
+class/Helper/LocationView.php	jetzt
+class/Helper/LocationView.php	löschen" title="Löschen"></button>
+class/Helper/LocationView.php	nach hinten" title="Nach hinten"></button>
+class/Helper/LocationView.php	nach vorne" title="Nach vorne"></button>
+class/Helper/LocationView.php	nicht, wann sich eine Anfrage lohnt – über <em>Bearbeiten</em> lässt
+class/Helper/LocationView.php	sich das nachtragen.</p>
+class/Helper/LocationView.php	sofort anrufbar sind, entscheidet Ihr Bereitschaftsschalter in der
+class/Helper/LocationView.php	später an, und der Guide sagt zu oder ab.
+class/Helper/LocationView.php	title="Als Titelbild"></button>
+class/Helper/LocationView.php	title="Diesen Abschnitt an allen Tagen an- oder abwählen">
+class/Helper/LocationView.php	title="Diesen Tag ganz an- oder abwählen">
+class/Helper/LocationView.php	und am Zähler in der Kopfleiste.</p>
+class/Helper/LocationView.php	von
+class/Helper/LocationView.php	vor
+class/Helper/LocationView.php	wieder einsteigen; Ihr Guide beendet die Führung, wenn Sie fertig sind.
+class/Helper/LocationView.php	zugesagt. Kurz vorher lässt sich die
+class/Helper/MailGate.php	<div class="alert alert-warning app-mailhint" role="status"> <strong>E-Mail-Adresse noch nicht bestätigt.</strong> Anfragen, Chat und das Hochladen von Bildern sind bis dahin gesperrt. <a href="index.php?act=send_email_verify" class="btn btn-outline-primary btn-sm"> Bestätigungsmail senden </a> </div>
+class/Helper/MailGate.php	Bitte bestätige zuerst deine E-Mail-Adresse.
+class/Helper/MailGate.php	Danach steht diese Funktion wieder zur Verfügung.
+class/Helper/Permission.php	': Antwortart muss 'html' oder 'json' sein.
+class/Helper/Permission.php	': erwartet werden vier Angaben
+class/Helper/Permission.php	': keine Controller-Klasse.
+class/Helper/Permission.php	': keine Methode.
+class/Helper/Permission.php	Die Routing-Tabelle ist leer oder kein Array.
+class/Helper/Permission.php	Routenname ist kein nicht-leerer String.
+class/Helper/ReviewView.php	, eine davon bewertet.
+class/Helper/ReviewView.php	. Bis dahin steht hier keine Zahl:
+class/Helper/ReviewView.php	1 Bewertung
+class/Helper/ReviewView.php	Bewertet hat noch niemand. Ab
+class/Helper/ReviewView.php	Bewertungen
+class/Helper/ReviewView.php	Bewertungen steht hier ein Durchschnitt.
+class/Helper/ReviewView.php	Bewertungen – noch
+class/Helper/ReviewView.php	Ein Durchschnitt erscheint ab
+class/Helper/ReviewView.php	Eine Führung durchgeführt
+class/Helper/ReviewView.php	Eine einzelne Stimme sieht aus wie ein Urteil und ist keins.
+class/Helper/ReviewView.php	Führungen durchgeführt
+class/Helper/ReviewView.php	Für einen Durchschnitt sind es noch zu wenige – er erscheint ab
+class/Helper/ReviewView.php	Geschrieben hat darüber noch niemand.
+class/Helper/ReviewView.php	Hier hat noch keine Führung stattgefunden.
+class/Helper/ReviewView.php	Ihre Bewertungen
+class/Helper/ReviewView.php	Noch keine Bewertung
+class/Helper/ReviewView.php	Noch wenige Bewertungen
+class/Helper/ReviewView.php	von
+class/Helper/SecurityHeaders.php	aus
+class/Helper/Theme.php	); if (lokal && erlaubt.indexOf(lokal) !== -1) wahl = lokal; } } catch (e) { // localStorage kann fehlen oder gesperrt sein (privates Fenster, // Einstellung im Browser). Dann bleibt es bei der Systemvorgabe - // ein Fehler hier darf die Seite nicht aufhalten. } if (!wahl) { // Nie etwas gewaehlt: Was das Betriebssystem sagt. var dunkelGewuenscht = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; wahl = dunkelGewuenscht ?
+class/Helper/Theme.php	, konto); } else { var lokal = localStorage.getItem(
+class/Helper/Theme.php	; var konto =
+class/Helper/Theme.php	; var wahl = null; try { if (konto && erlaubt.indexOf(konto) !== -1) { // Angemeldet: Das Konto gewinnt und schreibt den lokalen Wert um. wahl = konto; localStorage.setItem(
+class/Helper/Theme.php	<script> /* Setzt das Farbprofil, bevor die Seite gezeichnet wird. Siehe App\Helper\Theme::bootScript() - dort steht, warum das hier inline steht. */ (function () { var erlaubt =
+class/Helper/Theme.php	Die Vorgabe. Kühles Grau mit indigoblauem Akzent.
+class/Helper/Theme.php	Dunkle Flächen für Abende und dunkle Räume.
+class/Helper/Theme.php	Hell und freundlich, mit leicht blauer Grundfläche.
+class/Helper/Theme.php	Sehr zurückhaltend, ohne farbigen Akzent.
+class/Helper/ViewHelper.php	<a class="app-menu__item app-menu__item--danger" href="index.php?act=logout">Abmelden</a>
+class/Helper/ViewHelper.php	<a href='index.php?act=login_page' class='btn btn-secondary btn-sm'>Anmelden</a>
+class/Helper/ViewHelper.php	<div class="alert alert-success" role="alert">Gespeichert.</div>
+class/Helper/ViewHelper.php	<div class="app-menu__head">Angemeldet als <strong>
+class/Helper/ViewHelper.php	<span class="app-chats__text">Nachrichten</span>
+class/Helper/ViewHelper.php	<span class="app-requests__text">Anfragen</span>
+class/Helper/ViewHelper.php	Anfrage(n) warten auf Ihre Antwort
+class/Helper/ViewHelper.php	Bereit
+class/Helper/ViewHelper.php	Führung(en) sind noch nicht beendet
+class/Helper/ViewHelper.php	Ihre Anfragen
+class/Helper/ViewHelper.php	Ihre Nachrichten
+class/Helper/ViewHelper.php	Ihrer Anfragen wurde(n) angenommen
+class/Helper/ViewHelper.php	Interner Fehler. Bitte versuchen Sie es später erneut.
+class/Helper/ViewHelper.php	Mein Konto
+class/Helper/ViewHelper.php	Nicht bereit
+class/Helper/ViewHelper.php	Sie sind als Guide anrufbar. Klicken beendet die Bereitschaft.
+class/Helper/ViewHelper.php	Sie sind nicht anrufbar. Klicken stellt Sie auf bereit.
+class/Helper/ViewHelper.php	Verwaltung
+class/Helper/ViewHelper.php	sprache
+class/Helper/ViewHelper.php	ungelesene Nachricht(en)
+class/Model/AdminStats.php	bewertungen
+class/Model/AdminStats.php	standorte
+class/Model/Location.php	AS availability, -- Auch fuer den GAST. Eine Bewertung ist eine -- Auskunft ueber ein oeffentliches Angebot - sie -- steht auf der Standortseite, die ein Gast -- ebenfalls aufrufen darf, und sie verraet -- nichts ueber einzelne Konten: nur Zahlen zu -- einem Standort.
+class/Model/Location.php	AS availability, country.country_name, country.iso2, city.city_name, -- WAS AN DIESEM ANGEBOT FEHLT - immer mitgeliefert -- und nicht nur im Filter: Ein Standort kann -- gesperrt UND unvollstaendig sein, und wer die -- Sperrliste durchgeht, soll das Zweite nicht -- uebersehen.
+class/Model/Location.php	AS availability, country.country_name, country.iso2, city.city_name, location.id, location.latitude, location.longitude, location.title, location.description, location.blocked, location.blocked_reason, -- Auch in der EIGENEN Liste: Der Guide soll -- sehen, was ein Kunde an dieser Stelle sieht - -- dieselbe Regel wie beim Guide-Streifen auf der -- Standortseite. Steht dort kein Durchschnitt, -- steht bei seinen Kunden auch keiner.
+class/Model/Location.php	AS availability, country.country_name, country.iso2, city.city_name, location.id, location.latitude, location.longitude, location.title, location.description, location.blocked, location.blocked_reason, -- DIE BEWERTUNG GEHOERT DORTHIN, WO GEWAEHLT -- WIRD. Vorher stand sie nur auf der -- Standortseite - also erst, nachdem ein Kunde -- sich schon entschieden hatte, welchen Standort -- er ansieht. -- -- Der Durchschnitt kommt NUR mit, wenn es genug -- Bewertungen gibt; darunter ist er NULL und die -- Zahl der Fuehrungen tritt an seine Stelle. -- Entschieden ist das in AppModelTourReview -- und nicht hier - und auch nicht im Browser.
+class/Model/Location.php	City konnte nicht bestimmt werden!
+class/Model/Location.php	Fehler beim Zugriff auf die Datenbank.
+class/Model/Location.php	Location mit ID
+class/Model/Location.php	alle
+class/Model/Location.php	nicht gefunden.
+class/Model/MeteredTurnService.php	METERED_APP_NAME oder METERED_API_KEY nicht gesetzt in ENV
+class/Model/PdoConnect.php	Interner Serverfehler. Bitte später erneut versuchen.
+class/Model/RateLimit.php	(fenster_bis <= NOW() OR (gesperrt_bis IS NOT NULL AND gesperrt_bis <= NOW()))
+class/Model/RateLimit.php	, 1, versuche + 1), fenster_bis = IF(
+class/Model/RateLimit.php	SECOND, IF(gesperrt_bis > NOW(), gesperrt_bis, NULL)), letzter_versuch = NOW()
+class/Model/RateLimit.php	SECOND, fenster_bis), gesperrt_bis = IF(versuche >=
+class/Model/RateLimit.php	gleich wieder
+class/Model/RateLimit.php	noch
+class/Model/TourRequest.php	AS callable, -- LAEUFT NOCH: begonnen und nicht beendet. Daran haengen der -- Wiedereinstieg auf beiden Seiten und der Knopf "Fuehrung -- beenden" beim Guide. Die Ansicht rechnet nichts nach.
+class/Model/TourRequest.php	AS running, -- Wie lange der Wiedereinstieg noch offen steht. Negativ oder -- NULL heisst: nicht mehr. Der Browser zeigt damit an, wie -- lange die Fuehrung noch zu retten ist, ohne selbst eine -- Frist zu kennen. CASE WHEN
+class/Model/TourRequest.php	alle
+class/Model/TourRequest.php	durchgeführt
+class/Model/TourReview.php	Enttäuschend
+class/Model/TourReview.php	Großartig
+class/Model/TourReview.php	alle
+class/Model/User.php	Benutzer mit ID
+class/Model/User.php	Fehler beim Laden des Benutzers.
+class/Model/User.php	Gelöschtes Konto
+class/Model/User.php	User::create() auf einem Konto, das es schon gibt (#
+class/Model/User.php	nicht gefunden.
+class/Model/WebRTCHandler.php	Fehler beim Laden des RTC Signals.
+class/Model/WebRTCHandler.php	RTC Signal mit ID
+class/Model/WebRTCHandler.php	nicht gefunden.

@@ -18,3 +18,10 @@ vendor/
 # stillschweigend uebersprungen. Sie gehoeren ins Repository.
 !migrations/
 !migrations/*.sql
+
+# Ausnahme: der Grundstock der Sprachratsche.
+# Dieselbe Falle wie bei den Migrationen darueber: Die Regel *.txt weiter oben
+# meint abgelegte Textdateien, erfasst aber auch tests/i18n_grundstock.txt -
+# und die ist die halbe Pruefung. Ohne sie im Repository laeuft der Test bei
+# jedem anderen ins Leere und meldet jedes vorhandene deutsche Literal als neu.
+!tests/i18n_grundstock.txt

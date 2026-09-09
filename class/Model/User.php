@@ -24,6 +24,7 @@ class User
     private $totp_secret;
     private $totp_enabled;
     private $theme;
+    private $lang;
     private $available_until;
 
     /**
@@ -60,6 +61,10 @@ class User
                     // 008 noch nicht eingespielt ist: Dann fehlt die Spalte,
                     // und das Konto bekommt einfach das Standardprofil.
                     $this->theme        = $result['theme'] ?? null;
+                    // Und ebenso Migration 022. Fehlt die Spalte, bestimmt
+                    // sich die Sprache aus Cookie und Accept-Language - die
+                    // Anwendung laeuft weiter, nur ohne Kontosprache.
+                    $this->lang         = $result['lang'] ?? null;
                     // Ebenso Migration 010. Fehlt die Spalte, ist das Konto
                     // schlicht nie bereit - die Anwendung laeuft weiter, nur
                     // ohne Bereitschaftsschalter.
@@ -155,7 +160,10 @@ class User
      * (startAvailability, extendAvailability, endAvailability); ein
      * beilaeufiges save() - etwa aus dem Heartbeat, der ohnehin jede Sekunde
      * laeuft - darf sie weder verlaengern noch loeschen. Aus demselben Grund
-     * fehlt hier auch `theme`.
+     * fehlen hier auch `theme` und `lang`: Beide Spalten kommen aus einer
+     * Migration, die eine bestehende Installation vielleicht nicht eingespielt
+     * hat, und dann duerfte deren Fehlen hoechstens die Einstellung kosten und
+     * nicht jede Aenderung an einem Benutzer.
      *
      * @return bool Erfolg
      */
@@ -257,6 +265,82 @@ class User
             // nichts. Der Nutzer sieht sein Profil bis zum naechsten Laden.
             error_log("Farbprofil konnte nicht gespeichert werden: " . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Speichert die Sprache dieses Kontos.
+     *
+     * Wortgleich zu saveTheme() darueber, und aus demselben Grund ein eigenes
+     * Statement: Stuende `lang` in update(), wuerde in einer Installation
+     * ohne Migration 022 JEDE Aenderung an einem Benutzer scheitern. Eine
+     * fehlende Sprachspalte darf hoechstens die Sprachwahl kosten und nicht
+     * die Anwendung.
+     *
+     * Der Wert wird vorher geprueft: In die Spalte kommt nur, was
+     * App\Helper\I18n kennt.
+     *
+     * @param string $in_sprache Kuerzel aus App\Helper\I18n::SPRACHEN
+     * @return bool true, wenn gespeichert wurde
+     */
+    public function saveLang($in_sprache)
+    {
+        if ($this->id < 1)                        return false;
+        if (!\App\Helper\I18n::isValid($in_sprache)) return false;
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                "UPDATE user SET lang = :lang WHERE id = :user_id;"
+            );
+            $stmt->bindParam(':lang'   , $in_sprache);
+            $stmt->bindParam(':user_id', $this->id);
+            $stmt->execute();
+            $this->lang = $in_sprache;
+            return true;
+        } catch (PDOException $e) {
+            // Fehlt die Spalte, steht das hier im Log und sonst passiert
+            // nichts. Der Nutzer sieht seine Sprache bis zum naechsten Laden.
+            error_log("Sprache konnte nicht gespeichert werden: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Die Sprache eines Kontos - ohne den ganzen Datensatz zu laden.
+     *
+     * WARUM EIN EIGENER LESEWEG. Gefragt wird das bei JEDER Anfrage, ganz am
+     * Anfang (index.php ruft App\Helper\I18n::start), und zwar bevor
+     * ueberhaupt feststeht, ob die Seite einen Benutzer braucht. Ein
+     * "new User(...)" dafuer holte jedes Mal alle Spalten samt Passworthash
+     * herbei, um ein Kuerzel mit zwei Zeichen zu lesen.
+     *
+     * Genau wie bei availableSeconds() darueber: eine Frage, eine Spalte.
+     *
+     * @param mixed $in_user_id
+     * @return string|null Das Kuerzel, oder null wenn keines gesetzt ist,
+     *                     die Spalte fehlt oder das Konto unbekannt ist
+     */
+    public static function lang($in_user_id): ?string
+    {
+        $user_id = (int)$in_user_id;
+        if ($user_id < 1) return null;
+
+        try {
+            $stmt = PdoConnect::$connection->prepare(
+                "SELECT lang FROM user WHERE id = :id"
+            );
+            $stmt->bindParam(':id', $user_id, \PDO::PARAM_INT);
+            $stmt->execute();
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+            $wert = ($row && isset($row['lang'])) ? $row['lang'] : null;
+            return is_string($wert) && $wert !== '' ? $wert : null;
+        } catch (PDOException $e) {
+            // Fehlt die Spalte (Migration 022 nicht eingespielt), ist das
+            // kein Fehler, den ein Besucher merken muesste: Die Sprache
+            // kommt dann aus Cookie oder Browser.
+            error_log("Sprache konnte nicht gelesen werden: " . $e->getMessage());
+            return null;
         }
     }
 
@@ -1175,6 +1259,7 @@ class User
      * @return string|null
      */
     public function getTheme()          { return $this->theme; }
+    public function getLang()           { return $this->lang; }
 
     /**
      * Ist DIESES geladene Konto geloescht?

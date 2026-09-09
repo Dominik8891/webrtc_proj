@@ -16,6 +16,10 @@
                          MAIL_ENABLED noch MAIL_VERIFY_REQUIRED an ist -
                          siehe App\Helper\MailGate
       ###THEMES###       Die Auswahl der Farbprofile (SettingsController)
+      ###LANGS###        Die Auswahl der Sprache (SettingsController). Anders
+                         als die Farbprofile sind das VERWEISE und keine
+                         Radioknoepfe: Den Text setzt der Server, es muss
+                         also ohnehin neu geladen werden
       ###NOTICE###       Rueckmeldung nach dem Speichern des Guide-Profils
                          (Erfolg oder Fehler); im Regelfall leer
       ###GUIDEPROFILE### Das Guide-Profil samt Formular - Anzeigename, Bild,
@@ -99,6 +103,30 @@
             </p>
             <div class="app-swatches" id="theme-choices">
                 ###THEMES###
+            </div>
+        </div>
+    </div>
+
+    <!-- Sprache. Direkt neben dem Farbprofil, weil es dieselbe Art von
+         Einstellung ist: Sie betrifft nur den, der sie trifft, und niemand
+         sonst sieht etwas davon.
+
+         DER UNTERSCHIED ZUM KASTEN DARUEBER liegt nicht im Aussehen, sondern
+         darin, WER den Wechsel ausfuehrt. Ein Farbprofil setzt der Browser
+         an Ort und Stelle; die Sprache setzt der Server beim Bauen der
+         Seite. Deshalb sind es hier Verweise, die die Seite neu holen - und
+         deshalb funktioniert die Sprachwahl auch ohne JavaScript, waehrend
+         die Farbwahl es braucht. -->
+    <div class="app-panel" style="margin-top: var(--app-space-4);">
+        <div class="app-panel__head">
+            <h2 class="app-page-head__title">{{t:sprache.titel}}</h2>
+        </div>
+        <div class="app-panel__body">
+            <p class="app-page-head__sub" style="margin-top:0;">
+                {{t:sprache.hinweis}}
+            </p>
+            <div class="app-swatches" id="lang-choices">
+                ###LANGS###
             </div>
         </div>
     </div>

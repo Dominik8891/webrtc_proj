@@ -1,0 +1,63 @@
+-- ===========================================================================
+-- Migration 022: Sprache je Benutzer
+-- ===========================================================================
+--
+-- Ergaenzt die Tabelle `user` um die Spalte fuer die gewaehlte Sprache der
+-- Oberflaeche.
+--
+-- WOZU
+--   Die Sprache wird aus vier Quellen bestimmt, und die erste mit einer
+--   Antwort gewinnt (App\Helper\I18n):
+--
+--     1. das Konto          -> DIESE SPALTE
+--     2. das Cookie         -> fuer Gaeste
+--     3. Accept-Language    -> was der Browser meldet
+--     4. die Vorgabe 'en'
+--
+--   Das Konto steht an erster Stelle, weil es die einzige Quelle ist, die
+--   der Nutzer bewusst gesetzt hat UND die ihm ueber Geraete hinweg folgt.
+--   Ein Cookie gilt in einem Browser; wer sich am naechsten Rechner anmeldet,
+--   soll seine Sprache wiederfinden.
+--
+--   Geschrieben wird ueber App\Model\User::saveLang(), gelesen ueber
+--   App\Model\User::lang(). Welche Werte gueltig sind, entscheidet
+--   App\Helper\I18n::isValid() - nicht die Datenbank. Deshalb varchar und
+--   kein ENUM: Eine weitere Sprache ist dann ein Eintrag in I18n::SPRACHEN
+--   plus eine Katalogdatei unter lang/ und nicht wieder eine Migration.
+--
+-- WARUM char(5) UND NICHT char(2)
+--   Heute stehen dort 'de' und 'en'. Sobald einmal zwischen 'pt-BR' und
+--   'pt-PT' unterschieden werden muss - und genau dort faengt die
+--   Unterscheidung im Regelfall an -, waere char(2) eine Migration, die eine
+--   Spalte verbreitert, waehrend Konten hineinschreiben. Drei Zeichen mehr
+--   kosten nichts.
+--
+-- EIGENSCHAFTEN
+--   * Idempotent: nutzt "IF NOT EXISTS" in ALTER TABLE (MariaDB).
+--     Unter MySQL 8 laeuft diese Datei NICHT - dort die ALTER-Zeile ohne
+--     "IF NOT EXISTS" ausfuehren und einen bereits vorhandenen Spaltennamen
+--     als erledigt betrachten.
+--   * Kein Datenverlust: es kommt nur eine Spalte hinzu.
+--   * NULL ist erlaubt und bedeutet "noch nichts gewaehlt". Diese Konten
+--     bekommen die naechste Quelle der Kette - also das Cookie oder den
+--     Browser. Ein DEFAULT in der Spalte waere eine zweite Stelle, an der
+--     die Vorgabe steht, UND es waere die falsche Antwort: 'en' in der
+--     Spalte hiesse "hat sich fuer Englisch entschieden" und wuerde
+--     Accept-Language ueberstimmen.
+--
+--   Wer diese Migration NICHT einspielt, verliert nur die Kontosprache:
+--   Die Anwendung faellt auf Cookie und Accept-Language zurueck, und alle
+--   uebrigen Aenderungen an einem Benutzer werden weiterhin gespeichert.
+--   Dafuer schreibt User::saveLang() mit einem eigenen Statement und haengt
+--   sich nicht in User::update() ein - dieselbe Vorkehrung wie beim
+--   Farbprofil (Migration 008).
+--
+-- AUSFUEHREN
+--   mariadb -u <user> -p <datenbank> < migrations/022_sprache.sql
+-- ===========================================================================
+
+ALTER TABLE `user`
+  ADD COLUMN IF NOT EXISTS `lang` varchar(5) DEFAULT NULL;
+
+-- Ergebnis zur Kontrolle
+SELECT COUNT(*) AS konten, COUNT(lang) AS davon_mit_sprache FROM `user`;
