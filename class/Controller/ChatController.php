@@ -8,6 +8,7 @@ use App\Model\Location;
 use App\Model\PdoConnect;
 use App\Model\RateLimit;
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
 
@@ -111,16 +112,19 @@ class ChatController
         $currentUserId = Auth::userId();
         $locationId    = (int)Request::g('location_id');
         if (!$currentUserId || $locationId < 1) {
-            echo json_encode(['success' => false, 'error' => 'Invalid request']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.ungueltig')]);
             return;
         }
 
         $teile = ['konto' => RateLimit::konto($currentUserId)];
         $rest  = RateLimit::restsperre('chat_start', $teile);
         if ($rest > 0) {
+            // Der GANZE Satz kommt aus dem Katalog, die Wartezeit ist ein
+            // Platzhalter darin - im Englischen steht sie am Ende.
             echo json_encode(['success' => false,
-                'error' => 'Zu viele Chats in kurzer Zeit. Bitte '
-                         . RateLimit::wartehinweis($rest) . ' warten.']);
+                'error' => I18n::t('chat.fehler.zu_viele_chats', [
+                               'warten' => RateLimit::wartehinweis($rest),
+                           ])]);
             return;
         }
         RateLimit::verbuchen('chat_start', $teile);
@@ -132,7 +136,7 @@ class ChatController
         $guideId = (new Location())->guideIdOf($locationId);
         if ($guideId === null) {
             error_log("startChat: Standort #$locationId gibt keinen Guide her");
-            echo json_encode(['success' => false, 'error' => 'Zu diesem Standort ist kein Chat möglich.']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.zum_standort')]);
             return;
         }
 
@@ -140,7 +144,7 @@ class ChatController
         // Standort ohnehin keinen Knopf (App\Helper\LocationView) - das hier
         // ist die verbindliche Pruefung dazu.
         if ($guideId === (int)$currentUserId) {
-            echo json_encode(['success' => false, 'error' => 'Das ist Ihr eigener Standort.']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.eigener_standort')]);
             return;
         }
 
@@ -172,12 +176,12 @@ class ChatController
         $currentUserId = Auth::userId();
         $targetId      = (int)Request::g('target_id');
         if (!$currentUserId || $targetId < 1) {
-            echo json_encode(['success' => false, 'error' => 'Invalid user']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.ungueltig')]);
             return;
         }
 
         if ($targetId === (int)$currentUserId) {
-            echo json_encode(['success' => false, 'error' => 'Mit sich selbst chattet niemand.']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.selbst')]);
             return;
         }
 
@@ -186,7 +190,7 @@ class ChatController
         // dieser hier nimmt eine Kontokennung entgegen und braucht die
         // Pruefung deshalb selbst.
         if (User::isDeleted($targetId)) {
-            echo json_encode(['success' => false, 'error' => 'Dieses Konto gibt es nicht mehr.']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.konto_weg')]);
             return;
         }
 
@@ -194,8 +198,9 @@ class ChatController
         $rest  = RateLimit::restsperre('chat_start', $teile);
         if ($rest > 0) {
             echo json_encode(['success' => false,
-                'error' => 'Zu viele Chats in kurzer Zeit. Bitte '
-                         . RateLimit::wartehinweis($rest) . ' warten.']);
+                'error' => I18n::t('chat.fehler.zu_viele_chats', [
+                               'warten' => RateLimit::wartehinweis($rest),
+                           ])]);
             return;
         }
         RateLimit::verbuchen('chat_start', $teile);
@@ -220,7 +225,7 @@ class ChatController
     private function antworteMitChat(?Chat $in_chat, $in_user_id): void
     {
         if (!$in_chat) {
-            echo json_encode(['success' => false, 'error' => 'Chat konnte nicht erstellt werden']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.nicht_erstellt')]);
             return;
         }
 
@@ -235,7 +240,8 @@ class ChatController
                 'user2_id'     => $in_chat->getUser2Id(),
                 'location_id'  => $in_chat->getLocationId(),
                 'last_msg_at'  => $in_chat->getLastMsgAt(),
-                'partner_name' => $namen[$partnerId] ?? ('User ' . $partnerId),
+                'partner_name' => $namen[$partnerId]
+                                  ?? I18n::t('chat.partner_nummer', ['n' => $partnerId]),
             ]
         ]);
     }
@@ -248,7 +254,7 @@ class ChatController
     {
         $currentUserId = Auth::userId();
         if (!$currentUserId) {
-            echo json_encode(['success' => false, 'error' => 'Not logged in']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.nicht_angemeldet')]);
             return;
         }
         $chats = Chat::getAllForUser($currentUserId);
@@ -256,7 +262,7 @@ class ChatController
         foreach($chats as $chat) {
             $partnerId = $chat->partnerVon($currentUserId);
             $partner = (new User)->getUserById($partnerId);
-            $partnerName = $partner ? $partner['username'] : 'Unbekannt';
+            $partnerName = $partner ? $partner['username'] : I18n::t('chat.partner_unbekannt');
 
             $unseenCount = ChatMessage::countUnseenForUser($chat->getId(), $currentUserId);
 
@@ -294,7 +300,7 @@ class ChatController
         $chatId        = (int)Request::g('chat_id');
         $currentUserId = Auth::userId();
         if (!$chatId || !$currentUserId) {
-            echo json_encode(['success' => false, 'error' => 'Invalid chat']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.ungueltig')]);
             return;
         }
         $chat = Chat::findById($chatId);
@@ -308,7 +314,7 @@ class ChatController
         // Route keine fremden Chat-IDs abklopfen lassen.
         if (!$chat->hatTeilnehmer($currentUserId)) {
             error_log("getMessages: Benutzer #$currentUserId ist nicht an Chat #$chatId beteiligt");
-            echo json_encode(['success' => false, 'error' => 'Kein Zugriff']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.kein_zugriff')]);
             return;
         }
 
@@ -359,7 +365,7 @@ class ChatController
         $chatId = (int)Request::g('chat_id');
         $msg = trim(Request::g('msg'));
         if (!$chatId || !$currentUserId || $msg === '') {
-            echo json_encode(['success' => false, 'error' => 'Invalid data']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.ungueltig')]);
             return;
         }
 
@@ -378,8 +384,9 @@ class ChatController
         $rest  = RateLimit::restsperre('chat_message', $teile);
         if ($rest > 0) {
             echo json_encode(['success' => false,
-                'error' => 'Zu viele Nachrichten in kurzer Zeit. Bitte '
-                         . RateLimit::wartehinweis($rest) . ' warten.']);
+                'error' => I18n::t('chat.fehler.zu_viele_nachrichten', [
+                               'warten' => RateLimit::wartehinweis($rest),
+                           ])]);
             return;
         }
         RateLimit::verbuchen('chat_message', $teile);
@@ -391,7 +398,7 @@ class ChatController
         // Route keine fremden Chat-IDs abklopfen lassen.
         if (!$chat || !$chat->hatTeilnehmer($currentUserId)) {
             error_log("sendMessage: Benutzer #$currentUserId ist nicht an Chat #$chatId beteiligt");
-            echo json_encode(['success' => false, 'error' => 'Kein Zugriff']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.kein_zugriff')]);
             return;
         }
 
@@ -402,7 +409,7 @@ class ChatController
         // nie, und ein geloeschtes Konto soll nichts mehr empfangen.
         if (User::isDeleted($chat->partnerVon($currentUserId))) {
             echo json_encode(['success' => false,
-                'error' => 'Dieses Konto gibt es nicht mehr. Der Verlauf bleibt erhalten.']);
+                'error' => I18n::t('chat.fehler.konto_weg_verlauf')]);
             return;
         }
 
@@ -449,7 +456,7 @@ class ChatController
         // der Bedingung.
         $currentUserId = Auth::userId();
         if (!$chatId || !$currentUserId) {
-            echo json_encode(['success' => false, 'error' => 'Invalid data']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.ungueltig')]);
             return;
         }
 
@@ -459,7 +466,7 @@ class ChatController
         // nichtssagende Antwort wie in getMessages().
         if (!$chat || !$chat->hatTeilnehmer($currentUserId)) {
             error_log("setMessagesSeen: Benutzer #$currentUserId ist nicht an Chat #$chatId beteiligt");
-            echo json_encode(['success' => false, 'error' => 'Kein Zugriff']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.kein_zugriff')]);
             return;
         }
 
@@ -474,7 +481,7 @@ class ChatController
     {
         $currentUserId = Auth::userId();
         if (!$currentUserId) {
-            echo json_encode(['success' => false, 'error' => 'Not logged in']);
+            echo json_encode(['success' => false, 'error' => I18n::t('chat.fehler.nicht_angemeldet')]);
             return;
         }
         // auch gelöschte (vergangene) Chats anzeigen:
@@ -498,16 +505,34 @@ class ChatController
             // ZWEI ZUSTAENDE, NICHT MEHR DREI. "Offen" war die noch nicht
             // angenommene Einladung; die gibt es seit Migration 019 nicht
             // mehr. Ein Chat laeuft oder er ist weggeraeumt.
-            $status = $chat->isDeleted() ? 'Beendet' : 'Aktiv';
+            $status = I18n::t($chat->isDeleted()
+                ? 'chat.zustand.beendet'
+                : 'chat.zustand.aktiv');
 
-            // Verlauf: eine Nebenaktion, also ein Symbol ohne Rahmen. Der
-            // Partnername steht im aria-label - "Verlauf anzeigen" allein
-            // wiederholt sich sonst in jeder Zeile ohne Bezug.
+            // DER VERLAUF STEHT WIEDER ALS TEXT DA.
+            //
+            // Hier war ein blosses Uhrsymbol, und das ist die eine Stelle, an
+            // der ein Symbol nicht taugt: Es ist die EINZIGE Aktion der
+            // Zeile. Wer nicht weiss, was dahintersteckt, findet den Verlauf
+            // nicht - und es gibt daneben nichts, woran er es ableiten
+            // koennte. Ein Symbol lebt vom Zusammenhang; wo es allein steht,
+            // hat es keinen.
+            //
+            // Anderswo bleibt es beim Symbol: In der Benutzerliste und der
+            // Standortliste stehen mehrere Aktionen nebeneinander, und dort
+            // machte Text aus jeder Zeile eine Knopfleiste.
+            //
+            // DER PARTNERNAME BLEIBT IM aria-label. Der sichtbare Text sagt
+            // "Verlauf öffnen" - dreissigmal derselbe Satz waere fuer ein
+            // Vorleseprogramm keine Auskunft, und die Zeile daneben nennt den
+            // Namen ohnehin nur fuer das Auge.
             $showChat = '<div class="app-actions-cell">'
                       . '<a href="index.php?act=show_chat&chat_id=' . intval($chat->getId()) . '"'
-                      . ' class="app-iconbtn app-iconbtn--history"'
-                      . ' aria-label="Verlauf mit ' . htmlspecialchars($partnerName) . ' anzeigen"'
-                      . ' title="Verlauf anzeigen"></a>'
+                      . ' class="btn btn-secondary btn-sm"'
+                      . ' aria-label="' . ViewHelper::esc(I18n::t('chat.verlauf.von',
+                            ['name' => $partnerName])) . '">'
+                      . ViewHelper::esc(I18n::t('chat.verlauf.oeffnen'))
+                      . '</a>'
                       . '</div>';
 
             // Template füllen (list_chat_row.html)
@@ -533,13 +558,13 @@ class ChatController
         $chat = Chat::findById($chatId, true); // Methode ohne deleted=0-Filter!
 
         if (!$chat) {
-            ViewHelper::Output("Chat nicht gefunden.");
+            ViewHelper::Output(ViewHelper::esc(I18n::t('chat.fehler.nicht_gefunden')));
             return;
         }
 
         // Rechteprüfung: ist User Teilnehmer?
         if (!$chat->hatTeilnehmer($currentUserId)) {
-            ViewHelper::Output("Kein Zugriff.");
+            ViewHelper::Output(ViewHelper::esc(I18n::t('chat.fehler.kein_zugriff')));
             return;
         }
 

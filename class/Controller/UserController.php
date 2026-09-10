@@ -442,13 +442,22 @@ class UserController
             $ist_geloescht = $tmp_user->isGeloescht();
             $action  = "";
             $email   = "";
-            // Nebenaktion, also Symbol statt Text. aria-label und title sind
-            // Pflicht: Ohne sie ist der Knopf weder vorlesbar noch erratbar.
+            // MIT TEXT, denn es ist die EINZIGE Aktion dieser Spalte. Hier
+            // stand ein blosses Sprechblasensymbol; wer nicht weiss, was
+            // dahintersteckt, hat daneben nichts, woran er es ableiten
+            // koennte. In der Aktionsspalte weiter rechts bleibt es beim
+            // Symbol - dort stehen zwei Knoepfe nebeneinander, und Text
+            // machte aus jeder Zeile eine Leiste.
+            //
+            // Der Name steht im aria-label: Dreissigmal "Anschreiben" ohne
+            // Bezug ist fuer ein Vorleseprogramm keine Auskunft.
             $message = '<div class="app-actions-cell">'
-                     . '<button type="button" class="app-iconbtn app-iconbtn--chat start-chat-btn"'
+                     . '<button type="button" class="btn btn-secondary btn-sm start-chat-btn"'
                      . ' data-userid="' . intval($one_user_id) . '"'
-                     . ' aria-label="Chat mit ' . htmlspecialchars($tmp_user_name) . '"'
-                     . ' title="Chat"></button>'
+                     . ' aria-label="' . ViewHelper::esc(I18n::t('verwaltung.chat_mit',
+                           ['name' => $tmp_user_name])) . '">'
+                     . ViewHelper::esc(I18n::t('verwaltung.benutzer.anschreiben'))
+                     . '</button>'
                      . '</div>';
 
             // Auch hier entscheidet das Recht und nicht die Rollennummer:
@@ -482,7 +491,8 @@ class UserController
             // ab). Die Zeile bietet es deshalb gar nicht erst an; sie zeigt
             // stattdessen, warum.
             $status   = $ist_geloescht
-                      ? '<span class="app-tag app-tag--danger">Konto gelöscht</span>'
+                      ? '<span class="app-tag app-tag--danger">'
+                        . ViewHelper::esc(I18n::t('verwaltung.konto_geloescht')) . '</span>'
                       : $this->stateHtml($tmp_status, $tmp_bereit);
             $call_btn = $ist_geloescht
                       ? '<span class="adm-none">–</span>'
@@ -539,7 +549,7 @@ class UserController
              . ($erreichbar ? 'btn-primary' : 'btn-secondary') . '"'
              . ' id="start-call-btn-' . intval($btn_id) . '"'
              . ($erreichbar ? '' : ' disabled aria-disabled="true"')
-             . '>Anrufen</button>';
+             . '>' . ViewHelper::esc(I18n::t('verwaltung.benutzer.anrufen')) . '</button>';
     }
 
     /**
@@ -568,11 +578,11 @@ class UserController
     private function stateHtml($status, $bereit = false)
     {
         if ($status === 'online') {
-            $art = 'online';  $text = 'Online';
+            $art = 'online';  $text = I18n::t('verwaltung.benutzer.online');
         } elseif ($status === 'in_call') {
-            $art = 'busy';    $text = 'Im Gespräch';
+            $art = 'busy';    $text = I18n::t('verwaltung.benutzer.im_gespraech');
         } else {
-            $art = 'offline'; $text = 'Offline';
+            $art = 'offline'; $text = I18n::t('verwaltung.benutzer.offline');
         }
 
         // Die Beschriftung steht in einem eigenen Element, damit sie auf
@@ -581,12 +591,15 @@ class UserController
         // Ausgeblendet wird sie nur fuer das AUGE: Vorleseprogramme lesen sie
         // weiter, sonst bliebe vom Zustand gar nichts uebrig.
         $marke = $bereit
-            ? '<span class="app-tag app-tag--ready" title="Hat sich auf bereit gestellt">Bereit</span>'
+            ? '<span class="app-tag app-tag--ready" title="'
+              . ViewHelper::esc(I18n::t('verwaltung.benutzer.bereit_titel')) . '">'
+              . ViewHelper::esc(I18n::t('kopf.bereit.an')) . '</span>'
             : '';
 
-        return '<span class="app-state app-state--' . $art . '" title="' . $text . '">'
+        return '<span class="app-state app-state--' . $art . '" title="'
+             . ViewHelper::esc($text) . '">'
              . '<span class="app-state__dot" aria-hidden="true"></span>'
-             . '<span class="app-state__text">' . $text . '</span>'
+             . '<span class="app-state__text">' . ViewHelper::esc($text) . '</span>'
              . '</span>' . $marke;
     }
 
@@ -599,7 +612,9 @@ class UserController
     private function getAction($in_current_user)
     {
         $id   = intval($in_current_user->getId());
-        $name = htmlspecialchars($in_current_user->getUsername());
+        // Der Name geht ROH in I18n::t() und wird erst danach maskiert -
+        // sonst stuende ein doppelt maskiertes "&amp;" im aria-label.
+        $name = $in_current_user->getUsername();
 
         // Bearbeiten und Loeschen sind Nebenaktionen: Symbol ohne Rahmen,
         // Rahmen und Flaeche erst beim Ueberfahren. Der Name steht im
@@ -613,13 +628,15 @@ class UserController
                     <div class="app-actions-cell">
                         <a href="index.php?act=manage_user&user_id=' . $id . '"
                            class="app-iconbtn app-iconbtn--edit"
-                           aria-label="Benutzer ' . $name . ' bearbeiten"
-                           title="Bearbeiten"></a>
+                           aria-label="' . ViewHelper::esc(I18n::t('verwaltung.benutzer.bearbeiten_label',
+                               ['name' => $name])) . '"
+                           title="' . ViewHelper::esc(I18n::t('allgemein.bearbeiten')) . '"></a>
                         <a href="#"
                            onclick="window.webrtcApp.ui.confirmDelete(\'index.php?act=delete_user&user_id=' . $id . '\'); return false;"
                            class="app-iconbtn app-iconbtn--delete app-iconbtn--danger"
-                           aria-label="Benutzer ' . $name . ' löschen"
-                           title="Löschen"></a>
+                           aria-label="' . ViewHelper::esc(I18n::t('verwaltung.benutzer.loeschen_label',
+                               ['name' => $name])) . '"
+                           title="' . ViewHelper::esc(I18n::t('allgemein.loeschen')) . '"></a>
                     </div>
                 </td>';
     }

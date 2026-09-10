@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Helper\Auth;
 use App\Helper\GuideView;
+use App\Helper\I18n;
 use App\Helper\ImageStore;
 use App\Helper\Request;
 use App\Helper\Role;
@@ -222,7 +223,7 @@ class GuideProfileController
                 'about'        => Request::g('about', ''),
                 'languages'    => self::rohSprachen(),
             ])) {
-            self::zurueck('Das Profil konnte nicht gespeichert werden.');
+            self::zurueck(I18n::t('guide.profil.nicht_gespeichert'));
         }
 
         $fehler = self::uebernehmeBild($user_id);
@@ -263,7 +264,7 @@ class GuideProfileController
         }
 
         if (!GuideProfile::setAvatar($user_id, null)) {
-            self::zurueck('Das Bild konnte nicht entfernt werden.');
+            self::zurueck(I18n::t('guide.profil.bild_nicht_entfernt'));
         }
 
         ImageStore::deleteAvatar($user_id, $alt);
@@ -292,14 +293,14 @@ class GuideProfileController
         $ergebnis = ImageStore::storeAvatar($datei, $in_user_id);
 
         if (empty($ergebnis['ok'])) {
-            return (string)($ergebnis['error'] ?? 'Das Bild konnte nicht gespeichert werden.');
+            return (string)($ergebnis['error'] ?? I18n::t('guide.profil.bild_nicht_gespeichert'));
         }
 
         if (!GuideProfile::setAvatar($in_user_id, $ergebnis['name'])) {
             // Die Datei liegt schon da, die Zeile fehlt: Sie wieder
             // wegzuraeumen ist der einzige Weg, der keinen Muell hinterlaesst.
             ImageStore::deleteAvatar($in_user_id, $ergebnis['name']);
-            return 'Das Bild konnte nicht gespeichert werden.';
+            return I18n::t('guide.profil.bild_nicht_gespeichert');
         }
 
         // ERST JETZT das alte Bild. Bis hierher haette jeder Fehlschlag den
@@ -357,7 +358,7 @@ class GuideProfileController
     {
         http_response_code(404);
         header('Content-Type: text/plain; charset=utf-8');
-        echo 'Bild nicht gefunden.';
+        echo I18n::t('guide.profil.bild_nicht_gefunden');
         exit;
     }
 
@@ -370,13 +371,18 @@ class GuideProfileController
     {
         http_response_code(404);
         ViewHelper::output(
+            // Derselbe Aufbau wie die Fehlseite eines Standorts
+            // (App\Controller\LocationController::zeigeFehlseite) - es ist
+            // dieselbe Auskunft ueber eine andere Sache.
             '<div class="app-page app-page--narrow">'
           . '<div class="app-panel"><div class="app-panel__body">'
-          . '<h1 class="app-page-head__title">Guide nicht gefunden</h1>'
-          . '<p class="app-page-head__sub">Dieses Profil gibt es nicht mehr, '
-          . 'oder es hat es nie gegeben.</p>'
+          . '<h1 class="app-page-head__title">'
+          .   ViewHelper::esc(I18n::t('guide.fehlseite.titel')) . '</h1>'
+          . '<p class="app-page-head__sub">'
+          .   ViewHelper::esc(I18n::t('guide.fehlseite.text')) . '</p>'
           . '<div class="app-actions">'
-          . '<a class="btn btn-primary" href="index.php?act=home">Zur Karte</a>'
+          . '<a class="btn btn-primary" href="index.php?act=home">'
+          .   ViewHelper::esc(I18n::t('guide.fehlseite.karte')) . '</a>'
           . '</div></div></div></div>'
         );
     }

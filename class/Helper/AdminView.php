@@ -807,6 +807,15 @@ class AdminView
      * nichts: Ein zweiter Weg in denselben Chat waere ein zweiter Ort, an dem
      * man ihn spaeter aendern muss.
      *
+     * MIT TEXT UND NICHT ALS SYMBOL, denn er ist die EINZIGE Aktion seiner
+     * Spalte. Ein Symbol lebt vom Zusammenhang - stehen zwei oder drei
+     * nebeneinander, erklaeren sie sich gegenseitig; steht eines allein, hat
+     * es nichts, woran der Betrachter es ableiten koennte. Dieselbe
+     * Entscheidung wie in der Chatliste (App\Controller\ChatController) und
+     * in der Benutzerliste (App\Controller\UserController). Wo mehrere
+     * Aktionen in einer Zelle stehen - Bearbeiten und Loeschen dort, die
+     * Bildkacheln der Standortseite -, bleibt es beim Symbol.
+     *
      * @param int    $in_guide_id
      * @param string $in_name Nur fuer das aria-label
      * @return string HTML
@@ -820,11 +829,12 @@ class AdminView
         $name = $in_name !== '' ? $in_name : ('#' . $in_guide_id);
 
         return '<div class="app-actions-cell">'
-             . '<button type="button" class="app-iconbtn app-iconbtn--chat start-chat-btn"'
+             . '<button type="button" class="btn btn-secondary btn-sm start-chat-btn"'
              . ' data-userid="' . $in_guide_id . '"'
              . ' aria-label="' . ViewHelper::esc(I18n::t('verwaltung.chat_mit',
-                   ['name' => $name])) . '"'
-             . ' title="' . ViewHelper::esc(I18n::t('verwaltung.guide_anschreiben')) . '"></button>'
+                   ['name' => $name])) . '">'
+             . ViewHelper::esc(I18n::t('verwaltung.guide_anschreiben'))
+             . '</button>'
              . '</div>';
     }
 

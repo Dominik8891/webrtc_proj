@@ -181,6 +181,8 @@ return [
     'anfrage.abgelehnt'          => 'Declined.',
     'anfrage.zurueckgenommen'    => 'Withdrawn.',
     'anfrage.zurueckziehen'      => 'Withdraw',
+    'anfrage.annehmen'           => 'Accept',
+    'anfrage.ablehnen'           => 'Decline',
     'anfrage.partner_unbekannt'  => 'Unknown',
 
     'anfrage.zeile.von'              => 'Requested by {name}',
@@ -223,6 +225,8 @@ return [
     'allgemein.keine_verbindung'  => 'No connection. Please try again.',
     'allgemein.nicht_geklappt'    => 'That did not work.',
     'allgemein.unbekannter_fehler'=> 'unknown error',
+    'allgemein.bearbeiten'        => 'Edit',
+    'allgemein.keine_auswahl'     => '— none —',
 
     // -----------------------------------------------------------------
     // THE BROWSER DIALOGUES (assets/js/notify.js)
@@ -297,6 +301,9 @@ return [
     'standort.sperre.eigen' => 'Your location is blocked and not visible to other users.',
     'standort.sperre.fremd' => 'This location is blocked and not visible to other users.',
     'standort.sperre.grund' => 'Reason: {grund}',
+    // The same word twice, and the full stop is the difference: on the
+    // location page it is a SENTENCE, in the list a TAG inside a cell.
+    'standort.sperre.wort_kurz' => 'Blocked',
 
     'standort.bilder.titel' => 'Pictures of the place',
     'standort.bilder.alt'   => '{titel} – picture {nr}',
@@ -472,6 +479,18 @@ return [
     'guide.rolle.hinweis_guide'      => 'As long as you still offer locations the role cannot be given up - delete them first under “{locations}”.',
     'guide.rolle.hinweis_offen'      => 'You can change this decision at any time in your settings.',
     'guide.rolle.zurueck'            => 'Back to the settings',
+
+    // -----------------------------------------------------------------
+    // THE GUIDE PROFILE (App\Controller\GuideProfileController)
+    // -----------------------------------------------------------------
+    'guide.profil.nicht_gespeichert'      => 'The profile could not be saved.',
+    'guide.profil.bild_nicht_gespeichert' => 'The picture could not be saved.',
+    'guide.profil.bild_nicht_entfernt'    => 'The picture could not be removed.',
+    'guide.profil.bild_nicht_gefunden'    => 'Picture not found.',
+
+    'guide.fehlseite.titel' => 'Guide not found',
+    'guide.fehlseite.text'  => 'This profile is gone, or it never existed.',
+    'guide.fehlseite.karte' => 'To the map',
     'guide.rolle.fehler.uebernehmen' => 'The guide role could not be taken on. Please try again later.',
     'guide.rolle.fehler.zurueckgeben'=> 'The guide role could not be given up. Please try again later.',
     'guide.rolle.fehler.zustand'     => 'Your account is not in the right state for this answer.',
@@ -549,6 +568,15 @@ return [
         'one'   => 'one rating',
         'other' => '{n} ratings',
     ],
+
+    // What the rating endpoint refuses (App\Controller\ReviewController).
+    'bewertung.fehler.post'             => 'This is only accepted by POST.',
+    'bewertung.fehler.zu_viele'         => 'Too many ratings in a short time. Please wait {warten}.',
+    'bewertung.fehler.keine_fuehrung'   => 'The tour is missing.',
+    'bewertung.fehler.keine_bewertung'  => 'The rating is missing.',
+    'bewertung.fehler.sterne'           => 'Please choose between one and five stars.',
+    'bewertung.fehler.nicht_bewertbar'  => 'This tour cannot be rated. Perhaps you have already rated it.',
+    'bewertung.fehler.nicht_entfernbar' => 'This rating cannot be removed. Perhaps it already is.',
 
     // -----------------------------------------------------------------
     // THE ADMINISTRATION
@@ -633,6 +661,18 @@ return [
     'verwaltung.anfragen.wunsch'     => 'Wish: {wann}',
     'verwaltung.chat_mit'            => 'Chat with {name}',
     'verwaltung.guide_anschreiben'   => 'Message the guide',
+
+    // The user list (App\Controller\UserController). The state words differ
+    // from standort.zustand.*: there it is about an offer, here about an
+    // account.
+    'verwaltung.benutzer.online'          => 'Online',
+    'verwaltung.benutzer.offline'         => 'Offline',
+    'verwaltung.benutzer.im_gespraech'    => 'In a call',
+    'verwaltung.benutzer.bereit_titel'    => 'Has set themselves available',
+    'verwaltung.benutzer.anrufen'         => 'Call',
+    'verwaltung.benutzer.anschreiben'     => 'Message',
+    'verwaltung.benutzer.bearbeiten_label'=> 'Edit user {name}',
+    'verwaltung.benutzer.loeschen_label'  => 'Delete user {name}',
 
     'verwaltung.bewertungen.leer'           => 'No ratings.',
     'verwaltung.bewertungen.ohne_text'      => 'without text',
@@ -809,6 +849,12 @@ return [
     'anmelden.kein_konto'   => 'No account yet?',
     'anmelden.registrieren' => 'Sign up now',
 
+    // What the sign-in form refuses (App\Controller\LoginController). The
+    // lockout message also covers the second factor - same sign-in, same
+    // brake.
+    'anmelden.fehler.falsch'   => 'Wrong username or password.',
+    'anmelden.fehler.gesperrt' => 'Too many failed attempts. Please wait {warten}.',
+
     'registrierung.titel'        => 'Create an account',
     'registrierung.untertitel'   => 'After that you can book tours – and offer some yourself.',
     'registrierung.benutzername' => 'User name',
@@ -838,6 +884,48 @@ return [
     'passwort.aendern.alt'        => 'Old password',
     'passwort.aendern.knopf'      => 'Change password',
     'passwort.aendern.abbrechen'  => 'Cancel',
+
+    // What can go wrong when resetting or changing a password
+    // (App\Controller\PasswordController).
+    'passwort.vergessen.antwort'  => 'If this email address is on file, you will receive a message about resetting your password.',
+    'passwort.fehler.alt_falsch'  => 'The old password is not correct.',
+    'passwort.fehler.paar'        => 'The passwords do not match or are too short.',
+    'passwort.fehler.link'        => 'The link is invalid or has expired.',
+
+    // -----------------------------------------------------------------
+    // TWO-FACTOR SIGN-IN (App\Controller\TwoFactorController)
+    // -----------------------------------------------------------------
+    'zweifaktor.schon_aktiv'          => 'Two-factor sign-in is already switched on.',
+    'zweifaktor.aktiviert'            => 'Two-factor sign-in is switched on.',
+    'zweifaktor.deaktiviert'          => 'Two-factor sign-in is switched off.',
+    'zweifaktor.zurueck'              => 'Back',
+    'zweifaktor.zurueck_einstellungen'=> 'Back to the settings',
+    'zweifaktor.zur_anmeldung'        => 'To signing in',
+
+    'zweifaktor.einrichten.titel'  => 'Set up two-factor sign-in',
+    'zweifaktor.einrichten.text'   => 'Scan the QR code with your authenticator app and enter the six-digit code it shows.',
+    'zweifaktor.einrichten.qr_alt' => 'QR code for the authenticator app',
+    'zweifaktor.einrichten.code'   => 'Code from the app',
+    'zweifaktor.einrichten.knopf'  => 'Switch on',
+
+    'zweifaktor.pruefen.titel' => 'Confirmation code',
+    'zweifaktor.pruefen.text'  => 'The six-digit code from your authenticator app.',
+    'zweifaktor.pruefen.code'  => 'Code',
+    'zweifaktor.pruefen.knopf' => 'Sign in',
+
+    'zweifaktor.fehler.titel'    => 'Sign-in not completed',
+    'zweifaktor.fehler.code'     => 'Invalid code. Please try again.',
+    'zweifaktor.fehler.qr'       => 'Please scan the QR code again.',
+    'zweifaktor.fehler.login'    => 'Signing in with the second factor failed.',
+    'zweifaktor.fehler.gesperrt' => 'Too many failed attempts. Please wait {warten} and then sign in again.',
+
+    // -----------------------------------------------------------------
+    // CONFIRMING THE EMAIL ADDRESS
+    // (App\Controller\EmailVerificationController)
+    // -----------------------------------------------------------------
+    'mailbestaetigung.keine_mail'     => 'No new mail sent',
+    'mailbestaetigung.gebremst'       => 'A confirmation mail has already been sent. Please also look in your spam folder. To send another one, please wait {warten}.',
+    'mailbestaetigung.zur_startseite' => 'To the home page',
 
     'passwort.geaendert' => 'Password changed.',
 
@@ -923,6 +1011,7 @@ return [
     'standortliste.geloescht'            => 'Location deleted.',
     'standortliste.loeschen_fehler'      => 'The location could not be deleted.',
     'standortliste.nicht_zugeordnet'     => 'The location could not be assigned.',
+    'standortliste.ansehen'              => 'View',
 
     // -----------------------------------------------------------------
     // THE FORM WITH THE MAP (assets/js/map.js)
@@ -1179,6 +1268,38 @@ return [
     'chat.fehler.start'        => 'The chat could not be started.',
     'chat.fehler.weg'          => 'This chat no longer exists.',
 
+    // The state of a row in the chat list.
+    'chat.zustand.aktiv'   => 'Active',
+    'chat.zustand.beendet' => 'Ended',
+
+    // THE ROW'S ACTION IS TEXT, not a clock icon: it is the only one in the
+    // row, and a lone icon does not explain itself.
+    'chat.verlauf.oeffnen' => 'Open history',
+    'chat.verlauf.von'     => 'Open the history with {name}',
+
+    'chat.partner_unbekannt' => 'Unknown',
+    'chat.partner_nummer'    => 'Account {n}',
+
+    // What the chat routes refuse.
+    'chat.fehler.ungueltig'         => 'Invalid request.',
+    'chat.fehler.nicht_angemeldet'  => 'Not signed in.',
+    'chat.fehler.kein_zugriff'      => 'No access.',
+    'chat.fehler.nicht_gefunden'    => 'Chat not found.',
+    'chat.fehler.nicht_erstellt'    => 'The chat could not be created.',
+    'chat.fehler.zum_standort'      => 'No chat is possible for this location.',
+    'chat.fehler.eigener_standort'  => 'That is your own location.',
+    'chat.fehler.selbst'            => 'Nobody chats with themselves.',
+    'chat.fehler.konto_weg'         => 'This account no longer exists.',
+    'chat.fehler.konto_weg_verlauf' => 'This account no longer exists. The history stays.',
+    'chat.fehler.zu_viele_chats'       => 'Too many chats in a short time. Please wait {warten}.',
+    'chat.fehler.zu_viele_nachrichten' => 'Too many messages in a short time. Please wait {warten}.',
+
+    // Files in the in-call chat (assets/js/chat.js). The file name is the
+    // browser's suggestion in the save dialogue.
+    'chat.datei.gesendet'      => 'File sent: {name}',
+    'chat.datei.herunterladen' => 'Download file',
+    'chat.datei.name'          => 'received_file',
+
     // -----------------------------------------------------------------
     // THE CALL
     // -----------------------------------------------------------------
@@ -1314,6 +1435,17 @@ return [
     'gespraech.abgelehnt.no_role'   => 'Control command rejected – the other side does not know its role.',
     'gespraech.abgelehnt.invalid'   => 'Control command rejected – the command was invalid.',
     'gespraech.abgelehnt.unbekannt' => 'Control command rejected – the reason is unknown.',
+
+    // What the server says about a call (App\Controller\WebRTCController,
+    // App\Controller\TurnController).
+    'gespraech.fehler.signaling'         => 'Invalid signalling request.',
+    'gespraech.fehler.signaling_intern'  => 'The call could not be relayed.',
+    'gespraech.fehler.guide_nicht_bereit'=> 'This guide is not available for a tour right now. Request the tour on the location page – with a time that suits you both.',
+    'gespraech.fehler.kein_guide'        => 'This user does not offer tours and therefore cannot be called.',
+
+    'gespraech.ice.gebremst'           => 'Too many connection attempts in a short time. The call is being set up without a relay server.',
+    'gespraech.ice.keine_zugangsdaten' => 'The TURN service returned no usable credentials.',
+    'gespraech.ice.nicht_erreichbar'   => 'The TURN server cannot be reached right now.',
 
     // -----------------------------------------------------------------
     // THE RESULT PAGES

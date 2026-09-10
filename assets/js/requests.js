@@ -323,8 +323,10 @@ window.webrtcApp.requests = {
         let html      = '';
 
         if (eingehend && zustand === 'open') {
-            html += '<button type="button" class="btn btn-success btn-sm req-accept" data-id="' + id + '">Annehmen</button>'
-                 +  '<button type="button" class="btn btn-secondary btn-sm req-decline" data-id="' + id + '">Ablehnen</button>';
+            html += '<button type="button" class="btn btn-success btn-sm req-accept" data-id="' + id + '">'
+                 +  this.esc(window.webrtcApp.t('anfrage.annehmen')) + '</button>'
+                 +  '<button type="button" class="btn btn-secondary btn-sm req-decline" data-id="' + id + '">'
+                 +  this.esc(window.webrtcApp.t('anfrage.ablehnen')) + '</button>';
         }
 
         // ANRUFEN. Zwei Faelle, ein Knopf mit zwei Beschriftungen:

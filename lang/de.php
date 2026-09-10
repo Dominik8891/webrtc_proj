@@ -44,6 +44,11 @@
  * das ueber window.webrtcApp.t() und plural() (assets/js/i18n.js); der
  * Katalog geht als window.appI18n mit der Seite mit (I18n::bootScript).
  *
+ * UND SEIT DER NACHARBEIT auch das, was die Controller selbst
+ * zusammensetzen: die Seiten der Zwei-Faktor-Anmeldung, die Bestaetigung der
+ * E-Mail-Adresse, die Fehlseite des Guide-Profils und jede JSON-Antwort, die
+ * im Browser als Hinweis erscheint - Chat, Bewertung, Anruf, TURN.
+ *
  * DAMIT IST DER UMZUG DURCH. Was noch deutsch im Code steht, steht dort mit
  * Absicht - siehe den naechsten Absatz -, und dass nichts Neues dazukommt,
  * haelt der Test fest, der neue nackte deutsche Literale meldet
@@ -273,6 +278,8 @@ return [
     'anfrage.abgelehnt'          => 'Abgelehnt.',
     'anfrage.zurueckgenommen'    => 'Zurückgenommen.',
     'anfrage.zurueckziehen'      => 'Zurückziehen',
+    'anfrage.annehmen'           => 'Annehmen',
+    'anfrage.ablehnen'           => 'Ablehnen',
     'anfrage.partner_unbekannt'  => 'Unbekannt',
 
     // Die Kopfzeile einer Zeile. Der Name steht als Platzhalter darin und
@@ -344,6 +351,9 @@ return [
     'allgemein.keine_verbindung'  => 'Keine Verbindung. Bitte erneut versuchen.',
     'allgemein.nicht_geklappt'    => 'Das hat nicht geklappt.',
     'allgemein.unbekannter_fehler'=> 'unbekannter Fehler',
+    'allgemein.bearbeiten'        => 'Bearbeiten',
+    // Der Leereintrag einer Auswahlliste (App\Controller\SystemController).
+    'allgemein.keine_auswahl'     => '— keine —',
 
     // -----------------------------------------------------------------
     // DIE DIALOGE DES BROWSERS (assets/js/notify.js)
@@ -428,6 +438,11 @@ return [
     'standort.sperre.eigen' => 'Ihr Standort ist gesperrt und für andere Nutzer nicht sichtbar.',
     'standort.sperre.fremd' => 'Dieser Standort ist gesperrt und für andere Nutzer nicht sichtbar.',
     'standort.sperre.grund' => 'Grund: {grund}',
+    // DASSELBE WORT ZWEIMAL, und der Punkt ist der Unterschied: Auf der
+    // Standortseite steht es als SATZ ueber dem Ort, in der Standortliste als
+    // MARKE in einer Zelle. Eine Marke mit Punkt sieht aus wie ein
+    // abgeschnittener Satz.
+    'standort.sperre.wort_kurz' => 'Gesperrt',
 
     'standort.bilder.titel' => 'Bilder vom Ort',
     'standort.bilder.alt'   => '{titel} – Bild {nr}',
@@ -638,6 +653,20 @@ return [
     'guide.rolle.hinweis_guide'      => 'Solange Sie noch Standorte anbieten, lässt sich die Rolle nicht zurückgeben - löschen Sie diese zuerst unter „{locations}“.',
     'guide.rolle.hinweis_offen'      => 'Sie können diese Entscheidung jederzeit in Ihren Einstellungen ändern.',
     'guide.rolle.zurueck'            => 'Zurück zu den Einstellungen',
+
+    // -----------------------------------------------------------------
+    // DAS GUIDE-PROFIL (App\Controller\GuideProfileController)
+    // -----------------------------------------------------------------
+    'guide.profil.nicht_gespeichert'      => 'Das Profil konnte nicht gespeichert werden.',
+    'guide.profil.bild_nicht_gespeichert' => 'Das Bild konnte nicht gespeichert werden.',
+    'guide.profil.bild_nicht_entfernt'    => 'Das Bild konnte nicht entfernt werden.',
+    'guide.profil.bild_nicht_gefunden'    => 'Bild nicht gefunden.',
+
+    // Die Seite fuer ein Profil, das es nicht gibt. Derselbe Aufbau wie
+    // standort.fehlseite.* - es ist dieselbe Auskunft ueber eine andere Sache.
+    'guide.fehlseite.titel' => 'Guide nicht gefunden',
+    'guide.fehlseite.text'  => 'Dieses Profil gibt es nicht mehr, oder es hat es nie gegeben.',
+    'guide.fehlseite.karte' => 'Zur Karte',
     'guide.rolle.fehler.uebernehmen' => 'Die Guide-Rolle konnte nicht übernommen werden. Bitte versuchen Sie es später erneut.',
     'guide.rolle.fehler.zurueckgeben'=> 'Die Guide-Rolle konnte nicht zurückgegeben werden. Bitte versuchen Sie es später erneut.',
     'guide.rolle.fehler.zustand'     => 'Für diese Antwort ist Ihr Konto nicht im richtigen Zustand.',
@@ -729,6 +758,17 @@ return [
         'other' => '{n} Bewertungen',
     ],
 
+    // Die Ablehnungen des Bewertungsendpunkts
+    // (App\Controller\ReviewController). Sie erscheinen im Browser als
+    // Hinweis ueber der Bewertungskarte.
+    'bewertung.fehler.post'             => 'Diese Angabe wird nur per POST entgegengenommen.',
+    'bewertung.fehler.zu_viele'         => 'Zu viele Bewertungen in kurzer Zeit. Bitte {warten} warten.',
+    'bewertung.fehler.keine_fuehrung'   => 'Es fehlt die Führung.',
+    'bewertung.fehler.keine_bewertung'  => 'Es fehlt die Bewertung.',
+    'bewertung.fehler.sterne'           => 'Bitte wählen Sie zwischen einem und fünf Sternen.',
+    'bewertung.fehler.nicht_bewertbar'  => 'Diese Führung lässt sich nicht bewerten. Vielleicht haben Sie sie schon bewertet.',
+    'bewertung.fehler.nicht_entfernbar' => 'Diese Bewertung lässt sich nicht entfernen. Vielleicht ist sie es bereits.',
+
     // -----------------------------------------------------------------
     // DIE VERWALTUNG (App\Helper\AdminView)
     // -----------------------------------------------------------------
@@ -812,6 +852,18 @@ return [
     'verwaltung.anfragen.wunsch'     => 'Wunsch: {wann}',
     'verwaltung.chat_mit'            => 'Chat mit {name}',
     'verwaltung.guide_anschreiben'   => 'Guide anschreiben',
+
+    // Die Benutzerliste (App\Controller\UserController). Die Zustandswoerter
+    // sind ANDERE als in standort.zustand.*: Dort geht es um ein Angebot
+    // ("kein Guide vor Ort"), hier um ein Konto ("nicht angemeldet").
+    'verwaltung.benutzer.online'          => 'Online',
+    'verwaltung.benutzer.offline'         => 'Offline',
+    'verwaltung.benutzer.im_gespraech'    => 'Im Gespräch',
+    'verwaltung.benutzer.bereit_titel'    => 'Hat sich auf bereit gestellt',
+    'verwaltung.benutzer.anrufen'         => 'Anrufen',
+    'verwaltung.benutzer.anschreiben'     => 'Anschreiben',
+    'verwaltung.benutzer.bearbeiten_label'=> 'Benutzer {name} bearbeiten',
+    'verwaltung.benutzer.loeschen_label'  => 'Benutzer {name} löschen',
 
     'verwaltung.bewertungen.leer'           => 'Keine Bewertungen.',
     'verwaltung.bewertungen.ohne_text'      => 'ohne Text',
@@ -1025,6 +1077,12 @@ return [
     'anmelden.kein_konto'   => 'Noch kein Konto?',
     'anmelden.registrieren' => 'Jetzt registrieren',
 
+    // Die Absagen des Anmeldeformulars (App\Controller\LoginController). Die
+    // Sperrmeldung gilt auch fuer den zweiten Faktor - es ist dieselbe
+    // Anmeldung und dieselbe Bremse.
+    'anmelden.fehler.falsch'   => 'Benutzername oder Passwort falsch.',
+    'anmelden.fehler.gesperrt' => 'Zu viele Fehlversuche. Bitte {warten} warten.',
+
     'registrierung.titel'        => 'Konto anlegen',
     'registrierung.untertitel'   => 'Danach können Sie Führungen buchen – und selbst welche anbieten.',
     'registrierung.benutzername' => 'Benutzername',
@@ -1056,6 +1114,54 @@ return [
     'passwort.aendern.alt'        => 'Altes Passwort',
     'passwort.aendern.knopf'      => 'Passwort ändern',
     'passwort.aendern.abbrechen'  => 'Abbrechen',
+
+    // Was beim Zuruecksetzen und beim Wechseln schiefgehen kann
+    // (App\Controller\PasswordController).
+    //
+    // DIE ANTWORT AUF "PASSWORT VERGESSEN" IST IMMER DIESELBE - ob die
+    // Adresse bekannt ist oder nicht. Sonst waere das Formular eine Auskunft
+    // darueber, welche Adressen ein Konto haben.
+    'passwort.vergessen.antwort'  => 'Falls diese E-Mail-Adresse hinterlegt ist, erhalten Sie eine Nachricht zum Zurücksetzen.',
+    'passwort.fehler.alt_falsch'  => 'Das alte Passwort ist nicht korrekt.',
+    'passwort.fehler.paar'        => 'Die Passwörter stimmen nicht überein oder sind zu kurz.',
+    'passwort.fehler.link'        => 'Der Link ist ungültig oder abgelaufen.',
+
+    // -----------------------------------------------------------------
+    // DIE ZWEI-FAKTOR-ANMELDUNG (App\Controller\TwoFactorController)
+    // -----------------------------------------------------------------
+    'zweifaktor.schon_aktiv'          => 'Die Zwei-Faktor-Anmeldung ist bereits aktiviert.',
+    'zweifaktor.aktiviert'            => 'Die Zwei-Faktor-Anmeldung ist aktiviert.',
+    'zweifaktor.deaktiviert'          => 'Die Zwei-Faktor-Anmeldung ist abgeschaltet.',
+    'zweifaktor.zurueck'              => 'Zurück',
+    'zweifaktor.zurueck_einstellungen'=> 'Zurück zu den Einstellungen',
+    'zweifaktor.zur_anmeldung'        => 'Zur Anmeldung',
+
+    'zweifaktor.einrichten.titel'  => 'Zwei-Faktor-Anmeldung einrichten',
+    'zweifaktor.einrichten.text'   => 'QR-Code mit der Authenticator-App scannen und den angezeigten sechsstelligen Code eintragen.',
+    'zweifaktor.einrichten.qr_alt' => 'QR-Code für die Authenticator-App',
+    'zweifaktor.einrichten.code'   => 'Code aus der App',
+    'zweifaktor.einrichten.knopf'  => 'Aktivieren',
+
+    'zweifaktor.pruefen.titel' => 'Bestätigungscode',
+    'zweifaktor.pruefen.text'  => 'Der sechsstellige Code aus Ihrer Authenticator-App.',
+    'zweifaktor.pruefen.code'  => 'Code',
+    'zweifaktor.pruefen.knopf' => 'Anmelden',
+
+    'zweifaktor.fehler.titel'    => 'Anmeldung nicht abgeschlossen',
+    'zweifaktor.fehler.code'     => 'Ungültiger Code. Bitte erneut versuchen.',
+    'zweifaktor.fehler.qr'       => 'Bitte den QR-Code erneut scannen.',
+    'zweifaktor.fehler.login'    => 'Die Anmeldung mit dem zweiten Faktor ist fehlgeschlagen.',
+    // Eigener Satz und nicht anmelden.fehler.gesperrt: Hier ist die Sitzung
+    // verworfen, es muss also von vorn angefangen werden.
+    'zweifaktor.fehler.gesperrt' => 'Zu viele Fehlversuche. Bitte {warten} warten und dann neu anmelden.',
+
+    // -----------------------------------------------------------------
+    // DIE BESTAETIGUNG DER E-MAIL-ADRESSE
+    // (App\Controller\EmailVerificationController)
+    // -----------------------------------------------------------------
+    'mailbestaetigung.keine_mail'     => 'Keine neue Mail verschickt',
+    'mailbestaetigung.gebremst'       => 'Es wurde bereits eine Bestätigungsmail verschickt. Bitte sehen Sie auch im Spam-Ordner nach. Für einen neuen Versand bitte {warten} warten.',
+    'mailbestaetigung.zur_startseite' => 'Zur Startseite',
 
     // Die Rueckmeldung nach dem Wechsel. Sie kommt als Marke in der Adresse
     // zurueck (change=1) und wird im Browser gezeigt - siehe
@@ -1149,6 +1255,7 @@ return [
     'standortliste.geloescht'            => 'Standort gelöscht.',
     'standortliste.loeschen_fehler'      => 'Der Standort konnte nicht gelöscht werden.',
     'standortliste.nicht_zugeordnet'     => 'Der Standort konnte nicht zugeordnet werden.',
+    'standortliste.ansehen'              => 'Ansehen',
 
     // -----------------------------------------------------------------
     // DAS ANLEGEFORMULAR MIT KARTE (assets/js/map.js)
@@ -1433,6 +1540,45 @@ return [
     'chat.fehler.start'        => 'Der Chat konnte nicht gestartet werden.',
     'chat.fehler.weg'          => 'Dieser Chat existiert nicht mehr.',
 
+    // Der Zustand einer Zeile in der Chatliste
+    // (App\Controller\ChatController::getAllChats).
+    'chat.zustand.aktiv'   => 'Aktiv',
+    'chat.zustand.beendet' => 'Beendet',
+
+    // DIE AKTION DER ZEILE STEHT ALS TEXT DA und nicht als Uhrsymbol: Sie ist
+    // die einzige der Zeile, und ein Symbol allein erklaert sich nicht. Der
+    // Name steht nur im aria-label - sichtbar wiederholte er sich in jeder
+    // Zeile neben der Spalte, die ihn ohnehin nennt.
+    'chat.verlauf.oeffnen' => 'Verlauf öffnen',
+    'chat.verlauf.von'     => 'Verlauf mit {name} öffnen',
+
+    // Wenn der Name des Gegenuebers nicht zu ermitteln ist.
+    'chat.partner_unbekannt' => 'Unbekannt',
+    'chat.partner_nummer'    => 'Konto {n}',
+
+    // Die Ablehnungen der Chatrouten. Sie kommen als JSON zurueck und werden
+    // im Browser als Hinweis gezeigt (assets/js/ui_chat.js) - hier standen
+    // vorher teils englische Brocken wie "Invalid request", die ein deutscher
+    // Nutzer genauso zu sehen bekam.
+    'chat.fehler.ungueltig'         => 'Ungültige Anfrage.',
+    'chat.fehler.nicht_angemeldet'  => 'Nicht angemeldet.',
+    'chat.fehler.kein_zugriff'      => 'Kein Zugriff.',
+    'chat.fehler.nicht_gefunden'    => 'Chat nicht gefunden.',
+    'chat.fehler.nicht_erstellt'    => 'Der Chat konnte nicht erstellt werden.',
+    'chat.fehler.zum_standort'      => 'Zu diesem Standort ist kein Chat möglich.',
+    'chat.fehler.eigener_standort'  => 'Das ist Ihr eigener Standort.',
+    'chat.fehler.selbst'            => 'Mit sich selbst chattet niemand.',
+    'chat.fehler.konto_weg'         => 'Dieses Konto gibt es nicht mehr.',
+    'chat.fehler.konto_weg_verlauf' => 'Dieses Konto gibt es nicht mehr. Der Verlauf bleibt erhalten.',
+    'chat.fehler.zu_viele_chats'       => 'Zu viele Chats in kurzer Zeit. Bitte {warten} warten.',
+    'chat.fehler.zu_viele_nachrichten' => 'Zu viele Nachrichten in kurzer Zeit. Bitte {warten} warten.',
+
+    // Dateien im Gespraechschat (assets/js/chat.js). Der Dateiname ist der
+    // Vorschlag fuer das Speichern-Fenster des Browsers.
+    'chat.datei.gesendet'      => 'Datei gesendet: {name}',
+    'chat.datei.herunterladen' => 'Datei herunterladen',
+    'chat.datei.name'          => 'empfangene_datei',
+
     // -----------------------------------------------------------------
     // DAS GESPRAECH
     //
@@ -1583,6 +1729,18 @@ return [
     'gespraech.abgelehnt.no_role'   => 'Steuerbefehl abgelehnt – die Gegenseite kennt ihre Rolle nicht.',
     'gespraech.abgelehnt.invalid'   => 'Steuerbefehl abgelehnt – der Befehl war ungültig.',
     'gespraech.abgelehnt.unbekannt' => 'Steuerbefehl abgelehnt – der Grund ist unbekannt.',
+
+    // Was der Server zum Anruf sagt (App\Controller\WebRTCController,
+    // App\Controller\TurnController). Die ICE-Hinweise reist als "warning"
+    // in der Antwort und landen in gespraech.ice.hinweis darueber.
+    'gespraech.fehler.signaling'         => 'Ungültige Signaling-Anfrage.',
+    'gespraech.fehler.signaling_intern'  => 'Der Anruf konnte nicht vermittelt werden.',
+    'gespraech.fehler.guide_nicht_bereit'=> 'Dieser Guide ist gerade nicht bereit für eine Führung. Fragen Sie die Führung auf der Standortseite an – mit einem Wunschzeitpunkt, der Ihnen beiden passt.',
+    'gespraech.fehler.kein_guide'        => 'Dieser Benutzer bietet keine Führungen an und kann deshalb nicht angerufen werden.',
+
+    'gespraech.ice.gebremst'           => 'Zu viele Verbindungsversuche in kurzer Zeit. Der Anruf wird ohne Relay-Server aufgebaut.',
+    'gespraech.ice.keine_zugangsdaten' => 'Der TURN-Dienst hat keine verwertbaren Zugangsdaten geliefert.',
+    'gespraech.ice.nicht_erreichbar'   => 'Der TURN-Server ist derzeit nicht erreichbar.',
 
     // -----------------------------------------------------------------
     // DIE ERGEBNISSEITEN

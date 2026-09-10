@@ -44,6 +44,14 @@ namespace App\Helper;
  * (assets/js/i18n.js) aus demselben Katalog, den bootScript() weiter unten
  * mit der Seite mitschickt - es gibt keinen zweiten.
  *
+ * Zuletzt die NACHARBEIT: die Controller, die ihre Seiten nicht aus einer
+ * Vorlage bauen, sondern das Markup selbst zusammensetzen - die
+ * Zwei-Faktor-Anmeldung, die Bestaetigungsseite der E-Mail, die Fehlseite des
+ * Guide-Profils -, dazu die JSON-Antworten, die im Browser als Hinweis
+ * landen (Chat, Bewertung, Anruf, TURN). Dort standen auch die letzten
+ * englischen Brocken ("Invalid request", "Not logged in"): kein Katalogtext,
+ * sondern Entwicklersprache, die ein deutscher Nutzer genauso zu sehen bekam.
+ *
  * DAMIT IST DER UMZUG DURCH. Dass nichts Neues dazukommt, haelt die Ratsche
  * fest (tests/i18n_scan.php).
  *

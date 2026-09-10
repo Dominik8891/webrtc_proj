@@ -10,6 +10,7 @@
 # schreibt, sieht im Diff eine Zeile MEHR.
 assets/js/home_map.js	<div class="home-popup__action"> <a class="btn ${item.status === 'live' ? 'btn-success' : 'btn-secondary'}" href="${ziel}"> ${knopf} </a> </div> ${hinweis ?
 assets/js/location_page.js	keine
+assets/js/locations_table.js	<div class="app-locked"> <span class="app-tag app-tag--danger">${this.esc(window.webrtcApp.t('standort.sperre.wort_kurz'))}</span> ${grund ?
 assets/js/map.js	Server antwortete mit Status
 assets/js/protocol.js	" darf nur der
 assets/js/protocol.js	" gehoert auf Kanal "
@@ -32,92 +33,24 @@ class/Controller/AdminController.php	alle
 class/Controller/AdminController.php	anfragen
 class/Controller/AdminController.php	bewertungen
 class/Controller/AdminController.php	standorte
-class/Controller/ChatController.php	Chat konnte nicht erstellt werden
-class/Controller/ChatController.php	Chat nicht gefunden.
-class/Controller/ChatController.php	Das ist Ihr eigener Standort.
-class/Controller/ChatController.php	Dieses Konto gibt es nicht mehr.
-class/Controller/ChatController.php	Dieses Konto gibt es nicht mehr. Der Verlauf bleibt erhalten.
-class/Controller/ChatController.php	Mit sich selbst chattet niemand.
-class/Controller/ChatController.php	Zu diesem Standort ist kein Chat möglich.
-class/Controller/ChatController.php	Zu viele Nachrichten in kurzer Zeit. Bitte
-class/Controller/ChatController.php	anzeigen"
-class/Controller/ChatController.php	aria-label="Verlauf mit
 class/Controller/ChatController.php	konto
-class/Controller/ChatController.php	title="Verlauf anzeigen"></a>
-class/Controller/EmailVerificationController.php	</p> <div class="app-actions app-actions--center"> <a href="index.php?act=home" class="btn btn-primary">Zur Startseite</a> </div> </div> </div> </div>
-class/Controller/EmailVerificationController.php	<div class="app-result"> <div class="app-panel"> <div class="app-panel__body"> <div class="app-result__mark app-result__mark--danger" aria-hidden="true">!</div> <h1 class="app-auth__title">Keine neue Mail verschickt</h1> <p class="app-result__text">
-class/Controller/EmailVerificationController.php	Es wurde bereits eine Bestätigungsmail verschickt. Bitte sehen Sie
-class/Controller/EmailVerificationController.php	auch im Spam-Ordner nach. Ein neuer Versand ist
 class/Controller/EmailVerificationController.php	konto
 class/Controller/GuideProfileController.php	&fehler=
 class/Controller/GuideProfileController.php	&gespeichert=1
-class/Controller/GuideProfileController.php	<a class="btn btn-primary" href="index.php?act=home">Zur Karte</a>
-class/Controller/GuideProfileController.php	<h1 class="app-page-head__title">Guide nicht gefunden</h1>
-class/Controller/GuideProfileController.php	<p class="app-page-head__sub">Dieses Profil gibt es nicht mehr,
-class/Controller/GuideProfileController.php	Bild nicht gefunden.
-class/Controller/GuideProfileController.php	Das Bild konnte nicht entfernt werden.
-class/Controller/GuideProfileController.php	Das Bild konnte nicht gespeichert werden.
-class/Controller/GuideProfileController.php	Das Profil konnte nicht gespeichert werden.
-class/Controller/GuideProfileController.php	oder es hat es nie gegeben.</p>
 class/Controller/LocationController.php	&edit=1&fehler=
 class/Controller/LocationController.php	&gespeichert=1
 class/Controller/LocationController.php	Location: index.php?act=set_location_page&fehler=
 class/Controller/LocationController.php	anfrage
 class/Controller/LocationController.php	fehler
 class/Controller/LocationController.php	gespeichert
-class/Controller/LoginController.php	Benutzername oder Passwort falsch.
 class/Controller/LoginController.php	konto
-class/Controller/PasswordController.php	Das alte Passwort ist nicht korrekt!
-class/Controller/PasswordController.php	Der Link ist ungültig oder abgelaufen.
-class/Controller/PasswordController.php	Die Passwörter stimmen nicht überein oder sind zu kurz.
-class/Controller/PasswordController.php	Falls diese E-Mail in unserem System hinterlegt ist, erhältst du eine Nachricht zum Zurücksetzen.
 class/Controller/RequestController.php	konto
-class/Controller/ReviewController.php	Bitte wählen Sie zwischen einem und fünf Sternen.
-class/Controller/ReviewController.php	Diese Bewertung lässt sich nicht entfernen.
-class/Controller/ReviewController.php	Diese Führung lässt sich nicht bewerten.
-class/Controller/ReviewController.php	Es fehlt die Bewertung.
-class/Controller/ReviewController.php	Es fehlt die Führung.
-class/Controller/ReviewController.php	Nur per POST.
-class/Controller/ReviewController.php	Vielleicht haben Sie sie schon bewertet.
-class/Controller/ReviewController.php	Vielleicht ist sie es bereits.
-class/Controller/ReviewController.php	Zu viele Bewertungen in kurzer Zeit. Bitte
 class/Controller/ReviewController.php	konto
 class/Controller/SettingsController.php	fehler
 class/Controller/SettingsController.php	gespeichert
-class/Controller/SystemController.php	<option value=0> -- KEINE -- </option>
-class/Controller/TurnController.php	Der Anruf wird ohne Relay-Server aufgebaut.
-class/Controller/TurnController.php	Der TURN-Dienst hat keine verwertbaren Zugangsdaten geliefert.
-class/Controller/TurnController.php	Der TURN-Server ist derzeit nicht erreichbar.
 class/Controller/TurnController.php	konto
-class/Controller/TwoFactorController.php	" alt="QR-Code für die Authenticator-App"> </div> <form action="index.php?act=2fa_activate" method="post" autocomplete="off"> <div class="app-field"> <label for="2fa_code" class="form-label">Code aus der App</label> <input type="text" name="2fa_code" id="2fa_code" class="form-control app-code-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus> </div> <div class="app-actions app-actions--stretch"> <button type="submit" class="btn btn-primary">Aktivieren</button> </div> </form> </div> </div> </div> </div>
-class/Controller/TwoFactorController.php	</p> <div class="app-actions app-actions--center"> <a href="index.php?act=login_page" class="btn btn-primary">Zur Anmeldung</a> </div> </div> </div> </div>
-class/Controller/TwoFactorController.php	<div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;"> <h4 class="alert-heading mb-0">2FA ist bereits aktiviert!</h4> </div>
-class/Controller/TwoFactorController.php	<div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;"> <h4 class="alert-heading mb-3">2FA erfolgreich aktiviert!</h4> <a href="index.php?act=home" class="btn btn-outline-primary btn-sm">Zurück</a> </div>
-class/Controller/TwoFactorController.php	<div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;"> <h4 class="alert-heading mb-3">2FA wurde deaktiviert.</h4> <a href="index.php?act=settings" class="btn btn-outline-primary btn-sm">Zurück zu den Einstellungen</a> </div>
-class/Controller/TwoFactorController.php	<div class="app-auth"> <div class="app-auth__card"> <div class="app-panel"> <div class="app-panel__body"> <div class="app-auth__head"> <h1 class="app-auth__title">Bestätigungscode</h1> <p class="app-auth__sub">Der sechsstellige Code aus Ihrer Authenticator-App.</p> </div> <form action="index.php?act=2fa_verify" method="post" autocomplete="off"> <div class="app-field"> <label for="2fa_code" class="form-label">Code</label> <input type="text" name="2fa_code" id="2fa_code" class="form-control app-code-input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus> </div> <div class="app-actions app-actions--stretch"> <button type="submit" class="btn btn-primary">Anmelden</button> </div> </form> </div> </div> </div> </div>
-class/Controller/TwoFactorController.php	<div class="app-auth"> <div class="app-auth__card"> <div class="app-panel"> <div class="app-panel__body"> <div class="app-auth__head"> <h1 class="app-auth__title">Zwei-Faktor-Anmeldung einrichten</h1> <p class="app-auth__sub"> QR-Code mit der Authenticator-App scannen und den angezeigten sechsstelligen Code eintragen. </p> </div> <div class="app-qr"> <img src="
-class/Controller/TwoFactorController.php	<div class="app-result"> <div class="app-panel"> <div class="app-panel__body"> <div class="app-result__mark app-result__mark--danger" aria-hidden="true">!</div> <h1 class="app-auth__title">Anmeldung nicht abgeschlossen</h1> <p class="app-result__text">
-class/Controller/TwoFactorController.php	Fehler beim 2FA-Login.
-class/Controller/TwoFactorController.php	Fehler: Bitte QR-Code erneut scannen.
-class/Controller/TwoFactorController.php	Ungültiger Code. Bitte erneut versuchen.
-class/Controller/TwoFactorController.php	Ungültiger Code. Versuche es erneut.
 class/Controller/TwoFactorController.php	konto
-class/Controller/TwoFactorController.php	warten und dann neu anmelden.
-class/Controller/UserController.php	" class="app-iconbtn app-iconbtn--edit" aria-label="Benutzer
-class/Controller/UserController.php	'); return false;" class="app-iconbtn app-iconbtn--delete app-iconbtn--danger" aria-label="Benutzer
-class/Controller/UserController.php	<span class="app-tag app-tag--danger">Konto gelöscht</span>
-class/Controller/UserController.php	<span class="app-tag app-tag--ready" title="Hat sich auf bereit gestellt">Bereit</span>
-class/Controller/UserController.php	Im Gespräch
-class/Controller/UserController.php	aria-label="Chat mit
-class/Controller/UserController.php	bearbeiten" title="Bearbeiten"></a> <a href="#" onclick="window.webrtcApp.ui.confirmDelete('index.php?act=delete_user&user_id=
 class/Controller/UserController.php	benutzer
-class/Controller/UserController.php	löschen" title="Löschen"></a> </div> </td>
-class/Controller/WebRTCController.php	Dieser Benutzer bietet keine Führungen an und kann
-class/Controller/WebRTCController.php	Dieser Guide ist gerade nicht bereit für eine Führung.
-class/Controller/WebRTCController.php	Fragen Sie die Führung auf der Standortseite an –
-class/Controller/WebRTCController.php	Ungültige Signaling-Anfrage.
-class/Controller/WebRTCController.php	deshalb nicht angerufen werden.
-class/Controller/WebRTCController.php	mit einem Wunschzeitpunkt, der Ihnen beiden passt.
 class/Helper/AdminView.php	anfragen
 class/Helper/AdminView.php	benutzer
 class/Helper/AdminView.php	bewertungen

@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Model\IceServerConfig;
 use App\Model\MeteredTurnService;
 use App\Model\RateLimit;
@@ -75,8 +76,7 @@ class TurnController
             // selbst false.
             error_log('TurnController: TURN-Abruf gebremst (Konto #' . Auth::userId()
                 . ', noch ' . $rest . 's)');
-            $warning = 'Zu viele Verbindungsversuche in kurzer Zeit. '
-                     . 'Der Anruf wird ohne Relay-Server aufgebaut.';
+            $warning = I18n::t('gespraech.ice.gebremst');
         } else {
             RateLimit::verbuchen('turn_credentials', $teile);
 
@@ -87,14 +87,14 @@ class TurnController
 
                 if (empty($iceServers)) {
                     // Antwort kam an, war aber nicht verwertbar.
-                    $warning = 'Der TURN-Dienst hat keine verwertbaren Zugangsdaten geliefert.';
+                    $warning = I18n::t('gespraech.ice.keine_zugangsdaten');
                     error_log('TurnController: Antwort des TURN-Dienstes enthielt keine gueltigen ICE-Server.');
                 }
             } catch (\Exception $e) {
                 // Details nur ins Log - der Client bekommt eine allgemeine Meldung,
                 // damit keine internen Informationen im Browser landen.
                 error_log('TurnController: TURN-Credentials nicht abrufbar: ' . $e->getMessage());
-                $warning = 'Der TURN-Server ist derzeit nicht erreichbar.';
+                $warning = I18n::t('gespraech.ice.nicht_erreichbar');
             }
         }
 

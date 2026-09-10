@@ -166,7 +166,7 @@ window.webrtcApp.locationsTable = {
             <a class="btn btn-sm ${view.callable ? 'btn-primary' : 'btn-secondary'}"
                href="index.php?act=location&id=${encodeURIComponent(item.id)}"
                data-locationid="${this.esc(item.id)}"
-            >Ansehen</a>
+            >${this.esc(window.webrtcApp.t('standortliste.ansehen'))}</a>
         `;
     },
 
@@ -333,7 +333,7 @@ window.webrtcApp.locationsTable = {
         // Bootstrap-Badges (assets/css/theme.css, .app-tag).
         return `
             <div class="app-locked">
-                <span class="app-tag app-tag--danger">Gesperrt</span>
+                <span class="app-tag app-tag--danger">${this.esc(window.webrtcApp.t('standort.sperre.wort_kurz'))}</span>
                 ${grund ? `<span class="app-locked__reason">${grund}</span>` : ''}
             </div>
         `;

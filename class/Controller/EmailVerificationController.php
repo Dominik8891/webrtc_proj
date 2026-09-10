@@ -184,9 +184,9 @@ class EmailVerificationController
                 // waehrend keine unterwegs ist, laesst ihn weiter warten.
                 error_log("sendVerification: gebremst (UserID {$user_id})");
                 $this->outputVerificationHinweis(
-                    'Es wurde bereits eine Bestätigungsmail verschickt. Bitte sehen Sie '
-                    . 'auch im Spam-Ordner nach. Ein neuer Versand ist '
-                    . RateLimit::wartehinweis($rest) . ' möglich.'
+                    I18n::t('mailbestaetigung.gebremst', [
+                        'warten' => RateLimit::wartehinweis($rest),
+                    ])
                 );
                 return;
             }
@@ -226,10 +226,12 @@ class EmailVerificationController
                     <div class="app-panel">
                         <div class="app-panel__body">
                             <div class="app-result__mark app-result__mark--danger" aria-hidden="true">!</div>
-                            <h1 class="app-auth__title">Keine neue Mail verschickt</h1>
+                            <h1 class="app-auth__title">'
+                              . ViewHelper::esc(I18n::t('mailbestaetigung.keine_mail')) . '</h1>
                             <p class="app-result__text">' . htmlspecialchars($msg) . '</p>
                             <div class="app-actions app-actions--center">
-                                <a href="index.php?act=home" class="btn btn-primary">Zur Startseite</a>
+                                <a href="index.php?act=home" class="btn btn-primary">'
+                                  . ViewHelper::esc(I18n::t('mailbestaetigung.zur_startseite')) . '</a>
                             </div>
                         </div>
                     </div>

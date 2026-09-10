@@ -30,7 +30,8 @@ class SystemController
         $outOpt = "";
 
         if ($addEmpty) {
-            $outOpt .= '<option value=0>  -- KEINE --  </option>';
+            $outOpt .= '<option value="0">'
+                     . ViewHelper::esc(I18n::t('allgemein.keine_auswahl')) . '</option>';
         }
 
         foreach ($dataArray as $key => $val) {

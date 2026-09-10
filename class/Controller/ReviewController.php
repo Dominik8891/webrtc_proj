@@ -2,6 +2,7 @@
 namespace App\Controller;
 
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Model\RateLimit;
 use App\Model\TourReview;
 
@@ -54,7 +55,7 @@ class ReviewController
     public function create()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            self::json(['success' => false, 'error' => 'Nur per POST.']);
+            self::json(['success' => false, 'error' => I18n::t('bewertung.fehler.post')]);
         }
 
         $daten   = self::body();
@@ -79,14 +80,17 @@ class ReviewController
         if ($rest > 0) {
             self::json([
                 'success' => false,
-                'error'   => 'Zu viele Bewertungen in kurzer Zeit. Bitte '
-                           . RateLimit::wartehinweis($rest) . ' warten.',
+                // Der GANZE Satz aus dem Katalog, die Wartezeit ein
+                // Platzhalter darin.
+                'error'   => I18n::t('bewertung.fehler.zu_viele', [
+                                 'warten' => RateLimit::wartehinweis($rest),
+                             ]),
             ]);
         }
         RateLimit::verbuchen('review_create', $teile);
 
         if ($request < 1) {
-            self::json(['success' => false, 'error' => 'Es fehlt die Führung.']);
+            self::json(['success' => false, 'error' => I18n::t('bewertung.fehler.keine_fuehrung')]);
         }
 
         // DIE STERNE SIND PFLICHT, der Text ist es nicht. Eine Bewertung ohne
@@ -96,7 +100,7 @@ class ReviewController
         if (!TourReview::isValidStars($sterne)) {
             self::json([
                 'success' => false,
-                'error'   => 'Bitte wählen Sie zwischen einem und fünf Sternen.',
+                'error'   => I18n::t('bewertung.fehler.sterne'),
             ]);
         }
 
@@ -110,8 +114,7 @@ class ReviewController
                 . Auth::userId() . ' nicht bewertet werden.');
             self::json([
                 'success' => false,
-                'error'   => 'Diese Führung lässt sich nicht bewerten. '
-                           . 'Vielleicht haben Sie sie schon bewertet.',
+                'error'   => I18n::t('bewertung.fehler.nicht_bewertbar'),
             ]);
         }
 
@@ -137,21 +140,20 @@ class ReviewController
     public function remove()
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            self::json(['success' => false, 'error' => 'Nur per POST.']);
+            self::json(['success' => false, 'error' => I18n::t('bewertung.fehler.post')]);
         }
 
         $daten = self::body();
         $id    = (int)($daten['id'] ?? 0);
 
         if ($id < 1) {
-            self::json(['success' => false, 'error' => 'Es fehlt die Bewertung.']);
+            self::json(['success' => false, 'error' => I18n::t('bewertung.fehler.keine_bewertung')]);
         }
 
         if (!TourReview::remove($id, Auth::userId(), (string)($daten['reason'] ?? ''))) {
             self::json([
                 'success' => false,
-                'error'   => 'Diese Bewertung lässt sich nicht entfernen. '
-                           . 'Vielleicht ist sie es bereits.',
+                'error'   => I18n::t('bewertung.fehler.nicht_entfernbar'),
             ]);
         }
 

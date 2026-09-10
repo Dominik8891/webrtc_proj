@@ -3,6 +3,7 @@ namespace App\Controller;
 
 use App\Helper\ViewHelper;
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Helper\Request;
 use App\Model\User;
 use App\Model\RateLimit;
@@ -28,7 +29,8 @@ class TwoFactorController
 
         if ($user->getTotpEnabled()) {
             $html = '<div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;">
-                        <h4 class="alert-heading mb-0">2FA ist bereits aktiviert!</h4>
+                        <h4 class="alert-heading mb-0">'
+                      . ViewHelper::esc(I18n::t('zweifaktor.schon_aktiv')) . '</h4>
                     </div>';
             ViewHelper::output($html);
             return;
@@ -48,6 +50,15 @@ class TwoFactorController
         $totp->setLabel($user->getEmail());
         $totp->setIssuer('WebRTC-Projekt');
 
+        // DIE TEXTE ZUERST, DAS MARKUP DANACH. Ein Heredoc setzt nur
+        // Variablen ein, keine Methodenaufrufe - die Saetze werden deshalb
+        // hier geholt und maskiert.
+        $tTitel   = ViewHelper::esc(I18n::t('zweifaktor.einrichten.titel'));
+        $tText    = ViewHelper::esc(I18n::t('zweifaktor.einrichten.text'));
+        $tQrAlt   = ViewHelper::esc(I18n::t('zweifaktor.einrichten.qr_alt'));
+        $tLabel   = ViewHelper::esc(I18n::t('zweifaktor.einrichten.code'));
+        $tKnopf   = ViewHelper::esc(I18n::t('zweifaktor.einrichten.knopf'));
+
         $qrCode = new QrCode($totp->getProvisioningUri());
         $writer = new PngWriter();
         $qrCodeData = $writer->write($qrCode)->getString();
@@ -59,24 +70,21 @@ class TwoFactorController
                             <div class="app-panel">
                                 <div class="app-panel__body">
                                     <div class="app-auth__head">
-                                        <h1 class="app-auth__title">Zwei-Faktor-Anmeldung einrichten</h1>
-                                        <p class="app-auth__sub">
-                                            QR-Code mit der Authenticator-App scannen und den angezeigten
-                                            sechsstelligen Code eintragen.
-                                        </p>
+                                        <h1 class="app-auth__title">$tTitel</h1>
+                                        <p class="app-auth__sub">$tText</p>
                                     </div>
                                     <div class="app-qr">
-                                        <img src="$qrBase64" alt="QR-Code für die Authenticator-App">
+                                        <img src="$qrBase64" alt="$tQrAlt">
                                     </div>
                                     <form action="index.php?act=2fa_activate" method="post" autocomplete="off">
                                         <div class="app-field">
-                                            <label for="2fa_code" class="form-label">Code aus der App</label>
+                                            <label for="2fa_code" class="form-label">$tLabel</label>
                                             <input type="text" name="2fa_code" id="2fa_code" class="form-control app-code-input"
                                                    inputmode="numeric" autocomplete="one-time-code"
                                                    pattern="[0-9]{6}" maxlength="6" required autofocus>
                                         </div>
                                         <div class="app-actions app-actions--stretch">
-                                            <button type="submit" class="btn btn-primary">Aktivieren</button>
+                                            <button type="submit" class="btn btn-primary">$tKnopf</button>
                                         </div>
                                     </form>
                                 </div>
@@ -112,7 +120,7 @@ class TwoFactorController
         ));
 
         if (!$secret || !$code) {
-            $this->outputError("Fehler: Bitte QR-Code erneut scannen.");
+            $this->outputError(I18n::t('zweifaktor.fehler.qr'));
             return;
         }
 
@@ -130,13 +138,15 @@ class TwoFactorController
             unset($_SESSION['2fa_temp_secret']);
             $html = '
                     <div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;">
-                        <h4 class="alert-heading mb-3">2FA erfolgreich aktiviert!</h4>
-                        <a href="index.php?act=home" class="btn btn-outline-primary btn-sm">Zurück</a>
+                        <h4 class="alert-heading mb-3">'
+                      . ViewHelper::esc(I18n::t('zweifaktor.aktiviert')) . '</h4>
+                        <a href="index.php?act=home" class="btn btn-outline-primary btn-sm">'
+                      . ViewHelper::esc(I18n::t('zweifaktor.zurueck')) . '</a>
                     </div>
                     ';
             ViewHelper::output($html);
         } else {
-            $this->outputError("Ungültiger Code. Versuche es erneut.");
+            $this->outputError(I18n::t('zweifaktor.fehler.code'));
         }
     }
 
@@ -151,24 +161,29 @@ class TwoFactorController
             header("Location: index.php?act=login_page");
             exit;
         }
+        $tTitel = ViewHelper::esc(I18n::t('zweifaktor.pruefen.titel'));
+        $tText  = ViewHelper::esc(I18n::t('zweifaktor.pruefen.text'));
+        $tLabel = ViewHelper::esc(I18n::t('zweifaktor.pruefen.code'));
+        $tKnopf = ViewHelper::esc(I18n::t('zweifaktor.pruefen.knopf'));
+
         $html = <<<HTML
                     <div class="app-auth">
                         <div class="app-auth__card">
                             <div class="app-panel">
                                 <div class="app-panel__body">
                                     <div class="app-auth__head">
-                                        <h1 class="app-auth__title">Bestätigungscode</h1>
-                                        <p class="app-auth__sub">Der sechsstellige Code aus Ihrer Authenticator-App.</p>
+                                        <h1 class="app-auth__title">$tTitel</h1>
+                                        <p class="app-auth__sub">$tText</p>
                                     </div>
                                     <form action="index.php?act=2fa_verify" method="post" autocomplete="off">
                                         <div class="app-field">
-                                            <label for="2fa_code" class="form-label">Code</label>
+                                            <label for="2fa_code" class="form-label">$tLabel</label>
                                             <input type="text" name="2fa_code" id="2fa_code" class="form-control app-code-input"
                                                    inputmode="numeric" autocomplete="one-time-code"
                                                    pattern="[0-9]{6}" maxlength="6" required autofocus>
                                         </div>
                                         <div class="app-actions app-actions--stretch">
-                                            <button type="submit" class="btn btn-primary">Anmelden</button>
+                                            <button type="submit" class="btn btn-primary">$tKnopf</button>
                                         </div>
                                     </form>
                                 </div>
@@ -205,7 +220,7 @@ class TwoFactorController
         $userId = $_SESSION['2fa_userid'] ?? null;
         $code = Request::g('2fa_code');
         if (!$userId || !$code) {
-            $this->outputError("Fehler beim 2FA-Login.");
+            $this->outputError(I18n::t('zweifaktor.fehler.login'));
             return;
         }
 
@@ -220,9 +235,9 @@ class TwoFactorController
             // weiter unten ein Weg, den Zaehler zurueckzusetzen.
             unset($_SESSION['2fa_userid']);
             error_log("2FA-Login: gesperrt (UserID {$userId})");
-            $this->outputError(
-                'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest) . ' warten.'
-            );
+            $this->outputError(I18n::t('anmelden.fehler.gesperrt', [
+                'warten' => RateLimit::wartehinweis($rest),
+            ]));
             return;
         }
 
@@ -285,9 +300,10 @@ class TwoFactorController
             // Wie beim Login nennt die Meldung keine Restversuche: Das ist
             // eine Auskunft, die nur der braucht, der durchprobiert.
             $this->outputError($rest > 0
-                ? 'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest)
-                  . ' warten und dann neu anmelden.'
-                : 'Ungültiger Code. Bitte erneut versuchen.');
+                ? I18n::t('zweifaktor.fehler.gesperrt', [
+                      'warten' => RateLimit::wartehinweis($rest),
+                  ])
+                : I18n::t('zweifaktor.fehler.code'));
         }
     }
     
@@ -309,8 +325,10 @@ class TwoFactorController
 
         $html = '
                 <div class="alert alert-success text-center my-4" role="alert" style="max-width:400px; margin:0 auto;">
-                    <h4 class="alert-heading mb-3">2FA wurde deaktiviert.</h4>
-                    <a href="index.php?act=settings" class="btn btn-outline-primary btn-sm">Zurück zu den Einstellungen</a>
+                    <h4 class="alert-heading mb-3">'
+                  . ViewHelper::esc(I18n::t('zweifaktor.deaktiviert')) . '</h4>
+                    <a href="index.php?act=settings" class="btn btn-outline-primary btn-sm">'
+                  . ViewHelper::esc(I18n::t('zweifaktor.zurueck_einstellungen')) . '</a>
                 </div>
                 ';
         ViewHelper::output($html);
@@ -335,10 +353,12 @@ class TwoFactorController
                     <div class="app-panel">
                         <div class="app-panel__body">
                             <div class="app-result__mark app-result__mark--danger" aria-hidden="true">!</div>
-                            <h1 class="app-auth__title">Anmeldung nicht abgeschlossen</h1>
+                            <h1 class="app-auth__title">'
+                              . ViewHelper::esc(I18n::t('zweifaktor.fehler.titel')) . '</h1>
                             <p class="app-result__text">' . htmlspecialchars($msg) . '</p>
                             <div class="app-actions app-actions--center">
-                                <a href="index.php?act=login_page" class="btn btn-primary">Zur Anmeldung</a>
+                                <a href="index.php?act=login_page" class="btn btn-primary">'
+                                  . ViewHelper::esc(I18n::t('zweifaktor.zur_anmeldung')) . '</a>
                             </div>
                         </div>
                     </div>

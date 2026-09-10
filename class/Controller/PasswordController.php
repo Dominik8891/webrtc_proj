@@ -35,7 +35,7 @@ class PasswordController
     public function handleForgotPassword(): void
     {
         $email = trim(Request::g('email'));
-        $msg = "Falls diese E-Mail in unserem System hinterlegt ist, erhältst du eine Nachricht zum Zurücksetzen.";
+        $msg = I18n::t('passwort.vergessen.antwort');
 
         // User suchen (Antwort immer gleich, kein User-Enum möglich!)
         // DIE SPRACHE GEHT MIT. Die Mail geht an das KONTO und nicht an den,
@@ -127,7 +127,7 @@ class PasswordController
             $html = str_replace('###PW_RESET_MSG###', $msg, $html);
             ViewHelper::output($html);
         } else {
-            $msg = "Der Link ist ungültig oder abgelaufen.";
+            $msg = I18n::t('passwort.fehler.link');
             $html = ViewHelper::template('assets/html/reset_pw.html');
             $html = str_replace('###TOKEN###', '', $html);
             $html = str_replace('###PW_RESET_MSG###', $msg, $html);
@@ -148,7 +148,7 @@ class PasswordController
         $msg = "";
 
         if ($pwd1 !== $pwd2 || strlen($pwd1) < 8) {
-            $msg = "Die Passwörter stimmen nicht überein oder sind zu kurz.";
+            $msg = I18n::t('passwort.fehler.paar');
             $html = ViewHelper::template('assets/html/reset_pw.html');
             $html = str_replace('###TOKEN###', htmlspecialchars($token), $html);
             $html = str_replace('###PW_RESET_MSG###', $msg, $html);
@@ -179,7 +179,7 @@ class PasswordController
             header("Location: index.php?act=login_page&pw_reset=ok");
             exit;
         } else {
-            $msg = "Der Link ist ungültig oder abgelaufen.";
+            $msg = I18n::t('passwort.fehler.link');
             $html = ViewHelper::template('assets/html/reset_pw.html');
             $html = str_replace('###TOKEN###', '', $html);
             $html = str_replace('###PW_RESET_MSG###', $msg, $html);
@@ -289,7 +289,7 @@ class PasswordController
         // waehrend der laufenden Sitzung geloescht wurde. Der Zugriff auf
         // $result['pwd'] loeste sonst eine Warning und damit HTTP 500 aus.
         if (!$result || !password_verify($pwd_peppered, $result['pwd'])) {
-            $msg = "Das alte Passwort ist nicht korrekt!";
+            $msg = I18n::t('passwort.fehler.alt_falsch');
             // Nur noch das eigene Konto ist erreichbar - trotzdem ins Log:
             // Haeufige Fehlversuche auf dem eigenen Konto sind ein Hinweis
             // auf eine uebernommene Sitzung.
@@ -303,7 +303,7 @@ class PasswordController
         }
 
         if ($pwd1 !== $pwd2 || strlen($pwd1) < 8) {
-            $msg = "Die Passwörter stimmen nicht überein oder sind zu kurz.";
+            $msg = I18n::t('passwort.fehler.paar');
             $html = ViewHelper::template('assets/html/change_pw.html');
             $html = str_replace('###ANGEMELDET###', self::angemeldetHtml($username), $html);
             $html = str_replace('###PW_CHANGE_MSG###', $msg, $html);

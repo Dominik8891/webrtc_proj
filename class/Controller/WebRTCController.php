@@ -6,6 +6,7 @@ use App\Model\User;
 use App\Model\TourRequest;
 use App\Model\WebRTCHandler;
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Helper\Request;
 use App\Helper\Permission;
 use App\Helper\Role;
@@ -200,12 +201,14 @@ class WebRTCController
             // Weder gültiger POST noch angemeldeter Empfänger: Bisher endete die
             // Methode hier ohne jede Ausgabe (HTTP 200, leerer Body) und der
             // Client warf beim Parsen. Jetzt gibt es eine auswertbare Antwort.
-            echo json_encode(['status' => 'error', 'msg' => 'Ungültige Signaling-Anfrage.']);
+            echo json_encode(['status' => 'error',
+                              'msg' => I18n::t('gespraech.fehler.signaling')]);
             exit;
         } catch (\Exception $e) {
             // Interne Details nur ins Log, nicht in den Browser.
             error_log('WebRTCController::getSignal: ' . $e->getMessage());
-            echo json_encode(['status' => 'error', 'msg' => 'Signaling-Fehler.']);
+            echo json_encode(['status' => 'error',
+                              'msg' => I18n::t('gespraech.fehler.signaling_intern')]);
             exit;
         }
     }
@@ -499,13 +502,10 @@ class WebRTCController
     private static function callRejectedMessage($calleeId)
     {
         if (self::offersLocations($calleeId) && !self::readyToGuide($calleeId)) {
-            return 'Dieser Guide ist gerade nicht bereit für eine Führung. '
-                 . 'Fragen Sie die Führung auf der Standortseite an – '
-                 . 'mit einem Wunschzeitpunkt, der Ihnen beiden passt.';
+            return I18n::t('gespraech.fehler.guide_nicht_bereit');
         }
 
-        return 'Dieser Benutzer bietet keine Führungen an und kann '
-             . 'deshalb nicht angerufen werden.';
+        return I18n::t('gespraech.fehler.kein_guide');
     }
 
     /**

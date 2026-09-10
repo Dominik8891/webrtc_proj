@@ -1636,13 +1636,25 @@ ok('alle Vorlagen laufen ueber ViewHelper::template()');
 // ---------------------------------------------------------------------
 fwrite(STDERR, "\n15) Symbolknoepfe in den PHP-Tabellen tragen Label und Tooltip\n");
 
-// Dieselbe Bedingung wie auf der JavaScript-Seite: Ein Knopf ohne Text ist
-// nur benutzbar, wenn er aria-label (Vorleseprogramm) und title (Tooltip)
-// hat. Geprueft wird die Quelle, weil die Zellenbauer privat sind und ohne
+// DIE REGEL, UND SIE HAT ZWEI HAELFTEN
+// ------------------------------------
+// 1. WO MEHRERE AKTIONEN IN EINER ZELLE STEHEN, sind es Symbole. Text machte
+//    aus jeder Zeile eine Knopfleiste. Ein Symbol braucht dann aria-label
+//    (Vorleseprogramm) und title (Tooltip) - ohne beides ist es weder
+//    vorlesbar noch erratbar.
+// 2. WO EINE AKTION ALLEIN IN IHRER ZELLE STEHT, traegt sie TEXT. Ein Symbol
+//    lebt vom Zusammenhang: Stehen zwei oder drei nebeneinander, erklaeren
+//    sie sich gegenseitig; steht eines allein, hat der Betrachter nichts,
+//    woran er es ableiten koennte. Genau das war in der Chatliste der Fall -
+//    die Spalte "Verlauf" bestand aus einem Uhrsymbol und sonst nichts.
+//
+// Geprueft wird die Quelle, weil die Zellenbauer privat sind und ohne
 // Datenbank nicht aufgerufen werden koennen.
+
+// --- Erste Haelfte: die Symbole, die bleiben ------------------------------
 foreach ([
     'class/Controller/UserController.php' => 'Benutzerliste',
-    'class/Controller/ChatController.php' => 'Chatliste',
+    'class/Helper/LocationView.php'       => 'Bildkacheln der Standortseite',
 ] as $datei => $was) {
     $code = file_get_contents($ROOT . '/' . $datei);
 
@@ -1655,13 +1667,35 @@ foreach ([
     check(preg_match_all('/title="/', $code) >= $anzahl,
         "$was: nicht jeder Symbolknopf hat einen Tooltip");
 }
-ok('Benutzerliste und Chatliste beschriften ihre Symbolknoepfe');
+ok('wo mehrere Aktionen nebeneinander stehen, sind es beschriftete Symbole');
+
+// --- Zweite Haelfte: die Alleinstehenden tragen Text ----------------------
+//
+// Drei Stellen, an denen genau EINE Aktion in der Zelle steht. Keine davon
+// darf ein app-iconbtn sein, und jede muss ihren Text aus dem Katalog holen.
+foreach ([
+    ['class/Controller/ChatController.php', 'chat.verlauf.oeffnen', 'Chatliste: Verlauf'],
+    ['class/Controller/UserController.php', 'verwaltung.benutzer.anschreiben', 'Benutzerliste: Nachricht'],
+    ['class/Helper/AdminView.php',          'verwaltung.guide_anschreiben',    'Anfragenliste: Guide anschreiben'],
+] as [$datei, $schluessel, $was]) {
+    $code = file_get_contents($ROOT . '/' . $datei);
+    check(strpos($code, "'" . $schluessel . "'") !== false,
+        "$was holt seine Beschriftung nicht aus dem Katalog");
+    check(trim(I18n::t($schluessel)) !== '' && I18n::t($schluessel) !== $schluessel,
+        "$was: der Katalog kennt $schluessel nicht");
+}
+// Und die Chatliste hat gar keinen Symbolknopf mehr: Sie hat nur diese eine
+// Aktion, und die traegt jetzt Text.
+check(strpos(file_get_contents($ROOT . '/class/Controller/ChatController.php'),
+      'app-iconbtn') === false,
+    'in der Chatliste steht wieder ein Symbol ohne Text');
+ok('eine Aktion allein in ihrer Zelle traegt Text, kein Symbol');
 
 // Die Hauptaktion behaelt Text und Flaeche - sie sagt, worum es in der Liste
 // geht. Wuerde sie auch zum Symbol, waere die Zeile eine Reihe gleich lauter
 // Zeichen ohne Schwerpunkt.
 $uc = file_get_contents($ROOT . '/class/Controller/UserController.php');
-check(strpos($uc, '>Anrufen</button>') !== false,
+check(strpos($uc, "'verwaltung.benutzer.anrufen'") !== false,
     'der Anruf-Knopf der Benutzerliste hat seine Beschriftung verloren');
 check(strpos($uc, 'btn btn-sm start-call-btn') !== false,
     'der Anruf-Knopf ist kein Flaechenknopf mehr');
@@ -1670,6 +1704,8 @@ ok('die Hauptaktion behaelt Text und Flaeche');
 // Und die Symbole selbst stehen an EINER Stelle - in der CSS-Datei als
 // Maske, nicht als SVG in PHP und noch einmal in JavaScript.
 $css = file_get_contents($ROOT . '/assets/css/theme.css');
+// 'history' steht weiter in der Datei, obwohl die Chatliste es nicht mehr
+// setzt: Die Symbole sind ein Vorrat und keine Liste der gerade benutzten.
 foreach (['chat', 'edit', 'trash', 'lock', 'unlock', 'history'] as $symbol) {
     check(strpos($css, '--icon-' . $symbol . ':') !== false,
         "das Symbol $symbol fehlt in theme.css");
@@ -7244,9 +7280,12 @@ $chatCode = file_get_contents($ROOT . '/class/Controller/ChatController.php');
 check(substr_count($chatCode, 'User::isDeleted') === 2,
     'Direktchat und Senden pruefen das Kennzeichen nicht beide');
 // Der VERLAUF bleibt lesbar - er gehoert beiden Seiten. Was nicht mehr geht,
-// ist etwas hinzuzufuegen.
-check(strpos($chatCode, 'Der Verlauf bleibt erhalten') !== false,
+// ist etwas hinzuzufuegen. Gesucht wird der SCHLUESSEL: Der Satz selbst steht
+// im Katalog, und in einer anderen Sprache stuende er anders da.
+check(strpos($chatCode, "'chat.fehler.konto_weg_verlauf'") !== false,
     'mit dem Konto verschwindet auch der eigene Verlauf');
+check(mb_stripos(I18n::t('chat.fehler.konto_weg_verlauf'), 'Verlauf') !== false,
+    'der Satz sagt nicht mehr, dass der Verlauf bleibt');
 check(strpos($chatCode, 'User::getUsernamesByIds([$partnerId])') !== false,
     'die Chatliste holt den Benutzernamen an der Regel vorbei');
 
@@ -9486,6 +9525,49 @@ foreach (['de', 'en'] as $sprache) {
         "tabelle.info_gefiltert verliert _MAX_ ($sprache)");
 }
 ok('DataTables und select2 sprechen die Sprache der Seite - samt ihrer eigenen Marken');
+
+// --- Auch die Controller holen ihren Text aus dem Katalog ----------------
+//
+// Die Stufe der Vorlagen hat assets/html umgezogen, die des Browsers
+// assets/js - dazwischen blieben die Controller liegen, die ihre Seiten NICHT
+// aus einer Vorlage bauen, sondern das Markup selbst zusammensetzen: die
+// Zwei-Faktor-Anmeldung, die Bestaetigungsseite der E-Mail, die Fehlseite des
+// Guide-Profils. Und die JSON-Antworten, die im Browser als Hinweis landen.
+//
+// Geprueft wird je Controller EIN Schluessel, an dem der Umzug haengt: Steht
+// er nicht mehr da, ist der Text wieder ins Literal zurueckgefallen.
+foreach ([
+    ['class/Controller/ChatController.php',              'chat.fehler.kein_zugriff'],
+    ['class/Controller/LoginController.php',             'anmelden.fehler.falsch'],
+    ['class/Controller/PasswordController.php',          'passwort.fehler.link'],
+    ['class/Controller/TwoFactorController.php',         'zweifaktor.einrichten.titel'],
+    ['class/Controller/EmailVerificationController.php', 'mailbestaetigung.keine_mail'],
+    ['class/Controller/GuideProfileController.php',      'guide.fehlseite.titel'],
+    ['class/Controller/ReviewController.php',            'bewertung.fehler.sterne'],
+    ['class/Controller/TurnController.php',              'gespraech.ice.nicht_erreichbar'],
+    ['class/Controller/WebRTCController.php',            'gespraech.fehler.kein_guide'],
+    ['class/Controller/UserController.php',              'verwaltung.benutzer.online'],
+] as [$datei, $schluessel]) {
+    $code = file_get_contents($ROOT . '/' . $datei);
+    check(strpos($code, "'" . $schluessel . "'") !== false,
+        basename($datei) . " holt $schluessel nicht aus dem Katalog");
+    foreach (['de', 'en'] as $sprache) {
+        $text = I18n::tIn($sprache, $schluessel);
+        check(trim($text) !== '' && $text !== $schluessel,
+            "$schluessel fehlt in $sprache");
+    }
+}
+
+// UND DIE ENGLISCHEN BROCKEN SIND WEG. In den Chatrouten standen Antworten
+// wie "Invalid request" und "Not logged in" - kein Katalogtext, sondern
+// Entwicklersprache, und ein deutscher Nutzer bekam sie genauso zu sehen.
+$chatQuelle = stripPhpNoise(file_get_contents($ROOT . '/class/Controller/ChatController.php'));
+foreach (['Invalid request', 'Invalid user', 'Invalid chat', 'Invalid data',
+          'Not logged in'] as $brocken) {
+    check(strpos($chatQuelle, $brocken) === false,
+        "ChatController antwortet weiterhin mit \"$brocken\"");
+}
+ok('die Controller sagen, was sie sagen, in der Sprache der Seite');
 
 // --- Kein Satz wird mehr aus Stuecken zusammengesetzt --------------------
 //

@@ -4,6 +4,7 @@ namespace App\Controller;
 use App\Model\User;
 use App\Model\RateLimit;
 use App\Helper\Auth;
+use App\Helper\I18n;
 use App\Helper\MailGate;
 use App\Helper\Request;
 use App\Helper\ViewHelper;
@@ -64,9 +65,9 @@ class LoginController
 
         $rest = RateLimit::restsperre('login', $teile);
         if ($rest > 0) {
-            $this->outputLoginError(
-                'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest) . ' warten.'
-            );
+            $this->outputLoginError(I18n::t('anmelden.fehler.gesperrt', [
+                'warten' => RateLimit::wartehinweis($rest),
+            ]));
             return;
         }
 
@@ -139,8 +140,10 @@ class LoginController
             // erfaehrt, was er wissen muss: dass es falsch war, und im
             // Sperrfall, wie lange er warten muss.
             $this->outputLoginError($rest > 0
-                ? 'Zu viele Fehlversuche. Bitte ' . RateLimit::wartehinweis($rest) . ' warten.'
-                : 'Benutzername oder Passwort falsch.');
+                ? I18n::t('anmelden.fehler.gesperrt', [
+                      'warten' => RateLimit::wartehinweis($rest),
+                  ])
+                : I18n::t('anmelden.fehler.falsch'));
         }
     }
 
@@ -182,11 +185,19 @@ class LoginController
 
     /**
      * Gibt das Loginformular mit einer Fehlermeldung aus.
-     * @param string $msg
+     *
+     * OHNE VORGABE IM KOPF DER METHODE: Dort stand der Satz als Literal, und
+     * ein Literal kann kein Katalogeintrag sein - PHP laesst in einer
+     * Parametervorgabe keinen Methodenaufruf zu. Er wird deshalb erst im
+     * Rumpf geholt, und null heisst "nimm den ueblichen".
+     *
+     * @param string|null $msg
      * @return void
      */
-    public function outputLoginError($msg = 'Benutzername oder Passwort falsch.'): void
+    public function outputLoginError($msg = null): void
     {
+        if ($msg === null) $msg = I18n::t('anmelden.fehler.falsch');
+
         $html = ViewHelper::template('assets/html/login.html');
         $html = str_replace('###LOGIN_ERROR###', $msg, $html);
         ViewHelper::output($html);

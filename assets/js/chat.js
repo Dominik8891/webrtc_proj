@@ -133,7 +133,8 @@ window.webrtcApp.chat = {
         if (dc && dc.readyState === "open") {
             file.arrayBuffer().then(buffer => {
                 dc.send(buffer);
-                this.appendMsg("self", "Datei gesendet: " + file.name);
+                this.appendMsg("self",
+                    window.webrtcApp.t('chat.datei.gesendet', { name: file.name }));
             });
         }
     },
@@ -177,8 +178,8 @@ window.webrtcApp.chat = {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "empfangene_datei";
-        a.textContent = "Datei herunterladen";
+        a.download = window.webrtcApp.t('chat.datei.name');
+        a.textContent = window.webrtcApp.t('chat.datei.herunterladen');
         log.appendChild(a);
         this.noteUnread();
     }
