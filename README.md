@@ -2513,6 +2513,16 @@ Auf der Startseite wäre eine erfundene Nadel eine Falschauskunft; auf der
 Landingpage ist sie das Bild zu einem Satz — und der Hinweis unter der Karte
 sagt es auch. Die Karte selbst ist echt: dieselben Kacheln wie überall
 (`assets/js/map_tiles.js`), samt der Herkunftsangabe, die die ODbL verlangt.
+
+**Die Welt genau einmal.** Leaflet wiederholt eine Weltkarte von sich aus in
+der Waagerechten — rechts neben Asien fängt Amerika ein zweites Mal an. Auf den
+Karten der Anwendung fällt das nicht auf, weil sie eine Stadt zeigen; hier ist
+die ganze Erde im Bild. Dagegen stehen drei Angaben, und jede einzelne genügt
+nicht: `noWrap` an der Kachelebene (keine Kacheln jenseits von ±180°),
+`maxBounds` an der Karte (der Ausschnitt kommt nicht über den Rand) und eine
+**Mindestzoomstufe** aus der Breite der Fläche — `log2(breite / 256)`, denn
+sonst zoomt `fitBounds` so weit heraus, bis die Welt schmaler ist als die
+Fläche, und an den Rändern bliebe ein leerer Streifen.
 Nur die hundert Nadeln sind Stadtkoordinaten aus einer Liste und keine
 Standorte. Sie erscheinen nacheinander, jede zehnte grün — grün heißt in
 dieser Anwendung *„ein Guide ist jetzt erreichbar"*, und hier heißt es
@@ -2525,10 +2535,48 @@ nicht als Liste da — es ist auf den Aufnahmen zu sehen. Eine Aufzählung von
 Funktionen liest niemand, der noch nicht weiß, ob ihn das Ganze angeht.
 
 Sie läuft durch `App\Helper\ViewHelper::output()` wie jede andere Seite:
-dieselbe Kopfleiste, dieselben vier Farbprofile, derselbe Sprachumschalter,
-derselbe Katalog (`landing.*` in `lang/de.php` und `lang/en.php`). Ihre
-Stilvorlage (`assets/css/landing.css`) enthält **keinen einzigen Farbwert** —
-sonst wäre sie im Dunkelprofil ein heller Fleck.
+dieselben vier Farbprofile, derselbe Sprachumschalter, derselbe Katalog
+(`landing.*` in `lang/de.php` und `lang/en.php`). Ihre Stilvorlage
+(`assets/css/landing.css`) enthält **keinen einzigen Farbwert** — sonst wäre
+sie im Dunkelprofil ein heller Fleck.
+
+### Eine eigene Kopfleiste
+
+Die Leiste der Anwendung ist ein Arbeitsgerät: Standort anbieten,
+Standortliste, Anfragen- und Nachrichtenzähler, Bereitschaftsschalter,
+Kontomenü. Jedes davon setzt voraus, dass man schon weiß, worum es geht — und
+genau das weiß der Besucher der Landingpage noch nicht. Sechs Bedienelemente
+für eine Anwendung, die er nicht kennt, sind kein Angebot, sondern eine Hürde.
+
+Deshalb trägt sie eine eigene: **Name links, rechts Anmelden und Registrieren,
+dazu Sprache und Farbprofil.** Sonst nichts.
+
+| | Vorlage | Inhalt |
+|---|---|---|
+| Anwendung | `assets/html/topbar.html` | Aktionen, Zähler, Bereitschaft, Kontomenü |
+| Landingpage | `assets/html/topbar_slim.html` | Name, Anmelden, Registrieren, Sprache, Farbprofil |
+
+Welche gilt, entscheidet der zweite Parameter von `ViewHelper::output()`; das
+Layout (`assets/html/index.html`) nennt mit `###TOPBAR###` nur die Stelle. Auf
+der Landingpage entfallen außerdem die Anrufbauteile — von einer Werbeseite
+aus ruft niemand an.
+
+**Sprache und Farbprofil stehen hier oben und nicht in der Fußzeile**, anders
+als im Rest der Anwendung: Die Seite ist lang, ihre Fußzeile liegt hinter vier
+Abschnitten. Wer sie in der falschen Sprache aufschlägt, soll nicht erst ans
+Ende scrollen müssen — dort unten sucht er sie ja gerade deshalb nicht, weil er
+den Text davor nicht lesen kann. Damit sie nicht zweimal dasteht, lässt
+`output()` den Umschalter der Fußzeile auf dieser Seite weg.
+
+Die Farbprofilwahl ist hier eine Reihe von vier Punkten und nicht die
+beschriftete Auswahl der Kontoseite — in einer Kopfleiste wäre die eine Wand
+aus Text. Sie kommt ohne Konto aus: Angewendet und im Browser gemerkt wird
+sofort, ans Konto geschickt nur, wenn jemand angemeldet ist (ein Gast bekäme
+für `set_theme` eine Abfuhr).
+
+Eine Ratsche in `tests/server_test.php` hält das fest: Ein Zähler oder ein
+Kontomenü wandert in diese Leiste nicht aus Absicht, sondern weil jemand „der
+Vollständigkeit halber" einen Platzhalter ergänzt.
 
 ### Die Aufnahmen sind echt
 

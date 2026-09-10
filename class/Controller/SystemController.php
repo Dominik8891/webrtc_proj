@@ -94,7 +94,15 @@ class SystemController
     public static function landing(): void
     {
         $out = ViewHelper::template('assets/html/landing.html');
-        ViewHelper::output($out);
+
+        // MIT DER SCHLANKEN KOPFLEISTE. Das ist der zweite Parameter, und er
+        // ist der Unterschied zwischen einer Werbeseite und einer Seite der
+        // Anwendung: keine Aktionsknoepfe, keine Zaehler, kein
+        // Bereitschaftsschalter, kein Kontomenue - nur Name, Anmelden,
+        // Registrieren, Sprache, Farbprofil. Der Besucher kennt die
+        // Anwendung noch nicht; ihre Bedienelemente sind fuer ihn kein
+        // Angebot, sondern eine Huerde. Siehe ViewHelper::output().
+        ViewHelper::output($out, true);
     }
 
     /**

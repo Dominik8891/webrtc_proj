@@ -135,6 +135,12 @@ window.webrtcApp.landing = {
         const karte = L.map(flaeche, {
             zoomSnap: 0,
             zoomControl: false,
+            // Die Grenze gibt nicht nach (siehe setMaxBounds weiter unten).
+            // Ohne die Angabe federt Leaflet darueber hinaus und zieht
+            // zurueck. Sie gehoert in die Optionen und nicht nachtraeglich
+            // ans Objekt: Was die Karte beim Bauen weiss, muss sie sich
+            // nicht spaeter anlesen.
+            maxBoundsViscosity: 1.0,
             attributionControl: true,
             dragging: false,
             scrollWheelZoom: false,
@@ -147,14 +153,97 @@ window.webrtcApp.landing = {
             tap: false
         });
 
-        // Der Ausschnitt: so weit, dass jede Nadel darauf Platz hat. Er wird
-        // VOR den Kacheln gesetzt - eine Karte ohne Ausschnitt hat keine
-        // Mitte, und Leaflet laedt dann Kacheln fuer nichts.
-        karte.fitBounds(L.latLngBounds(this.ORTE), { padding: [this.RAND, this.RAND] });
+        // Der Ausschnitt: so weit, dass jede Nadel darauf Platz hat - aber nie
+        // so weit, dass die Welt schmaler wird als die Flaeche. Beides macht
+        // ausschnittSetzen(); es wird VOR den Kacheln aufgerufen, denn eine
+        // Karte ohne Ausschnitt hat keine Mitte, und Leaflet laedt dann
+        // Kacheln fuer nichts.
+        this.ausschnittSetzen(karte, flaeche);
 
-        window.webrtcApp.mapTiles.add(karte);
+        // DIE WELT GENAU EINMAL.
+        //
+        // Leaflet wiederholt die Karte von sich aus in der Waagerechten:
+        // Rechts neben Asien faengt Amerika ein zweites Mal an. Auf den
+        // Karten der Anwendung faellt das nicht auf, weil sie eine Stadt
+        // zeigen - hier ist die ganze Erde im Bild, und der Blickfang zeigte
+        // Europa zweimal.
+        //
+        // ZWEI ANGABEN, denn eine allein genuegt nicht:
+        //
+        //   noWrap    an der KACHELEBENE: Sie laedt keine Kacheln mehr
+        //             jenseits von -180/+180 Grad. Ohne das zweite bliebe
+        //             dort aber eine leere Flaeche, in die man schieben kann.
+        //   maxBounds an der KARTE: Sie begrenzt, wohin ueberhaupt gescrollt
+        //             werden kann. Diese Karte laesst sich zwar nicht
+        //             bedienen (dragging ist aus), aber fitBounds und ein
+        //             Fenster mit ungewoehnlichem Seitenverhaeltnis koennen
+        //             den Ausschnitt trotzdem ueber den Rand legen.
+        //
+        // maxBoundsViscosity 1.0 heisst: Die Grenze gibt nicht nach. Ohne
+        // die Angabe federt Leaflet darueber hinaus und zieht zurueck.
+        karte.setMaxBounds(L.latLngBounds(
+            L.latLng(-85, -180),
+            L.latLng(85, 180)
+        ));
+        window.webrtcApp.mapTiles.add(karte, {
+            noWrap: true,
+            // KEIN PUFFER. Leaflet haelt sonst zwei Kachelreihen ausserhalb
+            // des Sichtbereichs bereit, damit das Schieben fluessig bleibt -
+            // diese Karte laesst sich aber nicht schieben (dragging ist aus).
+            // Der Puffer waere hier nur ein Dutzend Anfragen, von denen die
+            // am Weltrand ohnehin mit 404 zurueckkommen.
+            keepBuffer: 0
+        });
 
         this.nadelnSetzen(karte);
+
+        // DIE FLAECHE AENDERT IHRE GROESSE. Der Blickfang fuellt das Fenster;
+        // wer es breiter zieht oder das Telefon dreht, bekaeme sonst eine
+        // Karte in der alten Groesse - Leaflet misst nur beim Bauen. Und mit
+        // der Breite aendert sich auch die Mindestzoomstufe: Was eben noch
+        // die Flaeche fuellte, laesst nach dem Aufziehen wieder Streifen frei.
+        window.addEventListener('resize', () => {
+            karte.invalidateSize({ animate: false });
+            this.ausschnittSetzen(karte, flaeche);
+        });
+    },
+
+    /**
+     * Legt den Ausschnitt so, dass alle Nadeln zu sehen sind - und die Welt
+     * die Flaeche fuellt.
+     *
+     * DAS ZWEITE IST DER PUNKT. fitBounds allein zoomt so weit heraus, bis
+     * die aeusserste Nadel hineinpasst; bei einer Flaeche, die breiter als
+     * hoch ist, wird die Welt dabei schmaler als die Flaeche. Was daneben
+     * bliebe, ist bei einer Karte ohne noWrap ein zweites Amerika und mit
+     * noWrap ein leerer Streifen. Beides ist falsch.
+     *
+     * DIE RECHNUNG: Bei Zoomstufe z ist die Welt 256 * 2^z Pixel breit. Damit
+     * sie mindestens die Flaeche fuellt, muss 2^z >= breite / 256 sein - also
+     * z >= log2(breite / 256). Genau das ist die Mindestzoomstufe.
+     *
+     * Sie darf gebrochen sein, weil die Karte zoomSnap 0 hat. Mit ganzen
+     * Stufen waere sie fast immer eine halbe Stufe zu weit drin, und die
+     * aeusseren Nadeln fielen ohne Not heraus.
+     *
+     * @param {Object} in_karte   Leaflet-Map
+     * @param {Element} in_flaeche Der Behaelter, dessen Breite gilt
+     */
+    ausschnittSetzen(in_karte, in_flaeche) {
+        const breite = in_flaeche.clientWidth || 0;
+
+        if (breite > 0) {
+            // Die Winzigkeit obendrauf ist kein Aberglaube: Bei exakt
+            // log2(breite/256) ist die Welt GENAU so breit wie die Flaeche,
+            // und die Gleitkommarechnung dahinter faellt mal so und mal so
+            // aus. Faellt sie zu klein aus, fehlt am rechten Rand ein
+            // Pixelstreifen - und Leaflet fragt dafuer eine Kachelspalte
+            // jenseits der Welt an, die es nicht gibt.
+            in_karte.setMinZoom(Math.log2(breite / 256) + 0.01);
+        }
+
+        in_karte.fitBounds(L.latLngBounds(this.ORTE),
+                           { padding: [this.RAND, this.RAND], animate: false });
     },
 
     /**

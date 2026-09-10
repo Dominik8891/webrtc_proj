@@ -382,6 +382,11 @@ return [
     // der Katalog loest - und im Englischen gaebe es sie gar nicht erst.
     // -----------------------------------------------------------------
     'kopf.anmelden'              => 'Anmelden',
+    // Der zweite Weg hinein. Er stand als deutsches Literal in
+    // App\Helper\ViewHelper und damit auch auf jeder englischen Seite -
+    // dem Sucher ist er nie aufgefallen, weil "Registrieren" in keiner
+    // seiner Wortlisten steht und keinen Umlaut traegt.
+    'kopf.registrieren'          => 'Registrieren',
     'kopf.menue.konto'           => 'Mein Konto',
     'kopf.menue.verwaltung'      => 'Verwaltung',
     'kopf.menue.angemeldet_als'  => 'Angemeldet als {name}',

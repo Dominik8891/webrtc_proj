@@ -2671,7 +2671,9 @@ $viewSrc = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
 check(strpos($viewSrc, 'chatBadge') !== false, 'es gibt keinen Nachrichtenzaehler');
 check(strpos($viewSrc, 'Permission::CHAT_LIST') !== false,
     'der Zaehler haengt nicht am Recht chat.list - er gilt fuer beide Seiten');
-check(strpos(file_get_contents($ROOT . '/assets/html/index.html'), '###CHATS###') !== false,
+// Die Kopfleiste steht seit der Landingpage in einer eigenen Vorlage - dort
+// wird der Platz des Zaehlers gesucht und nicht mehr im Layout.
+check(strpos(file_get_contents($ROOT . '/assets/html/topbar.html'), '###CHATS###') !== false,
     'der Zaehler hat keinen Platz in der Kopfleiste');
 
 $heartbeat = file_get_contents($ROOT . '/class/Controller/UserController.php');
@@ -8635,6 +8637,74 @@ check(strpos($kopfQuelle, 'autoplay=(self)') !== false,
     'die Tonsignale der Steuerung sind gesperrt (assets/js/sound.js)');
 check(strpos($kopfQuelle, 'display-capture=()') !== false,
     'die Bildschirmfreigabe ist nicht gesperrt - benutzt wird sie nirgends');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDie schlanke Kopfleiste der Landingpage\n");
+
+// Die Landingpage traegt eine eigene Kopfleiste: Name, Anmelden,
+// Registrieren, Sprache, Farbprofil - und nichts von der Bedienung der
+// Anwendung. Der Grund steht in assets/html/topbar_slim.html: Wer die Seite
+// zum ersten Mal sieht, kennt die Anwendung nicht, und ihre Werkzeuge sind
+// fuer ihn keine Hilfe.
+//
+// DIESE PRUEFUNG IST EINE RATSCHE. Ein Zaehler oder ein Kontomenue wandert
+// dort nicht aus Absicht hinein, sondern weil jemand "der Vollstaendigkeit
+// halber" einen Platzhalter ergaenzt - und danach faellt es niemandem mehr
+// auf.
+$layoutQuelle = file_get_contents($ROOT . '/assets/html/index.html');
+$leisteVoll   = file_get_contents($ROOT . '/assets/html/topbar.html');
+$leisteSchlank= file_get_contents($ROOT . '/assets/html/topbar_slim.html');
+$viewQuelle   = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
+
+check(substr_count($layoutQuelle, '###TOPBAR###') === 1,
+    'im Layout steht die Kopfleiste nicht genau einmal');
+check(strpos($layoutQuelle, '<header') === false,
+    'im Layout steht wieder eine Kopfleiste - sie gehoert in ihre Vorlage');
+check(strpos($viewQuelle, 'topbar_slim.html') !== false
+   && strpos($viewQuelle, 'topbar.html') !== false,
+    'ViewHelper kennt nicht beide Kopfleisten');
+
+// Die Bedienelemente der Anwendung - in der vollen Leiste alle, in der
+// schlanken keines.
+foreach (['###USER###', '###REQUESTS###', '###CHATS###', '###AVAILABILITY###'] as $teil) {
+    check(strpos($leisteVoll, $teil) !== false,
+        "der Leiste der Anwendung fehlt $teil");
+    check(strpos($leisteSchlank, $teil) === false,
+        "die schlanke Leiste traegt $teil - sie soll nichts davon zeigen");
+}
+foreach (['location-button', 'browse-locations-button'] as $knopf) {
+    check(strpos($leisteSchlank, $knopf) === false,
+        "die schlanke Leiste traegt den Knopf $knopf");
+}
+
+// Und was sie STATTDESSEN traegt.
+foreach (['###BRAND###', '###LANGSWITCH_TOP###', '###THEMESWITCH###'] as $teil) {
+    check(strpos($leisteSchlank, $teil) !== false, "der schlanken Leiste fehlt $teil");
+    check(strpos($viewQuelle, $teil) !== false, "ViewHelper fuellt $teil nicht");
+}
+
+// Der Sprachumschalter steht auf JEDER Seite genau einmal: unten in der
+// Fusszeile oder oben in der schlanken Leiste - nie an beiden Stellen.
+// Deshalb zwei Platzhalternamen; mit einem liesse sich der eine nicht
+// fuellen und der andere leeren (str_replace trifft jedes Vorkommen).
+check(strpos($layoutQuelle, '###LANGSWITCH_TOP###') === false,
+    'der Platzhalter der Leiste steht auch im Layout - dann treffen beide dieselbe Ersetzung');
+check(strpos($leisteSchlank, '###LANGSWITCH###') === false,
+    'die schlanke Leiste benutzt den Namen der Fusszeile');
+
+// Die beiden Knoepfe hinein. Sie kommen aus dem Katalog - "Registrieren"
+// stand bis zur Landingpage als deutsches Literal in ViewHelper und damit
+// auch auf jeder englischen Seite.
+foreach (['de', 'en'] as $sprache) {
+    $katalog = require $ROOT . "/lang/$sprache.php";
+    check(isset($katalog['kopf.registrieren']),
+        "lang/$sprache.php kennt kopf.registrieren nicht");
+}
+check(strpos($viewQuelle, "'Registrieren'") === false
+   && strpos($viewQuelle, '>Registrieren<') === false,
+    'in ViewHelper steht wieder ein deutsches "Registrieren"');
+
+ok('die Landingpage traegt ihre eigene Leiste - und nichts von der Bedienung');
 
 // --- JEDE ADRESSE AUS index.html STEHT IN DER REGEL -----------------------
 // Das ist die Pruefung, die zaehlt: Wer eine Bibliothek von einem fuenften CDN

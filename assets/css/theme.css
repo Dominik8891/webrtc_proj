@@ -419,6 +419,84 @@ a:hover {
    ersten Zeile. */
 .app-topbar__spacer { flex: 1 1 auto; }
 
+/* ---------------------------------------------------------------------------
+   DIE SCHLANKE LEISTE der Landingpage (assets/html/topbar_slim.html).
+
+   Sie erbt alles von .app-topbar darueber - Hoehe, Grund, Linie, Ebene. Neu
+   ist nur, was es in der Leiste der Anwendung nicht gibt: die Gruppe aus
+   Sprache und Farbprofil. Eine eigene Leiste mit eigener Hoehe waere ein
+   zweiter Satz Werte fuer dieselbe Sache; wer die Hoehe aendert, soll sie
+   einmal aendern.
+   --------------------------------------------------------------------------- */
+
+/* Sprache und Farbprofil. Kleiner gesetzt als die Knoepfe daneben: Es sind
+   Einstellungen, keine Angebote - man stellt sie einmal und danach nie
+   wieder. */
+.app-topbar__slim-tools {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-4);
+    font-size: var(--app-text-xs);
+}
+
+/* AUF EINEM SCHMALEN GERAET BRECHEN SIE UM, sie fallen nicht weg.
+
+   Das war der erste Entwurf - "ohne Sprachwahl kommt man weiter, ohne
+   Anmeldung nicht" -, und er war falsch: Auf der Landingpage steht der
+   Sprachumschalter NUR hier oben, die Fusszeile hat ihn dort nicht (siehe
+   ViewHelper::output). Ausgeblendet waere er auf dem Telefon nirgends mehr
+   erreichbar - ausgerechnet dort, wo jemand mit der falschen Sprache
+   ankommt und den Text davor nicht lesen kann.
+
+   Die Leiste bricht ohnehin um (.app-topbar, flex-wrap); die Werkzeuge
+   wandern dann als Gruppe in die zweite Zeile. */
+@media (max-width: 620px) {
+    .app-topbar--slim .app-topbar__slim-tools {
+        order: 2;
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+/* --- Die Farbprofilwahl als vier Punkte ------------------------------------
+
+   Gebaut von App\Helper\ViewHelper::themeSwitchMini(), markiert von
+   assets/js/theme_switch.js. Jeder Punkt traegt seine Farbe als --dot; sie
+   kommt aus App\Helper\Theme::PROFILE und damit aus derselben Liste, aus
+   der auch die Muster auf der Kontoseite kommen.
+
+   WARUM DIE FARBE INLINE AM ELEMENT STEHT und nicht hier: Ein fuenftes
+   Farbprofil ist ein Eintrag in Theme::PROFILE plus ein Block weiter unten
+   in dieser Datei - und soll nicht zusaetzlich eine Regel hier verlangen,
+   die niemand sucht.
+   -------------------------------------------------------------------------- */
+.app-theme-dots {
+    display: flex;
+    align-items: center;
+    gap: var(--app-space-2);
+}
+
+.app-theme-dot {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid var(--app-border-strong);
+    background: var(--dot, var(--app-accent));
+    cursor: pointer;
+    transition: transform var(--app-transition), border-color var(--app-transition);
+}
+
+.app-theme-dot:hover { transform: scale(1.15); }
+
+/* Das aktive Profil. Ein Ring aussen herum statt einer Fuellung: Die Fuellung
+   IST die Auskunft - sie sagt, welche Farbe man bekaeme. Wer sie zur
+   Markierung umfaerbte, naehme dem Punkt seinen Inhalt. */
+.app-theme-dot--on {
+    border-color: var(--app-text);
+    box-shadow: 0 0 0 2px var(--app-surface), 0 0 0 3px var(--app-text);
+}
+
 /* KEIN flex-wrap MEHR. Vorher durfte diese Zeile ihre Knoepfe untereinander
    setzen - und weil die Leiste darueber eine feste Hoehe hatte, ragte der
    zweite Knopf aus ihr heraus. Passen sie nicht nebeneinander, bricht jetzt
@@ -758,6 +836,11 @@ a:hover {
 
 /* Der Sprachumschalter - nur fuer Gaeste (App\Helper\ViewHelper).
 
+   ER HIESS app-footer__lang, SOLANGE ER NUR IN DER FUSSZEILE STAND. Seit es
+   die Landingpage gibt, steht er auch oben in ihrer Kopfleiste
+   (assets/html/topbar_slim.html) - ein Name, der den Ort nennt, waere dort
+   falsch. Jetzt nennt er die Sache.
+
    ER STEHT IN DER FUSSZEILE UND NICHT IN DER KOPFLEISTE, obwohl er dort
    auffaelliger waere. Genau deshalb: Die Sprache stellt man einmal um und
    danach nie wieder. Die Kopfleiste ist fuer das da, was man staendig
@@ -767,28 +850,28 @@ a:hover {
    Die aktive Sprache ist kein Verweis, sondern Text. Sie traegt trotzdem
    dieselbe Groesse und denselben Abstand: Nebeneinander sollen es zwei
    gleichrangige Angebote sein und nicht ein Knopf neben einer Beschriftung. */
-.app-footer__langs {
+.app-langs {
     display: flex;
     gap: var(--app-space-3);
     flex-wrap: wrap;
     align-items: center;
 }
 
-.app-footer__lang {
+.app-lang {
     color: var(--app-text-muted);
     text-decoration: none;
     padding: 2px var(--app-space-2);
     border-radius: var(--app-radius-sm);
 }
 
-.app-footer__lang:hover {
+.app-lang:hover {
     color: var(--app-accent-strong);
     text-decoration: underline;
 }
 
 /* Die aktive Sprache. Kraeftiger und ohne Unterstreichung - sie ist eine
    Aussage und kein Angebot. */
-.app-footer__lang--on {
+.app-lang--on {
     color: var(--app-text);
     font-weight: var(--app-weight-medium);
     background: var(--app-accent-tint);

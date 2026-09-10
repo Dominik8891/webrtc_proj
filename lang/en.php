@@ -247,6 +247,7 @@ return [
     // THE HEADER
     // -----------------------------------------------------------------
     'kopf.anmelden'              => 'Sign in',
+    'kopf.registrieren'          => 'Sign up',
     'kopf.menue.konto'           => 'My account',
     'kopf.menue.verwaltung'      => 'Administration',
     'kopf.menue.angemeldet_als'  => 'Signed in as {name}',

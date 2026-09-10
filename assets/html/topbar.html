@@ -1,0 +1,70 @@
+<!--
+    Die Kopfleiste der ANWENDUNG. Eine Zeile fuer jede Seite ausser der
+    Landingpage - die hat eine eigene (assets/html/topbar_slim.html).
+
+    Eingesetzt von App\Helper\ViewHelper::output() an der Stelle ###TOPBAR###
+    in assets/html/index.html.
+
+    In der Leiste stehen nur noch die Aktionen, die man haeufig braucht:
+    einen Standort anbieten und die Standortliste. Alles, was das eigene
+    Konto betrifft - Konto, Benutzerliste, Chats, Abmelden -, liegt im
+    Menue hinter dem Benutzernamen. Fuenf gleichrangige Knoepfe
+    nebeneinander waren Adminpanel-Optik.
+
+    Die IDs location-button und browse-locations-button werden von
+    assets/js/ui.js gefuellt - sie muessen erhalten bleiben. Das Menue
+    selbst baut App\Helper\ViewHelper::userMenu(), weil es den
+    Benutzernamen enthaelt.
+
+    In diesem Kommentar steht bewusst KEIN Platzhaltername ausgeschrieben:
+    ViewHelper ersetzt mit str_replace jedes Vorkommen im Dokument, auch
+    eines in einem Kommentar.
+-->
+<header class="app-topbar">
+    <!-- Name und Zeichen der Anwendung. Beides kommt aus
+         App\Helper\Brand - dort steht der eine Wert, hier steht nur die
+         Stelle, an der er erscheint. Wer das Produkt umbenennt, aendert
+         die Konstante und nicht diese Zeile. -->
+    <a class="app-topbar__brand" href="index.php?act=home">
+        <span class="app-topbar__mark" aria-hidden="true">###BRAND_MARK###</span>
+        <span>###BRAND###</span>
+    </a>
+
+    <span class="app-topbar__spacer"></span>
+
+    <!-- Die Seitenaktionen. Auf schmalen Geraeten schiebbar. -->
+    <div class="app-topbar__actions">
+        <div id="location-button"></div>
+        <div id="browse-locations-button"></div>
+    </div>
+
+    <!-- Das Konto steht ausserhalb der schiebbaren Zeile: Es muss immer
+         erreichbar sein, auch auf einem schmalen Geraet - dahinter liegt
+         das Abmelden.
+
+         Davor der Anfragenzaehler: Eine Anfrage, die der Guide im Moment
+         des Eintreffens nicht bemerkt hat, muss er an einer Stelle
+         wiederfinden, die er ohnehin ansteuert - und das ist diese
+         Leiste, denn sie steht auf jeder Seite. Sie fuehrt auf die
+         Anfragenseite; gebaut wird der Zaehler von
+         App\Helper\ViewHelper.
+
+         Davor der Nachrichtenzaehler, aus genau demselben Grund: Ein
+         Guide, der eine Rueckfrage zu seinem Standort bekommt, sah sie
+         bisher nur, wenn zufaellig ein Chatfenster offen war. Er fuehrt
+         auf die Chatuebersicht.
+
+         Davor der Bereitschaftsschalter des Guides. Er steht aus demselben
+         Grund hier und nicht in der schiebbaren Aktionszeile daneben: Ob
+         man gerade anrufbar ist, darf auf keinem Geraet aus dem Blick
+         geraten. Gebaut wird er von App\Helper\ViewHelper; wer keine
+         Standorte anbietet, bekommt an dieser Stelle nichts. -->
+    <div class="app-topbar__account">
+        ###REQUESTS###
+        ###CHATS###
+        ###AVAILABILITY###
+        ###USER###
+        ###REGISTER###
+        ###LOGOUT###
+    </div>
+</header>

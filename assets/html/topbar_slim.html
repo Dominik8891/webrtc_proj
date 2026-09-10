@@ -1,0 +1,71 @@
+<!--
+    Die Kopfleiste der LANDINGPAGE.
+
+    Eingesetzt von App\Helper\ViewHelper::output() an der Stelle ###TOPBAR###
+    in assets/html/index.html - dieselbe Stelle, an der sonst die Leiste der
+    Anwendung steht (assets/html/topbar.html).
+
+    WARUM SIE EINE EIGENE IST
+    -------------------------
+    Die Leiste der Anwendung ist ein Arbeitsgeraet: Standort anbieten,
+    Standortliste, Anfragenzaehler, Nachrichtenzaehler,
+    Bereitschaftsschalter, Kontomenue. Jedes davon setzt voraus, dass man
+    schon weiss, worum es geht - und genau das weiss der Besucher der
+    Landingpage noch nicht. Sechs Bedienelemente fuer eine Anwendung, die er
+    nicht kennt, sind kein Angebot, sondern eine Huerde.
+
+    Hier steht deshalb nur, was ein Besucher braucht:
+
+      links   der Name. Er fuehrt auf die Landingpage selbst zurueck und
+              nicht auf die Startseite der Anwendung - wer hier klickt, will
+              nach oben und nicht woanders hin.
+      rechts  Anmelden und Registrieren - die beiden Wege hinein -, dazu
+              Sprache und Farbprofil.
+
+    SPRACHE UND FARBPROFIL STEHEN HIER UND NICHT IN DER FUSSZEILE, anders als
+    im Rest der Anwendung. Der Grund ist der Aufbau der Seite: Sie ist lang,
+    und ihre Fusszeile liegt hinter vier Abschnitten. Wer die Seite in der
+    falschen Sprache aufschlaegt, soll nicht erst ans Ende scrollen muessen,
+    um das zu aendern - dort unten sucht er sie ja gerade deshalb nicht, weil
+    er den Text davor nicht lesen kann.
+
+    Damit sie nicht zweimal dasteht, laesst ViewHelper::output() den
+    Umschalter der Fusszeile auf dieser Seite weg. Eine Einstellung, zwei
+    Bedienstellen waeren zwei Antworten auf dieselbe Frage.
+
+    PLATZHALTER
+    -----------
+    ###BRAND###       der Produktname (App\Helper\Brand).
+    ###BRAND_MARK###  das Zeichen im Kaestchen.
+    ###LANGSWITCH_TOP###  die Sprachwahl (ViewHelper::languageSwitch).
+                      EIGENER NAME, nicht der der Fusszeile: str_replace
+                      ersetzt jedes Vorkommen: mit einem Namen liesse
+                      sich nicht die eine Stelle fuellen und die andere
+                      leeren.
+    ###THEMESWITCH### die Farbprofilwahl (ViewHelper::themeSwitchMini).
+-->
+<header class="app-topbar app-topbar--slim">
+
+    <a class="app-topbar__brand" href="index.php?act=landing">
+        <span class="app-topbar__mark" aria-hidden="true">###BRAND_MARK###</span>
+        <span>###BRAND###</span>
+    </a>
+
+    <span class="app-topbar__spacer"></span>
+
+    <div class="app-topbar__slim-tools">
+        ###THEMESWITCH###
+        ###LANGSWITCH_TOP###
+    </div>
+
+    <!-- Die beiden Wege hinein. Registrieren traegt den Akzent, Anmelden
+         nicht: Auf einer Werbeseite ist der neue Besucher der Regelfall.
+
+         Sie stehen AUSSERHALB der Werkzeuge daneben, damit sie auf einem
+         schmalen Geraet als Letztes umbrechen - Sprache und Farbprofil darf
+         man verlieren, die Anmeldung nicht. -->
+    <div class="app-topbar__account">
+        <a href="index.php?act=login_page" class="btn btn-secondary btn-sm">{{t:kopf.anmelden}}</a>
+        <a href="index.php?act=signup_page" class="btn btn-primary btn-sm">{{t:kopf.registrieren}}</a>
+    </div>
+</header>
