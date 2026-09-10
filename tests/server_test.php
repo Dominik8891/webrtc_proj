@@ -1569,6 +1569,116 @@ check(Permission::has(Permission::GUEST, Permission::LOCATION_MAP_PUBLIC) === tr
 ok('die beiden Standortrouten haengen an verschiedenen Rechten');
 
 // ---------------------------------------------------------------------
+fwrite(STDERR, "\nJede Seite hat einen Weg, der zu ihr fuehrt\n");
+
+// DER BEFUND
+// ----------
+// Das Zuruecksetzen des Passworts war vollstaendig gebaut - Controller,
+// Route, zwei Vorlagen, Katalogtexte, Bremse, Mailversand -, und es fuehrte
+// nichts dorthin. Die Seite war nur erreichbar, wer index.php?act=
+// forgot_pw_page von Hand eintippte. Umgekehrt trug assets/html/
+// forgot_pw.html seit jeher ein "Zurueck zur Anmeldung": Der Abzweig war
+// vorgesehen, er fehlte nur.
+//
+// WAS HIER GEPRUEFT WIRD, ist deshalb nicht eine einzelne Zeile, sondern die
+// Regel dahinter: JEDE Route, die eine SEITE ausliefert, muss von irgendwo
+// aus verlinkt sein. Was nur ueber die Adresszeile geht, gibt es fuer den
+// Benutzer nicht.
+$routenTabelle = require $ROOT . '/config/routes.php';
+
+/**
+ * Nennt irgendeine Datei der Oberflaeche diese Route?
+ *
+ * Gesucht wird in den Vorlagen, im JavaScript und im PHP, das Markup baut -
+ * KOMMENTARE ZAEHLEN NICHT: Ein Verweis, der nur beschrieben ist, fuehrt
+ * nirgendwohin.
+ *
+ * @param string $in_wurzel
+ * @param string $in_route
+ * @return bool
+ */
+function routeVerlinkt(string $in_wurzel, string $in_route): bool
+{
+    $dateien = array_merge(
+        glob($in_wurzel . '/assets/html/*.html') ?: [],
+        glob($in_wurzel . '/assets/js/*.js') ?: [],
+        glob($in_wurzel . '/class/*/*.php') ?: []
+    );
+
+    foreach ($dateien as $datei) {
+        if (basename($datei) === 'routes.php') continue;
+        $inhalt = file_get_contents($datei);
+
+        // Kommentare heraus - in PHP ueber den Tokenizer, in HTML und
+        // JavaScript ueber die zwei Formen, die dort vorkommen.
+        if (substr($datei, -4) === '.php') {
+            $inhalt = stripPhpNoise($inhalt);
+        } else {
+            $inhalt = preg_replace('/<!--.*?-->/s', '', $inhalt);
+            $inhalt = preg_replace('#/\*.*?\*/#s', '', $inhalt);
+            $inhalt = preg_replace('#^\s*//.*$#m', '', $inhalt);
+        }
+
+        // "act=<route>" - und danach darf kein Wortzeichen mehr kommen,
+        // sonst faende "act=login" auch "act=login_page".
+        if (preg_match('/act=' . preg_quote($in_route, '/') . '(?![A-Za-z0-9_])/', $inhalt)) {
+            return true;
+        }
+        // Manche Routen baut das Skript aus einem Namen zusammen
+        // (requests.js: antworte('request_accept', id)). Dann steht der Name
+        // als nackte Zeichenkette da.
+        if (strpos($inhalt, "'" . $in_route . "'") !== false) return true;
+    }
+    return false;
+}
+
+// WAS NICHT VERLINKT SEIN MUSS, und warum. Jede Ausnahme ist eine
+// Entscheidung und keine Nachlaessigkeit - wer eine ergaenzt, schreibt den
+// Grund dazu.
+$ohneVerweis = [
+    // Die Anwendung schickt einen selbst dorthin.
+    'login'            => 'Ziel des Anmeldeformulars',
+    'signup'           => 'Ziel des Registrierungsformulars',
+    // Diese beiden stehen in einer E-Mail und nirgends in der Oberflaeche.
+    'verify_email'     => 'Link aus der Bestaetigungsmail',
+    'reset_pw_page'    => 'Link aus der Mail zum Zuruecksetzen',
+    // Der zweite Faktor liegt zwischen Passwortpruefung und Sitzung: Dorthin
+    // leitet LoginController weiter, ein Verweis waere ein Weg daran vorbei.
+    '2fa_verify_page'  => 'Weiterleitung nach der Passwortpruefung',
+    '2fa_verify'       => 'Ziel des Formulars auf dieser Seite',
+    '2fa_activate'     => 'Ziel des Formulars auf der Einrichtungsseite',
+];
+
+$unerreichbar = [];
+foreach ($routenTabelle as $name => $eintrag) {
+    if (($eintrag[3] ?? '') !== 'html') continue;   // JSON ruft nur ein Skript
+    if (isset($ohneVerweis[$name]))     continue;
+    if (!routeVerlinkt($ROOT, $name))   $unerreichbar[] = $name;
+}
+
+if ($unerreichbar !== []) {
+    fwrite(STDERR, "\nSeiten ohne Weg dorthin:\n");
+    foreach ($unerreichbar as $name) fwrite(STDERR, '  ' . $name . "\n");
+    fwrite(STDERR, "\nEntweder verlinken - oder, wenn die Seite absichtlich nur\n"
+        . "ueber eine Weiterleitung oder eine E-Mail erreichbar ist, mit\n"
+        . "Begruendung in \$ohneVerweis eintragen.\n");
+}
+check($unerreichbar === [], count($unerreichbar) . ' Seiten sind von nirgends aus erreichbar');
+
+// Und die Stelle, an der es aufgefallen ist, ausdruecklich:
+$loginVorlage = file_get_contents($ROOT . '/assets/html/login.html');
+check(strpos($loginVorlage, 'act=forgot_pw_page') !== false,
+    'das Anmeldeformular fuehrt nicht mehr zum Zuruecksetzen des Passworts');
+check(strpos($loginVorlage, '{{t:anmelden.passwort_vergessen}}') !== false,
+    'der Verweis traegt seinen Text nicht aus dem Katalog');
+foreach (['de', 'en'] as $sprache) {
+    $text = I18n::tIn($sprache, 'anmelden.passwort_vergessen');
+    check(trim($text) !== '' && $text !== 'anmelden.passwort_vergessen',
+        "der Verweis hat keinen Text in $sprache");
+}
+ok('jede Seite ist von irgendwo aus erreichbar - das Zuruecksetzen wieder von der Anmeldung');
+
+// ---------------------------------------------------------------------
 fwrite(STDERR, "\n14) Kein Platzhalter erreicht den Browser im Kommentar\n");
 
 // DER FEHLER, DEN DIESER TEST FESTHAELT

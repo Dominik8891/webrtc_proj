@@ -32,6 +32,21 @@
 
                 <div class="app-form-error">###LOGIN_ERROR###</div>
 
+                <!-- DER WEG ZUM ZURUECKSETZEN.
+                     Er hat hier gefehlt: PasswordController, Route und
+                     Vorlagen gab es vollstaendig, aber auf act=forgot_pw_page
+                     verwies nichts - die Seite war nur erreichbar, wer die
+                     Adresse von Hand eintippte. assets/html/forgot_pw.html
+                     traegt umgekehrt seit jeher ein "Zurueck zur Anmeldung",
+                     war also von Anfang an als Abzweig von hier gedacht.
+
+                     ZWISCHEN FORMULAR UND FUSSZEILE, nicht darin: Die
+                     Fusszeile fuehrt aus dem Vorgang HERAUS ("noch kein
+                     Konto"), dieser Verweis fuehrt in ihn zurueck. -->
+                <p class="app-auth__nebenweg">
+                    <a href="index.php?act=forgot_pw_page">{{t:anmelden.passwort_vergessen}}</a>
+                </p>
+
                 <p class="app-auth__foot">
                     {{t:anmelden.kein_konto}} <a href="index.php?act=signup_page">{{t:anmelden.registrieren}}</a>
                 </p>

@@ -1075,6 +1075,9 @@ return [
     'anmelden.passwort'     => 'Passwort',
     'anmelden.knopf'        => 'Anmelden',
     'anmelden.kein_konto'   => 'Noch kein Konto?',
+    // Der Nebenweg unter dem Formular. Die Seite dahinter gab es schon
+    // vollstaendig (passwort.vergessen.*) - nur den Weg dorthin nicht.
+    'anmelden.passwort_vergessen' => 'Passwort vergessen?',
     'anmelden.registrieren' => 'Jetzt registrieren',
 
     // Die Absagen des Anmeldeformulars (App\Controller\LoginController). Die

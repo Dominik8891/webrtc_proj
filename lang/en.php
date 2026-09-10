@@ -847,6 +847,9 @@ return [
     'anmelden.passwort'     => 'Password',
     'anmelden.knopf'        => 'Sign in',
     'anmelden.kein_konto'   => 'No account yet?',
+    // The side route below the form. The page behind it existed in full
+    // (passwort.vergessen.*) - only the way there did not.
+    'anmelden.passwort_vergessen' => 'Forgot your password?',
     'anmelden.registrieren' => 'Sign up now',
 
     // What the sign-in form refuses (App\Controller\LoginController). The

@@ -967,6 +967,17 @@ a:hover {
     font-size: var(--app-text-sm);
 }
 
+/* Der Nebenweg unter dem Anmeldeformular ("Passwort vergessen?").
+   OHNE TRENNLINIE, anders als .app-auth__foot darunter: Die Linie trennt den
+   Kasten von dem, was daneben noch geht. Zwei Linien uebereinander waeren
+   eine zu viel, und der Verweis gehoert naeher an das Formular als an die
+   Fusszeile - er fuehrt in den Vorgang zurueck und nicht aus ihm heraus. */
+.app-auth__nebenweg {
+    margin: var(--app-space-3) 0 0;
+    text-align: center;
+    font-size: var(--app-text-sm);
+}
+
 .app-auth__foot {
     margin: var(--app-space-5) 0 0;
     padding-top: var(--app-space-4);
