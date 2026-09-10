@@ -2568,6 +2568,14 @@ Ende scrollen müssen — dort unten sucht er sie ja gerade deshalb nicht, weil 
 den Text davor nicht lesen kann. Damit sie nicht zweimal dasteht, lässt
 `output()` den Umschalter der Fußzeile auf dieser Seite weg.
 
+Und **hier steht er für jeden**, auch für Angemeldete — im Rest der Anwendung
+ist die Sprache eine Kontoeinstellung und steht auf der Kontoseite. Auf einer
+Werbeseite ist die Sprachwahl das Erste, was jemand braucht; dass er zufällig
+angemeldet ist, ändert daran nichts. Für Angemeldete ändert er das **Konto**
+und nicht bloß ein Cookie — dafür war nichts zu tun: Die Route `set_lang`
+schreibt seit jeher beides. Ein Umschalter, der nur das Cookie setzte, wäre
+beim nächsten Aufruf überstimmt.
+
 Die Farbprofilwahl ist hier eine Reihe von vier Punkten und nicht die
 beschriftete Auswahl der Kontoseite — in einer Kopfleiste wäre die eine Wand
 aus Text. Jeder Punkt trägt **zwei** Farben des Profils: der *Seitengrund* als
@@ -2653,6 +2661,46 @@ eine offene Anfrage (der Guide hat etwas zu entscheiden), eine angenommene
 `tools/landing_seed.php` **weigert sich**, in eine Datenbank zu schreiben, in
 der Konten stehen, die es nicht selbst angelegt hat. Erfundene Daten in einem
 Produktivsystem wären ein Schaden, den niemand rückgängig macht.
+
+---
+
+## ✉️ Die Landingpage als eine Datei
+
+Für eine Durchsicht per Mail: ein Anhang, Doppelklick, die Seite steht da —
+**ohne Server, ohne Netz, ohne Zugang zu irgendetwas.**
+
+```bash
+node tools/landing_offline.js
+# -> offline/landingpage-de.html   ~0,7 MB
+# -> offline/landingpage-en.html   ~0,7 MB
+```
+
+**Sie wird erzeugt und nicht gepflegt.** Das ist der Punkt: Eine zweite,
+abgetippte Fassung wäre nach dem ersten Umbau falsch, und zwar unbemerkt —
+niemand öffnet den Anhang von letztem Monat, um ihn mit der Seite zu
+vergleichen. Das Werkzeug öffnet die *laufende* Seite und friert ein, was es
+vorfindet. Deshalb liegt die Datei auch nicht im Repository (`.gitignore`).
+
+**Zwei Dateien statt einer mit Umschalter:** Jede hält nur ihre eigenen
+Aufnahmen und Texte und ist damit halb so groß — man hängt die an, die passt.
+Es entspricht außerdem der Seite selbst, die auch immer eine Sprache zeigt.
+
+### Was beim Einfrieren passiert
+
+| | |
+|---|---|
+| **CSS** | Alle Stilvorlagen werden mitgelesen, während der Browser sie lädt (so gibt es keine CORS-Frage), und dann auf die Regeln zusammengestrichen, die im Dokument wirklich etwas treffen. Aus den gut 230 KB Bootstrap werden ein paar Kilobyte. |
+| **Karte** | Der Knackpunkt: Ohne Server lädt Leaflet keine Kacheln. Sie wird **einmal abfotografiert** und als Data-URI eingebettet — die echte Karte samt der Herkunftsangabe, die die ODbL verlangt. |
+| **Nadeln** | Bleiben **echt**. Sie sind der Blickfang, und ein Standbild hätte ihn verschenkt: Sie liegen als DOM-Elemente in Prozentpositionen über dem Bild und tauchen weiter nacheinander auf — den Takt macht statt JavaScript eine Verzögerung je Nadel (`--lp-delay`). Der Kasten bekommt dafür ein festes Seitenverhältnis. |
+| **Aufnahmen** | Umkodiert nach WebP und auf vernünftige Breite gebracht. Roh sind es über sieben Megabyte je Sprache — die beiden Bilder aus dem Anruf enthalten ein Foto, und dafür ist PNG das falsche Format. Gerechnet wird im Browser (Canvas), das Werkzeug braucht also keine Bildbibliothek. |
+| **JavaScript** | Fällt weg — jedes Modul setzt einen Server voraus. Übrig bleiben ein paar Zeilen für die Farbprofilwahl; sie ist der einzige Teil der Seite, der ohne Server etwas tun *kann*. |
+| **Verweise** | Gehen auf `LP_PUBLIC`, wenn gesetzt. **Ohne die Angabe sind sie tot**, und das ist die richtige Vorgabe: Ein Knopf, der den Empfänger auf `127.0.0.1` schickt, ist schlimmer als einer, der nichts tut. |
+
+Das Dunkelprofil funktioniert auch offline — der Filter, der im Browser die
+Kacheln umkehrt, wird auf das eingebettete Kartenbild übertragen. Er sitzt
+dort aus demselben Grund wie in der Anwendung **nicht** am ganzen Kasten: Die
+Nadeln sind dessen Kinder, und aus dem Grün der verfügbaren Guides würde sonst
+ein Rot.
 
 ---
 

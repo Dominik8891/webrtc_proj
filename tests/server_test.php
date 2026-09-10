@@ -8704,7 +8704,51 @@ check(strpos($viewQuelle, "'Registrieren'") === false
    && strpos($viewQuelle, '>Registrieren<') === false,
     'in ViewHelper steht wieder ein deutsches "Registrieren"');
 
+// DER SPRACHUMSCHALTER STEHT DORT FUER JEDEN, auch fuer Angemeldete - und
+// im Rest der Anwendung weiterhin nur fuer Gaeste. Auf einer Werbeseite ist
+// die Sprachwahl das Erste, was jemand braucht; dass er zufaellig angemeldet
+// ist, aendert daran nichts.
+//
+// Geprueft wird an der Verzweigung selbst: Die Fusszeile fragt nach der
+// Anmeldung, die Leiste nicht.
+check(preg_match('/###LANGSWITCH###.*?\$in_schlank \|\| Auth::isLoggedIn/s', $viewQuelle) === 1,
+    'der Umschalter der Fusszeile haengt nicht mehr an der Anmeldung');
+check(preg_match('/###LANGSWITCH_TOP###.*?Auth::isLoggedIn/s', $viewQuelle) !== 1,
+    'der Umschalter der Landingpage haengt an der Anmeldung - dort soll er immer stehen');
+
 ok('die Landingpage traegt ihre eigene Leiste - und nichts von der Bedienung');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDie Offline-Fassung zum Verschicken\n");
+
+// tools/landing_offline.js friert die laufende Seite zu EINER Datei ein.
+// Geprueft wird hier nicht die Datei - dafuer braeuchte es einen Browser,
+// und diese Pruefungen kommen ohne aus -, sondern die VERABREDUNG zwischen
+// Werkzeug und Seite. Sie ist genau eine: Das Werkzeug setzt --lp-delay je
+// Nadel, weil es kein JavaScript gibt, das sie nacheinander nachreicht.
+// Faellt die Variable aus assets/css/landing.css heraus, stehen in der
+// Offline-Fassung alle hundert Nadeln auf einmal da - und niemand merkt es,
+// bis jemand die Datei oeffnet.
+$offlineWerkzeug = $ROOT . '/tools/landing_offline.js';
+check(is_file($offlineWerkzeug), 'tools/landing_offline.js fehlt');
+
+$offlineQuelle = file_get_contents($offlineWerkzeug);
+$landingCss    = file_get_contents($ROOT . '/assets/css/landing.css');
+
+check(strpos($landingCss, 'var(--lp-delay') !== false,
+    'assets/css/landing.css kennt --lp-delay nicht mehr - die Offline-Fassung '
+  . 'zeigt dann alle Nadeln auf einmal');
+check(strpos($offlineQuelle, '--lp-delay') !== false,
+    'das Werkzeug setzt --lp-delay nicht mehr');
+
+// Und die zweite Verabredung: Es baut auf der Landingpage auf, nicht auf
+// einer eigenen Vorlage.
+check(strpos($offlineQuelle, 'act=landing') !== false,
+    'das Werkzeug holt die Seite nicht mehr von der Route landing');
+check(strpos($offlineQuelle, 'lp-hero__map') !== false,
+    'das Werkzeug kennt die Kartenflaeche der Landingpage nicht mehr');
+
+ok('die Offline-Fassung wird erzeugt und nicht gepflegt - die Verabredung steht');
 
 // --- JEDE ADRESSE AUS index.html STEHT IN DER REGEL -----------------------
 // Das ist die Pruefung, die zaehlt: Wer eine Bibliothek von einem fuenften CDN

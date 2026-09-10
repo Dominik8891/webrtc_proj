@@ -507,7 +507,12 @@ class ViewHelper
     }
 
     /**
-     * Der Sprachumschalter der Fusszeile - fuer Gaeste.
+     * Der Sprachumschalter.
+     *
+     * WO ER STEHT UND FUER WEN, entscheidet output() - nicht diese Methode.
+     * Sie baut ihn; ob er gebraucht wird, ist eine Frage der Seite. Kurz:
+     * in der Fusszeile fuer Gaeste, in der Leiste der Landingpage fuer
+     * jeden.
      *
      * WARUM VERWEISE UND KEIN AUFKLAPPMENUE MIT JAVASCRIPT
      * ----------------------------------------------------
@@ -643,9 +648,11 @@ class ViewHelper
      *   1. Eine andere Kopfleiste (assets/html/topbar_slim.html): Name,
      *      Anmelden, Registrieren, Sprache, Farbprofil. Kein Kontomenue,
      *      keine Zaehler, keine Bereitschaft, keine Aktionsknoepfe.
-     *   2. Kein Sprachumschalter in der Fusszeile - er steht dort oben.
+     *   2. Der Sprachumschalter steht oben in der Leiste statt unten in der
+     *      Fusszeile - und dort IMMER, auch fuer Angemeldete. Auf einer
+     *      Werbeseite ist die Sprachwahl das Erste, was jemand braucht.
      *      Zwei Bedienstellen fuer eine Einstellung waeren zwei Antworten
-     *      auf dieselbe Frage.
+     *      auf dieselbe Frage, deshalb nur eine.
      *   3. Keine Anrufbauteile im Dokument. Von einer Werbeseite aus ruft
      *      niemand an; das Markup dafuer waere totes Gewicht.
      *
@@ -997,9 +1004,31 @@ class ViewHelper
         //
         // Angemeldet bleibt er an beiden Stellen leer: Dann ist die Sprache
         // eine Kontoeinstellung und steht auf der Kontoseite.
-        $umschalter = Auth::isLoggedIn() ? '' : self::languageSwitch();
-        $out = str_replace("###LANGSWITCH###",     $in_schlank ? '' : $umschalter, $out);
-        $out = str_replace("###LANGSWITCH_TOP###", $in_schlank ? $umschalter : '', $out);
+        // AUF DER LANDINGPAGE IMMER, im Rest der Anwendung nur fuer Gaeste.
+        //
+        // Der Unterschied ist keine Ausnahme, sondern folgt aus dem, was die
+        // Seite ist: eine WERBESEITE. Wer sie aufschlaegt, soll sie lesen
+        // koennen - das ist das Erste, was er braucht, noch vor jeder Frage
+        // nach einem Konto. Dass er zufaellig angemeldet ist, aendert daran
+        // nichts.
+        //
+        // Im Rest der Anwendung bleibt es beim Bisherigen: Dort ist die
+        // Sprache eine Kontoeinstellung und steht auf der Kontoseite. Zwei
+        // Bedienstellen fuer dieselbe Einstellung waeren zwei Antworten auf
+        // die Frage, wo man sie aendert.
+        //
+        // FUER ANGEMELDETE AENDERT DER UMSCHALTER DAS KONTO und setzt nicht
+        // bloss ein Cookie - dafuer ist nichts zu tun: Die Route set_lang
+        // schreibt beides, seit es sie gibt (siehe
+        // App\Controller\SystemController::setLanguage). Ein Umschalter, der
+        // nur das Cookie setzte, waere beim naechsten Aufruf ueberstimmt: Das
+        // Konto gewinnt (App\Helper\I18n).
+        $out = str_replace("###LANGSWITCH###",
+                           $in_schlank || Auth::isLoggedIn() ? '' : self::languageSwitch(),
+                           $out);
+        $out = str_replace("###LANGSWITCH_TOP###",
+                           $in_schlank ? self::languageSwitch() : '',
+                           $out);
 
         // Die Farbprofilwahl. Sie gibt es nur in der schlanken Leiste; im
         // Rest der Anwendung steht sie auf der Kontoseite.

@@ -33,6 +33,17 @@
     Umschalter der Fusszeile auf dieser Seite weg. Eine Einstellung, zwei
     Bedienstellen waeren zwei Antworten auf dieselbe Frage.
 
+    UND HIER STEHT ER FUER JEDEN, auch fuer Angemeldete - anders als im Rest
+    der Anwendung, wo die Sprache eine Kontoeinstellung ist und auf der
+    Kontoseite steht. Auf einer Werbeseite ist die Sprachwahl das Erste, was
+    jemand braucht; dass er zufaellig angemeldet ist, aendert daran nichts.
+
+    Fuer Angemeldete aendert er das KONTO und setzt nicht bloss ein Cookie.
+    Dafuer war nichts zu tun: Die Route set_lang schreibt seit jeher beides
+    (App\Controller\SystemController::setLanguage). Ein Umschalter, der nur
+    das Cookie setzte, waere beim naechsten Aufruf ueberstimmt - das Konto
+    gewinnt.
+
     PLATZHALTER
     -----------
     ###BRAND###       der Produktname (App\Helper\Brand).

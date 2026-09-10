@@ -146,8 +146,17 @@
     border: 2px solid #fff;
     box-shadow: var(--app-shadow);
 
-    /* Das Auftauchen. Jede Nadel macht es einmal, wenn sie gesetzt wird. */
-    animation: lp-pin-auf 320ms ease-out both;
+    /* Das Auftauchen. Jede Nadel macht es einmal, wenn sie gesetzt wird.
+
+       DIE VERZOEGERUNG IST NORMALERWEISE NULL: Im Browser setzt
+       assets/js/landing.js die Nadeln nacheinander, jede faengt also an,
+       sobald sie da ist. --lp-delay bleibt dabei ungesetzt.
+
+       Gebraucht wird sie von der Offline-Fassung (tools/landing_offline.js):
+       Dort stehen alle hundert Nadeln von Anfang an im Dokument, weil es kein
+       JavaScript gibt, das sie nachreicht. Den Takt macht dann die
+       Verzoegerung. */
+    animation: lp-pin-auf 320ms ease-out var(--lp-delay, 0s) both;
 }
 
 .lp-pin--live {
@@ -164,7 +173,11 @@
     inset: -6px;
     border-radius: 50%;
     border: 2px solid var(--app-live);
-    animation: lp-pin-ring 1400ms ease-out 320ms both;
+    /* Der Ring faengt an, wenn die Nadel fertig aufgetaucht ist - deshalb
+       320ms nach ihr, und offline zusaetzlich um ihren eigenen Takt
+       versetzt (siehe --lp-delay oben). */
+    animation: lp-pin-ring 1400ms ease-out
+               calc(320ms + var(--lp-delay, 0s)) both;
 }
 
 @keyframes lp-pin-auf {
