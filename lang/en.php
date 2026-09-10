@@ -1371,6 +1371,7 @@ return [
     // WHAT COMES UP DURING A CALL (assets/js/rtc.js, control.js, media.js,
     // signaling.js)
     // -----------------------------------------------------------------
+    'gespraech.rufe_an'        => 'Calling {name}',
     'gespraech.anruf_mit'      => 'Call with {name}',
     'gespraech.kein_anruf_hier'=> 'Calling is not available on this page.',
     'gespraech.tippen'         => 'Please tap the picture once so that audio and video start.',

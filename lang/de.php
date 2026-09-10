@@ -1681,6 +1681,9 @@ return [
     // ihn als Platzhalter - und wo es ihn auch ohne Grund gibt, zwei
     // Eintraege statt eines Klammerzusatzes im Code.
     // -----------------------------------------------------------------
+    // Waehrend es klingelt - beim Anrufer. Danach loest ihn
+    // gespraech.anruf_mit darunter ab.
+    'gespraech.rufe_an'        => 'Rufe {name} an',
     'gespraech.anruf_mit'      => 'Anruf mit {name}',
     'gespraech.kein_anruf_hier'=> 'Die Anruffunktion steht auf dieser Seite nicht zur Verfügung.',
     'gespraech.tippen'         => 'Bitte einmal auf das Bild tippen, damit Ton und Bild starten.',

@@ -2557,13 +2557,18 @@ Sprachumschalter gibt. Die Vorlage wählt das Verzeichnis über `###LANG###`.
 > nimmt Chromium sein Testmuster: Im Anruf steht dann ein grüner Kreis statt
 > einer Gasse. Für eine Werbeseite ist das unbrauchbar.
 >
-> **Ein einzelnes Foto genügt** — keine Videodatei, keine Umwandlung. Chromium
-> liest hier auch ein gewöhnliches JPEG und hält es als Standbild (ein
-> MJPEG-Strom sind aneinandergehängte JPEGs; eines ist davon der kürzeste
-> Fall):
+> **Ein einzelnes Foto genügt** — keine Videodatei, keine Umwandlung. Ein
+> MJPEG-Strom sind aneinandergehängte JPEGs; eines ist davon der kürzeste Fall,
+> und Chromium hält es als Standbild. **Die Datei muss aber `.mjpeg` heißen** —
+> Chromium entscheidet nach der Endung und nicht nach dem Inhalt. Eine `.jpg`
+> wird stillschweigend ignoriert; auf der Aufnahme steht dann „Es wurde keine
+> Kamera gefunden". Umbenennen genügt:
 > ```bash
-> LP_VIDEO=$PWD/gasse.jpg node tools/landing_shots.js
+> cp gasse.jpg gasse.mjpeg
+> LP_VIDEO=$PWD/gasse.mjpeg node tools/landing_shots.js
 > ```
+> Passt die Endung nicht, warnt das Werkzeug beim Start — bevor der ganze
+> Durchgang umsonst läuft.
 > Das Bild füllt die Bühne: Querformat passt besser als Hochformat, ein
 > ruhiges Motiv besser als eines mit Schrift — darauf liegen Steuerkreuz und
 > Richtungsanzeige. Wer Bewegung will, gibt eine `.y4m` an

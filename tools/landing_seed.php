@@ -275,13 +275,23 @@ $pdo->prepare(
      VALUES (?, ?, ?, 'accepted', NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), NOW(), NOW())"
 )->execute([$standortIds['mara_l'], $guideIds['mara_l'], $kundeId]);
 
+// DIE OFFENE ANFRAGE GEHT AN DENSELBEN GUIDE, der aufgenommen wird - und
+// von jemand anderem als dem Kunden oben. Beides ist noetig:
+//
+//   an denselben Guide, weil sonst auf SEINER Anfragenliste nichts steht,
+//   was zu entscheiden waere - und genau das soll die Aufnahme zeigen;
+//
+//   von jemand anderem, weil tools/landing_shots.js am Ende jedes Durchgangs
+//   die Anfrage DES KUNDEN annimmt, um die naechste Fuehrung zu ermoeglichen.
+//   Waere es dieselbe, verschwaende der zweite Durchgang genau das Bild, um
+//   das es hier geht.
 $pdo->prepare(
     "INSERT INTO tour_request
         (location_id, guide_user_id, customer_user_id, status, wish_at,
          expires_at, created_at)
      VALUES (?, ?, ?, 'open', DATE_ADD(NOW(), INTERVAL 3 HOUR),
              DATE_ADD(NOW(), INTERVAL 4 HOUR), NOW())"
-)->execute([$standortIds['tobias_n'], $guideIds['tobias_n'], $kundeId]);
+)->execute([$standortIds['mara_l'], $guideIds['mara_l'], $guideIds['keiko_k']]);
 
 // ---------------------------------------------------------------------------
 // Bewertungen fuer den Standort, der aufgenommen wird.

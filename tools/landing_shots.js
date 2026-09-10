@@ -61,13 +61,19 @@
  *                das Kamerabild im Anruf das Testmuster des Browsers (ein
  *                gruener Kreis) - fuer eine Werbeseite unbrauchbar.
  *
- *                EIN EINZELNES FOTO GENUEGT, und das ist der bequeme Teil:
- *                Chromium liest hier auch eine gewoehnliche JPEG-Datei und
- *                haelt sie als Standbild. Ein MJPEG-Strom ist nichts anderes
- *                als aneinandergehaengte JPEGs, und ein einzelnes ist davon
- *                der kuerzeste Fall - eine Umwandlung braucht es nicht:
+ *                EIN EINZELNES FOTO GENUEGT: Ein MJPEG-Strom ist nichts
+ *                anderes als aneinandergehaengte JPEGs, und ein einzelnes ist
+ *                davon der kuerzeste Fall - Chromium haelt es als Standbild.
+ *                Umgewandelt werden muss dafuer nichts.
  *
- *                    LP_VIDEO=$PWD/gasse.jpg node tools/landing_shots.js
+ *                ABER DIE DATEI MUSS .mjpeg HEISSEN. Chromium entscheidet
+ *                nach der ENDUNG, nicht nach dem Inhalt: Dieselbe Datei als
+ *                .jpg wird abgelehnt, und zwar still - es gibt dann gar keine
+ *                Kamera, die Aufnahme zeigt "Es wurde keine Kamera gefunden".
+ *                Umbenennen genuegt, der Inhalt bleibt derselbe:
+ *
+ *                    cp gasse.jpg gasse.mjpeg
+ *                    LP_VIDEO=$PWD/gasse.mjpeg node tools/landing_shots.js
  *
  *                Das Bild fuellt die Buehne. Ein Querformat passt deshalb
  *                besser als ein Hochformat, und ein ruhiges Motiv besser als
@@ -186,6 +192,23 @@ async function anmelden(in_kontext, in_name, in_sprache) {
 async function aufnehmen(in_seite, in_sprache, in_datei) {
     const ordner = path.join(OUT, in_sprache);
     fs.mkdirSync(ordner, { recursive: true });
+
+    // DIE HINWEISSTREIFEN WEG, bevor ausgeloest wird.
+    //
+    // Sie sind fluechtig und haengen an der UHR: "Ihre Bereitschaft ist
+    // abgelaufen" erscheint, wenn waehrend der Aufnahme eine Frist
+    // verstreicht. Auf dem Bild liegt dann ein Kasten quer ueber der Seite,
+    // die eigentlich gezeigt werden soll - und beim naechsten Durchgang an
+    // einer anderen Stelle oder gar nicht.
+    //
+    // DAS IST KEINE SCHOENFAERBEREI: Entfernt wird nur, was ohnehin von
+    // selbst wieder verschwindet, und nichts, was zum Zustand der Seite
+    // gehoert. Ein Fotograf wartet an dieser Stelle, bis das Fenster
+    // zugeht - hier geht es schneller.
+    await in_seite.evaluate(() => {
+        document.querySelectorAll('.app-toast, #app-toasts').forEach(el => el.remove());
+    }).catch(() => {});
+
     await in_seite.screenshot({ path: path.join(ordner, in_datei) });
     console.log('  ' + in_sprache + '/' + in_datei);
 }
@@ -265,10 +288,69 @@ async function durchgang(in_browser, in_sprache) {
     await guide.waitForTimeout(700);
     await aufnehmen(guide, in_sprache, 'richtungsanzeige.png');
 
-    // Auflegen, damit der naechste Durchgang mit einer Fuehrung anfaengt und
-    // nicht in der vorigen steckt.
+    // ---------------------------------------------------------------
+    // AUFRAEUMEN. Auflegen genuegt NICHT, und das ist keine Nachlaessigkeit
+    // der Anwendung, sondern ihre Aussage: Auflegen ist zweideutig ("wir
+    // sind fertig" oder "das Netz ist weg"), beendet wird eine Fuehrung
+    // deshalb ausdruecklich vom Guide (App\Controller\RequestController).
+    //
+    // Fuer dieses Werkzeug heisst das: Ohne den Abschluss steht im NAECHSTEN
+    // Durchgang die Karte "Ihre Fuehrung ist noch nicht beendet" quer ueber
+    // der Anfragenliste - und die landet dann mit auf der Aufnahme.
+    // ---------------------------------------------------------------
     await kunde.click('#end-call-btn').catch(() => {});
     await kunde.waitForTimeout(1500);
+
+    await guide.goto(BASE + '/index.php?act=requests_page', { waitUntil: 'load' });
+    await guide.waitForTimeout(2500);
+
+    // Der Knopf steht nur da, solange etwas zu beenden ist - und die
+    // Rueckfrage danach ist dieselbe, die auch ein Guide beantwortet.
+    const beenden = guide.locator('.tour-finish').first();
+    if (await beenden.count()) {
+        await beenden.click();
+
+        // Die Rueckfrage steht in einem <dialog class="app-dialog">
+        // (assets/js/notify.js). Der bestaetigende Knopf ist der ZWEITE in
+        // .app-dialog__actions - der erste ist "Abbrechen" und hat sogar den
+        // Fokus, damit niemand blind bestaetigt. Genau deshalb wird hier auch
+        // nicht die Eingabetaste gedrueckt, sondern geklickt.
+        const ja = guide.locator('dialog.app-dialog .app-dialog__actions button').last();
+        await ja.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+        await ja.click().catch(() => {});
+        await guide.waitForTimeout(2500);
+    }
+
+    // ---------------------------------------------------------------
+    // UND EINE NEUE ZUSAGE FUER DEN NAECHSTEN DURCHGANG.
+    //
+    // Eine beendete Fuehrung laesst sich nicht wieder starten - das ist der
+    // Sinn des Beendens (App\Model\TourRequest). Der zweite Sprachdurchgang
+    // braucht deshalb eine eigene Zusage, und er holt sie sich auf demselben
+    // Weg wie ein Kunde: anfragen, annehmen.
+    //
+    // NICHT PER SQL, obwohl das kuerzer waere. Zwei Gruende: Das Werkzeug
+    // braucht dann keine Datenbankverbindung, und was es aufnimmt, ist
+    // wirklich durch die Anwendung gegangen - eine von Hand in die Tabelle
+    // geschriebene Zusage koennte Zustaende erzeugen, die im Betrieb gar
+    // nicht vorkommen.
+    // ---------------------------------------------------------------
+    await kunde.goto(BASE + '/index.php?act=location&id=' + LOCATION_ID, { waitUntil: 'load' });
+    await kunde.waitForTimeout(2500);
+    await kunde.locator('.loc-req-submit').first().click().catch(() => {});
+    await kunde.waitForTimeout(2500);
+
+    await guide.goto(BASE + '/index.php?act=requests_page', { waitUntil: 'load' });
+    await guide.waitForTimeout(2500);
+
+    // GENAU DIE ANFRAGE DIESES KUNDEN, nicht einfach die erste: Auf der Liste
+    // steht auch die offene Anfrage aus den Demodaten, die dort STEHEN
+    // BLEIBEN soll - sie ist es, die auf der Aufnahme zeigt, dass ein Guide
+    // etwas zu entscheiden hat. Wuerde sie hier angenommen, waere die
+    // naechste Aufnahme um genau diese Aussage aermer.
+    await guide.locator('li.req-item').filter({ hasText: KUNDE })
+               .locator('.req-accept').first().click().catch(() => {});
+    await guide.waitForTimeout(2500);
 
     await kundeKontext.close();
     await guideKontext.close();
@@ -279,9 +361,22 @@ async function durchgang(in_browser, in_sprache) {
     // LP_VIDEO im Kopf dieser Datei.
     const args = ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
                   '--autoplay-policy=no-user-gesture-required'];
-    if (VIDEO) args.push('--use-file-for-fake-video-capture=' + VIDEO);
+    if (VIDEO) {
+        // DIE ENDUNG IST DAS KRITERIUM, nicht der Inhalt (siehe LP_VIDEO im
+        // Kopf). Eine .jpg nimmt Chromium NICHT an, und es sagt es auch
+        // nicht: Es gibt dann einfach keine Kamera, und das faellt erst auf
+        // der fertigen Aufnahme auf. Deshalb hier eine Warnung, bevor der
+        // ganze Durchgang umsonst laeuft.
+        if (!/\.(mjpeg|y4m)$/i.test(VIDEO)) {
+            console.warn('LP_VIDEO endet nicht auf .mjpeg oder .y4m - Chromium wird die '
+                       + 'Datei ignorieren und ohne Kamera laufen. Bei einem Foto genuegt '
+                       + 'Umbenennen: cp ' + VIDEO + ' ' + VIDEO.replace(/\.[^.]+$/, '') + '.mjpeg');
+        }
+        args.push('--use-file-for-fake-video-capture=' + VIDEO);
+    }
     else console.warn('LP_VIDEO ist nicht gesetzt - das Kamerabild zeigt das Testmuster '
-                    + 'von Chromium. Ein einzelnes Foto genuegt: LP_VIDEO=/pfad/zu/foto.jpg');
+                    + 'von Chromium. Ein einzelnes Foto genuegt, benannt als .mjpeg: '
+                    + 'cp foto.jpg foto.mjpeg && LP_VIDEO=$PWD/foto.mjpeg ...');
 
     const browser = await chromium.launch({ args });
 

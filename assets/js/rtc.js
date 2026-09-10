@@ -316,8 +316,19 @@ window.webrtcApp.rtc = {
         window.webrtcApp.uiChat.updatePollingState();
         document.body.classList.add('call-active');
         document.getElementById('call-view').style.display = '';
+        // AUS DEM KATALOG, nicht zusammengesetzt. Hier stand bis zuletzt
+        // 'Rufe ' + name + ' an' - ein deutscher Satz mitten im Skript, und
+        // damit stand er auch auf einer englischen Seite. Aufgefallen ist er
+        // dem Sucher nicht: Er traegt keinen Umlaut, und "Rufe" steht in
+        // keiner seiner Wortlisten (tests/i18n_scan.php).
+        //
+        // Das Gegenstueck zwei Bildschirmseiten weiter unten
+        // (gespraech.anruf_mit) holt seinen Satz laengst von dort. Es ist
+        // derselbe Ort in derselben Zeile - er zeigt nur einmal "ich rufe an"
+        // und danach "wir sprechen".
         document.getElementById('remote-username').textContent =
-            'Rufe ' + window.webrtcApp.state.targetUsername + ' an';
+            window.webrtcApp.t('gespraech.rufe_an',
+                               { name: window.webrtcApp.state.targetUsername });
         window.webrtcApp.sound.play('call_ringtone');
 
         // 4. Offer bauen und abschicken.
