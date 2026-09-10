@@ -148,18 +148,28 @@ $hash = seed_pwd('Demo!2345');
 // soll etwas los sein. Ein einziger Eintrag sieht aus wie ein Testsystem.
 // ---------------------------------------------------------------------------
 $guides = [
+    // DER ERSTE GUIDE IST DER, DER AUFGENOMMEN WIRD - und sein Ort ist so
+    // gewaehlt, dass er zum Kamerabild passt (LP_VIDEO in
+    // tools/landing_shots.js): eine deutsche Fachwerkaltstadt in der
+    // Daemmerung. Auf der Landingpage stehen Standortseite und Anruf
+    // nebeneinander und sollen dieselbe Fuehrung zeigen; eine portugiesische
+    // Gasse neben einem niedersaechsischen Marktplatz waeren zwei.
+    //
+    // WER EIGENE INHALTE EINSETZT, TAUSCHT BEIDES ZUSAMMEN: Bild und
+    // Standort gehoeren zusammen, und das faellt nur auf, wenn man es
+    // aufschreibt.
     [
         'name'  => 'mara_l',
         'mail'  => 'mara@example.org',
         'zeige' => 'Mara L.',
-        'ueber' => 'Ich lebe seit zwölf Jahren in der Alfama und kenne jede Treppe. Am liebsten zeige ich die Gassen, in denen noch Wäsche hängt.',
-        'sprachen' => 'de,en,pt',
-        'stadt' => ['Lissabon', 'PT'],
-        'zone'  => 'Europe/Lisbon',
-        'lat'   => 38.71150000, 'lon' => -9.12750000,
-        'titel' => 'Alfama – die Gassen über dem Fluss',
-        'text'  => 'Wir starten am Miradouro de Santa Luzia und gehen die Treppen hinunter bis zum Fischmarkt. Unterwegs: Wäscheleinen, Kacheln, Katzen, und der eine Laden, in dem es seit 1940 nur Konserven gibt.',
-        'kurz'  => 'Von der Aussicht hinunter zum Fischmarkt, durch die engsten Gassen der Stadt.',
+        'ueber' => 'Ich wohne seit zwölf Jahren zwei Gassen weiter und kenne hier jeden Türsturz. Am liebsten gehe ich los, wenn die Laternen angehen.',
+        'sprachen' => 'de,en',
+        'stadt' => ['Quedlinburg', 'DE'],
+        'zone'  => 'Europe/Berlin',
+        'lat'   => 51.78780000, 'lon' => 11.14140000,
+        'titel' => 'Durch die Fachwerkgassen zur Dämmerung',
+        'text'  => 'Wir gehen die Kopfsteingasse hinunter bis zum Torturm. Unterwegs: schiefe Giebel aus fünf Jahrhunderten, die Apotheke mit dem alten Schild, und die Bank vor dem Café, auf der abends immer dieselben zwei sitzen.',
+        'kurz'  => 'Die Kopfsteingasse hinunter bis zum Torturm, wenn die Laternen angehen.',
         'dauer' => 45,
     ],
     [
@@ -227,6 +237,15 @@ foreach ($guides as $g) {
     $vorhanden->execute([$uid]);
     $lid = (int)$vorhanden->fetchColumn();
 
+    // ANLEGEN ODER AUFFRISCHEN, und das Auffrischen ist der Teil, der
+    // vorher fehlte: Das Skript legte einen vorhandenen Standort einfach
+    // stehen. Wer hier oben etwas aenderte - einen Titel, einen Ort, das
+    // Kamerabild und den Ort dazu -, bekam beim naechsten Lauf trotzdem die
+    // alten Daten und suchte den Fehler im Aufnahmewerkzeug.
+    //
+    // GELOESCHT WIRD NICHT: An einem Standort haengen Bewertungen und
+    // Anfragen. Ein DELETE und ein neues INSERT gaeben ihm eine neue
+    // Kennung, und die Fremdschluessel zeigten ins Leere.
     if ($lid === 0) {
         $pdo->prepare(
             "INSERT INTO location
@@ -236,6 +255,15 @@ foreach ($guides as $g) {
         )->execute([$uid, $stadtId, $g['lat'], $g['lon'], $g['kurz'], $g['titel'],
                     $g['text'], $g['dauer'], $g['sprachen'], $g['zone']]);
         $lid = (int)$pdo->lastInsertId();
+    } else {
+        $pdo->prepare(
+            "UPDATE location
+                SET city_id = ?, latitude = ?, longitude = ?, description = ?,
+                    title = ?, description_long = ?, duration_minutes = ?,
+                    languages = ?, timezone = ?
+              WHERE id = ?"
+        )->execute([$stadtId, $g['lat'], $g['lon'], $g['kurz'], $g['titel'],
+                    $g['text'], $g['dauer'], $g['sprachen'], $g['zone'], $lid]);
     }
 
     $standortIds[$g['name']] = $lid;
@@ -313,7 +341,7 @@ $bewertungen = [
     ['kunde' => 'keiko_k',   'sterne' => 5, 'tage' => 12,
      'text'  => 'Sie ist stehengeblieben, wo ich stehenbleiben wollte. Die Stunde ging viel zu schnell vorbei.'],
     ['kunde' => 'youssef_m', 'sterne' => 5, 'tage' => 31,
-     'text'  => 'Ich hatte nach dem Fischmarkt gefragt und bekam den Weg dorthin, den kein Reiseführer aufschreibt.'],
+     'text'  => 'Ich hatte nach dem Torturm gefragt und bekam den Weg dorthin, den kein Reiseführer aufschreibt.'],
     ['kunde' => 'tobias_n',  'sterne' => 4, 'tage' => 54,
      'text'  => 'Die Verbindung hat einmal gehakt, sonst nichts zu bemängeln.'],
 ];
