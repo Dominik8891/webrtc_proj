@@ -6585,7 +6585,12 @@ $bau = '$R = ' . var_export($ROOT, true) . '; chdir($R);'
      // trotzdem, sonst endet der Unterprozess mit einem Fatal Error und die
      // Seite ist null Zeichen lang. Env steht davor, weil MailGate seine
      // beiden Schalter von dort holt.
+     // Brand steht mit in der Liste, seit der Produktname aus einer Konstanten
+     // kommt (App\\Helper\\Brand): output() setzt ihn an drei Stellen des
+     // Layouts ein. Fehlt die Klasse, endet der Unterprozess mit einem Fatal
+     // Error und die Seite ist null Zeichen lang.
      . 'foreach (["Helper/Role","Helper/Permission","Helper/Auth","Helper/Theme",'
+     . '"Helper/Brand",'
      // I18n steht VOR ViewHelper: template() loest dort die Textmarker auf,
      // und output() legt Sprache und Katalog ins Dokument.
      . '"Helper/Url","Helper/Env","Helper/MailGate","Helper/I18n","Helper/ViewHelper"] as $k) { require_once "$R/class/$k.php"; }'

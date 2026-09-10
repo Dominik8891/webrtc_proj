@@ -804,6 +804,14 @@ return [
     'fuss.impressum'   => 'Imprint',
     'fuss.datenschutz' => 'Privacy',
     'fuss.kontakt'     => 'Contact',
+    'fuss.ueber'       => 'What is this?',
+
+    // The three obligatory pages (assets/html/legal.html). All three are
+    // still empty, and they say so. The headings come from fuss.* above -
+    // the same words as in the footer.
+    'rechtliches.fehlt.titel' => 'This content is still missing.',
+    'rechtliches.fehlt.text'  => 'The page exists so that the link in the footer does not lead nowhere. The text will follow.',
+    'rechtliches.zurueck'     => 'Back to the start page',
 
     'ansicht.label'    => 'View',
     'ansicht.karte'    => 'Map',
@@ -971,6 +979,26 @@ return [
     'startseite.schritt2.text'  => 'One click on the pin starts the call. Sound and picture come straight from the street.',
     'startseite.schritt3.titel' => 'Guide them',
     'startseite.schritt3.text'  => 'The arrow keys set the direction. The guide hears and sees what you want and goes there.',
+
+    // The landing page (assets/html/landing.html). One sentence per
+    // section - the pictures carry the rest. The alt texts describe what
+    // is on the screenshot, because on this page they carry half of it.
+    'landing.hero.titel'         => 'Somebody sets off for you.',
+    'landing.hero.satz'          => 'You pick a place on the map, a person on site sends their picture – and the arrow keys tell them where to go.',
+    'landing.hero.knopf'         => 'Create an account',
+    'landing.hero.knopf_karte'   => 'See the map',
+    'landing.hero.karte_hinweis' => 'The pins show possible places, not what is on offer right now – that is on the map inside the app.',
+
+    'landing.ablauf.titel'         => 'Pick a place, ask for a tour, come along.',
+    'landing.ablauf.alt_standort'  => 'A location page: the description, the guide behind it and the form for the request.',
+    'landing.ablauf.alt_steuerung' => 'A running tour as the customer sees it: the guide\'s picture with the control pad on top.',
+
+    'landing.steuerung.titel' => 'You press an arrow key. They walk.',
+    'landing.steuerung.alt'   => 'The guide\'s view: a large arrow and the word for the direction over the camera picture.',
+
+    'landing.guide.titel' => 'You know a place? Then show it.',
+    'landing.guide.alt'   => 'A guide\'s request list with one open request to accept or decline.',
+    'landing.guide.knopf' => 'Start as a guide',
 
     // The popup on a map pin (assets/js/home_map.js).
     'startseite.karte.eigen_bereit'      => 'You are available – for others this location is highlighted right now.',

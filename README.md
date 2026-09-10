@@ -2496,6 +2496,127 @@ gerichtet.
 
 ---
 
+## 🪧 Die Landingpage
+
+`index.php?act=landing` — die Seite, die *erklärt*, was das hier ist. Erreichbar
+über den Verweis **„Worum geht es hier?"** in der Fußzeile jeder Seite.
+
+**Sie ist nicht die Startseite und ersetzt sie nicht.** Der Unterschied ist der
+ganze Punkt:
+
+| | zeigt | Nadeln kommen aus |
+|---|---|---|
+| `act=home` | den **Bestand** — was gerade wirklich angeboten wird | der Datenbank |
+| `act=landing` | die **Möglichkeit** — dass es das Produkt gibt | `assets/js/landing.js` |
+
+Auf der Startseite wäre eine erfundene Nadel eine Falschauskunft; auf der
+Landingpage ist sie das Bild zu einem Satz — und der Hinweis unter der Karte
+sagt es auch. Die Karte selbst ist echt: dieselben Kacheln wie überall
+(`assets/js/map_tiles.js`), samt der Herkunftsangabe, die die ODbL verlangt.
+Nur die hundert Nadeln sind Stadtkoordinaten aus einer Liste und keine
+Standorte. Sie erscheinen nacheinander, jede zehnte grün — grün heißt in
+dieser Anwendung *„ein Guide ist jetzt erreichbar"*, und hier heißt es
+dasselbe.
+
+**Aufbau: vier Abschnitte, vier Sätze.** Sie führt mit der Kundensicht, weil
+das die verständlichere Geschichte ist; der Guide-Teil kommt danach, farblich
+abgesetzt und mit eigenem Weg zur Registrierung. Was die Anwendung kann, steht
+nicht als Liste da — es ist auf den Aufnahmen zu sehen. Eine Aufzählung von
+Funktionen liest niemand, der noch nicht weiß, ob ihn das Ganze angeht.
+
+Sie läuft durch `App\Helper\ViewHelper::output()` wie jede andere Seite:
+dieselbe Kopfleiste, dieselben vier Farbprofile, derselbe Sprachumschalter,
+derselbe Katalog (`landing.*` in `lang/de.php` und `lang/en.php`). Ihre
+Stilvorlage (`assets/css/landing.css`) enthält **keinen einzigen Farbwert** —
+sonst wäre sie im Dunkelprofil ein heller Fleck.
+
+### Die Aufnahmen sind echt
+
+Die Bilder unter `assets/img/landing/<sprache>/` sind Bildschirmfotos aus der
+**laufenden Anwendung** und keine nachgebauten Abbildungen. Aufgenommen wird
+mit `tools/landing_shots.js` — das Werkzeug fährt eine vollständige Führung
+durch: zwei Browser, ein echter WebRTC-Anruf über das Signaling des Servers,
+ein echter Steuerbefehl.
+
+```bash
+php  tools/landing_seed.php     # Demodaten in die ENTWICKLUNGSdatenbank
+node tools/landing_shots.js     # aufnehmen (braucht playwright)
+```
+
+Der Grund für den Aufwand: Eine nachgebaute Abbildung veraltet, ohne dass es
+jemand merkt — die Oberfläche ändert sich, das Bild bleibt, und irgendwann
+zeigt die Werbeseite eine Anwendung, die es nicht mehr gibt. Eine Aufnahme
+veraltet genauso, **aber sie lässt sich neu machen.**
+
+**Je Sprache ein Satz Bilder**, deshalb das Sprachkürzel im Pfad: Auf den
+Aufnahmen sind Knöpfe beschriftet, und ein englischer Besucher, der deutsche
+Knöpfe abgebildet sieht, bekommt genau die Unstimmigkeit, wegen der es den
+Sprachumschalter gibt. Die Vorlage wählt das Verzeichnis über `###LANG###`.
+
+> **Das Kamerabild.** Ohne eigene Videodatei nimmt Chromium sein Testmuster —
+> im Anruf steht dann ein grüner Kreis statt einer Gasse. Für eine Werbeseite
+> ist das unbrauchbar. Eine kurze eigene Aufnahme genügt:
+> ```bash
+> ffmpeg -i gasse.mp4 -t 10 -pix_fmt yuv420p gasse.y4m
+> LP_VIDEO=$PWD/gasse.y4m node tools/landing_shots.js
+> ```
+> Weitere Schalter (`LP_BASE`, `LP_PW`, `LP_LANGS`, `LP_OUT`) stehen im Kopf
+> der Datei.
+
+`tools/landing_seed.php` **weigert sich**, in eine Datenbank zu schreiben, in
+der Konten stehen, die es nicht selbst angelegt hat. Erfundene Daten in einem
+Produktivsystem wären ein Schaden, den niemand rückgängig macht.
+
+---
+
+## 🏷️ Der Produktname
+
+Der Name steht noch nicht fest. Bis dahin trägt die Anwendung einen
+Platzhalter, und der ist mit Absicht als solcher zu erkennen: Ein hübscher
+Arbeitstitel bleibt stehen, weil er niemandem auffällt.
+
+**Geändert wird er an genau einer Stelle — `class/Helper/Brand.php`:**
+
+```php
+class Brand
+{
+    public const NAME = 'PRODUKTNAME';   // der ausgeschriebene Name
+    public const MARK = 'P';             // das Zeichen im farbigen Kaestchen
+}
+```
+
+Von dort setzt `ViewHelper::output()` ihn an den drei Stellen des Layouts ein,
+an denen er vorkommt: im Titel des Browserfensters, in der Kopfleiste und in
+der Fußzeile (Platzhalter `###BRAND###` und `###BRAND_MARK###` in
+`assets/html/index.html`). Vorher stand er dreimal wörtlich in dieser Datei.
+
+Er steht **nicht im Sprachkatalog**: Ein Produktname wird nicht übersetzt. In
+`lang/de.php` und `lang/en.php` wären es wieder zwei Stellen — und die zweite
+ist die, die beim Umbenennen vergessen wird. Ebenso wenig in der `.env`: Er
+gehört zum Produkt und nicht zu dieser Installation.
+
+---
+
+## 📄 Impressum, Datenschutz, Kontakt
+
+Die drei Verweise der Fußzeile zeigten auf `#`. Ein solcher Verweis führt
+nirgendwohin — der Browser springt an den Seitenanfang, und der Besucher hält
+es für einen Fehler der Anwendung.
+
+Jetzt führen sie auf `act=imprint`, `act=privacy` und `act=contact`: **drei
+Routen, eine Controllermethode, eine Vorlage** (`assets/html/legal.html`). Die
+Seiten sind noch leer und **sagen das auch** — mit einem sichtbaren Hinweis und
+nicht mit einem dezenten. Ein leeres Impressum ist in Deutschland kein
+Schönheitsfehler, sondern abmahnfähig; wer die Seite im Betrieb sieht, soll sie
+füllen wollen.
+
+Die Überschrift kommt aus `config/routes.php` und **nicht aus der Anfrage** —
+sonst könnte jeder Aufrufer einen beliebigen Katalogschlüssel als Überschrift
+setzen lassen. Wenn der Text kommt, fällt der Hinweis weg und der Inhalt steht
+an seiner Stelle.
+
+---
+
 ## 🧪 Tests
 
 Zwei Pruefskripte fuer die Verbindungsstabilitaet und das Steuerprotokoll der WebRTC-Funktion:

@@ -63,6 +63,87 @@ class SystemController
     }
 
     /**
+     * Gibt die Landingpage aus.
+     *
+     * WAS SIE VON DER STARTSEITE UNTERSCHEIDET
+     * ----------------------------------------
+     * Die Startseite (home() darueber) zeigt den BESTAND: Auf ihrer Karte
+     * steht, was gerade wirklich angeboten wird, und wenn dort nichts ist,
+     * sagt sie das auch. Diese Seite hier zeigt die MOEGLICHKEIT - ihre
+     * Nadeln stehen fuer Orte, an denen es eine Fuehrung geben koennte, und
+     * nicht fuer Standorte in der Datenbank.
+     *
+     * Das ist der Grund, aus dem sie eine eigene Seite ist und nicht ein
+     * weiterer Zustand der Startseite: Zwei Karten, von denen die eine den
+     * Bestand und die andere ein Versprechen zeigt, duerfen nicht dieselbe
+     * Karte sein. Auf der Startseite waere eine erfundene Nadel eine
+     * Falschauskunft; hier ist sie das Bild zu einem Satz.
+     *
+     * SIE FRAGT NICHTS AB. Kein Standort, kein Guide, keine Zahl - die Seite
+     * kommt ohne eine einzige Datenbankabfrage aus. Ihre Nadeln stehen in
+     * assets/js/landing.js.
+     *
+     * DAS RECHT IST system.home, und zwar dasselbe wie bei der Startseite:
+     * Das Recht heisst "Startseite und oeffentliche Einstiegsseiten" (siehe
+     * App\Helper\Permission), und genau das ist diese Seite. Ein eigenes
+     * Recht "landing.view" waere eine Unterscheidung ohne Unterschied - es
+     * haette dieselben Rollen wie system.home, und zwar fuer immer.
+     *
+     * @return void
+     */
+    public static function landing(): void
+    {
+        $out = ViewHelper::template('assets/html/landing.html');
+        ViewHelper::output($out);
+    }
+
+    /**
+     * Gibt eine der drei Pflichtseiten aus: Impressum, Datenschutz, Kontakt.
+     *
+     * EINE METHODE FUER DREI ROUTEN. Die Seiten unterscheiden sich heute in
+     * einem Wort - der Ueberschrift -, und drei Methoden mit identischem
+     * Rumpf waeren drei Stellen, an denen dieselbe Aenderung nachzuziehen
+     * waere. Drei ROUTEN sind es trotzdem: Die Adressen stehen in der
+     * Fusszeile und werden weitergegeben; sie duerfen nicht davon abhaengen,
+     * dass jemand einen Parameter richtig mitschickt.
+     *
+     * DER SCHLUESSEL KOMMT AUS DER ROUTINGTABELLE UND NICHT AUS DER ANFRAGE.
+     * Das ist der Punkt: Wuerde die Methode ihn aus $_GET lesen, koennte
+     * jeder Aufrufer einen beliebigen Katalogschluessel als Ueberschrift
+     * setzen lassen. So sind es genau die drei Werte, die in
+     * config/routes.php stehen.
+     *
+     * @param string $in_schluessel Katalogschluessel der Ueberschrift
+     * @return void
+     */
+    public static function legalPage(string $in_schluessel): void
+    {
+        $out = ViewHelper::template('assets/html/legal.html');
+        $out = str_replace('###LEGAL_TITLE###',
+                           ViewHelper::esc(I18n::t($in_schluessel)), $out);
+
+        ViewHelper::output($out);
+    }
+
+    /** Das Impressum. Siehe legalPage(). */
+    public static function imprint(): void
+    {
+        self::legalPage('fuss.impressum');
+    }
+
+    /** Die Datenschutzerklaerung. Siehe legalPage(). */
+    public static function privacy(): void
+    {
+        self::legalPage('fuss.datenschutz');
+    }
+
+    /** Die Kontaktseite. Siehe legalPage(). */
+    public static function contact(): void
+    {
+        self::legalPage('fuss.kontakt');
+    }
+
+    /**
      * Stellt die Sprache der Oberflaeche um.
      *
      * ZWEI SPEICHERORTE, UND BEIDE WERDEN BESCHRIEBEN:

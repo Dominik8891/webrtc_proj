@@ -25,3 +25,9 @@ vendor/
 # und die ist die halbe Pruefung. Ohne sie im Repository laeuft der Test bei
 # jedem anderen ins Leere und meldet jedes vorhandene deutsche Literal als neu.
 !tests/i18n_grundstock.txt
+
+# Die Kennungen der Demodaten fuer die Aufnahmen der Landingpage.
+# Geschrieben von tools/landing_seed.php, gelesen von tools/landing_shots.js -
+# ein Zwischenstand der Entwicklungsdatenbank und in keinem anderen Arbeitsplatz
+# gueltig.
+tools/landing_seed.json

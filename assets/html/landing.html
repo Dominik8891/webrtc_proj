@@ -1,0 +1,137 @@
+<!--
+    Die Landingpage.
+
+    Eingesetzt von App\Controller\SystemController::landing() ueber
+    App\Helper\ViewHelper::output() - also im selben Rahmen wie jede andere
+    Seite: dieselbe Kopfleiste, dasselbe Farbprofil, dieselbe Fusszeile mit
+    dem Sprachumschalter. Sie ist keine zweite Anwendung neben der ersten.
+
+    WAS SIE ERZAEHLT UND IN WELCHER REIHENFOLGE
+    -------------------------------------------
+    Sie fuehrt mit der KUNDENSICHT, weil das die verstaendlichere Geschichte
+    ist: Jemand sucht einen Ort und wird dort herumgefuehrt. Der Guide kommt
+    danach, als eigener Abschnitt mit eigenem Weg zur Registrierung - wer
+    fuehren will, hat vorher verstanden, wofuer.
+
+    EIN SATZ PRO ABSCHNITT. Vier Ueberschriften, drei Aufnahmen, zwei
+    Knoepfe. Was die Anwendung kann, steht nicht als Liste da, sondern ist
+    auf den Aufnahmen zu sehen - eine Aufzaehlung von Funktionen liest
+    niemand, der noch nicht weiss, ob ihn das Ganze angeht.
+
+    DIE KARTE IM BLICKFANG ZEIGT NICHT DEN BESTAND
+    ----------------------------------------------
+    Ihre Nadeln sind Orte, an denen es eine Fuehrung geben KOENNTE - sie
+    kommen aus assets/js/landing.js und nicht aus der Datenbank. Auf der
+    Startseite der Anwendung waere das eine Falschauskunft (dort steht, was
+    es wirklich gibt); hier ist es das Bild zu einem Satz, und der Hinweis
+    unter der Karte sagt es auch.
+
+    Die Kacheln sind dieselben wie ueberall (assets/js/map_tiles.js), die
+    Karte selbst ist echt. Nur die Nadeln sind es nicht.
+
+    DIE AUFNAHMEN
+    -------------
+    assets/img/landing/<sprache>/*.png. Sie sind aus der LAUFENDEN Anwendung
+    aufgenommen und nicht nachgebaut - aufgenommen wird mit
+    tools/landing_shots.js, und dort steht auch, wie man sie neu aufnimmt,
+    wenn sich die Oberflaeche aendert. Eine nachgebaute Abbildung veraltet,
+    ohne dass es jemand merkt; eine Aufnahme laesst sich neu machen.
+
+    JE SPRACHE EIN SATZ BILDER, und deshalb steht das Sprachkuerzel im Pfad:
+    Auf den Aufnahmen sind Knoepfe beschriftet, und ein englischer Besucher,
+    der deutsche Knoepfe abgebildet sieht, bekommt genau die Unstimmigkeit,
+    wegen der es den Sprachumschalter gibt.
+
+    DER PLATZHALTER DAFUER IST ###LANG###. Er ist nicht neu und gehoert nicht
+    dieser Seite: App\Helper\ViewHelper::output() setzt dort das Kuerzel der
+    aktiven Sprache ein - dieselbe Ersetzung, die auch das lang-Attribut des
+    <html>-Elements fuellt. Sie laeuft ueber das GANZE Dokument, also auch
+    ueber diese Vorlage.
+
+    Die Angaben width/height nennen die HALBE Pixelzahl der Dateien:
+    Aufgenommen wird mit doppelter Aufloesung, damit die Bilder auf einem
+    heutigen Bildschirm nicht ausgefranst aussehen.
+-->
+<div class="lp">
+
+    <!-- ================================================================
+         1. DER BLICKFANG. Ein Satz, zwei Knoepfe, die Karte dahinter.
+         ================================================================ -->
+    <section class="lp-hero">
+
+        <!-- Die Karte. Gefuellt von assets/js/landing.js; bis dahin bleibt
+             die Flaeche leer. Sie ist Schmuck und keine Bedienung: kein
+             Zoomen, kein Schieben, kein Anklicken - deshalb aria-hidden.
+             Wer hier etwas anfassen will, soll auf der Startseite landen,
+             und dorthin fuehrt der zweite Knopf. -->
+        <div class="lp-hero__map" id="lp-map" aria-hidden="true"></div>
+
+        <div class="lp-hero__body">
+            <h1 class="lp-hero__title">{{t:landing.hero.titel}}</h1>
+            <p class="lp-hero__lead">{{t:landing.hero.satz}}</p>
+
+            <div class="lp-actions">
+                <a class="btn btn-primary btn-lg" href="index.php?act=signup_page">{{t:landing.hero.knopf}}</a>
+                <a class="btn btn-secondary btn-lg" href="index.php?act=home">{{t:landing.hero.knopf_karte}}</a>
+            </div>
+        </div>
+
+        <!-- Der Hinweis zur Karte. Klein, aber vorhanden: Die Nadeln zeigen
+             Moegliches und nicht Vorhandenes, und das gehoert dazugesagt. -->
+        <p class="lp-hero__note">{{t:landing.hero.karte_hinweis}}</p>
+    </section>
+
+    <!-- ================================================================
+         2. WAS DER KUNDE SIEHT. Ein Satz, zwei Aufnahmen.
+         ================================================================ -->
+    <section class="lp-section">
+        <h2 class="lp-section__title">{{t:landing.ablauf.titel}}</h2>
+
+        <div class="lp-shots">
+            <figure class="lp-shot">
+                <img src="assets/img/landing/###LANG###/standortseite.png"
+                     alt="{{t:landing.ablauf.alt_standort}}"
+                     width="1280" height="1000" loading="lazy">
+            </figure>
+            <figure class="lp-shot">
+                <img src="assets/img/landing/###LANG###/steuerkreuz.png"
+                     alt="{{t:landing.ablauf.alt_steuerung}}"
+                     width="1280" height="800" loading="lazy">
+            </figure>
+        </div>
+    </section>
+
+    <!-- ================================================================
+         3. DIE STEUERUNG. Ein Satz, eine Aufnahme - die Richtungsanzeige,
+         wie der Guide sie im Gehen sieht.
+         ================================================================ -->
+    <section class="lp-section lp-section--tint">
+        <h2 class="lp-section__title">{{t:landing.steuerung.titel}}</h2>
+
+        <figure class="lp-shot lp-shot--wide">
+            <img src="assets/img/landing/###LANG###/richtungsanzeige.png"
+                 alt="{{t:landing.steuerung.alt}}"
+                 width="1280" height="800" loading="lazy">
+        </figure>
+    </section>
+
+    <!-- ================================================================
+         4. FUER GUIDES. Eigener Abschnitt, eigener Weg zur Registrierung.
+
+         Farblich abgesetzt, weil hier jemand anderes angesprochen wird -
+         nicht der, der mitgenommen werden will, sondern der, der mitnimmt.
+         ================================================================ -->
+    <section class="lp-section lp-guide">
+        <h2 class="lp-section__title">{{t:landing.guide.titel}}</h2>
+
+        <figure class="lp-shot">
+            <img src="assets/img/landing/###LANG###/guide-anfragen.png"
+                 alt="{{t:landing.guide.alt}}"
+                 width="1280" height="800" loading="lazy">
+        </figure>
+
+        <div class="lp-actions">
+            <a class="btn btn-primary btn-lg" href="index.php?act=signup_page">{{t:landing.guide.knopf}}</a>
+        </div>
+    </section>
+</div>

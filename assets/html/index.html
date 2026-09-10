@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebRTC-App</title>
+    <title>###BRAND###</title>
 
     <!-- Farbprofil setzen, BEVOR die Stilvorlagen greifen. Der Inhalt kommt
          aus App\Helper\Theme::bootScript(); dort steht auch, warum das
@@ -48,6 +48,11 @@
          beendet ist. Nach review.css, weil beide Karten dieselbe Flaeche
          benutzen (.app-ask in theme.css). -->
     <link rel="stylesheet" href="assets/css/tour.css">
+    <!-- Die Landingpage. Sie benutzt dieselben Variablen wie alles andere -
+         eigene Farbwerte stehen dort keine. Nach tour.css und vor admin.css,
+         weil sie zur Kundenoberflaeche gehoert; wirksam wird sie nur unter
+         .lp, also nur auf dieser einen Seite. -->
+    <link rel="stylesheet" href="assets/css/landing.css">
     <!-- Der Verwaltungsbereich. Als LETZTE eigene Datei, weil er die
          Bausteine der uebrigen enger setzt und dafuer das letzte Wort haben
          muss. Wirksam wird sie nur unter .adm - also nur auf den Seiten des
@@ -126,6 +131,12 @@
          Server ihre Daten mitgeliefert hat - auf jeder anderen Seite tut
          dieses Modul nichts. -->
     <script src="assets/js/location_page.js"></script>
+    <!-- Die Landingpage: die Karte im Blickfang und die Nadeln, die nach und
+         nach darauf erscheinen. Nach map_tiles.js (die Kacheladresse kommt
+         von dort) und nach home_map.js, damit die Reihenfolge der beiden
+         Karten der Reihenfolge ihrer Stilvorlagen entspricht. Das Modul
+         meldet sich nur, wenn seine Flaeche im Dokument steht. -->
+    <script src="assets/js/landing.js"></script>
     <!-- Die Aktionen des Verwaltungsbereichs: sperren, freigeben, eine
          Bewertung entfernen. Sie standen vorher in locations_table.js und in
          review.js - also in Modulen der Kundenoberflaeche. Dieses hier haengt
@@ -155,12 +166,13 @@
         eines in einem Kommentar.
     -->
     <header class="app-topbar">
-        <!-- Name und Zeichen der Anwendung stehen an genau dieser Stelle.
-             Steht ein Produktname fest, wird er hier eingetragen - und nur
-             hier. -->
+        <!-- Name und Zeichen der Anwendung. Beides kommt aus
+             App\Helper\Brand - dort steht der eine Wert, hier steht nur die
+             Stelle, an der er erscheint. Wer das Produkt umbenennt, aendert
+             die Konstante und nicht diese Zeile. -->
         <a class="app-topbar__brand" href="index.php?act=home">
-            <span class="app-topbar__mark" aria-hidden="true">W</span>
-            <span>WebRTC-App</span>
+            <span class="app-topbar__mark" aria-hidden="true">###BRAND_MARK###</span>
+            <span>###BRAND###</span>
         </a>
 
         <span class="app-topbar__spacer"></span>
@@ -217,16 +229,36 @@
     <!--
         Fusszeile. Auf jeder Seite dieselbe.
 
-        Die drei Verweise zeigen vorerst ins Leere - die Seiten gibt es noch
-        nicht. Wenn sie kommen, wird hier das href eingetragen und sonst
-        nirgends.
+        DIE DREI VERWEISE ZEIGEN AUF SEITEN, DIE ES GIBT - sie sind nur noch
+        leer. Vorher stand dort dreimal "#", und ein Verweis auf "#" fuehrt
+        nirgendwohin: Der Browser springt an den Seitenanfang, und der
+        Besucher haelt es fuer einen Fehler. Eine Seite, die sagt "hier fehlt
+        noch der Text", ist eine Auskunft; ein toter Verweis ist keine.
+
+        Gebaut werden die drei Seiten von
+        App\Controller\SystemController::legalPage() aus einer gemeinsamen
+        Vorlage (assets/html/legal.html).
+
+        Der Name daneben kommt aus App\Helper\Brand - siehe die Kopfleiste.
     -->
     <footer class="app-footer">
-        <span class="app-footer__mark">WebRTC-App</span>
+        <!-- Name und der Weg zur Landingpage. Beides zusammen in einem
+             Kasten, damit die Zeile drei Gruppen hat und nicht vier: Name
+             und "Worum geht es hier" gehoeren zusammen, die Pflichtseiten
+             sind etwas anderes.
+
+             DER VERWEIS STEHT HIER UND NICHT IN DER KOPFLEISTE: Die
+             Landingpage erklaert das Produkt, und das braucht, wer schon
+             angemeldet ist, nicht staendig vor Augen. In der Fusszeile steht
+             er auf jeder Seite und ist trotzdem niemandem im Weg. -->
+        <span class="app-footer__brand">
+            <span class="app-footer__mark">###BRAND###</span>
+            <a class="app-footer__about" href="index.php?act=landing">{{t:fuss.ueber}}</a>
+        </span>
         <nav class="app-footer__links" aria-label="{{t:fuss.rechtliches}}">
-            <a href="#">{{t:fuss.impressum}}</a>
-            <a href="#">{{t:fuss.datenschutz}}</a>
-            <a href="#">{{t:fuss.kontakt}}</a>
+            <a href="index.php?act=imprint">{{t:fuss.impressum}}</a>
+            <a href="index.php?act=privacy">{{t:fuss.datenschutz}}</a>
+            <a href="index.php?act=contact">{{t:fuss.kontakt}}</a>
         </nav>
         <!-- Der Sprachumschalter - nur fuer Gaeste. Wer angemeldet ist,
              findet die Wahl auf der Kontoseite neben dem Farbprofil: Dort

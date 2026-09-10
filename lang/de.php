@@ -1018,6 +1018,25 @@ return [
     'fuss.impressum'   => 'Impressum',
     'fuss.datenschutz' => 'Datenschutz',
     'fuss.kontakt'     => 'Kontakt',
+    // Der Weg zur Landingpage. Er steht in der Fusszeile und nicht in der
+    // Kopfleiste: Wer angemeldet ist, braucht die Erklaerung des Produkts
+    // nicht staendig vor Augen.
+    'fuss.ueber'       => 'Worum geht es hier?',
+
+    // -----------------------------------------------------------------
+    // DIE PFLICHTSEITEN (assets/html/legal.html)
+    //
+    // Drei Seiten, ein Text: Sie sind alle drei noch leer, und sie sagen
+    // es. Der Hinweis ist mit Absicht deutlich - ein leeres Impressum ist
+    // kein Schoenheitsfehler.
+    //
+    // Die Ueberschriften kommen aus fuss.* darueber. Es sind dieselben
+    // Woerter wie in der Fusszeile, und zwei Fassungen davon waeren zwei
+    // Gelegenheiten, sie verschieden zu uebersetzen.
+    // -----------------------------------------------------------------
+    'rechtliches.fehlt.titel' => 'Dieser Inhalt fehlt noch.',
+    'rechtliches.fehlt.text'  => 'Die Seite ist angelegt, damit der Verweis in der Fußzeile nicht ins Leere führt. Der Text folgt.',
+    'rechtliches.zurueck'     => 'Zurück zur Startseite',
 
     // -----------------------------------------------------------------
     // DER UMSCHALTER KARTE / LISTE / ANFRAGEN
@@ -1210,6 +1229,38 @@ return [
     'startseite.schritt2.text'  => 'Ein Klick auf die Nadel startet das Gespräch. Ton und Bild kommen direkt von unterwegs.',
     'startseite.schritt3.titel' => 'Führen',
     'startseite.schritt3.text'  => 'Mit den Pfeiltasten geben Sie die Richtung vor. Der Guide hört und sieht Ihren Wunsch und geht dorthin.',
+
+    // -----------------------------------------------------------------
+    // DIE LANDINGPAGE (assets/html/landing.html)
+    //
+    // WENIG TEXT, UND ZWAR MIT ABSICHT: ein Satz je Abschnitt, der Rest
+    // steht auf den Aufnahmen. Wer hier ankommt, weiss noch nicht, ob ihn
+    // das Ganze angeht - eine Aufzaehlung von Funktionen beantwortet diese
+    // Frage nicht, sondern setzt sie als beantwortet voraus.
+    //
+    // DIE alt-TEXTE SIND KEINE ZIERDE. Auf dieser Seite tragen die Bilder
+    // die halbe Aussage; wer sie nicht sieht, bekommt sonst vier
+    // Ueberschriften und sonst nichts. Sie beschreiben deshalb, was auf der
+    // Aufnahme zu sehen ist, und nicht, wie die Datei heisst.
+    // -----------------------------------------------------------------
+    'landing.hero.titel'         => 'Jemand geht für Sie los.',
+    'landing.hero.satz'          => 'Sie suchen einen Ort auf der Karte, ein Mensch vor Ort überträgt sein Bild – und Sie sagen ihm mit den Pfeiltasten, wo es langgeht.',
+    'landing.hero.knopf'         => 'Konto anlegen',
+    'landing.hero.knopf_karte'   => 'Karte ansehen',
+    // Der Hinweis unter der Karte des Blickfangs. Er gehoert dazu: Die
+    // Nadeln dort sind erfunden, und das darf nicht der Eindruck bleiben.
+    'landing.hero.karte_hinweis' => 'Die Nadeln zeigen mögliche Orte, nicht das aktuelle Angebot – das steht auf der Karte der Anwendung.',
+
+    'landing.ablauf.titel'         => 'Ort aussuchen, Führung anfragen, mitgehen.',
+    'landing.ablauf.alt_standort'  => 'Die Seite eines Standorts: die Beschreibung, der Guide dazu und das Formular für die Anfrage.',
+    'landing.ablauf.alt_steuerung' => 'Eine laufende Führung aus Sicht des Kunden: das Bild des Guides, darauf das Steuerkreuz.',
+
+    'landing.steuerung.titel' => 'Sie drücken eine Pfeiltaste. Er geht.',
+    'landing.steuerung.alt'   => 'Die Ansicht des Guides: ein großer Pfeil und das Wort für die Richtung über dem Kamerabild.',
+
+    'landing.guide.titel' => 'Sie kennen einen Ort? Dann zeigen Sie ihn.',
+    'landing.guide.alt'   => 'Die Anfragenliste eines Guides mit einer offenen Anfrage zum Annehmen oder Ablehnen.',
+    'landing.guide.knopf' => 'Als Guide anfangen',
 
     // Das Fenster an einer Kartennadel (assets/js/home_map.js). Die
     // Zustandsmarken darin kommen aus standort.zustand.* - es ist derselbe

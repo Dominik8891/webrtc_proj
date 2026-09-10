@@ -6,6 +6,7 @@ use App\Model\GuideRole;
 use App\Model\TourRequest;
 use App\Model\TourReview;
 use App\Model\User;
+use App\Helper\Brand;
 use App\Helper\Theme;
 
 /**
@@ -858,6 +859,18 @@ class ViewHelper
         //                     am Konto gespeichert, und zwei Umschalter fuer
         //                     dieselbe Einstellung waeren zwei Antworten auf
         //                     die Frage, wo man sie aendert.
+        // DER PRODUKTNAME. Drei Stellen im Layout - Titel des
+        // Browserfensters, Kopfleiste, Fusszeile -, ein Wert
+        // (App\Helper\Brand). Dort steht auch, wo er geaendert wird, wenn
+        // der Name feststeht.
+        //
+        // NICHT ueber den Sprachkatalog: Ein Produktname wird nicht
+        // uebersetzt. Er waere sonst in lang/de.php und lang/en.php
+        // einzutragen, und die zweite Datei ist die, die beim Umbenennen
+        // vergessen wird.
+        $out = str_replace("###BRAND###"     , self::esc(Brand::NAME)        , $out);
+        $out = str_replace("###BRAND_MARK###", self::esc(Brand::MARK)        , $out);
+
         $out = str_replace("###LANG###"      , I18n::aktiv()                 , $out);
         $out = str_replace("###I18N_BOOT###" , I18n::bootScript()            , $out);
         $out = str_replace("###LANGSWITCH###", Auth::isLoggedIn() ? '' : self::languageSwitch(), $out);
