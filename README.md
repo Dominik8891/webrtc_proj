@@ -2553,13 +2553,22 @@ Aufnahmen sind Knöpfe beschriftet, und ein englischer Besucher, der deutsche
 Knöpfe abgebildet sieht, bekommt genau die Unstimmigkeit, wegen der es den
 Sprachumschalter gibt. Die Vorlage wählt das Verzeichnis über `###LANG###`.
 
-> **Das Kamerabild.** Ohne eigene Videodatei nimmt Chromium sein Testmuster —
-> im Anruf steht dann ein grüner Kreis statt einer Gasse. Für eine Werbeseite
-> ist das unbrauchbar. Eine kurze eigene Aufnahme genügt:
+> **Das Kamerabild — das Einzige, was von Hand dazukommt.** Ohne eigene Datei
+> nimmt Chromium sein Testmuster: Im Anruf steht dann ein grüner Kreis statt
+> einer Gasse. Für eine Werbeseite ist das unbrauchbar.
+>
+> **Ein einzelnes Foto genügt** — keine Videodatei, keine Umwandlung. Chromium
+> liest hier auch ein gewöhnliches JPEG und hält es als Standbild (ein
+> MJPEG-Strom sind aneinandergehängte JPEGs; eines ist davon der kürzeste
+> Fall):
 > ```bash
-> ffmpeg -i gasse.mp4 -t 10 -pix_fmt yuv420p gasse.y4m
-> LP_VIDEO=$PWD/gasse.y4m node tools/landing_shots.js
+> LP_VIDEO=$PWD/gasse.jpg node tools/landing_shots.js
 > ```
+> Das Bild füllt die Bühne: Querformat passt besser als Hochformat, ein
+> ruhiges Motiv besser als eines mit Schrift — darauf liegen Steuerkreuz und
+> Richtungsanzeige. Wer Bewegung will, gibt eine `.y4m` an
+> (`ffmpeg -i gasse.mp4 -t 10 -pix_fmt yuv420p gasse.y4m`).
+>
 > Weitere Schalter (`LP_BASE`, `LP_PW`, `LP_LANGS`, `LP_OUT`) stehen im Kopf
 > der Datei.
 

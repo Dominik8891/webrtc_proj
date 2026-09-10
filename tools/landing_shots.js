@@ -57,11 +57,25 @@
  * ===========================================================================
  *   LP_BASE      Adresse der Anwendung. Vorgabe http://127.0.0.1:8080
  *   LP_PW        Passwort der Demokonten. Vorgabe Demo!2345
- *   LP_VIDEO     Eine .y4m- oder .mjpeg-Datei, die Chromium ALS KAMERA
- *                benutzt. OHNE SIE zeigt das Kamerabild im Anruf das
- *                Testmuster des Browsers (ein gruener Kreis) - fuer eine
- *                Werbeseite unbrauchbar. Mit ihr steht dort, was in der
- *                Datei ist; eine Handaufnahme aus einer Gasse genuegt:
+ *   LP_VIDEO     Was Chromium ALS KAMERA benutzt. OHNE DIESE ANGABE zeigt
+ *                das Kamerabild im Anruf das Testmuster des Browsers (ein
+ *                gruener Kreis) - fuer eine Werbeseite unbrauchbar.
+ *
+ *                EIN EINZELNES FOTO GENUEGT, und das ist der bequeme Teil:
+ *                Chromium liest hier auch eine gewoehnliche JPEG-Datei und
+ *                haelt sie als Standbild. Ein MJPEG-Strom ist nichts anderes
+ *                als aneinandergehaengte JPEGs, und ein einzelnes ist davon
+ *                der kuerzeste Fall - eine Umwandlung braucht es nicht:
+ *
+ *                    LP_VIDEO=$PWD/gasse.jpg node tools/landing_shots.js
+ *
+ *                Das Bild fuellt die Buehne. Ein Querformat passt deshalb
+ *                besser als ein Hochformat, und ein ruhiges Motiv besser als
+ *                eines mit Schrift - darauf liegen Steuerkreuz und
+ *                Richtungsanzeige.
+ *
+ *                Wer Bewegung will, gibt eine .y4m-Datei an; die entsteht
+ *                aus einem Video mit
  *                    ffmpeg -i gasse.mp4 -t 10 -pix_fmt yuv420p gasse.y4m
  *   LP_OUT       Zielverzeichnis. Vorgabe assets/img/landing
  *
@@ -266,7 +280,8 @@ async function durchgang(in_browser, in_sprache) {
     const args = ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
                   '--autoplay-policy=no-user-gesture-required'];
     if (VIDEO) args.push('--use-file-for-fake-video-capture=' + VIDEO);
-    else console.warn('LP_VIDEO ist nicht gesetzt - das Kamerabild zeigt das Testmuster von Chromium.');
+    else console.warn('LP_VIDEO ist nicht gesetzt - das Kamerabild zeigt das Testmuster '
+                    + 'von Chromium. Ein einzelnes Foto genuegt: LP_VIDEO=/pfad/zu/foto.jpg');
 
     const browser = await chromium.launch({ args });
 
