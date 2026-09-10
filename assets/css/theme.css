@@ -481,19 +481,24 @@ a:hover {
     height: 16px;
     padding: 0;
     border-radius: 50%;
-    border: 2px solid var(--app-border-strong);
-    background: var(--dot, var(--app-accent));
+    /* Fuellung = Seitengrund, Rand = Akzent. Beides kommt vom Element
+       (--dot-bg / --dot-accent, gesetzt in themeSwitchMini). Warum diese
+       Aufteilung und nicht der Akzent allein, steht dort. */
+    background: var(--dot-bg, var(--app-surface));
+    border: 2px solid var(--dot-accent, var(--app-border-strong));
     cursor: pointer;
-    transition: transform var(--app-transition), border-color var(--app-transition);
+    transition: transform var(--app-transition), box-shadow var(--app-transition);
 }
 
 .app-theme-dot:hover { transform: scale(1.15); }
 
-/* Das aktive Profil. Ein Ring aussen herum statt einer Fuellung: Die Fuellung
-   IST die Auskunft - sie sagt, welche Farbe man bekaeme. Wer sie zur
-   Markierung umfaerbte, naehme dem Punkt seinen Inhalt. */
+/* Das aktive Profil. Ein Ring AUSSEN HERUM und nichts am Punkt selbst: Seine
+   beiden Farben sind die Auskunft - sie sagen, was man bekaeme. Wer eine
+   davon zur Markierung umfaerbte, naehme dem Punkt seinen Inhalt.
+
+   Der erste Ring hat die Farbe der Leiste und trennt nur; der zweite ist die
+   Markierung. */
 .app-theme-dot--on {
-    border-color: var(--app-text);
     box-shadow: 0 0 0 2px var(--app-surface), 0 0 0 3px var(--app-text);
 }
 

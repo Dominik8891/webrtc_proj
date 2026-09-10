@@ -19,9 +19,10 @@
  * ===========================================================================
  *   - Die Anwendung laeuft und ist erreichbar (Vorgabe: 127.0.0.1:8080).
  *   - In der Datenbank stehen die Demodaten, die tools/landing_seed.php
- *     anlegt: ein Guide mit Standort, ein Kunde, eine angenommene Anfrage.
- *     Dasselbe Skript schreibt tools/landing_seed.json, aus dem dieses
- *     Werkzeug die Kennungen liest.
+ *     anlegt: JE SPRACHE ein Guide mit vier Fuehrungen, dazu die Kunden und
+ *     eine angenommene Anfrage. Dasselbe Skript schreibt
+ *     tools/landing_seed.json, aus dem dieses Werkzeug die Kennungen liest -
+ *     nach Sprache getrennt.
  *   - Node.js mit Playwright (npm i -D playwright).
  *
  * ===========================================================================
@@ -95,10 +96,12 @@
  *                                  im Moment eines Steuerbefehls.
  *   <sprache>/guide-anfragen.png   Die Anfragenliste des Guides.
  *
- * NICHT UEBERSETZT WIRD, WAS DIE NUTZER GESCHRIEBEN HABEN: Standorttexte und
- * Bewertungen stehen auf beiden Fassungen so da, wie sie in der Datenbank
- * stehen. Das ist keine Nachlaessigkeit, sondern richtig - die Anwendung
- * uebersetzt sie im Betrieb auch nicht.
+ * AUCH DIE INHALTE PASSEN ZUR SPRACHE, nicht nur die Knoepfe: Titel,
+ * Beschreibungen, Guide-Text und Bewertungen. Die Anwendung uebersetzt
+ * Nutzertexte nicht - zu Recht, es sind die Texte ihrer Verfasser. Fuer die
+ * Aufnahmen sind es deshalb ZWEI GUIDES in derselben Stadt, einer je
+ * Sprache (tools/landing_seed.php). Eine Eigenschaft der Demodaten, keine
+ * der Anwendung.
  *
  * Die Startseite mit der Karte ist NICHT dabei, und das ist kein Versehen:
  * Die Landingpage bettet die Karte im Blickfang direkt ein (assets/js/
@@ -150,10 +153,31 @@ if (!fs.existsSync(SEED_DATEI)) {
 
 const seed = JSON.parse(fs.readFileSync(SEED_DATEI, 'utf8'));
 
-const GUIDE       = seed.guideName;
-const KUNDE       = seed.kundeName;
-const LOCATION_ID = String(seed.locationId);
-const GUIDE_ID    = String(seed.guideUserId);
+/**
+ * Die Kennungen fuer EINE Sprache.
+ *
+ * JE SPRACHE EIN EIGENER GUIDE, und das ist der Kern dieser Datei: Was ein
+ * Guide schreibt - Titel, Beschreibung, Selbstvorstellung -, uebersetzt die
+ * Anwendung nicht. Zu Recht: Es ist sein Text und nicht ihrer. Auf einer
+ * WERBESEITE staenden damit auf der englischen Fassung deutsche Titel, und
+ * das ist ein Fehler, den kein Besucher der Anwendung anlastet, sondern der
+ * Seite.
+ *
+ * tools/landing_seed.php legt deshalb zwei Guides in derselben Stadt an -
+ * einer schreibt deutsch, einer englisch - und schreibt ihre Kennungen nach
+ * Sprache getrennt auf. Hier wird nur ausgewaehlt.
+ *
+ * @param {string} in_sprache Sprachkuerzel
+ */
+function kennungen(in_sprache) {
+    const k = seed[in_sprache];
+    if (!k) {
+        console.error('In ' + SEED_DATEI + ' fehlen die Kennungen fuer "' + in_sprache
+                    + '" - bitte tools/landing_seed.php neu laufen lassen.');
+        process.exit(1);
+    }
+    return k;
+}
 
 /**
  * Meldet ein Konto an, stellt die Sprache um und gibt die Seite zurueck.
@@ -224,6 +248,13 @@ async function aufnehmen(in_seite, in_sprache, in_datei) {
  * @param {string} in_sprache Sprachkuerzel
  */
 async function durchgang(in_browser, in_sprache) {
+    // Der Guide dieser Sprache und seine erste Fuehrung - siehe kennungen().
+    const k           = kennungen(in_sprache);
+    const GUIDE       = k.guideName;
+    const KUNDE       = k.kundeName;
+    const LOCATION_ID = String(k.locationId);
+    const GUIDE_ID    = String(k.guideUserId);
+
     const kontext = () => in_browser.newContext({
         viewport: { width: 1280, height: 800 },
         deviceScaleFactor: 2,

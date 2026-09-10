@@ -25,13 +25,37 @@
  *
  * WAS ES ANLEGT
  * -------------
- *   - vier Guide-Konten mit Profil und je einem Standort,
- *   - ein Kundenkonto,
- *   - eine ANGENOMMENE Anfrage des Kunden an den ersten Guide. Ohne sie
- *     kommt kein Anruf zustande: Der Server laesst eine Fuehrung nur zu,
- *     wenn eine Zusage vorliegt (App\Controller\WebRTCController).
- *   - Bereitschaft und Bewertungen, damit die Standortseite nicht leer
- *     aussieht.
+ * JE SPRACHE EINEN GUIDE mit vier Fuehrungen, Bewertungen und einer
+ * Anfragenliste, dazu die Kunden, von denen die Anfragen kommen.
+ *
+ * ZWEI GUIDES, WEIL ES ZWEI SPRACHFASSUNGEN DER LANDINGPAGE GIBT. Was ein
+ * Guide schreibt, uebersetzt die Anwendung nicht - zu Recht: Es ist sein
+ * Text und nicht ihrer. Fuer die AUFNAHMEN heisst das trotzdem, dass auf
+ * der englischen Fassung sonst deutsche Titel und Beschreibungen staenden,
+ * und das ist auf einer Werbeseite ein Fehler. Also gibt es hier zwei
+ * Guides in derselben Stadt: einer schreibt deutsch, einer englisch, und
+ * tools/landing_shots.js nimmt je Sprache den passenden auf.
+ *
+ * DAS IST EINE EIGENSCHAFT DER DEMODATEN UND KEINE DER ANWENDUNG. Sie
+ * bekommt dadurch keine mehrsprachigen Nutzerinhalte; es sind schlicht zwei
+ * Konten, die verschiedene Sprachen sprechen - so wie es auf einer echten
+ * Plattform auch waere.
+ *
+ * VIER FUEHRUNGEN JE GUIDE UND NICHT EINE: Auf der Anfragenliste stand
+ * sonst fuenfmal derselbe Titel untereinander, und das sieht nach
+ * Testdaten aus.
+ *
+ * Dazu je Guide:
+ *   - eine OFFENE Anfrage. Sie zeigt, dass ein Guide etwas zu entscheiden
+ *     hat - "Annehmen" und "Ablehnen" stehen darunter.
+ *   - eine ANGENOMMENE Anfrage des anrufenden Kunden. Ohne sie kommt kein
+ *     Anruf zustande: Der Server laesst eine Fuehrung nur zu, wenn eine
+ *     Zusage vorliegt (App\Controller\WebRTCController).
+ *   - fuenf abgeschlossene Fuehrungen mit Bewertung, ueber die Standorte
+ *     verteilt. Drei davon liegen am ERSTEN Standort - er ist der, den die
+ *     Aufnahme der Standortseite zeigt, und ohne Bewertungen stuende dort
+ *     "Noch keine Bewertung".
+ *   - Bereitschaft, damit der Anruf durchgeht.
  *
  * Das Passwort aller Konten ist 'Demo!2345' und steht auch in
  * tools/landing_shots.js (LP_PW).
@@ -57,7 +81,8 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 // Das Kriterium ist absichtlich grob: Steht dort mehr als die Handvoll
 // Konten, die dieses Skript selbst anlegt, ist es keine Spielwiese mehr.
 // ---------------------------------------------------------------------------
-$eigene  = "'mara_l','tobias_n','keiko_k','youssef_m','gast_anna'";
+$eigene  = "'mara_l','nora_w','gast_anna','sam_t','jonas_p','keiko_k',"
+         . "'youssef_m','tobias_n','ellen_b','marek_s'";
 $fremde  = (int)$pdo->query("SELECT COUNT(*) FROM user WHERE username NOT IN ($eigene)")
                     ->fetchColumn();
 
@@ -142,86 +167,186 @@ function seed_konto(PDO $in_pdo, string $in_name, string $in_mail, int $in_typ, 
 $hash = seed_pwd('Demo!2345');
 
 // ---------------------------------------------------------------------------
-// Die Guides und ihre Standorte.
+// DIE KUNDEN. Sie fragen an und bewerten.
 //
-// VIER UND NICHT EINER: Auf der Aufnahme der Anfragenliste und in der Karte
-// soll etwas los sein. Ein einziger Eintrag sieht aus wie ein Testsystem.
+// 'gast_anna' und 'sam_t' sind die, mit denen tools/landing_shots.js anruft -
+// EINER JE SPRACHE, und das ist kein Schmuck:
+//
+// Der Durchgang beendet die Fuehrung, die er aufgenommen hat. Danach fragt
+// die Anwendung den Kunden nach einer Bewertung - zu Recht, so ist sie
+// gebaut. Waere es in beiden Durchgaengen derselbe Kunde, laege diese Frage
+// im ZWEITEN Durchgang als Karte quer ueber der Standortseite, und zwar mit
+// dem Titel der Fuehrung aus dem ersten: auf der englischen Aufnahme ein
+// deutscher Satz.
+//
+// Die uebrigen sind Namen unter Bewertungen und offenen Anfragen; sie melden
+// sich nie an.
 // ---------------------------------------------------------------------------
+$kunden = [
+    'gast_anna' => 'anna@example.org',
+    'sam_t'     => 'sam@example.org',
+    'jonas_p'   => 'jonas@example.org',
+    'keiko_k'   => 'keiko@example.org',
+    'youssef_m' => 'youssef@example.org',
+    'tobias_n'  => 'tobias@example.org',
+    'ellen_b'   => 'ellen@example.org',
+    'marek_s'   => 'marek@example.org',
+];
+
+$kundenIds = [];
+foreach ($kunden as $name => $mail) {
+    $kundenIds[$name] = seed_konto($pdo, $name, $mail, 1, $hash);
+}
+
+// ---------------------------------------------------------------------------
+// DIE BEIDEN GUIDES - einer je Sprachfassung der Landingpage.
+//
+// BEIDE IN DERSELBEN STADT, und zwar in der, die auf dem Kamerabild zu sehen
+// ist (LP_VIDEO in tools/landing_shots.js): eine deutsche Fachwerkaltstadt
+// in der Daemmerung. Auf der Landingpage stehen Standortseite und Anruf
+// nebeneinander und sollen dieselbe Fuehrung zeigen.
+//
+// WER EIGENE INHALTE EINSETZT, TAUSCHT BEIDES ZUSAMMEN: Bild und Standort
+// gehoeren zusammen, und das faellt nur auf, wenn man es aufschreibt.
+//
+// DIE REIHENFOLGE DER FUEHRUNGEN IST NICHT BELIEBIG: Die erste ist die, die
+// auf der Standortseite aufgenommen wird - sie bekommt unten die meisten
+// Bewertungen.
+// ---------------------------------------------------------------------------
+$stadt = ['Quedlinburg', 'DE'];
+
 $guides = [
-    // DER ERSTE GUIDE IST DER, DER AUFGENOMMEN WIRD - und sein Ort ist so
-    // gewaehlt, dass er zum Kamerabild passt (LP_VIDEO in
-    // tools/landing_shots.js): eine deutsche Fachwerkaltstadt in der
-    // Daemmerung. Auf der Landingpage stehen Standortseite und Anruf
-    // nebeneinander und sollen dieselbe Fuehrung zeigen; eine portugiesische
-    // Gasse neben einem niedersaechsischen Marktplatz waeren zwei.
-    //
-    // WER EIGENE INHALTE EINSETZT, TAUSCHT BEIDES ZUSAMMEN: Bild und
-    // Standort gehoeren zusammen, und das faellt nur auf, wenn man es
-    // aufschreibt.
-    [
+    'de' => [
         'name'  => 'mara_l',
         'mail'  => 'mara@example.org',
+        'kunde' => 'gast_anna',
         'zeige' => 'Mara L.',
         'ueber' => 'Ich wohne seit zwölf Jahren zwei Gassen weiter und kenne hier jeden Türsturz. Am liebsten gehe ich los, wenn die Laternen angehen.',
         'sprachen' => 'de,en',
-        'stadt' => ['Quedlinburg', 'DE'],
         'zone'  => 'Europe/Berlin',
-        'lat'   => 51.78780000, 'lon' => 11.14140000,
-        'titel' => 'Durch die Fachwerkgassen zur Dämmerung',
-        'text'  => 'Wir gehen die Kopfsteingasse hinunter bis zum Torturm. Unterwegs: schiefe Giebel aus fünf Jahrhunderten, die Apotheke mit dem alten Schild, und die Bank vor dem Café, auf der abends immer dieselben zwei sitzen.',
-        'kurz'  => 'Die Kopfsteingasse hinunter bis zum Torturm, wenn die Laternen angehen.',
-        'dauer' => 45,
+        'orte'  => [
+            [
+                'lat' => 51.78780000, 'lon' => 11.14140000, 'dauer' => 45,
+                'titel' => 'Durch die Fachwerkgassen zur Dämmerung',
+                'kurz'  => 'Die Kopfsteingasse hinunter bis zum Torturm, wenn die Laternen angehen.',
+                'text'  => 'Wir gehen die Kopfsteingasse hinunter bis zum Torturm. Unterwegs: schiefe Giebel aus fünf Jahrhunderten, die Apotheke mit dem alten Schild, und die Bank vor dem Café, auf der abends immer dieselben zwei sitzen.',
+            ],
+            [
+                'lat' => 51.78920000, 'lon' => 11.13760000, 'dauer' => 30,
+                'titel' => 'Markttag: zwischen den Ständen',
+                'kurz'  => 'Der Markt am Samstagmorgen, bevor das Brot alle ist.',
+                'text'  => 'Samstags ab acht. Wir gehen die Reihen ab, ich frage für Sie nach, und Sie sehen, was hier wirklich auf den Tisch kommt. Am Ende bleibt Zeit für den Bäcker in der Ecke – aber nur, wenn wir früh genug dort sind.',
+            ],
+            [
+                'lat' => 51.78560000, 'lon' => 11.13820000, 'dauer' => 60,
+                'titel' => 'Vom Schlossberg hinunter',
+                'kurz'  => 'Oben die Aussicht, unten die Höfe, dazwischen 200 Stufen.',
+                'text'  => 'Wir fangen oben an, wo man über alle Dächer sieht, und arbeiten uns hinunter. Der Weg führt durch drei Höfe, die man von der Straße aus nicht vermutet, und endet an der Stelle, an der die Stadtmauer einfach im Garten von jemandem weitergeht.',
+            ],
+            [
+                'lat' => 51.79040000, 'lon' => 11.14520000, 'dauer' => 40,
+                'titel' => 'Die Höfe hinter der Hauptstraße',
+                'kurz'  => 'Was hinter den Toren liegt, an denen alle vorbeigehen.',
+                'text'  => 'Fünf Minuten von der Hauptstraße und trotzdem eine andere Stadt: Werkstätten, Wäscheleinen, ein Hof mit einem Feigenbaum, der hier eigentlich nicht wachsen dürfte. Ich klingle nicht, aber ich weiß, welche Tore offen stehen.',
+            ],
+        ],
     ],
-    [
-        'name'  => 'tobias_n',
-        'mail'  => 'tobias@example.org',
-        'zeige' => 'Tobias N.',
-        'ueber' => 'Neapel ist laut, und das ist der Punkt. Ich gehe mit Ihnen dorthin, wo die Stadt arbeitet.',
-        'sprachen' => 'de,en,it',
-        'stadt' => ['Neapel', 'IT'],
-        'zone'  => 'Europe/Rome',
-        'lat'   => 40.85100000, 'lon' => 14.25700000,
-        'titel' => 'Spaccanapoli von oben nach unten',
-        'text'  => 'Die Gerade, die die Altstadt teilt. Krippenfiguren, Pizza fritta, und die Seitengassen, in die sonst niemand abbiegt.',
-        'kurz'  => 'Die Gerade, die die Altstadt teilt – und die Gassen daneben.',
-        'dauer' => 60,
-    ],
-    [
-        'name'  => 'keiko_k',
-        'mail'  => 'keiko@example.org',
-        'zeige' => 'Keiko K.',
-        'ueber' => 'Ich zeige Kyoto abseits der Tempelrouten: Werkstätten, kleine Märkte, den Fluss am Morgen.',
-        'sprachen' => 'en',
-        'stadt' => ['Kyoto', 'JP'],
-        'zone'  => 'Asia/Tokyo',
-        'lat'   => 35.00400000, 'lon' => 135.76800000,
-        'titel' => 'Nishiki-Markt am Morgen',
-        'text'  => 'Bevor die Reisegruppen kommen: Fischhändler, eingelegtes Gemüse, der Messerschleifer an der Ecke.',
-        'kurz'  => 'Der Markt, bevor die Reisegruppen kommen.',
-        'dauer' => 30,
-    ],
-    [
-        'name'  => 'youssef_m',
-        'mail'  => 'youssef@example.org',
-        'zeige' => 'Youssef M.',
-        'ueber' => 'Die Souks von innen. Ich übersetze, was gerufen wird, und erkläre, was gehandelt wird.',
-        'sprachen' => 'en,fr',
-        'stadt' => ['Marrakesch', 'MA'],
-        'zone'  => 'Africa/Casablanca',
-        'lat'   => 31.62600000, 'lon' => -7.98900000,
-        'titel' => 'Souk el Attarine',
-        'text'  => 'Gewürze, Leder, Messing – und der Weg zurück, den ohne Begleitung niemand findet.',
-        'kurz'  => 'Gewürze, Leder, Messing – und der Weg zurück.',
-        'dauer' => 40,
+
+    'en' => [
+        'name'  => 'nora_w',
+        'mail'  => 'nora@example.org',
+        'kunde' => 'sam_t',
+        'zeige' => 'Nora W.',
+        'ueber' => 'I moved here from Bristol eight years ago and never quite left. I walk these lanes most evenings anyway – you may as well come along.',
+        'sprachen' => 'en,de',
+        'zone'  => 'Europe/Berlin',
+        'orte'  => [
+            [
+                'lat' => 51.78810000, 'lon' => 11.14210000, 'dauer' => 45,
+                'titel' => 'Timber-framed lanes at dusk',
+                'kurz'  => 'Down the cobbled lane to the gate tower, just as the lamps come on.',
+                'text'  => 'We walk the cobbled lane down to the gate tower. On the way: crooked gables from five centuries, the pharmacy with the old sign, and the bench outside the café where the same two men sit every evening.',
+            ],
+            [
+                'lat' => 51.78950000, 'lon' => 11.13710000, 'dauer' => 30,
+                'titel' => 'Market morning',
+                'kurz'  => 'The Saturday market, before the good bread runs out.',
+                'text'  => 'Saturdays from eight. We walk the rows, I ask the questions for you, and you see what people here actually cook. There is time for the baker in the corner at the end – but only if we get there early.',
+            ],
+            [
+                'lat' => 51.78600000, 'lon' => 11.13900000, 'dauer' => 60,
+                'titel' => 'Down from the castle hill',
+                'kurz'  => 'The view at the top, the courtyards below, 200 steps in between.',
+                'text'  => 'We start up where you can see across every roof and work our way down. The route goes through three courtyards you would never guess at from the street, and ends where the old town wall simply carries on through somebody\'s garden.',
+            ],
+            [
+                'lat' => 51.79010000, 'lon' => 11.14480000, 'dauer' => 40,
+                'titel' => 'Behind the gates on the main street',
+                'kurz'  => 'What sits behind the doors everyone walks straight past.',
+                'text'  => 'Five minutes off the main street and it is a different town: workshops, washing lines, a courtyard with a fig tree that has no business growing here. I do not ring any bells, but I know which gates stand open.',
+            ],
+        ],
     ],
 ];
 
-$guideIds = [];
-$standortIds = [];
+// ---------------------------------------------------------------------------
+// DIE ANFRAGEN JE GUIDE.
+//
+// 'ort' ist der Platz in der Liste oben (0 = die erste Fuehrung). DREI der
+// abgeschlossenen liegen am ersten Standort: Er ist der, den die Aufnahme
+// der Standortseite zeigt, und dort soll eine Durchschnittsnote stehen und
+// nicht "Noch keine Bewertung".
+//
+// DIE REIHENFOLGE AUF DER SEITE MACHT NICHT DIESE LISTE, sondern
+// App\Model\TourRequest::sortierung(): offen zuerst, dann angenommen, dann
+// die abgeschlossenen von neu nach alt. Dass oben vier verschiedene Titel
+// stehen, ist deshalb kein Zufall, sondern ueber die Tage gesteuert.
+// ---------------------------------------------------------------------------
+$anfragen = [
+    // Offen - hier ist etwas zu entscheiden.
+    ['ort' => 1, 'kunde' => 'jonas_p', 'status' => 'open', 'in_stunden' => 3],
 
-foreach ($guides as $g) {
+    // Angenommen - daran haengt der Anruf des Aufnahmewerkzeugs. Der Kunde
+    // steht als null, weil er von der SPRACHE abhaengt: Er wird unten aus
+    // $g['kunde'] eingesetzt (siehe der Kommentar bei den Kunden oben).
+    ['ort' => 0, 'kunde' => null, 'status' => 'accepted', 'in_stunden' => 0],
+
+    // Abgeschlossen, mit Bewertung. 'tage' ist, wie lange es her ist.
+    ['ort' => 2, 'kunde' => 'keiko_k',   'status' => 'done', 'tage' => 3,  'sterne' => 5,
+     'de' => 'Zweihundert Stufen und keine davon zu viel. Ich habe unterwegs dreimal gesagt "warten Sie, was ist das da" – und jedes Mal kam eine Geschichte.',
+     'en' => 'Two hundred steps and not one too many. Three times I said "wait, what is that" – and every time there was a story.'],
+
+    ['ort' => 3, 'kunde' => 'youssef_m', 'status' => 'done', 'tage' => 9,  'sterne' => 5,
+     'de' => 'Der Hof mit dem Feigenbaum. Ich hätte nie gedacht, dass so etwas hinter diesen Toren liegt.',
+     'en' => 'The courtyard with the fig tree. I would never have guessed that was behind those gates.'],
+
+    ['ort' => 0, 'kunde' => 'tobias_n',  'status' => 'done', 'tage' => 21, 'sterne' => 5,
+     'de' => 'Sie ist stehengeblieben, wo ich stehenbleiben wollte. Die Stunde ging viel zu schnell vorbei.',
+     'en' => 'She stopped wherever I wanted to stop. The hour went by far too quickly.'],
+
+    ['ort' => 0, 'kunde' => 'ellen_b',   'status' => 'done', 'tage' => 38, 'sterne' => 4,
+     'de' => 'Die Verbindung hat einmal gehakt, sonst nichts zu bemängeln.',
+     'en' => 'The connection stuttered once, otherwise nothing to complain about.'],
+
+    ['ort' => 0, 'kunde' => 'marek_s',   'status' => 'done', 'tage' => 54, 'sterne' => 5,
+     'de' => 'Ich hatte nach dem Torturm gefragt und bekam den Weg dorthin, den kein Reiseführer aufschreibt.',
+     'en' => 'I asked about the gate tower and got the way there that no guidebook writes down.'],
+];
+
+// ---------------------------------------------------------------------------
+// Anlegen. Erst aufraeumen, damit ein zweiter Lauf nichts verdoppelt - die
+// Bewertungen zuerst, denn sie haengen an den Anfragen.
+// ---------------------------------------------------------------------------
+$pdo->prepare("DELETE FROM tour_review WHERE guide_user_id IN
+                 (SELECT id FROM user WHERE username IN ($eigene))")->execute();
+$pdo->prepare("DELETE FROM tour_request WHERE guide_user_id IN
+                 (SELECT id FROM user WHERE username IN ($eigene))")->execute();
+
+$stadtId  = seed_stadt($pdo, $stadt[0], $stadt[1]);
+$kennung  = [];
+
+foreach ($guides as $sprache => $g) {
     $uid = seed_konto($pdo, $g['name'], $g['mail'], 2, $hash);
-    $guideIds[$g['name']] = $uid;
 
     $pdo->prepare(
         "REPLACE INTO guide_profile
@@ -231,150 +356,117 @@ foreach ($guides as $g) {
                  DATE_SUB(NOW(), INTERVAL 430 DAY), 1, NOW())"
     )->execute([$uid, $g['zeige'], $g['ueber'], $g['sprachen']]);
 
-    $stadtId = seed_stadt($pdo, $g['stadt'][0], $g['stadt'][1]);
-
-    $vorhanden = $pdo->prepare("SELECT id FROM location WHERE user_id = ? LIMIT 1");
-    $vorhanden->execute([$uid]);
-    $lid = (int)$vorhanden->fetchColumn();
-
-    // ANLEGEN ODER AUFFRISCHEN, und das Auffrischen ist der Teil, der
-    // vorher fehlte: Das Skript legte einen vorhandenen Standort einfach
-    // stehen. Wer hier oben etwas aenderte - einen Titel, einen Ort, das
-    // Kamerabild und den Ort dazu -, bekam beim naechsten Lauf trotzdem die
-    // alten Daten und suchte den Fehler im Aufnahmewerkzeug.
+    // DIE STANDORTE. Angelegt oder aufgefrischt - nicht geloescht und neu:
+    // An einem Standort haengen Bewertungen und Anfragen, und eine neue
+    // Kennung liesse ihre Fremdschluessel ins Leere zeigen.
     //
-    // GELOESCHT WIRD NICHT: An einem Standort haengen Bewertungen und
-    // Anfragen. Ein DELETE und ein neues INSERT gaeben ihm eine neue
-    // Kennung, und die Fremdschluessel zeigten ins Leere.
-    if ($lid === 0) {
+    // Zugeordnet wird ueber die REIHENFOLGE: Der n-te vorhandene Standort
+    // dieses Guides bekommt den n-ten Eintrag aus der Liste oben.
+    $vorhanden = $pdo->prepare("SELECT id FROM location WHERE user_id = ? ORDER BY id");
+    $vorhanden->execute([$uid]);
+    $alteIds = $vorhanden->fetchAll(PDO::FETCH_COLUMN);
+
+    $ortIds = [];
+    foreach ($g['orte'] as $i => $ort) {
+        if (isset($alteIds[$i])) {
+            $pdo->prepare(
+                "UPDATE location
+                    SET city_id = ?, latitude = ?, longitude = ?, description = ?,
+                        title = ?, description_long = ?, duration_minutes = ?,
+                        languages = ?, timezone = ?
+                  WHERE id = ?"
+            )->execute([$stadtId, $ort['lat'], $ort['lon'], $ort['kurz'], $ort['titel'],
+                        $ort['text'], $ort['dauer'], $g['sprachen'], $g['zone'],
+                        $alteIds[$i]]);
+            $ortIds[] = (int)$alteIds[$i];
+            continue;
+        }
+
         $pdo->prepare(
             "INSERT INTO location
                 (user_id, city_id, latitude, longitude, description, title,
                  description_long, duration_minutes, languages, timezone)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        )->execute([$uid, $stadtId, $g['lat'], $g['lon'], $g['kurz'], $g['titel'],
-                    $g['text'], $g['dauer'], $g['sprachen'], $g['zone']]);
-        $lid = (int)$pdo->lastInsertId();
-    } else {
-        $pdo->prepare(
-            "UPDATE location
-                SET city_id = ?, latitude = ?, longitude = ?, description = ?,
-                    title = ?, description_long = ?, duration_minutes = ?,
-                    languages = ?, timezone = ?
-              WHERE id = ?"
-        )->execute([$stadtId, $g['lat'], $g['lon'], $g['kurz'], $g['titel'],
-                    $g['text'], $g['dauer'], $g['sprachen'], $g['zone'], $lid]);
+        )->execute([$uid, $stadtId, $ort['lat'], $ort['lon'], $ort['kurz'],
+                    $ort['titel'], $ort['text'], $ort['dauer'], $g['sprachen'],
+                    $g['zone']]);
+        $ortIds[] = (int)$pdo->lastInsertId();
     }
 
-    $standortIds[$g['name']] = $lid;
-}
-
-// Der erste Guide ist bereit - sonst weist der Server den Anruf ab.
-$pdo->prepare(
-    "UPDATE user
-        SET available_until = DATE_ADD(NOW(), INTERVAL 2 HOUR),
-            user_status = 'online',
-            last_aktive = NOW()
-      WHERE id = ?"
-)->execute([$guideIds['mara_l']]);
-
-// ---------------------------------------------------------------------------
-// Der Kunde und seine Anfragen.
-//
-// EINE ANGENOMMENE fuer den Anruf (ohne Zusage kommt keine Fuehrung zustande)
-// und EINE OFFENE, damit auf der Anfragenliste des Guides etwas zu entscheiden
-// ist - das ist die Aufnahme guide-anfragen.png.
-// ---------------------------------------------------------------------------
-$kundeId = seed_konto($pdo, 'gast_anna', 'anna@example.org', 1, $hash);
-
-// Beim zweiten Lauf nicht doppelt: Erst die Anfragen dieses Skripts weg,
-// dann neu. Die Bewertungen haengen per Fremdschluessel daran und gehen
-// dabei mit - deshalb wird ihre Tabelle zuerst geleert.
-$pdo->prepare("DELETE FROM tour_review WHERE location_id IN
-                 (SELECT id FROM location WHERE user_id IN
-                    (SELECT id FROM user WHERE username IN ($eigene)))")->execute();
-$pdo->prepare("DELETE FROM tour_request WHERE customer_user_id IN
-                 (SELECT id FROM user WHERE username IN ($eigene))")->execute();
-
-$pdo->prepare(
-    "INSERT INTO tour_request
-        (location_id, guide_user_id, customer_user_id, status, wish_at,
-         expires_at, created_at, decided_at)
-     VALUES (?, ?, ?, 'accepted', NOW(), DATE_ADD(NOW(), INTERVAL 2 HOUR), NOW(), NOW())"
-)->execute([$standortIds['mara_l'], $guideIds['mara_l'], $kundeId]);
-
-// DIE OFFENE ANFRAGE GEHT AN DENSELBEN GUIDE, der aufgenommen wird - und
-// von jemand anderem als dem Kunden oben. Beides ist noetig:
-//
-//   an denselben Guide, weil sonst auf SEINER Anfragenliste nichts steht,
-//   was zu entscheiden waere - und genau das soll die Aufnahme zeigen;
-//
-//   von jemand anderem, weil tools/landing_shots.js am Ende jedes Durchgangs
-//   die Anfrage DES KUNDEN annimmt, um die naechste Fuehrung zu ermoeglichen.
-//   Waere es dieselbe, verschwaende der zweite Durchgang genau das Bild, um
-//   das es hier geht.
-$pdo->prepare(
-    "INSERT INTO tour_request
-        (location_id, guide_user_id, customer_user_id, status, wish_at,
-         expires_at, created_at)
-     VALUES (?, ?, ?, 'open', DATE_ADD(NOW(), INTERVAL 3 HOUR),
-             DATE_ADD(NOW(), INTERVAL 4 HOUR), NOW())"
-)->execute([$standortIds['mara_l'], $guideIds['mara_l'], $guideIds['keiko_k']]);
-
-// ---------------------------------------------------------------------------
-// Bewertungen fuer den Standort, der aufgenommen wird.
-//
-// OHNE SIE STEHT AUF DER STANDORTSEITE "Noch keine Bewertung" - eine wahre
-// Auskunft ueber ein leeres Testsystem und ein schlechtes Bild fuer eine
-// Seite, die zeigen soll, wie es aussieht, wenn die Anwendung benutzt wird.
-//
-// EINE BEWERTUNG HAENGT AN EINER ABGESCHLOSSENEN FUEHRUNG (Fremdschluessel
-// auf tour_request), also wird die Fuehrung mit angelegt. Als Kunden treten
-// die anderen Guides auf - wer fuehrt, darf auch mitgehen.
-//
-// DER ZUSTAND HEISST 'done' UND NICHT 'finished'. Die sechs erlaubten Werte
-// stehen als Konstanten in App\Model\TourRequest; jeder andere kommt durch
-// die Datenbank, hat aber keinen Namen im Sprachkatalog und steht dann als
-// nackter Schluessel auf der Seite.
-// ---------------------------------------------------------------------------
-$bewertungen = [
-    ['kunde' => 'keiko_k',   'sterne' => 5, 'tage' => 12,
-     'text'  => 'Sie ist stehengeblieben, wo ich stehenbleiben wollte. Die Stunde ging viel zu schnell vorbei.'],
-    ['kunde' => 'youssef_m', 'sterne' => 5, 'tage' => 31,
-     'text'  => 'Ich hatte nach dem Torturm gefragt und bekam den Weg dorthin, den kein Reiseführer aufschreibt.'],
-    ['kunde' => 'tobias_n',  'sterne' => 4, 'tage' => 54,
-     'text'  => 'Die Verbindung hat einmal gehakt, sonst nichts zu bemängeln.'],
-];
-
-foreach ($bewertungen as $b) {
-    $kid = $guideIds[$b['kunde']];
-
+    // Bereitschaft - sonst weist der Server den Anruf ab.
     $pdo->prepare(
-        "INSERT INTO tour_request
-            (location_id, guide_user_id, customer_user_id, status, wish_at,
-             expires_at, created_at, decided_at, started_at, ended_at, closed_at)
-         VALUES (?, ?, ?, 'done',
-                 DATE_SUB(NOW(), INTERVAL ? DAY), DATE_SUB(NOW(), INTERVAL ? DAY),
-                 DATE_SUB(NOW(), INTERVAL ? DAY), DATE_SUB(NOW(), INTERVAL ? DAY),
-                 DATE_SUB(NOW(), INTERVAL ? DAY), DATE_SUB(NOW(), INTERVAL ? DAY),
-                 DATE_SUB(NOW(), INTERVAL ? DAY))"
-    )->execute([$standortIds['mara_l'], $guideIds['mara_l'], $kid,
-                $b['tage'], $b['tage'], $b['tage'], $b['tage'],
-                $b['tage'], $b['tage'], $b['tage']]);
+        "UPDATE user
+            SET available_until = DATE_ADD(NOW(), INTERVAL 2 HOUR),
+                user_status = 'online',
+                last_aktive = NOW()
+          WHERE id = ?"
+    )->execute([$uid]);
 
-    $anfrageId = (int)$pdo->lastInsertId();
+    // Die Anfragen und ihre Bewertungen.
+    foreach ($anfragen as $a) {
+        $ortId = $ortIds[$a['ort']];
+        // null heisst "der anrufende Kunde dieser Sprache".
+        $kid   = $kundenIds[$a['kunde'] ?? $g['kunde']];
 
-    $pdo->prepare(
-        "INSERT INTO tour_review
-            (request_id, guide_user_id, customer_user_id, location_id,
-             stars, body, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))"
-    )->execute([$anfrageId, $guideIds['mara_l'], $kid, $standortIds['mara_l'],
-                $b['sterne'], $b['text'], $b['tage']]);
+        if ($a['status'] === 'open') {
+            $pdo->prepare(
+                "INSERT INTO tour_request
+                    (location_id, guide_user_id, customer_user_id, status, wish_at,
+                     expires_at, created_at)
+                 VALUES (?, ?, ?, 'open', DATE_ADD(NOW(), INTERVAL ? HOUR),
+                         DATE_ADD(NOW(), INTERVAL ? HOUR), NOW())"
+            )->execute([$ortId, $uid, $kid, $a['in_stunden'], $a['in_stunden'] + 1]);
+            continue;
+        }
+
+        if ($a['status'] === 'accepted') {
+            $pdo->prepare(
+                "INSERT INTO tour_request
+                    (location_id, guide_user_id, customer_user_id, status, wish_at,
+                     expires_at, created_at, decided_at)
+                 VALUES (?, ?, ?, 'accepted', NOW(),
+                         DATE_ADD(NOW(), INTERVAL 2 HOUR), NOW(), NOW())"
+            )->execute([$ortId, $uid, $kid]);
+            continue;
+        }
+
+        // 'done' - abgeschlossen, und dazu die Bewertung des Kunden.
+        //
+        // DER ZUSTAND HEISST 'done' UND NICHT 'finished'. Die sechs erlaubten
+        // Werte stehen als Konstanten in App\Model\TourRequest; jeder andere
+        // kommt zwar durch die Datenbank, hat aber keinen Namen im
+        // Sprachkatalog und stuende dann als nackter Schluessel auf der Seite.
+        $tage = $a['tage'];
+        $pdo->prepare(
+            "INSERT INTO tour_request
+                (location_id, guide_user_id, customer_user_id, status, wish_at,
+                 expires_at, created_at, decided_at, started_at, ended_at, closed_at)
+             VALUES (?, ?, ?, 'done',
+                     DATE_SUB(NOW(), INTERVAL ? DAY), DATE_SUB(NOW(), INTERVAL ? DAY),
+                     DATE_SUB(NOW(), INTERVAL ? DAY), DATE_SUB(NOW(), INTERVAL ? DAY),
+                     DATE_SUB(NOW(), INTERVAL ? DAY), DATE_SUB(NOW(), INTERVAL ? DAY),
+                     DATE_SUB(NOW(), INTERVAL ? DAY))"
+        )->execute([$ortId, $uid, $kid, $tage, $tage, $tage, $tage, $tage, $tage, $tage]);
+
+        $pdo->prepare(
+            "INSERT INTO tour_review
+                (request_id, guide_user_id, customer_user_id, location_id,
+                 stars, body, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? DAY))"
+        )->execute([(int)$pdo->lastInsertId(), $uid, $kid, $ortId,
+                    $a['sterne'], $a[$sprache], $tage]);
+    }
+
+    $kennung[$sprache] = [
+        'guideName'   => $g['name'],
+        'guideUserId' => $uid,
+        'locationId'  => $ortIds[0],
+        'kundeName'   => $g['kunde'],
+    ];
 }
 
 // ---------------------------------------------------------------------------
-// DIE KENNUNGEN FUER DAS AUFNAHMEWERKZEUG.
+// DIE KENNUNGEN FUER DAS AUFNAHMEWERKZEUG - je Sprache eine Gruppe.
 //
 // tools/landing_shots.js braucht Standort- und Benutzerkennung, um den Anruf
 // zu starten. Fest eingetragen waeren sie falsch, sobald jemand seine
@@ -383,18 +475,16 @@ foreach ($bewertungen as $b) {
 //
 // Die Datei ist Zwischenstand und gehoert nicht ins Repository (.gitignore).
 // ---------------------------------------------------------------------------
-$kennungen = [
-    'guideUserId' => $guideIds['mara_l'],
-    'locationId'  => $standortIds['mara_l'],
-    'guideName'   => 'mara_l',
-    'kundeName'   => 'gast_anna',
-];
 file_put_contents(__DIR__ . '/landing_seed.json',
-                  json_encode($kennungen, JSON_PRETTY_PRINT) . "\n");
+                  json_encode($kennung, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n");
 
 echo "Demodaten stehen.\n";
-echo "  Guide:  mara_l    (Konto " . $guideIds['mara_l']
-   . ", Standort " . $standortIds['mara_l'] . ")\n";
-echo "  Kunde:  gast_anna\n";
+foreach ($kennung as $sprache => $k) {
+    echo "  $sprache: " . $k['guideName'] . " (Konto " . $k['guideUserId']
+       . ", Standort " . $k['locationId'] . ")\n";
+}
+foreach ($kennung as $sprache => $k) {
+    echo "  Kunde $sprache: " . $k['kundeName'] . "\n";
+}
 echo "  Passwort: Demo!2345\n";
 echo "  Kennungen fuer die Aufnahmen: tools/landing_seed.json\n";

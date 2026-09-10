@@ -592,16 +592,29 @@ class ViewHelper
         $punkte = "";
 
         foreach (Theme::PROFILE as $schluessel => $profil) {
-            // Die dritte Musterfarbe ist der Akzent - das Kennzeichen des
-            // Profils (siehe App\Helper\Theme::PROFILE). Die beiden davor
-            // sind Grund und Flaeche und unterscheiden sich zu wenig, um in
-            // einem 14 Pixel grossen Punkt etwas auszusagen.
-            $farbe = $profil["muster"][2] ?? "#000000";
-            $name  = I18n::t("farbprofil." . $schluessel . ".name");
+            // ZWEI FARBEN JE PUNKT, und die Aufteilung ist die ganze Aussage:
+            //
+            //   Fuellung = der SEITENGRUND des Profils (muster[0]). Er sagt,
+            //              ob es hell oder dunkel wird - und das ist die
+            //              Frage, die jemand stellt, der hier klickt.
+            //   Rand     = der AKZENT (muster[2]). Er unterscheidet die drei
+            //              hellen Profile voneinander; ihre Gruende sind
+            //              einander zu aehnlich, um allein zu genuegen.
+            //
+            // VORHER STAND NUR DER AKZENT IM PUNKT, und das war schlicht
+            // falsch herum: Der dunkelste Punkt gehoerte damit "Neutral" -
+            // einem HELLEN Profil mit dunkelgrauem Akzent -, waehrend das
+            // Dunkelprofil einen hellen Punkt bekam, weil sein Akzent ein
+            // helles Blauviolett ist. Ein Muster, das die Farbe zeigt, die
+            // man NICHT bekommt, ist keine Vorschau.
+            $grund  = $profil["muster"][0] ?? "#ffffff";
+            $akzent = $profil["muster"][2] ?? "#000000";
+            $name   = I18n::t("farbprofil." . $schluessel . ".name");
 
             $punkte .= '<button type="button" class="app-theme-dot"'
                     .  ' data-theme-value="' . self::esc($schluessel) . '"'
-                    .  ' style="--dot: ' . self::esc($farbe) . '"'
+                    .  ' style="--dot-bg: ' . self::esc($grund)
+                    .          '; --dot-accent: ' . self::esc($akzent) . '"'
                     .  ' title="' . self::esc($name) . '"'
                     .  ' aria-label="' . self::esc($name) . '"></button>';
         }

@@ -2570,7 +2570,13 @@ den Text davor nicht lesen kann. Damit sie nicht zweimal dasteht, lässt
 
 Die Farbprofilwahl ist hier eine Reihe von vier Punkten und nicht die
 beschriftete Auswahl der Kontoseite — in einer Kopfleiste wäre die eine Wand
-aus Text. Sie kommt ohne Konto aus: Angewendet und im Browser gemerkt wird
+aus Text. Jeder Punkt trägt **zwei** Farben des Profils: der *Seitengrund* als
+Füllung (hell oder dunkel — das ist die Frage, die jemand stellt, der hier
+klickt) und der *Akzent* als Rand (er unterscheidet die drei hellen Profile
+voneinander). Nur der Akzent wäre falsch herum: Der dunkelste Punkt gehörte
+damit „Neutral" — einem hellen Profil mit dunkelgrauem Akzent —, während das
+Dunkelprofil einen hellen Punkt bekäme, weil sein Akzent ein helles
+Blauviolett ist. Sie kommt ohne Konto aus: Angewendet und im Browser gemerkt wird
 sofort, ans Konto geschickt nur, wenn jemand angemeldet ist (ein Gast bekäme
 für `set_theme` eine Abfuhr).
 
@@ -2600,6 +2606,25 @@ veraltet genauso, **aber sie lässt sich neu machen.**
 Aufnahmen sind Knöpfe beschriftet, und ein englischer Besucher, der deutsche
 Knöpfe abgebildet sieht, bekommt genau die Unstimmigkeit, wegen der es den
 Sprachumschalter gibt. Die Vorlage wählt das Verzeichnis über `###LANG###`.
+
+**Auch die Inhalte passen zur Sprache**, nicht nur die Knöpfe. Was ein Guide
+schreibt — Titel, Beschreibung, Selbstvorstellung —, übersetzt die Anwendung
+nicht; zu Recht, es ist sein Text und nicht ihrer. Auf einer *Werbeseite*
+stünden damit auf der englischen Fassung deutsche Titel, und das ist ein
+Fehler, den kein Besucher der Anwendung anlastet, sondern der Seite.
+
+`tools/landing_seed.php` legt deshalb **zwei Guides in derselben Stadt** an —
+einer schreibt deutsch, einer englisch —, und das Aufnahmewerkzeug nimmt je
+Sprache den passenden auf. Das ist eine Eigenschaft der Demodaten und keine
+der Anwendung: Es sind schlicht zwei Konten, die verschiedene Sprachen
+sprechen, so wie es auf einer echten Plattform auch wäre. Auch der anrufende
+Kunde ist je Sprache ein anderer — sonst läge im zweiten Durchgang die
+Bewertungsfrage aus dem ersten quer über der Seite.
+
+**Vier Führungen je Guide** und nicht eine: Auf der Anfragenliste stand sonst
+fünfmal derselbe Titel untereinander, und das sieht nach Testdaten aus. Dazu
+eine offene Anfrage (der Guide hat etwas zu entscheiden), eine angenommene
+(daran hängt der Anruf) und fünf abgeschlossene mit Bewertung.
 
 > **Das Kamerabild — das Einzige, was von Hand dazukommt.** Ohne eigene Datei
 > nimmt Chromium sein Testmuster: Im Anruf steht dann ein grüner Kreis statt
