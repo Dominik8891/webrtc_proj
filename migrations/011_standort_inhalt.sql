@@ -69,7 +69,12 @@
 --   die uebrige Anwendung laeuft unveraendert weiter.
 --
 -- AUSFUEHREN
---   mariadb -u <user> -p <datenbank> < migrations/011_standort_inhalt.sql
+--   Im Client, nicht ueber die Umleitung - DELIMITER ist eine Anweisung des
+--   Clients, und die Windows-Konsole hat ueber "<" schon einmal die Umlaute
+--   zerschossen (siehe Nachtrag in 004_country_seed.sql):
+--
+--     mariadb --default-character-set=utf8mb4 -u <user> -p <datenbank>
+--     SOURCE migrations/011_standort_inhalt.sql;
 -- ===========================================================================
 
 -- --------------------------------------------------------------------------

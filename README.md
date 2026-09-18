@@ -47,30 +47,83 @@ composer install
 ```
 
 ### 1. Datenbank
-Importiere die mitgelieferte `database.sql` in deine MySQL-Instanz. Diese erstellt alle notwendigen Tabellen wie `user`, `location`, `rtc_signal` und `usertype`.
+**Eine neue Installation braucht genau eine Datei: `database.sql`.** Sie legt
+alle Tabellen an — `user`, `location`, `location_image`, `guide_profile`,
+`tour_request`, `tour_review`, `chat`, `chat_message`, `rtc_signal`,
+`rate_limit`, `usertype`, `country`, `city` und die beiden Tokentabellen. Die
+Migrationen aus `migrations/` sind dafür **nicht** nötig; sie sind
+ausschließlich für eine bestehende Datenbank da, die von einem älteren Stand
+hochgezogen wird.
+
+Erwartet wird **MariaDB**. Die Migrationen benutzen `ALTER TABLE … IF NOT
+EXISTS`, das MySQL 8 nicht kennt.
+
+```bash
+mariadb --default-character-set=utf8mb4 -u <user> -p <datenbank>
+```
+```sql
+SOURCE database.sql;
+```
+
+Auch hier `SOURCE` und nicht `< datei` — die Begründung steht gleich unten bei
+den Migrationen, und sie gilt für jede SQL-Datei dieses Projekts.
 
 **Bestehende Installationen** brauchen zusätzlich die Migrationen aus `migrations/`, der Reihe nach:
 
 ```bash
-mariadb -u <user> -p <datenbank> < migrations/005_rollen_neu_nummeriert.sql
-mariadb -u <user> -p <datenbank> < migrations/006_location_sperre.sql
-mariadb -u <user> -p <datenbank> < migrations/007_guide_rolle.sql
-mariadb -u <user> -p <datenbank> < migrations/008_farbprofil.sql
-mariadb -u <user> -p <datenbank> < migrations/009_call_standort.sql
-mariadb -u <user> -p <datenbank> < migrations/010_verfuegbarkeit.sql
-mariadb -u <user> -p <datenbank> < migrations/011_standort_inhalt.sql
-mariadb -u <user> -p <datenbank> < migrations/012_titelbild.sql
-mariadb -u <user> -p <datenbank> < migrations/013_anfragen.sql
-mariadb -u <user> -p <datenbank> < migrations/014_verfuegbarkeitszeiten.sql
-mariadb -u <user> -p <datenbank> < migrations/015_guide_profil.sql
-mariadb -u <user> -p <datenbank> < migrations/016_bewertungen.sql
-mariadb -u <user> -p <datenbank> < migrations/017_fuehrung_beenden.sql
-mariadb -u <user> -p <datenbank> < migrations/018_bremse.sql
-mariadb -u <user> -p <datenbank> < migrations/019_standort_chat.sql
-mariadb -u <user> -p <datenbank> < migrations/020_username_eindeutig.sql
-mariadb -u <user> -p <datenbank> < migrations/021_stadt_je_land_eindeutig.sql
-mariadb -u <user> -p <datenbank> < migrations/022_sprache.sql
+# Den Client ÖFFNEN - und die Dateien von ihm lesen lassen, nicht von der Shell.
+mariadb --default-character-set=utf8mb4 -u <user> -p <datenbank>
 ```
+```sql
+SOURCE migrations/005_rollen_neu_nummeriert.sql;
+SOURCE migrations/006_location_sperre.sql;
+SOURCE migrations/007_guide_rolle.sql;
+SOURCE migrations/008_farbprofil.sql;
+SOURCE migrations/009_call_standort.sql;
+SOURCE migrations/010_verfuegbarkeit.sql;
+SOURCE migrations/011_standort_inhalt.sql;
+SOURCE migrations/012_titelbild.sql;
+SOURCE migrations/013_anfragen.sql;
+SOURCE migrations/014_verfuegbarkeitszeiten.sql;
+SOURCE migrations/015_guide_profil.sql;
+SOURCE migrations/016_bewertungen.sql;
+SOURCE migrations/017_fuehrung_beenden.sql;
+SOURCE migrations/018_bremse.sql;
+SOURCE migrations/019_standort_chat.sql;
+SOURCE migrations/020_username_eindeutig.sql;
+SOURCE migrations/021_stadt_je_land_eindeutig.sql;
+SOURCE migrations/022_sprache.sql;
+```
+
+**`SOURCE` und nicht `< datei` — aus zwei Gründen, und der zweite hat hier
+real Schaden angerichtet.**
+
+*Erstens:* `DELIMITER` ist eine Anweisung des **Kommandozeilenclients**, keine
+des Servers. Die Migrationen `002`, `003`, `004` und `021` prüfen in
+gespeicherten Prozeduren ihre Voraussetzungen und brechen über `SIGNAL` ab, wenn
+der Bestand ihnen widerspricht — dafür brauchen sie `DELIMITER`. Über die
+Umleitung liest die Shell die Datei und der Client bekommt einen Strom, in dem
+seine eigene Anweisung nicht mehr sicher an der richtigen Stelle steht. Mit
+`SOURCE` öffnet der Client die Datei selbst und wertet sie Zeile für Zeile aus.
+
+*Zweitens — und das ist der teure Grund: Die Umleitung hat die Umlaute
+zerschossen.* Auf mindestens einer Installation ist `004_country_seed.sql` über
+`< datei` in der Windows-Konsole eingespielt worden. Die Konsole reicht den
+Inhalt in ihrer eigenen Codepage weiter (CP437/CP850 statt UTF-8): Aus
+`Österreich` wurde in der Datenbank `├ûsterreich`, und die Anwendung zeigte vor
+jedem Umlaut einen senkrechten Strich. **In der Datei standen die Namen
+richtig** — kaputt war nur, was davon ankam. Gemerkt hat es niemand beim
+Einspielen; aufgefallen ist es erst auf der Seite. Der Nachtrag im Kopf von
+`004_country_seed.sql` beschreibt den Vorfall ausführlich.
+
+Deshalb steht oben zusätzlich `--default-character-set=utf8mb4`: Damit ist auch
+für den Fall vorgesorgt, dass der Client eine andere Vorgabe mitbringt.
+
+Die Ländernamen werden seither ohnehin aus `App\Helper\Countries` angezeigt und
+nicht mehr aus dieser Tabelle — die Migration ist trotzdem nötig, weil sie die
+ISO-Codes füllt, und eine Tabelle mit lesbaren Werten ist beim Nachsehen mehr
+wert als eine mit Zeichensalat.
+
 
 `005` vergibt die Rollennummern neu (siehe unten), `006` ergänzt die Spalten für die Standortsperre, `007` legt die Tabelle `guide_profile` an und trägt die vorhandenen Guides darin nach, `008` speichert das Farbprofil je Konto, `009` merkt sich am Signal, von welchem Standort ein Anruf ausging — daran hängt die Rollenvergabe im Call, `010` ergänzt `user.available_until` und trennt damit "angemeldet" von "bereit" (siehe [Verfügbarkeit](#-verfügbarkeit-angemeldet-ist-nicht-bereit)), `011` gibt dem Standort Titel, ausführliche Beschreibung, Dauer und Sprachen und legt die Tabelle `location_image` an, `012` trennt Titelbild und Beispielbilder über die Spalte `location_image.role` und wählt in jedem vorhandenen Standort das erste Bild zum Titelbild (siehe [Der Standort und seine Seite](#-der-standort-und-seine-seite)), `013` legt die Tabelle `tour_request` an — die Anfrage und zugleich der erste Datensatz über stattgefundene Führungen (siehe [Die Anfrage](#-die-anfrage-statt-des-anrufs)), `014` gibt dem Standort seine **üblichen Zeiten** und seine **Zeitzone** (siehe [Übliche Zeiten](#übliche-zeiten-und-die-zeitzone-des-ortes)), `015` macht aus der Zustimmungszeile ein **Profil** — Anzeigename, Selbstbeschreibung, Sprachen, Bild (siehe [Der Guide als Mensch](#-der-guide-als-mensch)), `016` legt die Tabelle `tour_review` an — die **Bewertung einer Führung** (siehe [Bewertungen](#-bewertungen)), `017` ergänzt `tour_request.closed_at`: Der Guide **beendet die Führung ausdrücklich**, statt dass das Auflegen sie abschließt (siehe [Auflegen ist nicht beenden](#auflegen-ist-nicht-beenden)), `018` legt die Tabelle `rate_limit` an — die **serverseitigen Versuchszähler**, die vorher in der Session des Aufrufers lagen, `019` gibt dem Chat seine **Herkunft** (`chat.location_id`) und nimmt ihm die **Einladung** (siehe [Der Chat](#-der-chat-über-einen-standort)), `020` macht den **Benutzernamen eindeutig** (Index auf `user.username`), `021` macht eine **Stadt je Land eindeutig** (Index auf `city(city_name, country_id)`), `022` ergänzt `user.lang` — die **Sprache der Oberfläche je Konto** (siehe [Sprache](#-sprache-das-fundament)). Alle sind idempotent.
 
@@ -603,8 +656,13 @@ etwa täglich nach dem Lauf:
 Datenbank (das Schema legt der Dump selbst an):
 
 ```bash
-gunzip -c db_2026-05-01_032001.sql.gz | mysql -u webrtc_user -p webrtc_proj
+gunzip -c db_2026-05-01_032001.sql.gz \
+  | mariadb --default-character-set=utf8mb4 -u webrtc_user -p webrtc_proj
 ```
+
+Hier ist die Pipe in Ordnung — anders als bei den Migrationen: Ein Dump aus
+`mysqldump` trägt seine Kodierung als `SET NAMES` selbst im Kopf, und
+`DELIMITER` steht nicht darin. Die Angabe am Client ist der Gurt daneben.
 
 Bilder — das Archiv enthält das Upload-Verzeichnis **samt seinem Namen**,
 entpackt wird deshalb in das übergeordnete Verzeichnis:

@@ -2,6 +2,25 @@
 
 Stand: 2026-09-01 · Branch `claude/webrtc-platform-inventory-fmqm2c` · Commit `c7730f1`
 
+> **⚠️ DIESES DOKUMENT IST PROJEKTGESCHICHTE, KEINE BESCHREIBUNG DES HEUTIGEN
+> CODES.** Es ist die Bestandsaufnahme, aus der die Arbeit danach hervorging —
+> und diese Arbeit hat den größten Teil davon erledigt. Wer wissen will, wie die
+> Anwendung heute aussieht, liest `README.md`; wer einen Einstieg sucht,
+> `UEBERGABE.md`.
+>
+> Konkret überholt: **Abschnitte 1 bis 9** beschreiben einen Code, den es so
+> nicht mehr gibt — ein Rollenmodell mit `Admin=0`, einen einzigen DataChannel
+> ohne Rollen im Call, einen fehlenden `MessageController`, Tests und
+> Migrationen, die es nicht gebe. Von **Abschnitt 10** sind Priorität 1 und 3
+> abgearbeitet und Priorität 5 überwiegend.
+>
+> **Offen aus der Lückenliste sind vier Punkte**, und nur für die lohnt sich das
+> Nachschlagen hier: **2.4** (kein CSRF-Schutz), **2.5** (statischer IV,
+> `PEPPER` in Doppelnutzung), **2.7** (CDN-Einbindungen ohne Subresource
+> Integrity) und **3.1** (Polling statt WebSocket beim Signaling).
+>
+> Der Anhang „Positiv hervorzuheben" gilt weiterhin.
+
 Analysiert wurde der komplette Repo-Inhalt (89 Dateien, ~6.400 Zeilen Quellcode).
 Es gibt **keine `package.json`** — das Projekt ist eine klassische PHP-Anwendung mit
 Composer; die Frontend-Bibliotheken kommen per CDN. Abschnitt 2 behandelt daher

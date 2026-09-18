@@ -31,8 +31,12 @@
 --
 --   Wer ihn heute einspielt, achte trotzdem auf die Kodierung - die Namen
 --   sind zwar nicht mehr die Anzeige, aber eine Tabelle mit lesbaren Werten
---   ist beim Nachsehen mehr wert als eine mit Zeichensalat:
---       mariadb --default-character-set=utf8mb4 -u <user> -p <db> < diese_datei
+--   ist beim Nachsehen mehr wert als eine mit Zeichensalat. Und zwar ueber
+--   SOURCE und NICHT ueber die Umleitung: Bei "<" liest die Shell die Datei
+--   und reicht sie in ihrer eigenen Codepage weiter - genau der Weg, auf dem
+--   der Schaden oben entstanden ist. Bei SOURCE oeffnet der Client sie selbst.
+--       mariadb --default-character-set=utf8mb4 -u <user> -p <db>
+--       SOURCE migrations/004_country_seed.sql;
 --
 -- VORAUSSETZUNG
 --   Migration 003 muss gelaufen sein. Fehlt die Spalte iso2, bricht diese
@@ -57,7 +61,12 @@
 --   erfolgt ohnehin ueber den Namen, die Staedtesuche dagegen ueber iso2.
 --
 -- AUSFUEHREN
---   mariadb -u <user> -p <datenbank> < migrations/004_country_seed.sql
+--   Im Client, nicht ueber die Umleitung - DELIMITER ist eine Anweisung des
+--   Clients, und die Windows-Konsole hat ueber "<" schon einmal die Umlaute
+--   zerschossen (siehe Nachtrag in 004_country_seed.sql):
+--
+--     mariadb --default-character-set=utf8mb4 -u <user> -p <datenbank>
+--     SOURCE migrations/004_country_seed.sql;
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------

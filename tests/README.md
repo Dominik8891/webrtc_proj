@@ -19,6 +19,11 @@ Kommandozeile.
 Bei Erfolg endet die Ausgabe mit `N Pruefungen bestanden.` und Exit-Code 0.
 Beim ersten Fehlschlag bricht das Skript ab und nennt die verletzte Annahme.
 
+**Die Zahl im Skriptkopf zählt der Lauf selbst, die Zahlen in den beiden
+Überschriften unten stehen hier von Hand.** Sie laufen deshalb auseinander,
+sobald jemand eine Prüfung ergänzt und die Überschrift vergisst — maßgeblich ist
+immer die Ausgabe des Laufs, nicht dieser Text.
+
 **Keine Datenbank und kein Netzwerk nötig.** Die PDO-Verbindung und alle
 HTTP-Aufrufe sind durch Attrappen ersetzt. Die Skripte schreiben nichts und
 verändern nichts — sie sind gefahrlos jederzeit ausführbar.
@@ -55,7 +60,7 @@ Geprüft wird der **produktive Code**, nicht eine Nachbildung davon: Die
 Testdateien laden `assets/js/*.js` und `class/**/*.php` direkt. Wird dort etwas
 geändert, schlagen die Prüfungen an.
 
-## Was `client_test.js` prüft (187 Prüfungen)
+## Was `client_test.js` prüft (188 Prüfungen)
 
 ### Verbindungsstabilität (1–14)
 
@@ -419,7 +424,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (385 Prüfungen)
+## Was `server_test.php` prüft (410 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige

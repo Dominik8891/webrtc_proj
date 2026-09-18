@@ -7,7 +7,9 @@ ist genau dann kompatibel, wenn er sich an das hier Beschriebene hält.
 Die maschinenlesbare Fassung derselben Tabelle steht in
 [`assets/js/protocol.js`](assets/js/protocol.js). Beide werden zusammen geändert.
 
-**Stand:** Protokollversion `2` · Branch `fix/call-rollen`
+**Stand:** Protokollversion `2`. Sie ist in `main` und die einzige, die
+gesprochen wird — der Branch `fix/call-rollen`, unter dem sie entstanden ist,
+existiert nicht mehr.
 
 ### Was Version 2 gegenüber Version 1 ändert
 

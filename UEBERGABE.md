@@ -314,7 +314,7 @@ cp .env.example .env      # danach die Werte eintragen — siehe unten
 mariadb -u root -p -e "CREATE DATABASE webrtc_proj CHARACTER SET utf8mb4;"
 
 # 4. Schema einspielen  →  BEI EINER NEUEN INSTALLATION NUR DIESE DATEI
-mariadb -u root -p webrtc_proj
+mariadb --default-character-set=utf8mb4 -u root -p webrtc_proj
 ```
 ```sql
 SOURCE database.sql;
@@ -365,27 +365,36 @@ Schalter, den der Code über `Env::…` liest, dort und in der README vorkommt.
 
 ### Die Fallstricke, die uns begegnet sind
 
-**1. Migrationen mit `SOURCE` einspielen, nicht mit `<`.**
+**1. SQL-Dateien mit `SOURCE` einspielen, nicht mit `<`.**
 
-Vier Migrationsdateien — `002`, `003`, `004` und `021` — enthalten
-`DELIMITER`-Blöcke mit gespeicherten Prozeduren; sie prüfen darin
-Voraussetzungen und brechen über `SIGNAL` ab, wenn der Bestand nicht passt.
-`DELIMITER` ist eine Anweisung des Kommandozeilenclients und keine des Servers.
-Über die Umleitung `mariadb … < datei.sql` ist das je nach Client und
-Plattform unzuverlässig; die Datei läuft dann halb durch oder meldet einen
-Syntaxfehler mitten im Prozedurrumpf. Zuverlässig ist der Weg über den Client:
+Gilt für `database.sql` und für jede Migration. Zwei Gründe, und der zweite hat
+real Schaden angerichtet.
+
+*DELIMITER ist eine Anweisung des Clients.* Die Migrationen `002`, `003`, `004`
+und `021` prüfen in gespeicherten Prozeduren ihre Voraussetzungen und brechen
+über `SIGNAL` ab, wenn der Bestand ihnen widerspricht — dafür brauchen sie
+`DELIMITER`. Über die Umleitung liest die Shell die Datei; der Client bekommt
+nur einen Strom.
+
+*Die Umleitung hat die Umlaute zerschossen.* `004_country_seed.sql` wurde auf
+mindestens einer Installation über `< datei` in der Windows-Konsole eingespielt.
+Die Konsole reicht den Inhalt in ihrer eigenen Codepage weiter (CP437/CP850
+statt UTF-8): Aus `Österreich` wurde in der Datenbank `├ûsterreich`, und die
+Anwendung zeigte vor jedem Umlaut einen senkrechten Strich. **In der Datei
+standen die Namen richtig** — kaputt war nur, was ankam, und gemerkt hat es
+niemand beim Einspielen. Aufgefallen ist es erst auf der Seite.
+
+Der zuverlässige Weg, mit der Kodierung im Aufruf:
 
 ```bash
-mariadb -u <user> -p <datenbank>
+mariadb --default-character-set=utf8mb4 -u <user> -p <datenbank>
 ```
 ```sql
 SOURCE migrations/003_country_iso2.sql;
 ```
 
-**Die README zeigt in Abschnitt „1. Datenbank" noch durchgehend die
-Pipe-Form.** Das ist für die Dateien ohne `DELIMITER` in Ordnung und für die
-vier genannten die Stelle, an der man hängenbleibt. Wer die Migrationen anfasst,
-sollte die README dabei mitziehen.
+Die README und die Kopfkommentare aller Migrationen zeigen diese Form; der
+ausführliche Nachtrag zum Vorfall steht im Kopf von `004_country_seed.sql`.
 
 **2. Das Upload-Verzeichnis existiert nicht von selbst.**
 
@@ -522,11 +531,11 @@ nicht an; ein sauberer Arbeitsbaum ist kein Beleg. Bei neuen Dateien gehört
 
 | Datei | Umfang | Einschätzung |
 |---|---|---|
-| **`README.md`** | 163 KB | **Aktuell und die maßgebliche Beschreibung.** Sie wird mit jeder Änderung mitgezogen und erklärt nicht nur *was*, sondern *warum*. Einziger bekannter Rückstand: Die Migrationsbefehle zeigen die Pipe-Form (siehe Fallstrick 1). Wer das Produkt verstehen will, liest sie. |
+| **`README.md`** | 163 KB | **Aktuell und die maßgebliche Beschreibung.** Sie wird mit jeder Änderung mitgezogen und erklärt nicht nur *was*, sondern *warum*. Wer das Produkt verstehen will, liest sie. |
 | **`tests/README.md`** | 114 KB | **Aktuell.** Beschreibt jede einzelne der 598 Prüfungen und — wichtiger — *warum* es sie gibt. Der Abschnitt „Grenzen" am Ende ist die ehrlichste Seite des Projekts: Er sagt, was ein grüner Lauf **nicht** beweist. |
 | **`PROTOKOLL.md`** | 30 KB | **Aktuell** für Version 2 des Steuerprotokolls. Verbindlich für jeden Client. Wird zusammen mit `assets/js/protocol.js` geändert. Siehe Abschnitt 7. |
-| **`BERICHT_STANDORTSUCHE.md`** | 18 KB | **Weitgehend abgearbeitet, als Fehlerbericht überholt.** Die Ursachen (fehlende Spalte `country.iso2`, fehlende Stammdaten) sind durch die Migrationen `003`/`004` behoben; die offenen Punkte 5.2 und 5.3 (fehlende Fehlerbehandlung, ungeprüfter select2-Aufruf) sind in `map.js` inzwischen adressiert. Lesenswert bleibt **Abschnitt 4** — die Geschichte der Migrationen, die nie im Repository lagen. Das ist die Lehre, nicht der Befund. |
-| **`BESTANDSAUFNAHME.md`** | 98 KB | **Der Stand vom 2026-09-01 und in weiten Teilen überholt.** Das ist keine Kritik an dem Dokument — es ist die Bestandsaufnahme, aus der die Arbeit danach hervorging. Konkret: Die Abschnitte 1–9 beschreiben einen Code, den es so nicht mehr gibt (Rollenmodell mit Admin=0, ein einziger DataChannel, keine Rollen im Call, fehlender `MessageController`). Von Abschnitt 10 sind Priorität 1 und 3 abgearbeitet, Priorität 5 überwiegend. **Offen aus dieser Liste sind: 2.4 (CSRF), 2.5 (Krypto), 2.7 (SRI) und 3.1 (WebSocket-Signaling).** Der Anhang „Positiv hervorzuheben" gilt weiterhin. |
+| **`BERICHT_STANDORTSUCHE.md`** | 18 KB | **Weitgehend abgearbeitet, als Fehlerbericht überholt** — ein Hinweis dazu steht seit Kurzem in seinem Kopf. Die Ursachen (fehlende Spalte `country.iso2`, fehlende Stammdaten) sind durch die Migrationen `003`/`004` behoben; die offenen Punkte 5.2 und 5.3 (fehlende Fehlerbehandlung, ungeprüfter select2-Aufruf) sind in `map.js` inzwischen adressiert. Lesenswert bleibt **Abschnitt 4** — die Geschichte der Migrationen, die nie im Repository lagen. Das ist die Lehre, nicht der Befund. |
+| **`BESTANDSAUFNAHME.md`** | 98 KB | **Der Stand vom 2026-09-01 und in weiten Teilen überholt** — ein Hinweis dazu steht seit Kurzem in seinem Kopf. Das ist keine Kritik an dem Dokument — es ist die Bestandsaufnahme, aus der die Arbeit danach hervorging. Konkret: Die Abschnitte 1–9 beschreiben einen Code, den es so nicht mehr gibt (Rollenmodell mit Admin=0, ein einziger DataChannel, keine Rollen im Call, fehlender `MessageController`). Von Abschnitt 10 sind Priorität 1 und 3 abgearbeitet, Priorität 5 überwiegend. **Offen aus dieser Liste sind: 2.4 (CSRF), 2.5 (Krypto), 2.7 (SRI) und 3.1 (WebSocket-Signaling).** Der Anhang „Positiv hervorzuheben" gilt weiterhin. |
 
 **Kurz:** Für die Gegenwart lies `README.md` und `tests/README.md`. Für einen
 Client lies `PROTOKOLL.md`. `BESTANDSAUFNAHME.md` ist Projektgeschichte — mit

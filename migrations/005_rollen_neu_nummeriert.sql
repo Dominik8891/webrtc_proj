@@ -44,7 +44,12 @@
 --   im Fall User(2) -> Guide(2) sogar mehr Rechte als vorher.
 --
 -- AUSFUEHREN
---   mariadb -u <user> -p <datenbank> < migrations/005_rollen_neu_nummeriert.sql
+--   Im Client, nicht ueber die Umleitung - DELIMITER ist eine Anweisung des
+--   Clients, und die Windows-Konsole hat ueber "<" schon einmal die Umlaute
+--   zerschossen (siehe Nachtrag in 004_country_seed.sql):
+--
+--     mariadb --default-character-set=utf8mb4 -u <user> -p <datenbank>
+--     SOURCE migrations/005_rollen_neu_nummeriert.sql;
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------

@@ -2,6 +2,16 @@
 
 Stand: 2026-09-01 · Branch `fix/lauffaehigkeit`
 
+> **⚠️ ABGESCHLOSSEN — als Fehlerbericht überholt.** Die Ursachen sind behoben:
+> Die fehlende Spalte `country.iso2` kommt mit `migrations/003`, die fehlenden
+> Stammdaten mit `migrations/004`. Auch die offenen Punkte 5.2 und 5.3 (keine
+> Fehlerbehandlung in `loadCountries()`, ungeprüfter select2-Aufruf) sind in
+> `assets/js/map.js` inzwischen adressiert.
+>
+> **Lesenswert bleibt Abschnitt 4** — die Migrationen, die nie im Repository
+> lagen, weil `.gitignore` sie über `*.sql` stillschweigend mit erfasst hat.
+> Das ist die Lehre, nicht der Befund.
+
 Dieser Bericht dokumentiert die Fehlersuche und Behebung an der Seite
 „Neue Lokation hinzufügen" (`index.php?act=set_location_page`).
 
