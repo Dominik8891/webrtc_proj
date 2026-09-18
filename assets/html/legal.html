@@ -1,0 +1,53 @@
+<!--
+    Die Pflichtseiten: Impressum, Datenschutz, Kontakt.
+
+    EINE VORLAGE FUER ALLE DREI. Sie unterscheiden sich heute in genau einem
+    Wort - der Ueberschrift -, und drei Dateien mit identischem Aufbau waeren
+    drei Stellen, an denen dieselbe Aenderung nachzuziehen waere.
+
+    Eingesetzt von App\Controller\SystemController::legalPage(); dort steht
+    auch, woher der Katalogschluessel der Ueberschrift kommt (aus
+    config/routes.php und nicht aus der Anfrage).
+
+    PLATZHALTER
+    -----------
+    ###LEGAL_TITLE###  die Ueberschrift, fertig maskiert.
+
+    WARUM DIESE SEITEN LEER SIND UND TROTZDEM EXISTIEREN
+    ----------------------------------------------------
+    Die Verweise in der Fusszeile zeigten auf "#". Ein solcher Verweis fuehrt
+    nirgendwohin: Der Browser springt an den Seitenanfang, und der Besucher
+    haelt es fuer einen Fehler der Anwendung. Diese Seite sagt ihm stattdessen,
+    woran er ist - der Text fehlt noch, und das ist bekannt.
+
+    DER HINWEIS IST SICHTBAR UND NICHT DEZENT. Er soll auffallen, solange er
+    dasteht: Ein leeres Impressum ist in Deutschland kein Schoenheitsfehler,
+    sondern abmahnfaehig. Wer diese Seite im Betrieb sieht, soll sie fuellen
+    wollen.
+
+    KEINE EIGENE STILVORLAGE. Die Seite benutzt ausschliesslich Bausteine, die
+    es schon gibt: .app-page--narrow fuer die Breite, .app-panel fuer den
+    Kasten und .alert-warning fuer den Hinweis (alle in assets/css/theme.css).
+    Ein paar Zeilen CSS fuer drei Seiten mit vier Absaetzen waeren eine Datei,
+    die niemand mehr anfasst.
+
+    WENN DER TEXT KOMMT: Der Hinweis faellt weg und der Inhalt steht an seiner
+    Stelle. Ueberschrift und Rahmen bleiben.
+-->
+<div class="app-page app-page--narrow">
+
+    <div class="app-page-head">
+        <h1 class="app-page-head__title">###LEGAL_TITLE###</h1>
+    </div>
+
+    <div class="app-panel">
+        <div class="app-panel__body">
+            <div class="alert alert-warning" role="status">
+                <strong>{{t:rechtliches.fehlt.titel}}</strong><br>
+                {{t:rechtliches.fehlt.text}}
+            </div>
+
+            <p><a href="index.php?act=home">{{t:rechtliches.zurueck}}</a></p>
+        </div>
+    </div>
+</div>

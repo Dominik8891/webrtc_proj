@@ -2554,6 +2554,262 @@ gerichtet.
 
 ---
 
+## 🪧 Die Landingpage
+
+`index.php?act=landing` — die Seite, die *erklärt*, was das hier ist. Erreichbar
+über den Verweis **„Worum geht es hier?"** in der Fußzeile jeder Seite.
+
+**Sie ist nicht die Startseite und ersetzt sie nicht.** Der Unterschied ist der
+ganze Punkt:
+
+| | zeigt | Nadeln kommen aus |
+|---|---|---|
+| `act=home` | den **Bestand** — was gerade wirklich angeboten wird | der Datenbank |
+| `act=landing` | die **Möglichkeit** — dass es das Produkt gibt | `assets/js/landing.js` |
+
+Auf der Startseite wäre eine erfundene Nadel eine Falschauskunft; auf der
+Landingpage ist sie das Bild zu einem Satz — und der Hinweis unter der Karte
+sagt es auch. Die Karte selbst ist echt: dieselben Kacheln wie überall
+(`assets/js/map_tiles.js`), samt der Herkunftsangabe, die die ODbL verlangt.
+
+**Die Welt genau einmal.** Leaflet wiederholt eine Weltkarte von sich aus in
+der Waagerechten — rechts neben Asien fängt Amerika ein zweites Mal an. Auf den
+Karten der Anwendung fällt das nicht auf, weil sie eine Stadt zeigen; hier ist
+die ganze Erde im Bild. Dagegen stehen drei Angaben, und jede einzelne genügt
+nicht: `noWrap` an der Kachelebene (keine Kacheln jenseits von ±180°),
+`maxBounds` an der Karte (der Ausschnitt kommt nicht über den Rand) und eine
+**Mindestzoomstufe** aus der Breite der Fläche — `log2(breite / 256)`, denn
+sonst zoomt `fitBounds` so weit heraus, bis die Welt schmaler ist als die
+Fläche, und an den Rändern bliebe ein leerer Streifen.
+Nur die hundert Nadeln sind Stadtkoordinaten aus einer Liste und keine
+Standorte. Sie erscheinen nacheinander, jede zehnte grün — grün heißt in
+dieser Anwendung *„ein Guide ist jetzt erreichbar"*, und hier heißt es
+dasselbe.
+
+**Aufbau: vier Abschnitte, vier Sätze.** Sie führt mit der Kundensicht, weil
+das die verständlichere Geschichte ist; der Guide-Teil kommt danach, farblich
+abgesetzt und mit eigenem Weg zur Registrierung. Was die Anwendung kann, steht
+nicht als Liste da — es ist auf den Aufnahmen zu sehen. Eine Aufzählung von
+Funktionen liest niemand, der noch nicht weiß, ob ihn das Ganze angeht.
+
+Sie läuft durch `App\Helper\ViewHelper::output()` wie jede andere Seite:
+dieselben vier Farbprofile, derselbe Sprachumschalter, derselbe Katalog
+(`landing.*` in `lang/de.php` und `lang/en.php`). Ihre Stilvorlage
+(`assets/css/landing.css`) enthält **keinen einzigen Farbwert** — sonst wäre
+sie im Dunkelprofil ein heller Fleck.
+
+### Eine eigene Kopfleiste
+
+Die Leiste der Anwendung ist ein Arbeitsgerät: Standort anbieten,
+Standortliste, Anfragen- und Nachrichtenzähler, Bereitschaftsschalter,
+Kontomenü. Jedes davon setzt voraus, dass man schon weiß, worum es geht — und
+genau das weiß der Besucher der Landingpage noch nicht. Sechs Bedienelemente
+für eine Anwendung, die er nicht kennt, sind kein Angebot, sondern eine Hürde.
+
+Deshalb trägt sie eine eigene: **Name links, rechts Anmelden und Registrieren,
+dazu Sprache und Farbprofil.** Sonst nichts.
+
+| | Vorlage | Inhalt |
+|---|---|---|
+| Anwendung | `assets/html/topbar.html` | Aktionen, Zähler, Bereitschaft, Kontomenü |
+| Landingpage | `assets/html/topbar_slim.html` | Name, Anmelden, Registrieren, Sprache, Farbprofil |
+
+Welche gilt, entscheidet der zweite Parameter von `ViewHelper::output()`; das
+Layout (`assets/html/index.html`) nennt mit `###TOPBAR###` nur die Stelle. Auf
+der Landingpage entfallen außerdem die Anrufbauteile — von einer Werbeseite
+aus ruft niemand an.
+
+**Sprache und Farbprofil stehen hier oben und nicht in der Fußzeile**, anders
+als im Rest der Anwendung: Die Seite ist lang, ihre Fußzeile liegt hinter vier
+Abschnitten. Wer sie in der falschen Sprache aufschlägt, soll nicht erst ans
+Ende scrollen müssen — dort unten sucht er sie ja gerade deshalb nicht, weil er
+den Text davor nicht lesen kann. Damit sie nicht zweimal dasteht, lässt
+`output()` den Umschalter der Fußzeile auf dieser Seite weg.
+
+Und **hier steht er für jeden**, auch für Angemeldete — im Rest der Anwendung
+ist die Sprache eine Kontoeinstellung und steht auf der Kontoseite. Auf einer
+Werbeseite ist die Sprachwahl das Erste, was jemand braucht; dass er zufällig
+angemeldet ist, ändert daran nichts. Für Angemeldete ändert er das **Konto**
+und nicht bloß ein Cookie — dafür war nichts zu tun: Die Route `set_lang`
+schreibt seit jeher beides. Ein Umschalter, der nur das Cookie setzte, wäre
+beim nächsten Aufruf überstimmt.
+
+Die Farbprofilwahl ist hier eine Reihe von vier Punkten und nicht die
+beschriftete Auswahl der Kontoseite — in einer Kopfleiste wäre die eine Wand
+aus Text. Jeder Punkt trägt **zwei** Farben des Profils: der *Seitengrund* als
+Füllung (hell oder dunkel — das ist die Frage, die jemand stellt, der hier
+klickt) und der *Akzent* als Rand (er unterscheidet die drei hellen Profile
+voneinander). Nur der Akzent wäre falsch herum: Der dunkelste Punkt gehörte
+damit „Neutral" — einem hellen Profil mit dunkelgrauem Akzent —, während das
+Dunkelprofil einen hellen Punkt bekäme, weil sein Akzent ein helles
+Blauviolett ist. Sie kommt ohne Konto aus: Angewendet und im Browser gemerkt wird
+sofort, ans Konto geschickt nur, wenn jemand angemeldet ist (ein Gast bekäme
+für `set_theme` eine Abfuhr).
+
+Eine Ratsche in `tests/server_test.php` hält das fest: Ein Zähler oder ein
+Kontomenü wandert in diese Leiste nicht aus Absicht, sondern weil jemand „der
+Vollständigkeit halber" einen Platzhalter ergänzt.
+
+### Die Aufnahmen sind echt
+
+Die Bilder unter `assets/img/landing/<sprache>/` sind Bildschirmfotos aus der
+**laufenden Anwendung** und keine nachgebauten Abbildungen. Aufgenommen wird
+mit `tools/landing_shots.js` — das Werkzeug fährt eine vollständige Führung
+durch: zwei Browser, ein echter WebRTC-Anruf über das Signaling des Servers,
+ein echter Steuerbefehl.
+
+```bash
+php  tools/landing_seed.php     # Demodaten in die ENTWICKLUNGSdatenbank
+node tools/landing_shots.js     # aufnehmen (braucht playwright)
+```
+
+Der Grund für den Aufwand: Eine nachgebaute Abbildung veraltet, ohne dass es
+jemand merkt — die Oberfläche ändert sich, das Bild bleibt, und irgendwann
+zeigt die Werbeseite eine Anwendung, die es nicht mehr gibt. Eine Aufnahme
+veraltet genauso, **aber sie lässt sich neu machen.**
+
+**Je Sprache ein Satz Bilder**, deshalb das Sprachkürzel im Pfad: Auf den
+Aufnahmen sind Knöpfe beschriftet, und ein englischer Besucher, der deutsche
+Knöpfe abgebildet sieht, bekommt genau die Unstimmigkeit, wegen der es den
+Sprachumschalter gibt. Die Vorlage wählt das Verzeichnis über `###LANG###`.
+
+**Auch die Inhalte passen zur Sprache**, nicht nur die Knöpfe. Was ein Guide
+schreibt — Titel, Beschreibung, Selbstvorstellung —, übersetzt die Anwendung
+nicht; zu Recht, es ist sein Text und nicht ihrer. Auf einer *Werbeseite*
+stünden damit auf der englischen Fassung deutsche Titel, und das ist ein
+Fehler, den kein Besucher der Anwendung anlastet, sondern der Seite.
+
+`tools/landing_seed.php` legt deshalb **zwei Guides in derselben Stadt** an —
+einer schreibt deutsch, einer englisch —, und das Aufnahmewerkzeug nimmt je
+Sprache den passenden auf. Das ist eine Eigenschaft der Demodaten und keine
+der Anwendung: Es sind schlicht zwei Konten, die verschiedene Sprachen
+sprechen, so wie es auf einer echten Plattform auch wäre. Auch der anrufende
+Kunde ist je Sprache ein anderer — sonst läge im zweiten Durchgang die
+Bewertungsfrage aus dem ersten quer über der Seite.
+
+**Vier Führungen je Guide** und nicht eine: Auf der Anfragenliste stand sonst
+fünfmal derselbe Titel untereinander, und das sieht nach Testdaten aus. Dazu
+eine offene Anfrage (der Guide hat etwas zu entscheiden), eine angenommene
+(daran hängt der Anruf) und fünf abgeschlossene mit Bewertung.
+
+> **Das Kamerabild — das Einzige, was von Hand dazukommt.** Ohne eigene Datei
+> nimmt Chromium sein Testmuster: Im Anruf steht dann ein grüner Kreis statt
+> einer Gasse. Für eine Werbeseite ist das unbrauchbar.
+>
+> **Ein einzelnes Foto genügt** — keine Videodatei, keine Umwandlung. Ein
+> MJPEG-Strom sind aneinandergehängte JPEGs; eines ist davon der kürzeste Fall,
+> und Chromium hält es als Standbild. **Die Datei muss aber `.mjpeg` heißen** —
+> Chromium entscheidet nach der Endung und nicht nach dem Inhalt. Eine `.jpg`
+> wird stillschweigend ignoriert; auf der Aufnahme steht dann „Es wurde keine
+> Kamera gefunden". Umbenennen genügt:
+> ```bash
+> cp gasse.jpg gasse.mjpeg
+> LP_VIDEO=$PWD/gasse.mjpeg node tools/landing_shots.js
+> ```
+> Passt die Endung nicht, warnt das Werkzeug beim Start — bevor der ganze
+> Durchgang umsonst läuft.
+> Das Bild füllt die Bühne: Querformat passt besser als Hochformat, ein
+> ruhiges Motiv besser als eines mit Schrift — darauf liegen Steuerkreuz und
+> Richtungsanzeige. Wer Bewegung will, gibt eine `.y4m` an
+> (`ffmpeg -i gasse.mp4 -t 10 -pix_fmt yuv420p gasse.y4m`).
+>
+> Weitere Schalter (`LP_BASE`, `LP_PW`, `LP_LANGS`, `LP_OUT`) stehen im Kopf
+> der Datei.
+
+`tools/landing_seed.php` **weigert sich**, in eine Datenbank zu schreiben, in
+der Konten stehen, die es nicht selbst angelegt hat. Erfundene Daten in einem
+Produktivsystem wären ein Schaden, den niemand rückgängig macht.
+
+---
+
+## ✉️ Die Landingpage als eine Datei
+
+Für eine Durchsicht per Mail: ein Anhang, Doppelklick, die Seite steht da —
+**ohne Server, ohne Netz, ohne Zugang zu irgendetwas.**
+
+```bash
+node tools/landing_offline.js
+# -> offline/landingpage-de.html   ~0,7 MB
+# -> offline/landingpage-en.html   ~0,7 MB
+```
+
+**Sie wird erzeugt und nicht gepflegt.** Das ist der Punkt: Eine zweite,
+abgetippte Fassung wäre nach dem ersten Umbau falsch, und zwar unbemerkt —
+niemand öffnet den Anhang von letztem Monat, um ihn mit der Seite zu
+vergleichen. Das Werkzeug öffnet die *laufende* Seite und friert ein, was es
+vorfindet. Deshalb liegt die Datei auch nicht im Repository (`.gitignore`).
+
+**Zwei Dateien statt einer mit Umschalter:** Jede hält nur ihre eigenen
+Aufnahmen und Texte und ist damit halb so groß — man hängt die an, die passt.
+Es entspricht außerdem der Seite selbst, die auch immer eine Sprache zeigt.
+
+### Was beim Einfrieren passiert
+
+| | |
+|---|---|
+| **CSS** | Alle Stilvorlagen werden mitgelesen, während der Browser sie lädt (so gibt es keine CORS-Frage), und dann auf die Regeln zusammengestrichen, die im Dokument wirklich etwas treffen. Aus den gut 230 KB Bootstrap werden ein paar Kilobyte. |
+| **Karte** | Der Knackpunkt: Ohne Server lädt Leaflet keine Kacheln. Sie wird **einmal abfotografiert** und als Data-URI eingebettet — die echte Karte samt der Herkunftsangabe, die die ODbL verlangt. |
+| **Nadeln** | Bleiben **echt**. Sie sind der Blickfang, und ein Standbild hätte ihn verschenkt: Sie liegen als DOM-Elemente in Prozentpositionen über dem Bild und tauchen weiter nacheinander auf — den Takt macht statt JavaScript eine Verzögerung je Nadel (`--lp-delay`). Der Kasten bekommt dafür ein festes Seitenverhältnis. |
+| **Aufnahmen** | Umkodiert nach WebP und auf vernünftige Breite gebracht. Roh sind es über sieben Megabyte je Sprache — die beiden Bilder aus dem Anruf enthalten ein Foto, und dafür ist PNG das falsche Format. Gerechnet wird im Browser (Canvas), das Werkzeug braucht also keine Bildbibliothek. |
+| **JavaScript** | Fällt weg — jedes Modul setzt einen Server voraus. Übrig bleiben ein paar Zeilen für die Farbprofilwahl; sie ist der einzige Teil der Seite, der ohne Server etwas tun *kann*. |
+| **Verweise** | Gehen auf `LP_PUBLIC`, wenn gesetzt. **Ohne die Angabe sind sie tot**, und das ist die richtige Vorgabe: Ein Knopf, der den Empfänger auf `127.0.0.1` schickt, ist schlimmer als einer, der nichts tut. |
+
+Das Dunkelprofil funktioniert auch offline — der Filter, der im Browser die
+Kacheln umkehrt, wird auf das eingebettete Kartenbild übertragen. Er sitzt
+dort aus demselben Grund wie in der Anwendung **nicht** am ganzen Kasten: Die
+Nadeln sind dessen Kinder, und aus dem Grün der verfügbaren Guides würde sonst
+ein Rot.
+
+---
+
+## 🏷️ Der Produktname
+
+Der Name steht noch nicht fest. Bis dahin trägt die Anwendung einen
+Platzhalter, und der ist mit Absicht als solcher zu erkennen: Ein hübscher
+Arbeitstitel bleibt stehen, weil er niemandem auffällt.
+
+**Geändert wird er an genau einer Stelle — `class/Helper/Brand.php`:**
+
+```php
+class Brand
+{
+    public const NAME = 'PRODUKTNAME';   // der ausgeschriebene Name
+    public const MARK = 'P';             // das Zeichen im farbigen Kaestchen
+}
+```
+
+Von dort setzt `ViewHelper::output()` ihn an den drei Stellen des Layouts ein,
+an denen er vorkommt: im Titel des Browserfensters, in der Kopfleiste und in
+der Fußzeile (Platzhalter `###BRAND###` und `###BRAND_MARK###` in
+`assets/html/index.html`). Vorher stand er dreimal wörtlich in dieser Datei.
+
+Er steht **nicht im Sprachkatalog**: Ein Produktname wird nicht übersetzt. In
+`lang/de.php` und `lang/en.php` wären es wieder zwei Stellen — und die zweite
+ist die, die beim Umbenennen vergessen wird. Ebenso wenig in der `.env`: Er
+gehört zum Produkt und nicht zu dieser Installation.
+
+---
+
+## 📄 Impressum, Datenschutz, Kontakt
+
+Die drei Verweise der Fußzeile zeigten auf `#`. Ein solcher Verweis führt
+nirgendwohin — der Browser springt an den Seitenanfang, und der Besucher hält
+es für einen Fehler der Anwendung.
+
+Jetzt führen sie auf `act=imprint`, `act=privacy` und `act=contact`: **drei
+Routen, eine Controllermethode, eine Vorlage** (`assets/html/legal.html`). Die
+Seiten sind noch leer und **sagen das auch** — mit einem sichtbaren Hinweis und
+nicht mit einem dezenten. Ein leeres Impressum ist in Deutschland kein
+Schönheitsfehler, sondern abmahnfähig; wer die Seite im Betrieb sieht, soll sie
+füllen wollen.
+
+Die Überschrift kommt aus `config/routes.php` und **nicht aus der Anfrage** —
+sonst könnte jeder Aufrufer einen beliebigen Katalogschlüssel als Überschrift
+setzen lassen. Wenn der Text kommt, fällt der Hinweis weg und der Inhalt steht
+an seiner Stelle.
+
+---
+
 ## 🧪 Tests
 
 Zwei Pruefskripte fuer die Verbindungsstabilitaet und das Steuerprotokoll der WebRTC-Funktion:

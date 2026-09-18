@@ -88,6 +88,37 @@ return [
 
     // Startseite
     'home'                  => [SystemController::class             , 'home'                    , Permission::SYSTEM_HOME            , 'html'],
+
+    // DIE LANDINGPAGE - die Seite, die erklaert, was das hier ist.
+    //
+    // Sie ist NICHT die Startseite und ersetzt sie auch nicht: 'home' zeigt
+    // den Bestand (die Karte mit den wirklich angebotenen Standorten),
+    // 'landing' zeigt das Angebot. Auf der Startseite waere eine erfundene
+    // Nadel eine Falschauskunft; auf der Landingpage ist sie das Bild zu
+    // einem Satz. Der Unterschied steht ausfuehrlich bei
+    // SystemController::landing().
+    //
+    // Dasselbe Recht wie die Startseite, und das ist keine Bequemlichkeit:
+    // system.home heisst "Startseite und oeffentliche Einstiegsseiten"
+    // (App\Helper\Permission), und genau das ist sie.
+    'landing'               => [SystemController::class             , 'landing'                 , Permission::SYSTEM_HOME            , 'html'],
+
+    // DIE DREI PFLICHTSEITEN. Sie sind noch leer und sagen das auch.
+    //
+    // Vorher zeigten die drei Verweise der Fusszeile auf "#" - ein Verweis,
+    // der nirgendwohin fuehrt und den der Besucher fuer einen Fehler haelt.
+    // Jetzt fuehren sie auf eine Seite, die sagt, woran er ist.
+    //
+    // DREI ROUTEN, EINE METHODE: Der Rumpf ist derselbe, die Adressen sind
+    // es nicht - sie stehen in der Fusszeile jeder Seite und werden
+    // weitergegeben. Die Ueberschrift kommt aus DIESER Tabelle und nicht aus
+    // der Anfrage (siehe SystemController::legalPage).
+    //
+    // Recht system.home aus demselben Grund wie oben: Ein Impressum, das nur
+    // Angemeldete lesen duerfen, ist keines.
+    'imprint'               => [SystemController::class             , 'imprint'                 , Permission::SYSTEM_HOME            , 'html'],
+    'privacy'               => [SystemController::class             , 'privacy'                 , Permission::SYSTEM_HOME            , 'html'],
+    'contact'               => [SystemController::class             , 'contact'                 , Permission::SYSTEM_HOME            , 'html'],
     // Die Route 'start' ist entfallen. Sie las eine Vorlage aus einem
     // Verzeichnis, das es nicht gibt (assets/html/frontend/), und rief danach
     // output_fe() - eine Funktion, die im Projekt nirgends definiert ist. Der

@@ -2671,7 +2671,9 @@ $viewSrc = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
 check(strpos($viewSrc, 'chatBadge') !== false, 'es gibt keinen Nachrichtenzaehler');
 check(strpos($viewSrc, 'Permission::CHAT_LIST') !== false,
     'der Zaehler haengt nicht am Recht chat.list - er gilt fuer beide Seiten');
-check(strpos(file_get_contents($ROOT . '/assets/html/index.html'), '###CHATS###') !== false,
+// Die Kopfleiste steht seit der Landingpage in einer eigenen Vorlage - dort
+// wird der Platz des Zaehlers gesucht und nicht mehr im Layout.
+check(strpos(file_get_contents($ROOT . '/assets/html/topbar.html'), '###CHATS###') !== false,
     'der Zaehler hat keinen Platz in der Kopfleiste');
 
 $heartbeat = file_get_contents($ROOT . '/class/Controller/UserController.php');
@@ -6585,7 +6587,12 @@ $bau = '$R = ' . var_export($ROOT, true) . '; chdir($R);'
      // trotzdem, sonst endet der Unterprozess mit einem Fatal Error und die
      // Seite ist null Zeichen lang. Env steht davor, weil MailGate seine
      // beiden Schalter von dort holt.
+     // Brand steht mit in der Liste, seit der Produktname aus einer Konstanten
+     // kommt (App\\Helper\\Brand): output() setzt ihn an drei Stellen des
+     // Layouts ein. Fehlt die Klasse, endet der Unterprozess mit einem Fatal
+     // Error und die Seite ist null Zeichen lang.
      . 'foreach (["Helper/Role","Helper/Permission","Helper/Auth","Helper/Theme",'
+     . '"Helper/Brand",'
      // I18n steht VOR ViewHelper: template() loest dort die Textmarker auf,
      // und output() legt Sprache und Katalog ins Dokument.
      . '"Helper/Url","Helper/Env","Helper/MailGate","Helper/I18n","Helper/ViewHelper"] as $k) { require_once "$R/class/$k.php"; }'
@@ -8630,6 +8637,118 @@ check(strpos($kopfQuelle, 'autoplay=(self)') !== false,
     'die Tonsignale der Steuerung sind gesperrt (assets/js/sound.js)');
 check(strpos($kopfQuelle, 'display-capture=()') !== false,
     'die Bildschirmfreigabe ist nicht gesperrt - benutzt wird sie nirgends');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDie schlanke Kopfleiste der Landingpage\n");
+
+// Die Landingpage traegt eine eigene Kopfleiste: Name, Anmelden,
+// Registrieren, Sprache, Farbprofil - und nichts von der Bedienung der
+// Anwendung. Der Grund steht in assets/html/topbar_slim.html: Wer die Seite
+// zum ersten Mal sieht, kennt die Anwendung nicht, und ihre Werkzeuge sind
+// fuer ihn keine Hilfe.
+//
+// DIESE PRUEFUNG IST EINE RATSCHE. Ein Zaehler oder ein Kontomenue wandert
+// dort nicht aus Absicht hinein, sondern weil jemand "der Vollstaendigkeit
+// halber" einen Platzhalter ergaenzt - und danach faellt es niemandem mehr
+// auf.
+$layoutQuelle = file_get_contents($ROOT . '/assets/html/index.html');
+$leisteVoll   = file_get_contents($ROOT . '/assets/html/topbar.html');
+$leisteSchlank= file_get_contents($ROOT . '/assets/html/topbar_slim.html');
+$viewQuelle   = file_get_contents($ROOT . '/class/Helper/ViewHelper.php');
+
+check(substr_count($layoutQuelle, '###TOPBAR###') === 1,
+    'im Layout steht die Kopfleiste nicht genau einmal');
+check(strpos($layoutQuelle, '<header') === false,
+    'im Layout steht wieder eine Kopfleiste - sie gehoert in ihre Vorlage');
+check(strpos($viewQuelle, 'topbar_slim.html') !== false
+   && strpos($viewQuelle, 'topbar.html') !== false,
+    'ViewHelper kennt nicht beide Kopfleisten');
+
+// Die Bedienelemente der Anwendung - in der vollen Leiste alle, in der
+// schlanken keines.
+foreach (['###USER###', '###REQUESTS###', '###CHATS###', '###AVAILABILITY###'] as $teil) {
+    check(strpos($leisteVoll, $teil) !== false,
+        "der Leiste der Anwendung fehlt $teil");
+    check(strpos($leisteSchlank, $teil) === false,
+        "die schlanke Leiste traegt $teil - sie soll nichts davon zeigen");
+}
+foreach (['location-button', 'browse-locations-button'] as $knopf) {
+    check(strpos($leisteSchlank, $knopf) === false,
+        "die schlanke Leiste traegt den Knopf $knopf");
+}
+
+// Und was sie STATTDESSEN traegt.
+foreach (['###BRAND###', '###LANGSWITCH_TOP###', '###THEMESWITCH###'] as $teil) {
+    check(strpos($leisteSchlank, $teil) !== false, "der schlanken Leiste fehlt $teil");
+    check(strpos($viewQuelle, $teil) !== false, "ViewHelper fuellt $teil nicht");
+}
+
+// Der Sprachumschalter steht auf JEDER Seite genau einmal: unten in der
+// Fusszeile oder oben in der schlanken Leiste - nie an beiden Stellen.
+// Deshalb zwei Platzhalternamen; mit einem liesse sich der eine nicht
+// fuellen und der andere leeren (str_replace trifft jedes Vorkommen).
+check(strpos($layoutQuelle, '###LANGSWITCH_TOP###') === false,
+    'der Platzhalter der Leiste steht auch im Layout - dann treffen beide dieselbe Ersetzung');
+check(strpos($leisteSchlank, '###LANGSWITCH###') === false,
+    'die schlanke Leiste benutzt den Namen der Fusszeile');
+
+// Die beiden Knoepfe hinein. Sie kommen aus dem Katalog - "Registrieren"
+// stand bis zur Landingpage als deutsches Literal in ViewHelper und damit
+// auch auf jeder englischen Seite.
+foreach (['de', 'en'] as $sprache) {
+    $katalog = require $ROOT . "/lang/$sprache.php";
+    check(isset($katalog['kopf.registrieren']),
+        "lang/$sprache.php kennt kopf.registrieren nicht");
+}
+check(strpos($viewQuelle, "'Registrieren'") === false
+   && strpos($viewQuelle, '>Registrieren<') === false,
+    'in ViewHelper steht wieder ein deutsches "Registrieren"');
+
+// DER SPRACHUMSCHALTER STEHT DORT FUER JEDEN, auch fuer Angemeldete - und
+// im Rest der Anwendung weiterhin nur fuer Gaeste. Auf einer Werbeseite ist
+// die Sprachwahl das Erste, was jemand braucht; dass er zufaellig angemeldet
+// ist, aendert daran nichts.
+//
+// Geprueft wird an der Verzweigung selbst: Die Fusszeile fragt nach der
+// Anmeldung, die Leiste nicht.
+check(preg_match('/###LANGSWITCH###.*?\$in_schlank \|\| Auth::isLoggedIn/s', $viewQuelle) === 1,
+    'der Umschalter der Fusszeile haengt nicht mehr an der Anmeldung');
+check(preg_match('/###LANGSWITCH_TOP###.*?Auth::isLoggedIn/s', $viewQuelle) !== 1,
+    'der Umschalter der Landingpage haengt an der Anmeldung - dort soll er immer stehen');
+
+ok('die Landingpage traegt ihre eigene Leiste - und nichts von der Bedienung');
+
+// ---------------------------------------------------------------------
+fwrite(STDERR, "\nDie Offline-Fassung zum Verschicken\n");
+
+// tools/landing_offline.js friert die laufende Seite zu EINER Datei ein.
+// Geprueft wird hier nicht die Datei - dafuer braeuchte es einen Browser,
+// und diese Pruefungen kommen ohne aus -, sondern die VERABREDUNG zwischen
+// Werkzeug und Seite. Sie ist genau eine: Das Werkzeug setzt --lp-delay je
+// Nadel, weil es kein JavaScript gibt, das sie nacheinander nachreicht.
+// Faellt die Variable aus assets/css/landing.css heraus, stehen in der
+// Offline-Fassung alle hundert Nadeln auf einmal da - und niemand merkt es,
+// bis jemand die Datei oeffnet.
+$offlineWerkzeug = $ROOT . '/tools/landing_offline.js';
+check(is_file($offlineWerkzeug), 'tools/landing_offline.js fehlt');
+
+$offlineQuelle = file_get_contents($offlineWerkzeug);
+$landingCss    = file_get_contents($ROOT . '/assets/css/landing.css');
+
+check(strpos($landingCss, 'var(--lp-delay') !== false,
+    'assets/css/landing.css kennt --lp-delay nicht mehr - die Offline-Fassung '
+  . 'zeigt dann alle Nadeln auf einmal');
+check(strpos($offlineQuelle, '--lp-delay') !== false,
+    'das Werkzeug setzt --lp-delay nicht mehr');
+
+// Und die zweite Verabredung: Es baut auf der Landingpage auf, nicht auf
+// einer eigenen Vorlage.
+check(strpos($offlineQuelle, 'act=landing') !== false,
+    'das Werkzeug holt die Seite nicht mehr von der Route landing');
+check(strpos($offlineQuelle, 'lp-hero__map') !== false,
+    'das Werkzeug kennt die Kartenflaeche der Landingpage nicht mehr');
+
+ok('die Offline-Fassung wird erzeugt und nicht gepflegt - die Verabredung steht');
 
 // --- JEDE ADRESSE AUS index.html STEHT IN DER REGEL -----------------------
 // Das ist die Pruefung, die zaehlt: Wer eine Bibliothek von einem fuenften CDN

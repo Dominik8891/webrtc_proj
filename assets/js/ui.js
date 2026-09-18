@@ -35,7 +35,13 @@ window.webrtcApp.ui = {
         // Handlung in dieser Anwendung - man tut es einmal und danach jahrelang
         // nicht mehr. Hervorgehoben gehoert das, was oft passiert.
 
+        // NICHT AUF JEDER SEITE VORHANDEN. Die Landingpage traegt eine eigene
+        // Kopfleiste ohne Aktionsknoepfe (assets/html/topbar_slim.html);
+        // ohne diese Zeile endete das Modul dort mit einem TypeError - und
+        // zwar mitten in der Aufraeumkette, sodass auch alles danach
+        // ausfiele.
         var locationButtonDiv = document.getElementById('location-button');
+        if (!locationButtonDiv) return;
         locationButtonDiv.innerHTML = '';
         let text = '';
         let target = '';
@@ -66,7 +72,9 @@ window.webrtcApp.ui = {
      * Blendet ihn sonst aus.
      */
     showAllLocationsButton: function() {
+        // Wie beim Knopf darueber: Auf der Landingpage gibt es ihn nicht.
         var browseLocationButtonDiv = document.getElementById('browse-locations-button');
+        if (!browseLocationButtonDiv) return;
         browseLocationButtonDiv.innerHTML = '';
         if (window.isLoggedIn) {
             // Der Text kommt aus dem Katalog, das Markup bleibt hier - im

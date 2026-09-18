@@ -6,6 +6,7 @@ use App\Model\GuideRole;
 use App\Model\TourRequest;
 use App\Model\TourReview;
 use App\Model\User;
+use App\Helper\Brand;
 use App\Helper\Theme;
 
 /**
@@ -506,7 +507,12 @@ class ViewHelper
     }
 
     /**
-     * Der Sprachumschalter der Fusszeile - fuer Gaeste.
+     * Der Sprachumschalter.
+     *
+     * WO ER STEHT UND FUER WEN, entscheidet output() - nicht diese Methode.
+     * Sie baut ihn; ob er gebraucht wird, ist eine Frage der Seite. Kurz:
+     * in der Fusszeile fuer Gaeste, in der Leiste der Landingpage fuer
+     * jeden.
      *
      * WARUM VERWEISE UND KEIN AUFKLAPPMENUE MIT JAVASCRIPT
      * ----------------------------------------------------
@@ -541,7 +547,7 @@ class ViewHelper
         $eintraege = '';
         foreach (I18n::SPRACHEN as $kuerzel => $name) {
             if ($kuerzel === $aktiv) {
-                $eintraege .= '<span class="app-footer__lang app-footer__lang--on"'
+                $eintraege .= '<span class="app-lang app-lang--on"'
                             . ' aria-current="true"'
                             . ' title="' . self::esc(I18n::t('sprache.aktiv', ['sprache' => $name])) . '">'
                             . self::esc($name) . '</span>';
@@ -551,14 +557,75 @@ class ViewHelper
             $ziel = 'index.php?act=set_lang&lang=' . rawurlencode($kuerzel);
             if ($back !== '') $ziel .= '&back=' . rawurlencode($back);
 
-            $eintraege .= '<a class="app-footer__lang" href="' . self::esc($ziel) . '"'
+            $eintraege .= '<a class="app-lang" href="' . self::esc($ziel) . '"'
                         . ' hreflang="' . self::esc($kuerzel) . '"'
                         . ' title="' . self::esc(I18n::t('sprache.wechseln_zu', ['sprache' => $name])) . '">'
                         . self::esc($name) . '</a>';
         }
 
-        return '<nav class="app-footer__langs" aria-label="'
+        return '<nav class="app-langs" aria-label="'
              . self::esc(I18n::t('sprache.titel')) . '">' . $eintraege . '</nav>';
+    }
+
+    /**
+     * Die Farbprofilwahl der schlanken Kopfleiste - vier Punkte.
+     *
+     * WARUM NICHT DIE VOM KONTO
+     * -------------------------
+     * Auf der Kontoseite steht dieselbe Wahl als Reihe beschrifteter Karten
+     * mit Name und Beschreibung (App\Controller\SettingsController). Das ist
+     * dort richtig - man geht hin, um etwas einzustellen. In einer
+     * Kopfleiste waere es eine Wand aus Text neben zwei Knoepfen. Hier ist
+     * es deshalb je Profil ein Punkt in seiner Akzentfarbe; was er bedeutet,
+     * steht im title und im aria-label.
+     *
+     * KEINE MARKIERUNG DES AKTIVEN PROFILS VON HIER AUS, und das ist kein
+     * Versehen: Fuer einen GAST steht das Profil erst im Browser fest - es
+     * kommt aus dem lokalen Speicher oder aus der Vorgabe des
+     * Betriebssystems (App\Helper\Theme::bootScript). Der Server weiss es
+     * nicht und duerfte es nicht behaupten. Markiert wird deshalb im Browser
+     * (assets/js/theme_switch.js), sobald die Seite steht.
+     *
+     * KNOEPFE UND KEINE VERWEISE: Ein Farbprofil setzt der Browser an Ort
+     * und Stelle, es wird nichts neu geladen. Ein <a href> waere ein
+     * Versprechen auf eine Adresse, die es nicht gibt.
+     *
+     * @return string HTML
+     */
+    private static function themeSwitchMini(): string
+    {
+        $punkte = "";
+
+        foreach (Theme::PROFILE as $schluessel => $profil) {
+            // ZWEI FARBEN JE PUNKT, und die Aufteilung ist die ganze Aussage:
+            //
+            //   Fuellung = der SEITENGRUND des Profils (muster[0]). Er sagt,
+            //              ob es hell oder dunkel wird - und das ist die
+            //              Frage, die jemand stellt, der hier klickt.
+            //   Rand     = der AKZENT (muster[2]). Er unterscheidet die drei
+            //              hellen Profile voneinander; ihre Gruende sind
+            //              einander zu aehnlich, um allein zu genuegen.
+            //
+            // VORHER STAND NUR DER AKZENT IM PUNKT, und das war schlicht
+            // falsch herum: Der dunkelste Punkt gehoerte damit "Neutral" -
+            // einem HELLEN Profil mit dunkelgrauem Akzent -, waehrend das
+            // Dunkelprofil einen hellen Punkt bekam, weil sein Akzent ein
+            // helles Blauviolett ist. Ein Muster, das die Farbe zeigt, die
+            // man NICHT bekommt, ist keine Vorschau.
+            $grund  = $profil["muster"][0] ?? "#ffffff";
+            $akzent = $profil["muster"][2] ?? "#000000";
+            $name   = I18n::t("farbprofil." . $schluessel . ".name");
+
+            $punkte .= '<button type="button" class="app-theme-dot"'
+                    .  ' data-theme-value="' . self::esc($schluessel) . '"'
+                    .  ' style="--dot-bg: ' . self::esc($grund)
+                    .          '; --dot-accent: ' . self::esc($akzent) . '"'
+                    .  ' title="' . self::esc($name) . '"'
+                    .  ' aria-label="' . self::esc($name) . '"></button>';
+        }
+
+        return '<div class="app-theme-dots" id="theme-mini" role="group" aria-label="'
+             . self::esc(I18n::t("konto.farbprofil.titel")) . '">' . $punkte . '</div>';
     }
 
     /**
@@ -566,12 +633,35 @@ class ViewHelper
      * Ergänzt außerdem Benutzerstatus, Login/Logout-Links, Call- und Mediensteuerung sowie User-Infos.
      *
      * @param string $in_content Inhalt, der ins Layout eingesetzt wird.
-     * 
+     * @param bool   $in_schlank  Die schlanke Kopfleiste statt der der
+     *                            Anwendung - siehe unten.
+     *
      * Platzhalter im Template:
-     *   ###CONTENT###, ###CALL_CONTROLL###, ###INNER_CALL_CONTROLL###, ###MEDIA###,
-     *   ###USERSTATUS###, ###LOGOUT###, ###USER###, ###REGISTER###, ###THEME###
+     *   ###CONTENT###, ###TOPBAR###, ###CALL_CONTROLL###,
+     *   ###INNER_CALL_CONTROLL###, ###MEDIA###, ###USERSTATUS###,
+     *   ###LOGOUT###, ###USER###, ###REGISTER###, ###THEME###
+     *
+     * DIE SCHLANKE FASSUNG ($in_schlank) ist die der Landingpage. Sie
+     * unterscheidet sich in drei Punkten, und alle drei folgen aus einem
+     * Gedanken - der Besucher kennt die Anwendung noch nicht:
+     *
+     *   1. Eine andere Kopfleiste (assets/html/topbar_slim.html): Name,
+     *      Anmelden, Registrieren, Sprache, Farbprofil. Kein Kontomenue,
+     *      keine Zaehler, keine Bereitschaft, keine Aktionsknoepfe.
+     *   2. Der Sprachumschalter steht oben in der Leiste statt unten in der
+     *      Fusszeile - und dort IMMER, auch fuer Angemeldete. Auf einer
+     *      Werbeseite ist die Sprachwahl das Erste, was jemand braucht.
+     *      Zwei Bedienstellen fuer eine Einstellung waeren zwei Antworten
+     *      auf dieselbe Frage, deshalb nur eine.
+     *   3. Keine Anrufbauteile im Dokument. Von einer Werbeseite aus ruft
+     *      niemand an; das Markup dafuer waere totes Gewicht.
+     *
+     * Was gleich bleibt, ist der ganze Rest: Farbprofil, Sprache, Katalog,
+     * Stilvorlagen, Fusszeile mit den Pflichtseiten. Die Landingpage ist
+     * keine zweite Anwendung neben der ersten - sie ist dieselbe Seite mit
+     * einer anderen Leiste.
      */
-    public static function output($in_content)
+    public static function output($in_content, bool $in_schlank = false)
     {
         // Hauptlayout laden (enthält die Platzhalter)
         $out = self::template("assets/html/index.html"); 
@@ -587,11 +677,23 @@ class ViewHelper
         // dann faellt dafuer auch keine Abfrage an.
         $out = str_replace("###CONTENT###", MailGate::streifen() . $in_content, $out);
 
+        // DIE KOPFLEISTE. Zwei Vorlagen, eine Stelle - welche gilt, steht
+        // hier und nicht im Layout (siehe assets/html/index.html).
+        //
+        // SIE KOMMT ALS ERSTES INS DOKUMENT, und das ist keine Geschmacksfrage:
+        // Sie bringt eigene Platzhalter mit (Name, Kontomenue, Zaehler,
+        // Sprachwahl). Wuerde sie spaeter eingesetzt, waeren die Ersetzungen
+        // dafuer laengst durchgelaufen - und ihre Rauten stuenden im Browser.
+        $leiste = $in_schlank ? 'assets/html/topbar_slim.html'
+                              : 'assets/html/topbar.html';
+        $out = str_replace("###TOPBAR###", self::template($leiste), $out);
+
         // Standardlinks (nicht angemeldet)
         // Gruen ist in dieser Anwendung das Zeichen fuer "ein Guide ist jetzt
         // erreichbar" (siehe assets/css/theme.css). Deshalb traegt die
         // Registrierung den Akzent und nicht die Live-Farbe.
-        $sign      = "<a href='index.php?act=signup_page' class='btn btn-primary btn-sm'>Registrieren</a>";
+        $sign      = "<a href='index.php?act=signup_page' class='btn btn-primary btn-sm'>"
+                   . self::esc(I18n::t('kopf.registrieren')) . "</a>";
         $user_txt  = "";
         $text      = "<a href='index.php?act=login_page' class='btn btn-secondary btn-sm'>"
                    . self::esc(I18n::t('kopf.anmelden')) . "</a>";
@@ -643,7 +745,12 @@ class ViewHelper
             // nicht daran haengen, dass eine Bibliothek erreichbar war.
             // assets/js/ui.js schliesst es nur zusaetzlich beim Klick
             // daneben.
-            $menu_html = self::userMenu($user->getUsername());
+            // Auf der Landingpage steht kein Kontomenue - ihre Leiste hat
+            // keine Stelle dafuer (assets/html/topbar_slim.html). Sie zeigt
+            // Anmelden und Registrieren, und zwar unabhaengig davon, ob
+            // gerade jemand angemeldet ist: Die Seite erklaert das Produkt,
+            // sie verwaltet kein Konto.
+            $menu_html = $in_schlank ? '' : self::userMenu($user->getUsername());
 
             // Fuer Gaeste bleiben die beiden Knoepfe; angemeldet sind sie im
             // Menue aufgehoben.
@@ -663,15 +770,22 @@ class ViewHelper
             $user_role_id = Auth::roleId();
             $user_role    = Role::name($user_role_id);
 
-            // Zusätzliche Steuerelemente für eingeloggte User laden
-            $call        = self::template('assets/html/call_controll.html');
-            self::checkTemplate($call, 'assets/html/call_controll.html');
+            // Zusätzliche Steuerelemente für eingeloggte User laden.
+            //
+            // NICHT AUF DER LANDINGPAGE: Von einer Werbeseite aus ruft
+            // niemand an - es gibt dort keinen Standort und keinen Guide,
+            // von dem aus ein Anruf begaenne. Das Markup waere totes
+            // Gewicht in jedem Dokument.
+            if (!$in_schlank) {
+                $call        = self::template('assets/html/call_controll.html');
+                self::checkTemplate($call, 'assets/html/call_controll.html');
 
-            $inner_call  = self::template('assets/html/inner_call_controll.html');
-            self::checkTemplate($inner_call, 'assets/html/inner_call_controll.html');
+                $inner_call  = self::template('assets/html/inner_call_controll.html');
+                self::checkTemplate($inner_call, 'assets/html/inner_call_controll.html');
 
-            $media       = self::template('assets/html/media.html');
-            self::checkTemplate($media, 'assets/html/media.html');
+                $media       = self::template('assets/html/media.html');
+                self::checkTemplate($media, 'assets/html/media.html');
+            }
 
             // User-ID als JS-Variable bereitstellen
             $user_id_script = '<script>window.userId = ' . Auth::userId() . ';</script>';
@@ -695,7 +809,10 @@ class ViewHelper
             // eines ohne Standorte: Es kann selbst angefragt haben, und die
             // Zusage darauf soll es nicht verpassen. Gefragt wird deshalb das
             // Recht request.list und nicht location.offer.
-            if (Auth::can(Permission::REQUEST_LIST)) {
+            // NUR IN DER LEISTE DER ANWENDUNG. Die schlanke hat keinen Platz
+            // fuer einen Zaehler und keine Stelle, an der er stuende - dann
+            // ist es auch die beiden Abfragen nicht wert, ihn zu bauen.
+            if (!$in_schlank && Auth::can(Permission::REQUEST_LIST)) {
                 $zahlen   = TourRequest::counters(Auth::userId());
                 $requests = self::requestsBadge($zahlen);
 
@@ -710,7 +827,7 @@ class ViewHelper
             // Konto. Gefragt wird chat.list und nicht location.offer: Der
             // Kunde bekommt die Antwort auf seine Frage, und die soll er
             // genauso wenig verpassen wie der Guide die Frage.
-            if (Auth::can(Permission::CHAT_LIST)) {
+            if (!$in_schlank && Auth::can(Permission::CHAT_LIST)) {
                 $chatZahlen = Chat::counters(Auth::userId());
                 $chats      = self::chatBadge($chatZahlen);
 
@@ -744,7 +861,7 @@ class ViewHelper
                 ]) . ';</script>';
             }
 
-            if (Auth::can(Permission::USER_AVAILABILITY)) {
+            if (!$in_schlank && Auth::can(Permission::USER_AVAILABILITY)) {
                 // Der Zustand kommt aus der Datenbank und nicht aus der
                 // Sitzung: Er kann seit dem Anmelden abgelaufen sein, und die
                 // Frist laeuft an der Uhr der Datenbank.
@@ -858,9 +975,65 @@ class ViewHelper
         //                     am Konto gespeichert, und zwei Umschalter fuer
         //                     dieselbe Einstellung waeren zwei Antworten auf
         //                     die Frage, wo man sie aendert.
+        // DER PRODUKTNAME. Drei Stellen im Layout - Titel des
+        // Browserfensters, Kopfleiste, Fusszeile -, ein Wert
+        // (App\Helper\Brand). Dort steht auch, wo er geaendert wird, wenn
+        // der Name feststeht.
+        //
+        // NICHT ueber den Sprachkatalog: Ein Produktname wird nicht
+        // uebersetzt. Er waere sonst in lang/de.php und lang/en.php
+        // einzutragen, und die zweite Datei ist die, die beim Umbenennen
+        // vergessen wird.
+        $out = str_replace("###BRAND###"     , self::esc(Brand::NAME)        , $out);
+        $out = str_replace("###BRAND_MARK###", self::esc(Brand::MARK)        , $out);
+
         $out = str_replace("###LANG###"      , I18n::aktiv()                 , $out);
         $out = str_replace("###I18N_BOOT###" , I18n::bootScript()            , $out);
-        $out = str_replace("###LANGSWITCH###", Auth::isLoggedIn() ? '' : self::languageSwitch(), $out);
+        // DER SPRACHUMSCHALTER - an EINER von zwei Stellen.
+        //
+        // Im Rest der Anwendung steht er in der Fusszeile. Auf der
+        // Landingpage steht er oben in der Leiste, weil die Seite lang ist
+        // und ihre Fusszeile hinter vier Abschnitten liegt; wer den Text
+        // nicht lesen kann, soll nicht erst ans Ende scrollen muessen (der
+        // Grund steht ausfuehrlich in assets/html/topbar_slim.html).
+        //
+        // ZWEI PLATZHALTERNAMEN, und das ist noetig: str_replace ersetzt
+        // JEDES Vorkommen im Dokument. Hiesse die Stelle in der Leiste
+        // ebenfalls ###LANGSWITCH###, liesse sich die eine nicht fuellen und
+        // die andere leeren - der erste Aufruf traefe beide.
+        //
+        // Angemeldet bleibt er an beiden Stellen leer: Dann ist die Sprache
+        // eine Kontoeinstellung und steht auf der Kontoseite.
+        // AUF DER LANDINGPAGE IMMER, im Rest der Anwendung nur fuer Gaeste.
+        //
+        // Der Unterschied ist keine Ausnahme, sondern folgt aus dem, was die
+        // Seite ist: eine WERBESEITE. Wer sie aufschlaegt, soll sie lesen
+        // koennen - das ist das Erste, was er braucht, noch vor jeder Frage
+        // nach einem Konto. Dass er zufaellig angemeldet ist, aendert daran
+        // nichts.
+        //
+        // Im Rest der Anwendung bleibt es beim Bisherigen: Dort ist die
+        // Sprache eine Kontoeinstellung und steht auf der Kontoseite. Zwei
+        // Bedienstellen fuer dieselbe Einstellung waeren zwei Antworten auf
+        // die Frage, wo man sie aendert.
+        //
+        // FUER ANGEMELDETE AENDERT DER UMSCHALTER DAS KONTO und setzt nicht
+        // bloss ein Cookie - dafuer ist nichts zu tun: Die Route set_lang
+        // schreibt beides, seit es sie gibt (siehe
+        // App\Controller\SystemController::setLanguage). Ein Umschalter, der
+        // nur das Cookie setzte, waere beim naechsten Aufruf ueberstimmt: Das
+        // Konto gewinnt (App\Helper\I18n).
+        $out = str_replace("###LANGSWITCH###",
+                           $in_schlank || Auth::isLoggedIn() ? '' : self::languageSwitch(),
+                           $out);
+        $out = str_replace("###LANGSWITCH_TOP###",
+                           $in_schlank ? self::languageSwitch() : '',
+                           $out);
+
+        // Die Farbprofilwahl. Sie gibt es nur in der schlanken Leiste; im
+        // Rest der Anwendung steht sie auf der Kontoseite.
+        $out = str_replace("###THEMESWITCH###",
+                           $in_schlank ? self::themeSwitchMini() : '', $out);
 
         // Ausgabe und Script-Beendigung
         die($out); 

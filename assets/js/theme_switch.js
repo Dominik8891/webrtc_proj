@@ -101,6 +101,78 @@ window.webrtcApp.themeSwitch = {
     },
 
     /**
+     * Die vier Punkte in der Kopfleiste der Landingpage.
+     *
+     * DER UNTERSCHIED ZUR AUSWAHL AUF DER KONTOSEITE ist nicht das Aussehen,
+     * sondern WER hier steht: meist ein Gast. Ein Gast hat kein Konto, an dem
+     * sich etwas speichern liesse, und die Route set_theme verlangt das Recht
+     * user.settings - ein Aufruf von hier aus bekaeme eine Abfuhr und der
+     * Besucher eine Fehlermeldung fuer etwas, das gerade sichtbar funktioniert
+     * hat.
+     *
+     * Deshalb: anwenden und im Browser merken (apply() erledigt beides), und
+     * NUR wer angemeldet ist, schickt die Wahl zusaetzlich ans Konto - sonst
+     * stuende sie beim naechsten Aufruf wieder auf dem Kontowert, denn das
+     * Konto gewinnt (App\Helper\Theme::bootScript).
+     *
+     * DIE MARKIERUNG SETZT DIESE DATEI UND NICHT DER SERVER: Fuer einen Gast
+     * entscheidet erst der Browser, welches Profil gilt - aus dem lokalen
+     * Speicher oder aus der Vorgabe des Betriebssystems. Der Server weiss es
+     * nicht und duerfte es nicht behaupten.
+     */
+    initMini() {
+        const bereich = document.getElementById('theme-mini');
+        if (!bereich) return;
+
+        this.markiere(bereich);
+
+        bereich.addEventListener('click', (e) => {
+            const knopf = e.target.closest('[data-theme-value]');
+            if (!knopf) return;
+
+            const gewaehlt = knopf.getAttribute('data-theme-value');
+            this.apply(gewaehlt);
+            this.markiere(bereich);
+
+            // Nur angemeldet. Siehe oben - fuer einen Gast gaebe es hier eine
+            // Abfuhr statt einer Speicherung.
+            if (!window.isLoggedIn) return;
+
+            $.ajax({
+                url: 'index.php?act=set_theme&theme=' + encodeURIComponent(gewaehlt),
+                method: 'GET',
+                dataType: 'json'
+            }).fail(() => {
+                // Die Farbe steht bereits und bleibt auch stehen: Der lokale
+                // Wert gilt bis zum naechsten Seitenaufruf. Gesagt wird es
+                // trotzdem - sonst waere die Wahl beim naechsten Anmelden
+                // wieder weg, ohne dass jemand weiss, warum.
+                window.webrtcApp.notify.error(
+                    window.webrtcApp.t('konto.farbprofil.fehler_netz'));
+            });
+        });
+    },
+
+    /**
+     * Setzt die Markierung auf den Punkt, dessen Profil gerade gilt.
+     *
+     * Gelesen wird das Attribut am <html>-Element - dieselbe Quelle, aus der
+     * auch die Farben kommen. Eine eigene Merkvariable waere eine zweite
+     * Wahrheit neben der einen, die ohnehin dasteht.
+     *
+     * @param {HTMLElement} bereich
+     */
+    markiere(bereich) {
+        const gilt = document.documentElement.getAttribute('data-theme');
+
+        bereich.querySelectorAll('[data-theme-value]').forEach(knopf => {
+            const an = knopf.getAttribute('data-theme-value') === gilt;
+            knopf.classList.toggle('app-theme-dot--on', an);
+            knopf.setAttribute('aria-pressed', an ? 'true' : 'false');
+        });
+    },
+
+    /**
      * Dreht Anzeige und Auswahl auf den zuletzt bestaetigten Stand zurueck.
      *
      * @param {HTMLElement} bereich
@@ -117,4 +189,5 @@ window.webrtcApp.themeSwitch = {
 
 $(document).ready(function () {
     window.webrtcApp.themeSwitch.init();
+    window.webrtcApp.themeSwitch.initMini();
 });
