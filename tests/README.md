@@ -424,7 +424,7 @@ wirklich aus; eine, die nur mitzählt, würde die Gefahr gar nicht erst
 herstellen. Geprüft wird, dass genau **einmal** abgeschickt wird, dass die
 Marke danach wieder weg ist und dass der nächste Versuch wieder fragt.
 
-## Was `server_test.php` prüft (410 Prüfungen)
+## Was `server_test.php` prüft (412 Prüfungen)
 
 1. **STUN-Fallback** — die Vorgabeliste greift ohne `STUN_SERVERS`; ein eigener
    Server ist über die ENV-Variable ohne Codeänderung eintragbar; ungültige
@@ -1782,6 +1782,35 @@ liest und den niemand dokumentiert, ist ein Schalter, den niemand findet.
   aus der Anfrage und wird zerlegt statt übernommen: `act` und eine numerische
   `id`, sonst nichts. Geprüft gegen eine fremde Adresse, eine schemalose
   (`//boese.example/`), einen Zeilenumbruch im Wert und den Umschalter selbst.
+
+### Die Landingpage und ihre Offline-Fassung
+
+Zwei Prüfungen, beide über eine **Verabredung** und nicht über ein Ergebnis —
+für das Ergebnis bräuchte es einen Browser, und den haben diese Skripte nicht.
+
+* **Die Landingpage trägt ihre eigene Leiste.** Das Layout enthält *keine*
+  Kopfleiste mehr (sie gehört in ihre Vorlage), und `ViewHelper` kennt beide:
+  `topbar.html` und `topbar_slim.html`. Die volle Leiste trägt `###USER###`,
+  `###REQUESTS###`, `###CHATS###` und `###AVAILABILITY###`, die schlanke
+  **keines davon** und auch keinen der beiden Standortknöpfe — dafür
+  `###BRAND###`, `###LANGSWITCH_TOP###` und `###THEMESWITCH###`.
+  Der Sprachumschalter steht auf jeder Seite **genau einmal**: unten in der
+  Fußzeile oder oben in der schlanken Leiste. Deshalb zwei Platzhalternamen —
+  mit einem einzigen ließe sich der eine nicht füllen und der andere leeren,
+  weil `str_replace` jedes Vorkommen trifft. Und er hängt in der Leiste
+  **nicht** an der Anmeldung: Auf einer Werbeseite ist die Sprachwahl das
+  Erste, was jemand braucht. Geprüft wird das an der Verzweigung selbst.
+  Dazu: `kopf.registrieren` steht in beiden Katalogen, und in `ViewHelper`
+  steht kein deutsches „Registrieren" mehr — bis zur Landingpage stand es dort
+  als Literal und damit auch auf jeder englischen Seite.
+
+* **Die Offline-Fassung wird erzeugt und nicht gepflegt.** `tools/landing_offline.js`
+  friert die laufende Seite zu einer Datei ein. Geprüft wird die Verabredung
+  zwischen Werkzeug und Seite: `assets/css/landing.css` kennt `--lp-delay`, das
+  Werkzeug setzt es je Nadel, es holt die Seite über `act=landing` und kennt die
+  Kartenfläche `lp-hero__map`. Fällt die Variable aus dem Stylesheet, stehen in
+  der Offline-Fassung **alle hundert Nadeln auf einmal** da — und niemand merkt
+  es, bis jemand die Datei öffnet.
 
 ### Keine neuen deutschen Literale im Code
 

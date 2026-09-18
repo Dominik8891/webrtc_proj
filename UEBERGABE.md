@@ -6,7 +6,8 @@ Dieses Dokument ersetzt keine der vorhandenen Beschreibungen — es ordnet sie
 ein und sagt, was davon heute noch gilt. Es ist bewusst ehrlich: Wo der Zustand
 schwach ist, steht das hier, und nicht nur das, was fertig ist.
 
-**Stand:** 2026-09-18 · Branch `claude/tender-gauss-fxhrl2` · Commit `c5dea46`
+**Stand:** 2026-09-18 · Branch `claude/tender-gauss-fxhrl2` · Commit `58bf912`
+(einschließlich der Landingpage, der Pflichtseiten und `App\Helper\Brand` aus `main`)
 
 ---
 
@@ -75,6 +76,12 @@ geben — sie hängt am Offer, das der Server stempelt
 
 ### Wie eine Führung abläuft
 
+0. **Davor liegt die Landingpage** (`index.php?act=landing`). Sie erklärt, was
+   das hier ist, und sie ist **nicht** die Startseite: `home` zeigt den
+   *Bestand* — die Karte mit den wirklich angebotenen Standorten —, `landing`
+   das *Angebot*. Eine erfundene Nadel wäre auf der Startseite eine
+   Falschauskunft und ist auf der Landingpage das Bild zu einem Satz. Sie trägt
+   eine eigene, schlanke Kopfleiste (`topbar_slim.html`) ohne jede Bedienung.
 1. **Der Kunde findet einen Standort** — über die Karte oder die Liste auf der
    Startseite. Jeder Standort hat eine eigene, teilbare Seite mit Bildern,
    Titel, Beschreibung, Dauer, Sprachen, üblichen Zeiten samt Zeitzone des Ortes
@@ -144,17 +151,25 @@ config/                Konfiguration. Jede Datei ist die EINE Stelle für ihr Th
 class/Controller/      17 Controller. Nehmen die Anfrage entgegen, prüfen fachlich,
                        rufen das Model, geben Text oder JSON aus.
 class/Model/           16 Models. Datenbankzugriff, ausschließlich Prepared Statements.
-class/Helper/          22 Helper. Auth, Permission, I18n, Views, Bildablage, …
+class/Helper/          23 Helper. Auth, Permission, I18n, Brand, Views, Bildablage, …
 
-assets/js/             28 Dateien Client-Logik
-assets/html/           32 Templates mit ###MARKE###-Platzhaltern
-assets/css/            10 Stylesheets
+assets/js/             29 Dateien Client-Logik
+assets/html/           36 Templates mit ###MARKE###-Platzhaltern. Darunter die
+                       Landingpage (landing.html), die Pflichtseiten
+                       (legal.html) und ZWEI Kopfleisten: topbar.html traegt
+                       die Bedienung, topbar_slim.html nur Marke, Sprache
+                       und Farbprofil.
+assets/css/            11 Stylesheets
 assets/img/, audio/    Symbole und die Richtungstöne
 
 lang/de.php, en.php    Die beiden Sprachkataloge (flache Schlüssel-Wert-Listen)
 
 migrations/            22 nummerierte SQL-Migrationen, idempotent
 database.sql           Vollständiges Schema für eine NEUE Installation
+tools/                 Werkzeuge, die NICHT im Betrieb laufen: die Landingpage
+                       als eine verschickbare Datei einfrieren, ihre Aufnahmen
+                       erzeugen, Beispieldaten saeen.
+
 cron/                  check_online_status.php — Pflicht im Betrieb
 deploy/                backup.sh, logrotate-Konfiguration
 tests/                 Zwei Prüfskripte ohne Framework, ohne DB, ohne Netz
@@ -169,6 +184,7 @@ tests/                 Zwei Prüfskripte ohne Framework, ohne DB, ohne Netz
 | `App\Helper\Role` | Normalisiert Rollenwerte (aus der DB kommt je nach PDO `'2'` oder `2`). |
 | `App\Helper\MailGate` | Die beiden E-Mail-Schalter und die Liste der Routen, die eine bestätigte Adresse voraussetzen. |
 | `App\Helper\Env` | Die eine Stelle, an der ein Konfigurationswert aus der Umgebung kommt — `$_SERVER`, dann `$_ENV`, dann `getenv()`. |
+| `App\Helper\Brand` | Der Produktname, an genau einer Stelle. Heute ein erkennbarer Platzhalter — siehe Abschnitt 6.1. |
 | `App\Helper\I18n` | Sprache der Antwort: Konto → Cookie → `Accept-Language` → `en`. Liefert den Katalog auch ins JavaScript. |
 | `App\Helper\Https` / `SecurityHeaders` | HTTPS-Weiterleitung, HSTS, CSP und die übrigen Sicherheitskopfzeilen. |
 | `App\Helper\ImageStore` | Prüft, verkleinert, speichert und liefert Bilder aus. |
@@ -336,7 +352,7 @@ chmod 750 /var/lib/webrtc/uploads
 * * * * * /usr/bin/php /var/www/webrtc_proj/cron/check_online_status.php
 
 # 7. Prüfen, dass alles läuft
-php  tests/server_test.php     # erwartet: "410 Pruefungen bestanden."
+php  tests/server_test.php     # erwartet: "412 Pruefungen bestanden."
 node tests/client_test.js      # erwartet: "188 Pruefungen bestanden."
 ```
 
@@ -498,10 +514,13 @@ nicht an; ein sauberer Arbeitsbaum ist kein Beleg. Bei neuen Dateien gehört
 * **Sprachfundament.** Zwei Kataloge, Auflösungsreihenfolge Konto → Cookie →
   `Accept-Language` → `en`, derselbe Katalog im Browser. Die Kataloge und
   Formate sind umgezogen.
+* **Die öffentliche Seite**: eine Landingpage mit echten Aufnahmen aus der
+  laufenden Anwendung, zwei Kopfleisten (mit und ohne Bedienung), der
+  Produktname an genau einer Stelle und die drei Pflichtseiten als Gerüst.
 * **Betriebswerkzeug**: Backup-Skript, logrotate-Konfiguration, Cronjob, die
   Bremse gegen Missbrauch (Tabelle `rate_limit`), Sicherheitskopfzeilen,
   HTTPS-Erzwingung, `.env.example` mit 26 dokumentierten Schlüsseln.
-* **598 Prüfungen**, die alle durchlaufen (410 Server, 188 Client), ohne
+* **600 Prüfungen**, die alle durchlaufen (412 Server, 188 Client), ohne
   Framework und ohne Datenbank.
 
 ### Nicht erledigt
@@ -524,15 +543,16 @@ nicht an; ein sauberer Arbeitsbaum ist kein Beleg. Bei neuen Dateien gehört
   PHPStan, kein ESLint. Die Tests laufen nur, wenn jemand sie aufruft.
 * **Keine Deployment-Beschreibung.** Kein Dockerfile, keine Webserver-Konfiguration
   außer der `.htaccess` — und die wirkt nur unter Apache.
-* **Impressum und Datenschutzerklärung fehlen** — die Links im Seitenfuß zeigen
-  auf `#`.
+* **Impressum, Datenschutzerklärung und Kontakt sind leer.** Die Seiten gibt
+  es seit Kurzem, und sie sagen selbst, dass der Text fehlt — das ist besser
+  als der Verweis auf `#` davor, aber rechtlich dasselbe Loch.
 
 ### Die vorhandenen Berichte — und welcher noch aktuell ist
 
 | Datei | Umfang | Einschätzung |
 |---|---|---|
 | **`README.md`** | 163 KB | **Aktuell und die maßgebliche Beschreibung.** Sie wird mit jeder Änderung mitgezogen und erklärt nicht nur *was*, sondern *warum*. Wer das Produkt verstehen will, liest sie. |
-| **`tests/README.md`** | 114 KB | **Aktuell.** Beschreibt jede einzelne der 598 Prüfungen und — wichtiger — *warum* es sie gibt. Der Abschnitt „Grenzen" am Ende ist die ehrlichste Seite des Projekts: Er sagt, was ein grüner Lauf **nicht** beweist. |
+| **`tests/README.md`** | 114 KB | **Aktuell.** Beschreibt jede einzelne der 600 Prüfungen und — wichtiger — *warum* es sie gibt. Der Abschnitt „Grenzen" am Ende ist die ehrlichste Seite des Projekts: Er sagt, was ein grüner Lauf **nicht** beweist. |
 | **`PROTOKOLL.md`** | 30 KB | **Aktuell** für Version 2 des Steuerprotokolls. Verbindlich für jeden Client. Wird zusammen mit `assets/js/protocol.js` geändert. Siehe Abschnitt 7. |
 | **`BERICHT_STANDORTSUCHE.md`** | 18 KB | **Weitgehend abgearbeitet, als Fehlerbericht überholt** — ein Hinweis dazu steht seit Kurzem in seinem Kopf. Die Ursachen (fehlende Spalte `country.iso2`, fehlende Stammdaten) sind durch die Migrationen `003`/`004` behoben; die offenen Punkte 5.2 und 5.3 (fehlende Fehlerbehandlung, ungeprüfter select2-Aufruf) sind in `map.js` inzwischen adressiert. Lesenswert bleibt **Abschnitt 4** — die Geschichte der Migrationen, die nie im Repository lagen. Das ist die Lehre, nicht der Befund. |
 | **`BESTANDSAUFNAHME.md`** | 98 KB | **Der Stand vom 2026-09-01 und in weiten Teilen überholt** — ein Hinweis dazu steht seit Kurzem in seinem Kopf. Das ist keine Kritik an dem Dokument — es ist die Bestandsaufnahme, aus der die Arbeit danach hervorging. Konkret: Die Abschnitte 1–9 beschreiben einen Code, den es so nicht mehr gibt (Rollenmodell mit Admin=0, ein einziger DataChannel, keine Rollen im Call, fehlender `MessageController`). Von Abschnitt 10 sind Priorität 1 und 3 abgearbeitet, Priorität 5 überwiegend. **Offen aus dieser Liste sind: 2.4 (CSRF), 2.5 (Krypto), 2.7 (SRI) und 3.1 (WebSocket-Signaling).** Der Anhang „Positiv hervorzuheben" gilt weiterhin. |
@@ -682,7 +702,7 @@ Ein Test prüft, dass die CSP jede Adresse enthält, die im Code vorkommt.
 **Er prüft nicht, ob Chrome damit eine WebRTC-Verbindung zustande bringt.** Das
 bleibt Handarbeit.
 
-### 5.7 Impressum und Datenschutzerklärung
+### 5.7 Impressum, Datenschutz und Kontakt — der Text
 
 **Warum.** In Deutschland und der EU rechtlich verpflichtend, sobald die Seite
 öffentlich erreichbar ist. Die Anwendung verarbeitet dabei nicht wenig:
@@ -690,18 +710,25 @@ Standortkoordinaten, Bilder, Chatverläufe, Bewertungen, Live-Video von einem
 öffentlichen Ort, und sie bindet Dritte ein (Metered, Nominatim,
 Kartenkacheln, mehrere CDNs).
 
-**Wo der Schalter sitzt.**
+**Das Gerüst steht seit Kurzem.** Drei Routen, eine Vorlage, ein Hinweis, der
+sagt, woran der Besucher ist:
 
-* `assets/html/index.html:227-228` — die beiden Links im Seitenfuß. Sie zeigen
-  heute auf `href="#"`.
-* `lang/de.php:1018-1019` und `lang/en.php:804-805` — die Beschriftungen
-  (`fuss.impressum`, `fuss.datenschutz`) sind vorhanden.
+* `config/routes.php` — `imprint`, `privacy`, `contact`, alle drei mit dem
+  Recht `system.home`: Ein Impressum, das nur Angemeldete lesen dürfen, wäre
+  keines.
+* `class/Controller/SystemController.php` — `legalPage()` und die drei
+  Methoden daneben. **Die Überschrift kommt aus der Routentabelle und nicht
+  aus der Anfrage** — sonst schriebe der Aufrufer sie.
+* `assets/html/legal.html` — eine Vorlage für alle drei. Sie tragen heute
+  einen sichtbaren, absichtlich nicht dezenten Hinweis: *Ein leeres Impressum
+  ist in Deutschland kein Schönheitsfehler, sondern abmahnfähig.*
+* `lang/de.php` / `lang/en.php` — `fuss.impressum`, `fuss.datenschutz`,
+  `fuss.kontakt`.
 
-**Was zu tun ist.** Zwei Routen in `config/routes.php` mit einem öffentlichen
-Recht, zwei Templates, zwei Controllermethoden — technisch eine halbe Stunde.
-Der Inhalt ist das Eigentliche, und der ist keine Entwicklerentscheidung.
-
----
+**Was fehlt, ist der Inhalt**, und der ist keine Entwicklerentscheidung. Er
+gehört in `legal.html` beziehungsweise in je eine eigene Vorlage, sobald die
+drei Seiten sich unterscheiden — heute unterscheiden sie sich in genau einem
+Wort.
 
 ## 6. Offene Produktentscheidungen
 
@@ -709,19 +736,30 @@ Diese drei löst kein Code. Sie brauchen jemanden, der sie entscheidet.
 
 ### 6.1 Der Produktname
 
-Es gibt keinen. Der Browser-Tab sagt `WebRTC-App`
-(`assets/html/index.html:6`), das Verzeichnis heißt `webrtc_proj`, die README
-heißt „WebRTC Remote-Guidance & Location Platform" — das ist eine Beschreibung,
-kein Name.
+**Der Name steht nicht fest — die Stelle, an der er stehen wird, inzwischen
+schon.** `class/Helper/Brand.php` ist seit Kurzem die eine Stelle:
 
-Daran hängt mehr als ein `<title>`: die Domain, die Absenderadresse der Mails,
-der Text der Guide-Bedingungen, das Impressum, der Name im App-Store, falls die
-mobile App kommt. **Je später, desto teurer** — ein Name, der erst nach den
-ersten Nutzern kommt, muss durch alle Kataloge, alle Mails und alle Verträge.
+```php
+public const NAME = 'PRODUKTNAME';   // erscheint in Kopfleiste, Fusszeile,
+                                     // <title> und auf der Landingpage
+public const MARK = 'P';             // das Zeichen im farbigen Kaestchen
+```
 
-Technisch vorbereitet ist das **nicht**: Es gibt keinen Schlüssel `app.name` im
-Katalog und keine Umgebungsvariable dafür. Wer den Namen einführt, legt
-sinnvollerweise beides an, bevor er ihn an dreißig Stellen einträgt.
+Der Platzhalter ist **mit Absicht hässlich**: Ein hübscher Arbeitstitel bleibt
+stehen, weil er niemandem auffällt. Wer `PRODUKTNAME` im Browser-Tab sieht,
+weiß, dass hier eine Entscheidung offen ist. Der Wert steht bewusst weder im
+Sprachkatalog (ein Produktname hat keine Übersetzung) noch in der `.env` (er
+gehört zum Produkt, nicht zu dieser Installation).
+
+**Zu entscheiden bleibt der Name selbst.** Daran hängt mehr als ein `<title>`:
+die Domain, die Absenderadresse der Mails, der Text der Guide-Bedingungen, das
+Impressum, der Name im App-Store, falls die mobile App kommt. **Je später,
+desto teurer** — ein Name, der erst nach den ersten Nutzern kommt, muss durch
+alle Verträge, auch wenn er im Code nur noch eine Zeile ist.
+
+Das Verzeichnis heißt weiterhin `webrtc_proj` und die README „WebRTC
+Remote-Guidance & Location Platform" — beides sind Beschreibungen, keine Namen,
+und beide zieht `Brand::NAME` nicht mit.
 
 ### 6.2 Bezahlung
 
@@ -838,7 +876,7 @@ Tabelle**. Beide werden zusammen geändert. Für eine Portierung nach Kotlin ode
 Swift ist das die Vorlage; abschreiben kann man sie nicht, aber die Struktur
 steht.
 
-Außerdem brauchbar: **33 der 62 Routen antworten bereits mit JSON** —
+Außerdem brauchbar: **33 der 66 Routen antworten bereits mit JSON** —
 `get_map_locations`, `get_locations`, `get_requests`, `request_create`,
 `request_accept`, `chat_get_messages`, `getSignal`, `get_turn_credentials`,
 `heartbeat` und weitere. Der Fachablauf ist über diese Endpunkte erreichbar,
@@ -978,7 +1016,7 @@ ein einzelner Aufruf, der durchläuft oder mit Exit-Code 1 abbricht. Geprüft wi
 der **produktive Code**, nicht eine Nachbildung davon.
 
 ```bash
-php  tests/server_test.php    # 410 Prüfungen
+php  tests/server_test.php    # 412 Prüfungen
 node tests/client_test.js     # 188 Prüfungen
 ```
 
